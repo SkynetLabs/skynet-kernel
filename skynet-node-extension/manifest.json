@@ -1,0 +1,52 @@
+{
+  "description": "Turns your browser into a full Skynet node",
+  "manifest_version": 2,
+  "name": "skynet-node",
+  "version": "0.1",
+  "homepage_url": "https://node.siasky.net/",
+  "icons": {
+    "48": "icon.png",
+    "96": "icon@2x.png"
+  },
+
+  // Any page can gain access to Skynet by opening an iframe to
+  // node.siasky.net, and we want the user to be confident that
+  // all applications which are using Skynet in the browser are
+  // trustlessly enabled, regardless of which url opened the
+  // iframe. Therefore, the <all_urls> option is needed.
+  "permissions": [
+    "webRequest", "webRequestBlocking", "<all_urls>"
+  ],
+
+  // The background-verify script will block all requests to
+  // node.siasky.net and home.siasky.net, so that they can be
+  // replaced by the correct pages using the content scripts.
+  // This ensures that the user gets the javascript they are
+  // expecting, even if siasky.net has gone rogue and started
+  // serving malicious files.
+  "background": {
+    "scripts": ["background-verify.js"]
+  },
+
+  "content_scripts": [
+	  // These content scripts perfectly match the pages
+	  // that are already being served by siasky.net,
+	  // we only inject them in the browser extension to
+	  // protect the user against siasky.net going rogue.
+	  {
+		  "matches": ["https://home.siasky.net/"],
+		  "js": ["content-home.js"],
+		  "all_frames": true
+	  },
+	  {
+		  "matches": ["https://node.siasky.net/"],
+		  "js": ["content-node.js"],
+		  "all_frames": true
+	  },
+	  {
+		  "matches": ["https://node.siasky.net/auth.html"],
+		  "js": ["content-node-auth.js"],
+		  "all_frames": true
+	  }
+  ]
+}
