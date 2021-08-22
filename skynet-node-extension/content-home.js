@@ -10,7 +10,6 @@ var checkHomeMessageRestrictions = function(event) {
 		console.log("Rejecting postmessage request from ", event.origin);
 		return true;
 	}
-	console.log("Accepting postmessage request from ", event.origin);
 }
 
 // handleMessage is a function which handles the intial handshake with the

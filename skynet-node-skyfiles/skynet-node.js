@@ -14,8 +14,6 @@
 // to establish some controls around that but I have no idea what sort
 // of controls would make sense.
 
-// TODO: Need to build some sort of framework for error handling.
-
 // TODO: Need to build some sort of framework for logging out.
 
 // Send a message to the parent window indicating that the node has loaded.
