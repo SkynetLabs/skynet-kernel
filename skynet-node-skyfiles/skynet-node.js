@@ -22,3 +22,36 @@
 console.log("Skynet Node: skynet node has loaded");
 const loadedMessage = {method: "skynetNodeLoaded"};
 window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
+
+// Overwrite the handleMessage function that gets called at the end of the
+// event handler, allowing us to support custom messages.
+handleMessage = function(event) {
+	// Establish a handler that will serve user's homescreen to the caller.
+	if (event.data.method === "skynetNodeRequestHomescreen") {
+		// TODO: Instead of using hardcoded skylinks, derive some
+		// registry locations from the user's seed, verify the
+		// downloads, and then use those.
+		//
+		// TODO: We can/should probably start fetching these as soon as
+		// the node starts up, instead of waiting until the first
+		// request.
+		//
+		// TODO: We should save the user's homescreen files to local
+		// storage and load them from local storage for a performance
+		// boost. After loading them locally and serving them to the
+		// caller, we can check if there was an update.
+		const homescreenJSurl = "https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/";
+		const homescreenHTMLurl = "https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/";
+		var jsResp = fetch(homescreenJSurl).then(response => response.text());
+		var htmlResp = fetch(homescreenHTMLurl).then(response => response.text());
+		Promise.all([jsResp, htmlResp]).then((values) => {
+			var homescreenResponse = {
+				method: "skynetNodeReceiveHomescreen",
+				script: values[0],
+				html: values[1]
+			};
+			event.source.postMessage(homescreenResponse, "*");
+		});
+		return;
+	}
+}

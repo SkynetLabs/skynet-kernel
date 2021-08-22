@@ -38,9 +38,11 @@ var loadSkynetNode = function() {
 
 	// Load the rest of the script from Skynet.
 	// 
-	// TODO: Instead of loading a hardcoded skylink, fetch the data from the user's
-	// Skynet account.
-	const skynetNodeURL = "https://siasky.net/AACxyGNJUv3OUU5_LvfJla_kq7CzSqgXDJZAyc_dLSZUBQ/";
+	// TODO: Instead of loading a hardcoded skylink, fetch the data from
+	// the user's Skynet account. If there is no data in the user's Skynet
+	// account, fall back to a hardcoded skylink, but verify the download
+	// first and check for a matching hash.
+	const skynetNodeURL = "https://siasky.net/AAAS-xEE9BbD1Cf9YrxP8VGJz2G2_1m5_g10StBO0S-G5Q/";
 	fetch(skynetNodeURL)
 		.then(response => response.text())
 		.then(text => eval(text));
@@ -49,6 +51,13 @@ var loadSkynetNode = function() {
 	// process from happening multiple times.
 	nodeLoaded = true;
 	window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
+}
+
+// handleMessage is called by the message event listener when a new message
+// comes in. This function is intended to be overwritten by the kernel that we
+// fetch from the user's Skynet account.
+var handleMessage = function(event) {
+	return;
 }
 
 // Establish the event listener for the node. There are several default
@@ -84,38 +93,9 @@ window.addEventListener("message", (event) => {
 		return;
 	}
 
-	// Establish a handler that will serve user's homescreen to the caller.
-	// 
-	// TODO: Move this handler out of the bootloader (this file) and into
-	// the kernel itself that gets loaded from the user's storage. This
-	// method shouldn't be called until authentication is complete anyway.
-	if (event.data.method === "skynetNodeRequestHomescreen") {
-		// TODO: Instead of using hardcoded skylinks, derive some
-		// registry locations from the user's seed, verify the
-		// downloads, and then use those.
-		// 
-		// TODO: We can/should probably start fetching these as soon as
-		// the node starts up, instead of waiting until the first
-		// request.
-		//
-		// TODO: We should save the user's homescreen files to local
-		// storage and load them from local storage for a performance
-		// boost. After loading them locally and serving them to the
-		// caller, we can check if there was an update.
-		const homescreenJSurl = "https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/";
-		const homescreenHTMLurl = "https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/";
-		var jsResp = fetch(homescreenJSurl).then(response => response.text());
-		var htmlResp = fetch(homescreenHTMLurl).then(response => response.text());
-		Promise.all([jsResp, htmlResp]).then((values) => {
-			var homescreenResponse = {
-				method: "skynetNodeReceiveHomescreen",
-				script: values[0],
-				html: values[1] 
-			};
-			event.source.postMessage(homescreenResponse, "*");
-		});
-		return;
-	}
+	// handleMessage will be overwritten after the kernel is loaded and can
+	// add additional API calls.
+	handleMessage(event);
 }, false);
 
 // If the user seed is in local storage, we'll load the node. If the user seed
