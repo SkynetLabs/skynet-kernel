@@ -3,7 +3,7 @@
 	<head>
 		<title>skynet-node test script</title>
 	</head>
-	<body></body>
+	<body style="background-color:#CCCCCC"></body>
 
 	<script>
 // This is a testing file used to check that functions of the kernel are still
@@ -19,21 +19,6 @@ node.style.border = "none";
 node.style.position = "absolute";
 document.body.appendChild(node);
 
-// Set up a counter that establishes how many tests are supposed to pass.
-var testsPassed = 0;
-var expectedTestsPassed = 2;
-var testsPassedDOM = document.createElement("p");
-testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
-testsPassedDOM.style.color = "red";
-document.body.appendChild(testsPassedDOM);
-function incrementTestsPassed() {
-	testsPassed++;
-	testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
-	if (testsPassed === expectedTestsPassed) {
-		testsPassedDOM.style.color = "green";
-	}
-}
-
 var errors = 0;
 var errorsDOM = document.createElement("p");
 errorsDOM.innerHTML = errors.toString() + " errors";
@@ -43,6 +28,26 @@ function incrementErrors() {
 	errors++;
 	errorsDOM.innerHTML = errors.toString() + " errors";
 	errorsDOM.style.color = "red";
+}
+
+// Set up a counter that establishes how many tests are supposed to pass.
+var testsPassed = 0;
+var expectedTestsPassed = 2;
+var testsPassedDOM = document.createElement("p");
+testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
+testsPassedDOM.style.color = "blue";
+document.body.appendChild(testsPassedDOM);
+function incrementTestsPassed() {
+	testsPassed++;
+	testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
+	if (testsPassed === expectedTestsPassed) {
+		testsPassedDOM.style.color = "green";
+	}
+	if (testsPassed >  expectedTestsPassed) {
+		testsPassedDOM.style.color = "red";
+		incrementErrors();
+	}
+
 }
 
 // appendMessage will append a simple message to the DOM, generally used to
@@ -78,11 +83,9 @@ window.addEventListener("message", (event) => {
 			console.log("node loaded: ", performance.now());
 			appendMessage("skynet node has loaded");
 			incrementTestsPassed();
+			// Send a message to trigger the next test: basic communication.
 			node.contentWindow.postMessage({method: "skynetNodeRequestTest"}, "https://node.siasky.net");
 		} else {
-			// TODO: Our listener does seem to receive the "node
-			// loaded" message multiple times and I don't understand
-			// why.
 			appendMessage("received skynetNodeLoaded multiple times", true);
 			incrementErrors();
 		}

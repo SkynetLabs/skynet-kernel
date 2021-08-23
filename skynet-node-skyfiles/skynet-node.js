@@ -22,10 +22,6 @@
 // seed, meaning another user on the same machine who logs in afterwards has no
 // ability to see what the previous person's seed was.
 
-// Send a message to the parent window indicating that the node has loaded.
-console.log("Skynet Node: skynet node has loaded");
-window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
-
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {

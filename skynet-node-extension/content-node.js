@@ -5,12 +5,6 @@ var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
 
-// There is nothing to do if this is not running in some sort of window or
-// iframe.
-if (window.self === window.top) {
-	die();
-}
-
 // hasUserSeed is a function which checks localStorage for the user's seed.
 var hasUserSeed = function() {
 	var userSeed = window.localStorage.getItem("seed");
