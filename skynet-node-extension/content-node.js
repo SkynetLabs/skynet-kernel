@@ -21,6 +21,13 @@ var hasUserSeed = function() {
 
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
+// 
+// TODO: Figure out how to use the user's preferred portal at this point
+// instead of using siasky. We probably do that by checking localstorage. If
+// there is no list of portals specified, default to siasky.
+//
+// TODO: I have no idea how to get this to return an error, but it needs to
+// return an error if validation fails.
 var downloadV1Skylink = function(skylink) {
 	// TODO: Verify that the input is a valid V1 skylink.
 
@@ -33,12 +40,18 @@ var downloadV1Skylink = function(skylink) {
 // skynet storage. This will include loading all installed modules. A global
 // variable is used to ensure that the loading process only happens once.
 var nodeLoaded = false;
+var nodeLoading = false;
 var loadSkynetNode = function() {
 	// Check whether the node has already loaded. If so, there is nothing
 	// to do.
-	if (nodeLoaded) {
+	//
+	// TODO: I'm not sure that nodeLoading is necessary. I'm also not sure
+	// that this provides any actual safety, because there is still a
+	// window between the conditional check and the setting of the value.
+	if (nodeLoaded || nodeLoading) {
 		return;
 	}
+	nodeLoading = true;
 
 	// Load the rest of the script from Skynet.
 	// 
@@ -47,13 +60,16 @@ var loadSkynetNode = function() {
 	// account, fall back to a hardcoded default. The default can save a
 	// round trip by being the full javascript instead of being a v1
 	// skylink.
-	downloadV1Skylink("https://siasky.net/CAA0eEMJi7H0PSk2aMykO6lFaFKhHNSSOwSOprTSWpoyMA/")
-		.then(text => eval(text));
-
-	// Mark that the node has been loaded now to prevent the loading
-	// process from happening multiple times.
-	nodeLoaded = true;
-	window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
+	//
+	// TODO: If there is some sort of error, need to set nodeLoading to
+	// false and then send a 'skynetNodeAuthFailed' message or some other
+	// sort of error notification.
+	downloadV1Skylink("https://siasky.net/CABVQ6C02k-xl26tCSKwbqoiApXPmBkGJmrc7AZs8nlEmg/")
+		.then(text => {
+			eval(text);
+			nodeLoaded = true;
+			window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
+		});
 }
 
 // handleMessage is called by the message event listener when a new message

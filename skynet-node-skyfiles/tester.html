@@ -99,8 +99,19 @@ window.addEventListener("message", (event) => {
 		appendMessage("skynetNodeReceiveTest called");
 		incrementTestsPassed();
 		console.log("skynetNodeReceiveTest completed: ", performance.now());
-		// Send a message to trigger the next test: 
-		// TODO: Figure out what the next test is.
+		// Send a message to trigger the next test: using a kernel
+		// module.
+		node.contentWindow.postMessage({
+			method: "skynetNodeModuleCallV1",
+			domain: "TODO", // TODO
+			moduleMethod: "requestTest",
+			defaultHandler: "https://siasky.net/AAAnwxDB_sOJWSBymRliBsRG5j7_ovOHgA66crbt5hC-LQ/"
+		}, "https://node.siasky.net");
+	}
+
+	// Listen for the response from the 
+	if (event.data.method === "skynetNodeTestModuleReceiveTest") {
+		console.log("blah");
 	}
 }, false);
 

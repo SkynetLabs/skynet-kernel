@@ -25,6 +25,7 @@
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
+	console.log("the call was passed to the loaded handleMessage: ", event.data.method);
 	// Establish a handler that will serve user's homescreen to the caller.
 	if (event.data.method === "skynetNodeRequestHomescreen") {
 		// TODO: Instead of using hardcoded skylinks, derive some
@@ -52,42 +53,42 @@ handleMessage = function(event) {
 		return;
 	}
 
-	// This is a foreign message, validate that the foreign method conforms
-	// to all security standards.
-	if (typeof event.data.method !== "string" || event.data.method.length > 16) {
-		console.log("Skynet Node: invalid message, method must be a string and must be no more than 16 characters in length");
+	// The only other supported call is a skynetNodeModuleCallV1.
+	if (event.data.method !== "skynetNodeModuleCallV1") {
+		console.log("Received unrecognized call: ", event.data.method);
 		return;
 	}
-	// Normalize the length of the method. This prevents collisions.
-	data.method.padEnd(16);
-	// Check that the domain is valid.
-	if (typeof event.data.domain !== "string" || event.data.domain.length != 64) {
-		console.log("Skynet Node: invalid message, domain must be a string representing a pubkey");
-		return;
-	}
-	// TODO: Check that the domain is hex and that it decodes to a fuly
-	// valid pubkey.
-	if (typeof event.data.defaultHandler !== "string" || event.data.defaultHandler.length != 64) {
+	// TODO: Check that the domain decodes to a fully valid pubkey.
+
+	if (typeof event.data.defaultHandler !== "string" ) {
 		console.log("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
 		return;
 	}
-	// TODO: Check that the defaultHandler is hex that decodes to a fully
-	// valid v1 skylink.
 
 	// TODO: Check the in-memory map to see if there is an alternative
 	// handler that we use for this API endpoint.
+	var handler = event.data.defaultHandler;
 
 	// TODO: Ensure all validation is complete at this point.
 
-	// TODO: Load the user's preferred portal?
+	// Fetch the handler from skynet, verify the signature on the handler
+	// matches the domain, create a web worker with the handler, and then
+	// run the code inside of the web worker.
+	downloadV1Skylink(handler)
+		.then(response => {
+			// TODO: Pull out and verify the signature for the
+			// handler instead of pretending that no signature
+			// exists and just parsing the whole thing as js.
+			var url = URL.createObjectURL(new Blob([response]));
+			var worker = new Worker(url);
+			worker.onmessage = function(oEvent) {
+				console.log(oEvent.data);
+			};
+			worker.postMessage("abc");
 
-	// Fetch the worker javsacript from skynet.
-	//
-	// TODO: This should actually happen via calling another kernel
-	// function, right? We should just have a downloader in the core part
-	// of the kernel.
-
-	// TODO: Fetch the handler from skynet, verify the signature on the
-	// handler matches the pubkey for the domain, create a web worker using
-	// the handler, and run the code inside of the web worker.
+			// TODO: RESUME HERE - figure out how to communicate
+			// the result of the worker back to the origin. And
+			// then after that figure out how to enable the worker
+			// to call other APIs on the skynet-node.
+		});
 }
