@@ -19,6 +19,16 @@ var hasUserSeed = function() {
 	return true;
 }
 
+// downloadV1Skylink will download the raw data for a skylink and then verify
+// that the downloaded content matches the hash of the skylink.
+var downloadV1Skylink = function(skylink) {
+	// TODO: Verify that the input is a valid V1 skylink.
+
+	// TODO: Actually verify the download.
+
+	return fetch(skylink).then(response => response.text())
+}
+
 // loadSkynetNode handles loading the rest of the skynet-node from the user's
 // skynet storage. This will include loading all installed modules. A global
 // variable is used to ensure that the loading process only happens once.
@@ -34,11 +44,10 @@ var loadSkynetNode = function() {
 	// 
 	// TODO: Instead of loading a hardcoded skylink, fetch the data from
 	// the user's Skynet account. If there is no data in the user's Skynet
-	// account, fall back to a hardcoded skylink, but verify the download
-	// first and check for a matching hash.
-	const skynetNodeURL = "https://siasky.net/AAAS-xEE9BbD1Cf9YrxP8VGJz2G2_1m5_g10StBO0S-G5Q/";
-	fetch(skynetNodeURL)
-		.then(response => response.text())
+	// account, fall back to a hardcoded default. The default can save a
+	// round trip by being the full javascript instead of being a v1
+	// skylink.
+	downloadV1Skylink("https://siasky.net/CAA0eEMJi7H0PSk2aMykO6lFaFKhHNSSOwSOprTSWpoyMA/")
 		.then(text => eval(text));
 
 	// Mark that the node has been loaded now to prevent the loading

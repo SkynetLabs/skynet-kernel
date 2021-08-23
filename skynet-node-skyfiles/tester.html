@@ -76,6 +76,8 @@ window.addEventListener("message", (event) => {
 	// Log every message that comes in.
 	console.log("Received message: " + event.data.method, " :: ", performance.now());
 
+	// TODO:
+
 	// Listen for the skynetNodeLoaded message.
 	if (event.data.method === "skynetNodeLoaded") {
 		if (!nodeLoaded) {
@@ -97,6 +99,8 @@ window.addEventListener("message", (event) => {
 		appendMessage("skynetNodeReceiveTest called");
 		incrementTestsPassed();
 		console.log("skynetNodeReceiveTest completed: ", performance.now());
+		// Send a message to trigger the next test: 
+		// TODO: Figure out what the next test is.
 	}
 }, false);
 

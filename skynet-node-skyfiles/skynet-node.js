@@ -39,10 +39,8 @@ handleMessage = function(event) {
 		// storage and load them from local storage for a performance
 		// boost. After loading them locally and serving them to the
 		// caller, we can check if there was an update.
-		const homescreenJSurl = "https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/";
-		const homescreenHTMLurl = "https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/";
-		var jsResp = fetch(homescreenJSurl).then(response => response.text());
-		var htmlResp = fetch(homescreenHTMLurl).then(response => response.text());
+		var jsResp = downloadV1Skylink("https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/");
+		var htmlResp = downloadV1Skylink("https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/");
 		Promise.all([jsResp, htmlResp]).then((values) => {
 			var homescreenResponse = {
 				method: "skynetNodeReceiveHomescreen",
@@ -78,6 +76,16 @@ handleMessage = function(event) {
 
 	// TODO: Check the in-memory map to see if there is an alternative
 	// handler that we use for this API endpoint.
+
+	// TODO: Ensure all validation is complete at this point.
+
+	// TODO: Load the user's preferred portal?
+
+	// Fetch the worker javsacript from skynet.
+	//
+	// TODO: This should actually happen via calling another kernel
+	// function, right? We should just have a downloader in the core part
+	// of the kernel.
 
 	// TODO: Fetch the handler from skynet, verify the signature on the
 	// handler matches the pubkey for the domain, create a web worker using
