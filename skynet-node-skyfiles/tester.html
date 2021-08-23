@@ -1,0 +1,102 @@
+<html>
+	<meta charset="UTF-8">
+	<head>
+		<title>skynet-node test script</title>
+	</head>
+	<body></body>
+
+	<script>
+// This is a testing file used to check that functions of the kernel are still
+// working. It operates as a skapp and calls out to pieces of the kernel or
+// pieces of kernel modules that are being adjusted.
+
+// Open an iframe to the node.
+var node = document.createElement("iframe");
+node.src = "https://node.siasky.net";
+node.style.width = "0";
+node.style.height = "0";
+node.style.border = "none";
+node.style.position = "absolute";
+document.body.appendChild(node);
+
+// Set up a counter that establishes how many tests are supposed to pass.
+var testsPassed = 0;
+var expectedTestsPassed = 2;
+var testsPassedDOM = document.createElement("p");
+testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString();
+testsPassedDOM.style.color = "red";
+document.body.appendChild(testsPassedDOM);
+function incrementTestsPassed() {
+	testsPassed++;
+	testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString();
+	if (testsPassed === expectedTestsPassed) {
+		testsPassedDOM.style.color = "green";
+	}
+}
+
+var errors = 0;
+var errorsDOM = document.createElement("p");
+errorsDOM.innerHTML = errors.toString();
+errorsDOM.style.color = "green";
+document.body.appendChild(errorsDOM);
+function incrementErrors() {
+	errors++;
+	errorsDOM.innerHTML = errors.toString();
+	errorsDOM.style.color = "red";
+}
+
+// appendMessage will append a simple message to the DOM, generally used to
+// output the result of a test.
+//
+//  The error is optional, if set the message will be printed in red.
+function appendMessage(message, error) {
+	var p = document.createElement("p");
+	p.innerHTML = message;
+
+	if (error !== undefined) {
+		p.style.color = "red";
+	}
+	document.body.appendChild(p);
+}
+
+// Create a listener that will receive messages and help conduct tests.
+var nodeLoaded = false
+window.addEventListener("message", (event) => {
+	// Only receive messages from node.siasky.net.
+	if (event.origin !== "https://node.siasky.net") {
+		console.log("Rejecting postmessage request from ", event.origin);
+		appendMessage("Got an unexpected message: " + event.origin);
+		return;
+	}
+	// Log every message that comes in.
+	console.log("Received message: " + event.data.method, " :: ", performance.now());
+
+	// Listen for the skynetNodeLoaded message.
+	if (event.data.method === "skynetNodeLoaded") {
+		if (!nodeLoaded) {
+			nodeLoaded = true;
+			console.log("node loaded: ", performance.now());
+			appendMessage("skynet node has loaded");
+			incrementTestsPassed();
+			node.contentWindow.postMessage({method: "skynetNodeRequestTest"}, "https://node.siasky.net");
+		} else {
+			// TODO: Our listener does seem to receive the "node
+			// loaded" message multiple times and I don't understand
+			// why.
+			appendMessage("received skynetNodeLoaded multiple times", true);
+			incrementErrors();
+		}
+		return;
+	}
+
+	// Listen for the response from the test message.
+	if (event.data.method === "skynetNodeReceiveTest") {
+		appendMessage("skynetNodeReceiveTest called");
+		incrementTestsPassed();
+		console.log("skynetNodeReceiveTest completed: ", performance.now());
+	}
+}, false);
+
+
+	</script>
+</html>

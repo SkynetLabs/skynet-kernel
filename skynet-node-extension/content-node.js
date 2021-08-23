@@ -89,7 +89,7 @@ window.addEventListener("message", (event) => {
 	// that round-trip communication has been correctly programmed between
 	// the node and the calling application.
 	if (event.data.method === "skynetNodeRequestTest") {
-		event.source.postMessage({method: "syknetNodeReceiveTest"}, "*");
+		event.source.postMessage({method: "skynetNodeReceiveTest"}, "*");
 		return;
 	}
 

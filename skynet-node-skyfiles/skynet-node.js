@@ -14,11 +14,16 @@
 // to establish some controls around that but I have no idea what sort
 // of controls would make sense.
 
-// TODO: Need to build some sort of framework for logging out.
+// TODO: Implement logging out. This is just going to clear the seed. All of
+// the items that get put into local storage will stay there. To protect
+// privacy if another user logs in, we should make sure that any other items
+// which get put into local storage are stored at a key namespaced to the
+// user's seed (really, the hash of their seed) and are encrypted using the
+// seed, meaning another user on the same machine who logs in afterwards has no
+// ability to see what the previous person's seed was.
 
 // Send a message to the parent window indicating that the node has loaded.
 console.log("Skynet Node: skynet node has loaded");
-const loadedMessage = {method: "skynetNodeLoaded"};
 window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
 
 // Overwrite the handleMessage function that gets called at the end of the
@@ -52,4 +57,33 @@ handleMessage = function(event) {
 		});
 		return;
 	}
+
+	// This is a foreign message, validate that the foreign method conforms
+	// to all security standards.
+	if (typeof event.data.method !== "string" || event.data.method.length > 16) {
+		console.log("Skynet Node: invalid message, method must be a string and must be no more than 16 characters in length");
+		return;
+	}
+	// Normalize the length of the method. This prevents collisions.
+	data.method.padEnd(16);
+	// Check that the domain is valid.
+	if (typeof event.data.domain !== "string" || event.data.domain.length != 64) {
+		console.log("Skynet Node: invalid message, domain must be a string representing a pubkey");
+		return;
+	}
+	// TODO: Check that the domain is hex and that it decodes to a fuly
+	// valid pubkey.
+	if (typeof event.data.defaultHandler !== "string" || event.data.defaultHandler.length != 64) {
+		console.log("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
+		return;
+	}
+	// TODO: Check that the defaultHandler is hex that decodes to a fully
+	// valid v1 skylink.
+
+	// TODO: Check the in-memory map to see if there is an alternative
+	// handler that we use for this API endpoint.
+
+	// TODO: Fetch the handler from skynet, verify the signature on the
+	// handler matches the pubkey for the domain, create a web worker using
+	// the handler, and run the code inside of the web worker.
 }
