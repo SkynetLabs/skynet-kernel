@@ -23,12 +23,12 @@ document.body.appendChild(node);
 var testsPassed = 0;
 var expectedTestsPassed = 2;
 var testsPassedDOM = document.createElement("p");
-testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString();
+testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
 testsPassedDOM.style.color = "red";
 document.body.appendChild(testsPassedDOM);
 function incrementTestsPassed() {
 	testsPassed++;
-	testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString();
+	testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
 	if (testsPassed === expectedTestsPassed) {
 		testsPassedDOM.style.color = "green";
 	}
@@ -36,12 +36,12 @@ function incrementTestsPassed() {
 
 var errors = 0;
 var errorsDOM = document.createElement("p");
-errorsDOM.innerHTML = errors.toString();
+errorsDOM.innerHTML = errors.toString() + " errors";
 errorsDOM.style.color = "green";
 document.body.appendChild(errorsDOM);
 function incrementErrors() {
 	errors++;
-	errorsDOM.innerHTML = errors.toString();
+	errorsDOM.innerHTML = errors.toString() + " errors";
 	errorsDOM.style.color = "red";
 }
 
