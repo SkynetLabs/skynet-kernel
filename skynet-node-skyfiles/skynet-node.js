@@ -22,73 +22,130 @@
 // seed, meaning another user on the same machine who logs in afterwards has no
 // ability to see what the previous person's seed was.
 
-// Overwrite the handleMessage function that gets called at the end of the
-// event handler, allowing us to support custom messages.
-handleMessage = function(event) {
-	console.log("the call was passed to the loaded handleMessage: ", event.data.method);
-	// Establish a handler that will serve user's homescreen to the caller.
-	if (event.data.method === "skynetNodeRequestHomescreen") {
-		// TODO: Instead of using hardcoded skylinks, derive some
-		// registry locations from the user's seed, verify the
-		// downloads, and then use those.
-		//
-		// TODO: We can/should probably start fetching these as soon as
-		// the node starts up, instead of waiting until the first
-		// request.
-		//
-		// TODO: We should save the user's homescreen files to local
-		// storage and load them from local storage for a performance
-		// boost. After loading them locally and serving them to the
-		// caller, we can check if there was an update.
-		var jsResp = downloadV1Skylink("https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/");
-		var htmlResp = downloadV1Skylink("https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/");
-		Promise.all([jsResp, htmlResp]).then((values) => {
-			var homescreenResponse = {
-				method: "skynetNodeReceiveHomescreen",
-				script: values[0],
-				html: values[1]
-			};
-			event.source.postMessage(homescreenResponse, "*");
-		});
-		return;
-	}
+// handleSkynetNodeModuleCallV1 handles a call to a version 1 skynet node
+// module.
+// 
+// TODO: Write documentation for using V1 skynet node module calls. Need to
+// specify the intention, limitations, and every parameter.
+//
+// TODO: What we really want is for the handlers to be versioned, and then we
+// can check for an explicit override at the user level to prefer a specific
+// version of a handler. I'm not completely sure how manage handler versioning
+// yet, if there is a newer version available we always want to use the newer
+// version, but at the same time we do not want handlers upgrading without user
+// consent. Probably the override map will specify whether upgrading is
+// allowed, and how to check for upgrades. Then we will need the handler string
+// to identify within the string the version of the handler so we can detect
+// whether a newer handler is being suggested. I guess the override entry also
+// needs to specify which pubkey is allowed to announce a new version.
+handleSkynetNodeModuleCallV1 = function(event) {
+	// TODO: Check that the domain decodes to a fully valid pubkey. The
+	// pubkey is important to ensuring that only handlers written by the
+	// original authors of the module are allowed to insert themselves as
+	// upgrades. This prevents malicious apps from supplying malicious
+	// handlers that can steal user data.
 
-	// The only other supported call is a skynetNodeModuleCallV1.
-	if (event.data.method !== "skynetNodeModuleCallV1") {
-		console.log("Received unrecognized call: ", event.data.method);
-		return;
-	}
-	// TODO: Check that the domain decodes to a fully valid pubkey.
-
-	if (typeof event.data.defaultHandler !== "string" ) {
-		console.log("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
-		return;
-	}
+	// Define the function that will create a blob from the handler code
+	// for the worker.
+	var runWorker = function(event, workerCode) {
+		var url = URL.createObjectURL(new Blob([workerCode]));
+		var worker = new Worker(url);
+		worker.onmessage = function(wEvent) {
+			event.source.postMessage({
+				method: "skynetNodeModuleResponseV1",
+				requestNonce: event.data.requestNonce,
+				domain: event.data.domain,
+				moduleMethod: event.data.moduleMethod,
+				workerResponse: wEvent.data
+			}, "*");
+			worker.terminate();
+		};
+		worker.postMessage(event.data.workerInput);
+	};
 
 	// TODO: Check the in-memory map to see if there is an alternative
 	// handler that we use for this API endpoint.
-	var handler = event.data.defaultHandler;
+	if (false) {
+		// TODO: Check whether we can grab the worker code from local
+		// storage or if we have to pull the worker code from Skynet.
+		// Once the workerCode has been retrieved, call runWorker with
+		// the worker code.
+		//
+		// Note that since we're here because there's an override for
+		// this API call, there's no need to verify that the worker
+		// code is properly signed. It may even be the case that the
+		// override intentionally replaced the original worker code
+		// with an alternate implementation, and the alternate
+		// implementor does not have the required private key. As long
+		// as the user (or distro maintainer) consented to the override
+		// (which is implied by the existence of the override), we do
+		// not care if the author had permission from the original
+		// module creator.
+	} else {
+		// Validate that the provided defaultHandler is a string.
+		if (typeof event.data.defaultHandler !== "string" ) {
+			console.log("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
+			return;
+		}
 
-	// TODO: Ensure all validation is complete at this point.
+		// Fetch the handler from skynet.
+		//
+		// TODO: If there is no default handler set, set this handler
+		// as the default handler for this API. Have some sort of
+		// versioning in place so that we can recognize if a newer
+		// handler is a higher version that we should be updating to.
+		downloadV1Skylink(event.data.defaultHandler)
+			.then(response => {
+				// TODO: Pull out and verify the signature for
+				// the handler instead of pretending that no
+				// signature exists and just parsing the whole
+				// thing as js.
+				runWorker(event, response);
+			});
+	}
+}
 
-	// Fetch the handler from skynet, verify the signature on the handler
-	// matches the domain, create a web worker with the handler, and then
-	// run the code inside of the web worker.
-	downloadV1Skylink(handler)
-		.then(response => {
-			// TODO: Pull out and verify the signature for the
-			// handler instead of pretending that no signature
-			// exists and just parsing the whole thing as js.
-			var url = URL.createObjectURL(new Blob([response]));
-			var worker = new Worker(url);
-			worker.onmessage = function(oEvent) {
-				console.log(oEvent.data);
-			};
-			worker.postMessage("abc");
+// handleSkynetNodeRequestHomescreen will fetch the user's homescreen from
+// their Skynet account and serve it to the caller.
+var handleSkynetNodeRequestHomescreen = function(event) {
+	// TODO: Instead of using hardcoded skylinks, derive some
+	// registry locations from the user's seed, verify the
+	// downloads, and then use those.
+	//
+	// TODO: We can/should probably start fetching these as soon as
+	// the node starts up, instead of waiting until the first
+	// request.
+	//
+	// TODO: We should save the user's homescreen files to local
+	// storage and load them from local storage for a performance
+	// boost. After loading them locally and serving them to the
+	// caller, we can check if there was an update.
+	var jsResp = downloadV1Skylink("https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/");
+	var htmlResp = downloadV1Skylink("https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/");
+	Promise.all([jsResp, htmlResp]).then((values) => {
+		var homescreenResponse = {
+			method: "skynetNodeReceiveHomescreen",
+			script: values[0],
+			html: values[1]
+		};
+		event.source.postMessage(homescreenResponse, "*");
+	});
+	return;
+}
 
-			// TODO: RESUME HERE - figure out how to communicate
-			// the result of the worker back to the origin. And
-			// then after that figure out how to enable the worker
-			// to call other APIs on the skynet-node.
-		});
+// Overwrite the handleMessage function that gets called at the end of the
+// event handler, allowing us to support custom messages.
+handleMessage = function(event) {
+	// Establish a handler that will manage a v1 module api call.
+	if (event.data.method === "skynetNodeModuleCallV1") {
+		handleSkynetNodeModuleCallV1(event);
+		return;
+	}
+
+	// Establish a handler that will serve user's homescreen to the caller.
+	if (event.data.method === "skynetNodeRequestHomescreen") {
+		handleSkynetNodeRequestHomescreen(event);
+	}
+
+	console.log("Received unrecognized call: ", event.data.method);
 }

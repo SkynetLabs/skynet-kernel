@@ -32,7 +32,7 @@ function incrementErrors() {
 
 // Set up a counter that establishes how many tests are supposed to pass.
 var testsPassed = 0;
-var expectedTestsPassed = 2;
+var expectedTestsPassed = 4;
 var testsPassedDOM = document.createElement("p");
 testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
 testsPassedDOM.style.color = "blue";
@@ -76,8 +76,6 @@ window.addEventListener("message", (event) => {
 	// Log every message that comes in.
 	console.log("Received message: " + event.data.method, " :: ", performance.now());
 
-	// TODO:
-
 	// Listen for the skynetNodeLoaded message.
 	if (event.data.method === "skynetNodeLoaded") {
 		if (!nodeLoaded) {
@@ -99,19 +97,45 @@ window.addEventListener("message", (event) => {
 		appendMessage("skynetNodeReceiveTest called");
 		incrementTestsPassed();
 		console.log("skynetNodeReceiveTest completed: ", performance.now());
+
 		// Send a message to trigger the next test: using a kernel
-		// module.
+		// module. We've got an api call in a tester domain using the
+		// method 'requestTest'.
+		//
+		// TODO: The default handler needs to be a portal-less skylink.
 		node.contentWindow.postMessage({
 			method: "skynetNodeModuleCallV1",
 			domain: "TODO", // TODO
 			moduleMethod: "requestTest",
-			defaultHandler: "https://siasky.net/AAAnwxDB_sOJWSBymRliBsRG5j7_ovOHgA66crbt5hC-LQ/"
+			workerInput: {testField: "test success"}, // TODO: this needs to be a generic object
+			requestNonce: 123,
+			defaultHandler: "https://siasky.net/AACnjLaCqCy0u6WbDu9RxiOAYDIymSF0amBtwLbq52Bhfg/"
 		}, "https://node.siasky.net");
 	}
 
-	// Listen for the response from the 
-	if (event.data.method === "skynetNodeTestModuleReceiveTest") {
-		console.log("blah");
+	// Listen for the response from the test module call.
+	//
+	// TODO: The conditional should be checking the domain as well.
+	if (event.data.method === "skynetNodeModuleResponseV1" && event.data.moduleMethod === "requestTest") {
+		console.log("skynetNodeModuleResponseV1 received :: ", performance.now())
+
+		// Check that the request nonces are being handled correctly.
+		if (event.data.requestNonce === 123) {
+			appendMessage("skynetNodeModuleResponseV1 requestNonce is consistent");
+			incrementTestsPassed();
+		} else {
+			console.log(event.data.requestNonce);
+			appendMessage("skynetNodeModuleResponseV1 requestNonce is inconsistent", true);
+		}
+
+		// Check that the result was received correctly.
+		if (event.data.workerResponse.result === "test success") {
+			appendMessage("skynetNodeModuleResponseV1 workerResponse is consistent");
+			incrementTestsPassed();
+		} else {
+			console.log(event.data.workerResponse);
+			appendMessage("skynetNodeModuleResponseV1 workerResponse is inconsistent", true);
+		}
 	}
 }, false);
 
