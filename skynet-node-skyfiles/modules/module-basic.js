@@ -2,17 +2,24 @@
 // that handles a single request, and also performs all necessary error
 // checking.
 
-// handleAPIRequest will handle an incoming API request.
-handleAPIRequest = function(event) {
-	if (event.data.moduleMethod !== "requestTest") {
+// handleModuleRequest will handle an incoming API request.
+handleModuleRequest = function(event) {
+	if (event.data.moduleMethod !== "requestModification") {
 		// TODO: Set up some sort of error handling framework.
+		return;
+	}
+	if (event.data.workerInput === undefined || event.data.workerInput.testField === undefined) {
+		// TODO: Error handling
 		return;
 	}
 
 	// Respond to the caller after modifying the testField.
 	postMessage({
 		kernelMethod: "moduleResponseV1",
-		response: {
+		requestNonce: event.data.requestNonce,
+		domain: event.data.domain,
+		moduleMethod: event.data.moduleMethod,
+		workerResponse: {
 			result: event.data.workerInput.testField + ".extended"
 		}
 	});
@@ -22,9 +29,9 @@ handleAPIRequest = function(event) {
 // kernel can send a few different types of messages, but the basic worker only
 // cares about new API requests. Everything else will result in an error.
 onmessage = function(event) {
-	if (event.data.kernelMethod !== "moduleAPIRequestV1") {
+	if (event.data.kernelMethod !== "moduleCallV1") {
 		// TODO: Set up some sort of error handling framework.
 		return;
 	}
-	handleAPIRequest(event);
+	handleModuleRequest(event);
 }

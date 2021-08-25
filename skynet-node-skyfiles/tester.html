@@ -32,7 +32,7 @@ function incrementErrors() {
 
 // Set up a counter that establishes how many tests are supposed to pass.
 var testsPassed = 0;
-var expectedTestsPassed = 4;
+var expectedTestsPassed = 6;
 var testsPassedDOM = document.createElement("p");
 testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
 testsPassedDOM.style.color = "blue";
@@ -100,48 +100,89 @@ window.addEventListener("message", (event) => {
 
 		// Send a message to trigger the next test: using a kernel
 		// module. We've got an api call in a tester domain using the
-		// method 'requestTest'.
+		// method 'requestModification'.
 		//
 		// TODO: The default handler needs to be a portal-less skylink.
 		node.contentWindow.postMessage({
 			kernelMethod: "moduleCallV1",
 			domain: "TODO", // TODO
-			moduleMethod: "requestTest",
+			moduleMethod: "requestModification",
 			workerInput: {
 				testField: "test success"
 			},
 			requestNonce: 123,
-			defaultHandler: "https://siasky.net/AACHv7HY66Wo9B59dLor1Ppqjoa-QStZWQ436JgyqbzHRw/"
+			defaultHandler: "https://siasky.net/AACvEziMdRPtF-lac8Z76rNAbsyGqqR_8fzX2zjSJJj9Ug/"
 		}, "https://node.siasky.net");
 	}
 
 	// Listen for the response from the test module call.
 	//
 	// TODO: The conditional should be checking the domain as well.
-	if (event.data.kernelMethod === "skynetKernelModuleResponseV1" && event.data.moduleMethod === "requestTest") {
-		console.log("skynetKernelModuleResponseV1 received :: ", performance.now())
+	if (event.data.kernelMethod === "moduleResponseV1" && event.data.moduleMethod === "requestModification") {
+		console.log("moduleResponseV1 requestModification received :: ", performance.now())
 
 		// Check that the request nonces are being handled correctly.
 		if (event.data.requestNonce === 123) {
-			appendMessage("skynetKernelModuleResponseV1 requestNonce is consistent");
+			appendMessage("moduleResponseV1 requestNonce is consistent");
 			incrementTestsPassed();
 		} else {
 			console.log(event.data.requestNonce);
-			appendMessage("skynetKernelModuleResponseV1 requestNonce is inconsistent", true);
+			appendMessage("moduleResponseV1 requestNonce is inconsistent", true);
+			incrementErrors();
 		}
 
 		// Check that the result was received correctly.
 		if (event.data.workerResponse.result === "test success.extended") {
-			appendMessage("skynetKernelModuleResponseV1 workerResponse is consistent");
+			appendMessage("moduleResponseV1 workerResponse is consistent");
 			incrementTestsPassed();
 		} else {
 			console.log(event.data.workerResponse);
-			appendMessage("skynetKernelModuleResponseV1 workerResponse is inconsistent", true);
+			appendMessage("moduleResponseV1 workerResponse is inconsistent", true);
+			incrementErrors();
 		}
 
-		// TODO: The next test is to set up the framework that will
-		// allow workers to call functions provided by the kernel
-		// and also call APIs provided by other workers.
+		// Send a message to trigger the next test: using a kernel
+		// module that uses another kernel module. We will send
+		// 'requestDoubleModification' to the basic comms module.
+		//
+		// TODO: The default handler needs to be a portal-less skylink.
+		node.contentWindow.postMessage({
+			kernelMethod: "moduleCallV1",
+			domain: "TODO", // TODO
+			moduleMethod: "requestDoubleModification",
+			workerInput: {
+				testField: "test success"
+			},
+			requestNonce: 121,
+			defaultHandler: "https://siasky.net/AABep4CIflKMvS5TyrxiSh_V41Evm8RuFufnVEcAoYBk8A/"
+		}, "https://node.siasky.net");
+	}
+
+	// Listen for the response from the test comms module call.
+	//
+	// TODO: The conditional should be checking the domain as well.
+	if (event.data.kernelMethod === "moduleResponseV1" && event.data.moduleMethod === "requestDoubleModification") {
+		console.log("moduleResponseV1 requestDoubleModification received :: ", performance.now())
+
+		// Check that the request nonces are being handled correctly.
+		if (event.data.requestNonce === 121) {
+			appendMessage("moduleResponseV1 double modification requestNonce is consistent");
+			incrementTestsPassed();
+		} else {
+			console.log(event.data.requestNonce);
+			appendMessage("moduleResponseV1 double modification requestNonce is inconsistent", true);
+			incrementErrors();
+		}
+
+		// Check that the result was received correctly.
+		if (event.data.workerResponse !== undefined && event.data.workerResponse.result === "test success.double.extended") {
+			appendMessage("moduleResponseV1 double modification workerResponse is consistent");
+			incrementTestsPassed();
+		} else {
+			console.log(event.data.workerResponse);
+			appendMessage("moduleResponseV1 double modification workerResponse is inconsistent", true);
+			incrementErrors();
+		}
 	}
 
 }, false);

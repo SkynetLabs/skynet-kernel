@@ -38,7 +38,7 @@
 // to identify within the string the version of the handler so we can detect
 // whether a newer handler is being suggested. I guess the override entry also
 // needs to specify which pubkey is allowed to announce a new version.
-handleSkynetNodeModuleCallV1 = function(event) {
+handleSkynetNodeModuleCallV1 = function(event, srcWorker) {
 	// TODO: Check that the domain decodes to a fully valid pubkey. The
 	// pubkey is important to ensuring that only handlers written by the
 	// original authors of the module are allowed to insert themselves as
@@ -48,13 +48,16 @@ handleSkynetNodeModuleCallV1 = function(event) {
 	// Define the function that will create a blob from the handler code
 	// for the worker.
 	var runWorker = function(event, workerCode) {
+		console.log("runWorker is active");
 		var url = URL.createObjectURL(new Blob([workerCode]));
 		var worker = new Worker(url);
 		worker.onmessage = function(wEvent) {
+			console.log("got worker response");
+			console.log(wEvent.data);
 			// Check if the worker is trying to make a call to
 			// another module.
 			if (wEvent.data.kernelMethod === "moduleCallV1") {
-				handleSkynetNodeModuleCallV1(event);
+				handleSkynetNodeModuleCallV1(wEvent, worker);
 				return;
 			}
 
@@ -64,12 +67,25 @@ handleSkynetNodeModuleCallV1 = function(event) {
 			// Check if the worker is responding to the original
 			// caller.
 			if (wEvent.data.kernelMethod === "moduleResponseV1") {
+				console.log("calling postmessage on event.source")
+				console.log(event);
+				console.log(event.source);
+				if (event.source === null) {
+					console.log("trying to talk back to the worker");
+					srcWorker.postMessage({
+						kernelMethod: "moduleResponseV1",
+						requestNonce: wEvent.data.requestNonce,
+						domain: wEvent.data.domain,
+						moduleMethod: wEvent.data.moduleMethod,
+						workerResponse: wEvent.data.workerResponse
+					});
+				}
 				event.source.postMessage({
-					kernelMethod: "skynetKernelModuleResponseV1",
+					kernelMethod: "moduleResponseV1",
 					requestNonce: event.data.requestNonce,
 					domain: event.data.domain,
 					moduleMethod: event.data.moduleMethod,
-					workerResponse: wEvent.data.response
+					workerResponse: wEvent.data.workerResponse
 				}, "*");
 				worker.terminate();
 				return;
@@ -101,7 +117,7 @@ handleSkynetNodeModuleCallV1 = function(event) {
 		// needs to be able to communicate using the V1 protocol since
 		// that's the only thing the user's kernel understands.
 		worker.postMessage({
-			kernelMethod: "moduleAPIRequestV1",
+			kernelMethod: "moduleCallV1",
 			moduleMethod: event.data.moduleMethod,
 			workerInput: event.data.workerInput
 		});
@@ -128,6 +144,7 @@ handleSkynetNodeModuleCallV1 = function(event) {
 	} else {
 		// Validate that the provided defaultHandler is a string.
 		if (typeof event.data.defaultHandler !== "string" ) {
+			// TODO: Error handling.
 			console.log("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
 			return;
 		}
