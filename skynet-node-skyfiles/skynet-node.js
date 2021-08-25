@@ -65,7 +65,7 @@ handleSkynetNodeModuleCallV1 = function(event) {
 			// caller.
 			if (wEvent.data.kernelMethod === "moduleResponseV1") {
 				event.source.postMessage({
-					method: "skynetKernelModuleResponseV1",
+					kernelMethod: "skynetKernelModuleResponseV1",
 					requestNonce: event.data.requestNonce,
 					domain: event.data.domain,
 					moduleMethod: event.data.moduleMethod,
@@ -168,7 +168,7 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 	var htmlResp = downloadV1Skylink("https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/");
 	Promise.all([jsResp, htmlResp]).then((values) => {
 		var homescreenResponse = {
-			method: "skynetNodeReceiveHomescreen",
+			kernelMethod: "receiveHomescreen",
 			script: values[0],
 			html: values[1]
 		};
@@ -181,15 +181,15 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
 	// Establish a handler that will manage a v1 module api call.
-	if (event.data.method === "skynetNodeModuleCallV1") {
+	if (event.data.kernelMethod === "moduleCallV1") {
 		handleSkynetNodeModuleCallV1(event);
 		return;
 	}
 
 	// Establish a handler that will serve user's homescreen to the caller.
-	if (event.data.method === "skynetNodeRequestHomescreen") {
+	if (event.data.kernelMethod === "requestHomescreen") {
 		handleSkynetNodeRequestHomescreen(event);
 	}
 
-	console.log("Received unrecognized call: ", event.data.method);
+	console.log("Received unrecognized call: ", event.data.kernelMethod);
 }

@@ -74,17 +74,17 @@ window.addEventListener("message", (event) => {
 		return;
 	}
 	// Log every message that comes in.
-	console.log("Received message: " + event.data.method, " :: ", performance.now());
+	console.log("Received message: " + event.data.kernelMethod, " :: ", performance.now());
 
 	// Listen for the skynetNodeLoaded message.
-	if (event.data.method === "skynetNodeLoaded") {
+	if (event.data.kernelMethod === "skynetNodeLoaded") {
 		if (!nodeLoaded) {
 			nodeLoaded = true;
 			console.log("node loaded: ", performance.now());
 			appendMessage("skynet node has loaded");
 			incrementTestsPassed();
 			// Send a message to trigger the next test: basic communication.
-			node.contentWindow.postMessage({method: "skynetNodeRequestTest"}, "https://node.siasky.net");
+			node.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://node.siasky.net");
 		} else {
 			appendMessage("received skynetNodeLoaded multiple times", true);
 			incrementErrors();
@@ -93,10 +93,10 @@ window.addEventListener("message", (event) => {
 	}
 
 	// Listen for the response from the test message.
-	if (event.data.method === "skynetNodeReceiveTest") {
-		appendMessage("skynetNodeReceiveTest called");
+	if (event.data.kernelMethod === "receiveTest") {
+		appendMessage("receiveTest called");
 		incrementTestsPassed();
-		console.log("skynetNodeReceiveTest completed: ", performance.now());
+		console.log("receiveTest completed: ", performance.now());
 
 		// Send a message to trigger the next test: using a kernel
 		// module. We've got an api call in a tester domain using the
@@ -104,7 +104,7 @@ window.addEventListener("message", (event) => {
 		//
 		// TODO: The default handler needs to be a portal-less skylink.
 		node.contentWindow.postMessage({
-			method: "skynetNodeModuleCallV1",
+			kernelMethod: "moduleCallV1",
 			domain: "TODO", // TODO
 			moduleMethod: "requestTest",
 			workerInput: {
@@ -118,7 +118,7 @@ window.addEventListener("message", (event) => {
 	// Listen for the response from the test module call.
 	//
 	// TODO: The conditional should be checking the domain as well.
-	if (event.data.method === "skynetKernelModuleResponseV1" && event.data.moduleMethod === "requestTest") {
+	if (event.data.kernelMethod === "skynetKernelModuleResponseV1" && event.data.moduleMethod === "requestTest") {
 		console.log("skynetKernelModuleResponseV1 received :: ", performance.now())
 
 		// Check that the request nonces are being handled correctly.

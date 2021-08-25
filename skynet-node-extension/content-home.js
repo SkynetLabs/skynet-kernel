@@ -18,7 +18,7 @@ var checkHomeMessageRestrictions = function(event) {
 var handleMessage = function(event) {
 	// Establish a handler for the skynet node failing to complete auth. If
 	// that happens, we will open a window to collect the user's seed.
-	if (event.data.method === "skynetNodeAuthFailed") {
+	if (event.data.kernelMethod === "authFailed") {
 		console.log("Homescreen: skynet node auth failed time: ", performance.now());
 
 		// Clear the html in the main div so that we can load in the
@@ -43,27 +43,27 @@ var handleMessage = function(event) {
 
 	// Establish a handler to receive an event stating that authentication
 	// has completed.
-	if (event.data.method === "skynetNodeAuthCompleted") {
+	if (event.data.kernelMethod === "authCompleted") {
 		// Send a postmessage to node.siasky.net to indicate that it
 		// should try loading again.
-		node.contentWindow.postMessage({method: "skynetNodeAuthCompleted"}, "https://node.siasky.net");
+		node.contentWindow.postMessage({kernelMethod: "authCompleted"}, "https://node.siasky.net");
 		return;
 	}
 
 	// Establish a handler to detect when the skynet node is loaded. Once
 	// the skynet node is fully loaded, we will request the user's
 	// homescreen application from the node.
-	if (event.data.method === "skynetNodeLoaded") {
+	if (event.data.kernelMethod === "skynetNodeLoaded") {
 		console.log("Homescreen: skynet node loaded time: ", performance.now());
 
 		// Send a postmessage to node.siasky.net to fetch the homepage.
-		node.contentWindow.postMessage({method: "skynetNodeRequestHomescreen"}, "https://node.siasky.net");
+		node.contentWindow.postMessage({kernelMethod: "requestHomescreen"}, "https://node.siasky.net");
 		return;
 	}
 
 	// Add a handler to support receiving the user's homescreen from the
 	// skynet node.
-	if (event.data.method === "skynetNodeReceiveHomescreen") {
+	if (event.data.kernelMethod === "receiveHomescreen") {
 		// Load the script for the homescreen.
 		// 
 		// NOTE: Some of the experienced devs reading this line of code

@@ -12,7 +12,7 @@ var authUser = function() {
 	window.localStorage.setItem("seed", userSeed.value);
 
 	// Send a postmessage back to the caller that auth was successful.
-	window.opener.postMessage({method: "skynetNodeAuthCompleted"}, "*");
+	window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
 	window.close();
 }
 

@@ -62,13 +62,13 @@ var loadSkynetNode = function() {
 	// skylink.
 	//
 	// TODO: If there is some sort of error, need to set nodeLoading to
-	// false and then send a 'skynetNodeAuthFailed' message or some other
-	// sort of error notification.
-	downloadV1Skylink("https://siasky.net/EADhCFCF3AwP6Uuq-7tlUOliASciScl_ZOmM9b4mQ7pfrg/")
+	// false and then send a 'authFailed' message or some other sort of
+	// error notification.
+	downloadV1Skylink("https://siasky.net/EADtJXDJq8a4wxumP8XUbswyfR4Gvd7MFvbPZvKI__ALNQ/")
 		.then(text => {
 			eval(text);
 			nodeLoaded = true;
-			window.parent.postMessage({method: "skynetNodeLoaded"}, "*");
+			window.parent.postMessage({kernelMethod: "skynetNodeLoaded"}, "*");
 		});
 }
 
@@ -86,12 +86,12 @@ var handleMessage = function(event) {
 window.addEventListener("message", (event) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
-	console.log("Skynet Node: message received: ", event.data.method);
+	console.log("Skynet Node: message received: ", event.data.kernelMethod);
 
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
 	if (!hasUserSeed()) {
-		window.parent.postMessage({method: "skynetNodeAuthFailed"}, "*");
+		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}
 
@@ -99,7 +99,7 @@ window.addEventListener("message", (event) => {
 	// authentication has been completed. Because we have already called
 	// hasUserSeed() earlier in the function, we know that the correct seed
 	// exists. We therefore just need to load the rest of the Skynet node.
-	if (event.data.method === "skynetNodeAuthCompleted") {
+	if (event.data.kernelMethod === "authCompleted") {
 		loadSkynetNode();
 		return;
 	}
@@ -107,8 +107,8 @@ window.addEventListener("message", (event) => {
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the node and the calling application.
-	if (event.data.method === "skynetNodeRequestTest") {
-		event.source.postMessage({method: "skynetNodeReceiveTest"}, "*");
+	if (event.data.kernelMethod === "requestTest") {
+		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
 		return;
 	}
 
@@ -123,5 +123,5 @@ window.addEventListener("message", (event) => {
 if (hasUserSeed()) {
 	loadSkynetNode();
 } else {
-	window.parent.postMessage({method: "skynetNodeAuthFailed"}, "*");
+	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 }
