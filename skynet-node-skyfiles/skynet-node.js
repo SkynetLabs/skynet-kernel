@@ -51,16 +51,60 @@ handleSkynetNodeModuleCallV1 = function(event) {
 		var url = URL.createObjectURL(new Blob([workerCode]));
 		var worker = new Worker(url);
 		worker.onmessage = function(wEvent) {
-			event.source.postMessage({
-				method: "skynetNodeModuleResponseV1",
-				requestNonce: event.data.requestNonce,
-				domain: event.data.domain,
-				moduleMethod: event.data.moduleMethod,
-				workerResponse: wEvent.data
-			}, "*");
+			// Check if the worker is trying to make a call to
+			// another module.
+			if (wEvent.data.kernelMethod === "moduleCallV1") {
+				handleSkynetNodeModuleCallV1(event);
+				return;
+			}
+
+			// TODO: Check if the worker is trying to make a core
+			// kernel call.
+
+			// Check if the worker is responding to the original
+			// caller.
+			if (wEvent.data.kernelMethod === "moduleResponseV1") {
+				event.source.postMessage({
+					method: "skynetKernelModuleResponseV1",
+					requestNonce: event.data.requestNonce,
+					domain: event.data.domain,
+					moduleMethod: event.data.moduleMethod,
+					workerResponse: wEvent.data.response
+				}, "*");
+				worker.terminate();
+				return;
+			}
+
+			// TODO: Some sort of error framework here, we
+			// shouldn't be arriving to this code block unless the
+			// request was malformed.
 			worker.terminate();
+			return;
 		};
-		worker.postMessage(event.data.workerInput);
+
+		// When sending a method to the worker, we need to clearly
+		// distinguish between a new request being sent to the worker
+		// and a response that the worker is receiving from a request
+		// by the worker. This distinction is made using the 'method'
+		// field, and must be set only by the kernel, such that the
+		// worker does not have to worry about some module pretending
+		// to be responding to a request the worker made when in fact
+		// it has made a new request.
+		// 
+		// NOTE: There are legacy modules that aren't going to be able
+		// to update or add code if the kernel method changes. If a
+		// spec for a V2 ever gets defined, the kernel needs to know in
+		// advance of sending the postmessage which versions the module
+		// knows how to handle. We version these regardless because
+		// it's entirely possible that a V2 gets defined, and user does
+		// not upgrade their kernel to V2, which means that the module
+		// needs to be able to communicate using the V1 protocol since
+		// that's the only thing the user's kernel understands.
+		worker.postMessage({
+			kernelMethod: "moduleAPIRequestV1",
+			moduleMethod: event.data.moduleMethod,
+			workerInput: event.data.workerInput
+		});
 	};
 
 	// TODO: Check the in-memory map to see if there is an alternative

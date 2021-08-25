@@ -107,36 +107,43 @@ window.addEventListener("message", (event) => {
 			method: "skynetNodeModuleCallV1",
 			domain: "TODO", // TODO
 			moduleMethod: "requestTest",
-			workerInput: {testField: "test success"}, // TODO: this needs to be a generic object
+			workerInput: {
+				testField: "test success"
+			},
 			requestNonce: 123,
-			defaultHandler: "https://siasky.net/AACnjLaCqCy0u6WbDu9RxiOAYDIymSF0amBtwLbq52Bhfg/"
+			defaultHandler: "https://siasky.net/AACHv7HY66Wo9B59dLor1Ppqjoa-QStZWQ436JgyqbzHRw/"
 		}, "https://node.siasky.net");
 	}
 
 	// Listen for the response from the test module call.
 	//
 	// TODO: The conditional should be checking the domain as well.
-	if (event.data.method === "skynetNodeModuleResponseV1" && event.data.moduleMethod === "requestTest") {
-		console.log("skynetNodeModuleResponseV1 received :: ", performance.now())
+	if (event.data.method === "skynetKernelModuleResponseV1" && event.data.moduleMethod === "requestTest") {
+		console.log("skynetKernelModuleResponseV1 received :: ", performance.now())
 
 		// Check that the request nonces are being handled correctly.
 		if (event.data.requestNonce === 123) {
-			appendMessage("skynetNodeModuleResponseV1 requestNonce is consistent");
+			appendMessage("skynetKernelModuleResponseV1 requestNonce is consistent");
 			incrementTestsPassed();
 		} else {
 			console.log(event.data.requestNonce);
-			appendMessage("skynetNodeModuleResponseV1 requestNonce is inconsistent", true);
+			appendMessage("skynetKernelModuleResponseV1 requestNonce is inconsistent", true);
 		}
 
 		// Check that the result was received correctly.
-		if (event.data.workerResponse.result === "test success") {
-			appendMessage("skynetNodeModuleResponseV1 workerResponse is consistent");
+		if (event.data.workerResponse.result === "test success.extended") {
+			appendMessage("skynetKernelModuleResponseV1 workerResponse is consistent");
 			incrementTestsPassed();
 		} else {
 			console.log(event.data.workerResponse);
-			appendMessage("skynetNodeModuleResponseV1 workerResponse is inconsistent", true);
+			appendMessage("skynetKernelModuleResponseV1 workerResponse is inconsistent", true);
 		}
+
+		// TODO: The next test is to set up the framework that will
+		// allow workers to call functions provided by the kernel
+		// and also call APIs provided by other workers.
 	}
+
 }, false);
 
 
