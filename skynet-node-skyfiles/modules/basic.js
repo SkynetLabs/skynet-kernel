@@ -30,17 +30,10 @@ handleModuleRequest = function(event) {
 	// caller. 'moduleResponseV1' is the required method when responding to
 	// a 'moduleCallV1'.
 	//
-	// We need to set the requestNonce to 'event.data.requestNonce' because
-	// the kernel may send multiple concurrent calls to the same module,
-	// and the kernel needs to know which responses are connected to which
-	// original calls. postMessage is fully async, without the nonce
-	// concurrency is not possible to achieve safely.
-	//
-	// The final value is 'moduleResponse', which is the data we actually
+	// The other value is 'moduleResponse', which is the data we actually
 	// intend to provide to the original caller.
 	postMessage({
 		kernelMethod: "moduleResponseV1",
-		requestNonce: event.data.requestNonce,
 		moduleResponse: {
 			result: event.data.moduleInput.testField + ".extended"
 		}

@@ -51,7 +51,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 			let message = {
 				domain: wEvent.data.domain,
 				kernelMethod: "moduleResponseV1",
-				requestNonce: wEvent.data.requestNonce,
+				requestNonce: rwEvent.data.requestNonce,
 				moduleResponse: wEvent.data.moduleResponse
 			}
 

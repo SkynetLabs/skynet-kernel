@@ -29,7 +29,7 @@ handleModuleRequest = function(event) {
 		moduleInput: {
 			testField: event.data.moduleInput.testField + ".double"
 		},
-		defaultHandler: "https://siasky.net/AADTwWeQb82gsXhgStROUOC_EeetJ2xl7bjCHHH1Qlff9Q/"
+		defaultHandler: "https://siasky.net/AACq5NmB1mV3bB_GFznEK899l3Rt17WICuLWn8oVu3yu6Q/"
 	});
 }
 
