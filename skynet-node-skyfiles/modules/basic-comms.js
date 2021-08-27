@@ -1,7 +1,7 @@
 
-// This is the simplest worker you can have that performs cross module
+// This is the simplest module you can have that performs cross module
 // communication. It appends to the provided test field, and then calls out to
-// the simpler extension worker to have the test field extended again,
+// the simpler extension module to have the test field extended again,
 // returning the final result and demonstrating that cross module communcation
 // is functional.
 
@@ -11,32 +11,32 @@ handleModuleRequest = function(event) {
 		// TODO: Set up some sort of error handling framework.
 		return;
 	}
-	if (event.data.workerInput === undefined || event.data.workerInput.testField === undefined) {
+	if (event.data.moduleInput === undefined || event.data.moduleInput.testField === undefined) {
 		// TODO: Error handling
 		return;
 	}
 
-	// Send a request to the basic worker after extending the input.
+	// Send a request to the basic module after extending the input.
 	//
-	// NOTE: Since the modifications made by this worker are not nonce
+	// NOTE: Since the modifications made by this module are not nonce
 	// dependent, we don't need to provide any nonce. There is another
-	// example worker that properly makes use of the nonce field.
+	// example module that properly makes use of the nonce field.
 	postMessage({
 		domain: "TODO", // TODO
 		kernelMethod: "moduleCallV1",
 		moduleMethod: "requestModification",
 		requestNonce: event.data.requestNonce,
-		workerInput: {
-			testField: event.data.workerInput.testField + ".double"
+		moduleInput: {
+			testField: event.data.moduleInput.testField + ".double"
 		},
-		defaultHandler: "https://siasky.net/AACDRv-VqzBsae8eIDPxlcdion0u8hJqt_7Od__x0T97dQ/"
+		defaultHandler: "https://siasky.net/AADTwWeQb82gsXhgStROUOC_EeetJ2xl7bjCHHH1Qlff9Q/"
 	});
 }
 
 // handleModuleResponse will handle responses from the calls we made to the
-// basic worker.
+// basic module.
 handleModuleResponse = function(event) {
-	console.log("comms worker got the response from the basic worker");
+	console.log("comms module got the response from the basic module");
 	console.log(event.data);
 	// TODO: Need to figure out how to ensure that this call maps to the
 	// original call we made. We do need some sort of nonce system.
@@ -46,12 +46,12 @@ handleModuleResponse = function(event) {
 		kernelMethod: "moduleResponseV1",
 		requestNonce: event.data.requestNonce,
 		domain: event.data.domain,
-		workerResponse: event.data.workerResponse
+		moduleResponse: event.data.moduleResponse
 	});
 }
 
 onmessage = function(event) {
-	console.log("messaging called on comms worker");
+	console.log("messaging called on comms module");
 	if (event.data.kernelMethod === "moduleCallV1") {
 		handleModuleRequest(event);
 		return;

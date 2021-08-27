@@ -52,7 +52,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 				domain: wEvent.data.domain,
 				kernelMethod: "moduleResponseV1",
 				requestNonce: wEvent.data.requestNonce,
-				workerResponse: wEvent.data.workerResponse
+				moduleResponse: wEvent.data.moduleResponse
 			}
 
 			// If the source is a window, we need to supply some
@@ -106,7 +106,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 		kernelMethod: "moduleCallV1",
 		requestNonce: rwEvent.data.requestNonce,
 		moduleMethod: rwEvent.data.moduleMethod,
-		workerInput: rwEvent.data.workerInput
+		moduleInput: rwEvent.data.moduleInput
 	});
 };
 

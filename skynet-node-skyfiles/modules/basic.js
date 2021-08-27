@@ -16,33 +16,33 @@ handleModuleRequest = function(event) {
 	// Check that the correct input was provided. We are going to be
 	// receiving messages from foreign, potentially malicious code, so we
 	// need to validate all input. In this case, we need to check that the
-	// workerInput field exists at all, then we need to check that the
+	// moduleInput field exists at all, then we need to check that the
 	// testField exists at all, and finally we need to check that the
 	// testField is a string.
-	if (event.data.workerInput === undefined || event.data.workerInput.testField === undefined || typeof event.data.workerInput.testField !== "string") {
+	if (event.data.moduleInput === undefined || event.data.moduleInput.testField === undefined || typeof event.data.moduleInput.testField !== "string") {
 		// TODO: Error handling
 		return;
 	}
 
 	// Respond to the caller after modifying the testField. In the
 	// response, we set the kernelMethod to 'moduleResponseV1', indicating
-	// that we wish to send the 'workerReponse' field back to the original
+	// that we wish to send the 'moduleReponse' field back to the original
 	// caller. 'moduleResponseV1' is the required method when responding to
 	// a 'moduleCallV1'.
 	//
 	// We need to set the requestNonce to 'event.data.requestNonce' because
-	// the kernel may send multiple concurrent calls to the same worker,
+	// the kernel may send multiple concurrent calls to the same module,
 	// and the kernel needs to know which responses are connected to which
 	// original calls. postMessage is fully async, without the nonce
 	// concurrency is not possible to achieve safely.
 	//
-	// The final value is 'workerResponse', which is the data we actually
+	// The final value is 'moduleResponse', which is the data we actually
 	// intend to provide to the original caller.
 	postMessage({
 		kernelMethod: "moduleResponseV1",
 		requestNonce: event.data.requestNonce,
-		workerResponse: {
-			result: event.data.workerInput.testField + ".extended"
+		moduleResponse: {
+			result: event.data.moduleInput.testField + ".extended"
 		}
 	});
 }

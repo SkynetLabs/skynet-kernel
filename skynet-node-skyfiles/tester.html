@@ -104,12 +104,12 @@ var handleReceiveModuleResponse1 = function(event) {
 	receivedRepsonse1 = true;
 
 	// Check that the result was received correctly.
-	if (event.data.workerResponse !== undefined && event.data.workerResponse.result === "test success.extended") {
-		appendMessage("moduleResponseV1 workerResponse is consistent");
+	if (event.data.moduleResponse !== undefined && event.data.moduleResponse.result === "test success.extended") {
+		appendMessage("moduleResponseV1 moduleResponse is consistent");
 		incrementTestsPassed();
 	} else {
-		console.log(event.data.workerResponse);
-		appendMessage("moduleResponseV1 workerResponse is inconsistent", true);
+		console.log(event.data.moduleResponse);
+		appendMessage("moduleResponseV1 moduleResponse is inconsistent", true);
 		incrementErrors();
 	}
 }
@@ -123,13 +123,13 @@ var handleReceiveModuleResponse2 = function(event) {
 	receivedRepsonse2 = true;
 
 	// Check that the result was received correctly.
-	if (event.data.workerResponse !== undefined && event.data.workerResponse.result === "test success.double.extended") {
-		appendMessage("moduleResponseV1 double modification workerResponse is consistent");
+	if (event.data.moduleResponse !== undefined && event.data.moduleResponse.result === "test success.double.extended") {
+		appendMessage("moduleResponseV1 double modification moduleResponse is consistent");
 		incrementTestsPassed();
 	} else {
 		console.log("double modification worker response is inconsistent");
-		console.log(event.data.workerResponse);
-		appendMessage("moduleResponseV1 double modification workerResponse is inconsistent", true);
+		console.log(event.data.moduleResponse);
+		appendMessage("moduleResponseV1 double modification moduleResponse is inconsistent", true);
 		incrementErrors();
 	}
 }
@@ -167,11 +167,11 @@ window.addEventListener("message", (event) => {
 			kernelMethod: "moduleCallV1",
 			domain: "TODO", // TODO
 			moduleMethod: "requestModification",
-			workerInput: {
+			moduleInput: {
 				testField: "test success"
 			},
 			requestNonce: 1,
-			defaultHandler: "https://siasky.net/AACDRv-VqzBsae8eIDPxlcdion0u8hJqt_7Od__x0T97dQ/"
+			defaultHandler: "https://siasky.net/AADTwWeQb82gsXhgStROUOC_EeetJ2xl7bjCHHH1Qlff9Q/"
 		}, "https://node.siasky.net");
 		return;
 	}
@@ -189,11 +189,11 @@ window.addEventListener("message", (event) => {
 			kernelMethod: "moduleCallV1",
 			domain: "TODO", // TODO
 			moduleMethod: "requestDoubleModification",
-			workerInput: {
+			moduleInput: {
 				testField: "test success"
 			},
 			requestNonce: 2,
-			defaultHandler: "https://siasky.net/AAC7lUKUNxJR-PdYuzJsYAq4BHEig5R0p75BKEsUpmzyhg/"
+			defaultHandler: "https://siasky.net/AAC9kHiiMp3LXUoO4fjNdnyCzvZ_4iVLTan7sGcyP-y13g/"
 		}, "https://node.siasky.net");
 		return;
 	}
