@@ -25,6 +25,16 @@
 // Define the function that will create a blob from the handler code for the
 // worker. We need to define this as a separate function because any code we
 // fetch from Skynet needs to be run in a promise.
+//
+// One of the major security concerns with this function is that multiple
+// different modules are going to be communicating with each other. We need to
+// make sure that key inputs like 'kernelMethod' and 'requestNonce' can't be
+// read or interfered with. I believe the current implementation has been
+// completed in a secure and robust way, but any changes made to this function
+// should carefully think through security implications, as we have multiple
+// bits of untrusted code running inside of this worker, and those bits of code
+// may intentionally be trying to mess with each other as well as mess with the
+// kernel itself.
 var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 	console.log("Skynet Node: creating worker to handle a moduleCallV1");
 	console.log(rwEvent.data);
@@ -40,7 +50,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCallV1") {
 			console.log("Skynet Node: moduleCallV1 worker is calling moduleCallV1");
-			handleSkynetNodeModuleCallV1(wEvent, worker);
+			handleModuleCallV1(wEvent, worker);
 			return;
 		}
 
@@ -110,8 +120,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 	});
 };
 
-// handleSkynetNodeModuleCallV1 handles a call to a version 1 skynet node
-// module.
+// handleModuleCallV1 handles a call to a version 1 skynet node module.
 // 
 // TODO: Write documentation for using V1 skynet node module calls. Need to
 // specify the intention, limitations, and every parameter.
@@ -126,7 +135,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 // to identify within the string the version of the handler so we can detect
 // whether a newer handler is being suggested. I guess the override entry also
 // needs to specify which pubkey is allowed to announce a new version.
-handleSkynetNodeModuleCallV1 = function(event, source) {
+handleModuleCallV1 = function(event, source) {
 	// TODO: Check that the domain decodes to a fully valid pubkey. The
 	// pubkey is important to ensuring that only handlers written by the
 	// original authors of the module are allowed to insert themselves as
@@ -184,7 +193,7 @@ handleSkynetNodeModuleCallV1 = function(event, source) {
 // handleSkynetNodeRequestHomescreen will fetch the user's homescreen from
 // their Skynet account and serve it to the caller.
 //
-// TODO: Turn this into a moduleCallV1.
+// TODO: Turn this into a moduleCallV1. Maybe.
 var handleSkynetNodeRequestHomescreen = function(event) {
 	// TODO: Instead of using hardcoded skylinks, derive some
 	// registry locations from the user's seed, verify the
@@ -216,7 +225,7 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 handleMessage = function(event) {
 	// Establish a handler that will manage a v1 module api call.
 	if (event.data.kernelMethod === "moduleCallV1") {
-		handleSkynetNodeModuleCallV1(event, event.source);
+		handleModuleCallV1(event, event.source);
 		return;
 	}
 
