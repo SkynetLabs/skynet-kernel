@@ -22,6 +22,94 @@
 // seed, meaning another user on the same machine who logs in afterwards has no
 // ability to see what the previous person's seed was.
 
+// Define the function that will create a blob from the handler code for the
+// worker. We need to define this as a separate function because any code we
+// fetch from Skynet needs to be run in a promise.
+var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
+	console.log("Skynet Node: creating worker to handle a moduleCallV1");
+	console.log(rwEvent.data);
+	console.log(rwSource);
+	let url = URL.createObjectURL(new Blob([workerCode]));
+	let worker = new Worker(url);
+	worker.onmessage = function(wEvent) {
+		console.log("Skynet Node: moduleCallV1 worker got a message");
+		console.log(rwEvent.data);
+		console.log(rwSource);
+		console.log(wEvent.data);
+		// Check if the worker is trying to make a call to
+		// another module.
+		if (wEvent.data.kernelMethod === "moduleCallV1") {
+			console.log("Skynet Node: moduleCallV1 worker is calling moduleCallV1");
+			handleSkynetNodeModuleCallV1(wEvent, worker);
+			return;
+		}
+
+		// Check if the worker is responding to the original
+		// caller.
+		if (wEvent.data.kernelMethod === "moduleResponseV1") {
+			console.log("Skynet Node: moduleCallV1 worker is sending a moduleResponseV1");
+			let message = {
+				domain: wEvent.data.domain,
+				kernelMethod: "moduleResponseV1",
+				requestNonce: wEvent.data.requestNonce,
+				workerResponse: wEvent.data.workerResponse
+			}
+
+			// If the source is a window, we need to supply some
+			// CORS information as arguments. If the source is a
+			// web worker, we need to not supply any parameters as
+			// a second arg. Detect if the source is a web worker
+			// by comparing to the wEvent.source value. It is
+			// completely unknown if this is a reliable way of
+			// telling them apart, but it seems to work. JANKY.
+			//
+			// TODO: Fix this jank.
+			if (rwEvent.source === rwSource) {
+				// The source is a window.
+				rwSource.postMessage(message, "*");
+			} else {
+				// The source is a worker.
+				rwSource.postMessage(message);
+			}
+			worker.terminate();
+			return;
+		}
+
+		// TODO: Some sort of error framework here, we
+		// shouldn't be arriving to this code block unless the
+		// request was malformed.
+		console.log("ERROR!")
+		worker.terminate();
+		return;
+	};
+
+	// When sending a method to the worker, we need to clearly
+	// distinguish between a new request being sent to the worker
+	// and a response that the worker is receiving from a request
+	// by the worker. This distinction is made using the 'method'
+	// field, and must be set only by the kernel, such that the
+	// worker does not have to worry about some module pretending
+	// to be responding to a request the worker made when in fact
+	// it has made a new request.
+	// 
+	// NOTE: There are legacy modules that aren't going to be able
+	// to update or add code if the kernel method changes. If a
+	// spec for a V2 ever gets defined, the kernel needs to know in
+	// advance of sending the postmessage which versions the module
+	// knows how to handle. We version these regardless because
+	// it's entirely possible that a V2 gets defined, and user does
+	// not upgrade their kernel to V2, which means that the module
+	// needs to be able to communicate using the V1 protocol since
+	// that's the only thing the user's kernel understands.
+	worker.postMessage({
+		domain: rwEvent.data.domain,
+		kernelMethod: "moduleCallV1",
+		requestNonce: rwEvent.data.requestNonce,
+		moduleMethod: rwEvent.data.moduleMethod,
+		workerInput: rwEvent.data.workerInput
+	});
+};
+
 // handleSkynetNodeModuleCallV1 handles a call to a version 1 skynet node
 // module.
 // 
@@ -38,90 +126,12 @@
 // to identify within the string the version of the handler so we can detect
 // whether a newer handler is being suggested. I guess the override entry also
 // needs to specify which pubkey is allowed to announce a new version.
-handleSkynetNodeModuleCallV1 = function(event, srcWorker) {
+handleSkynetNodeModuleCallV1 = function(event, source) {
 	// TODO: Check that the domain decodes to a fully valid pubkey. The
 	// pubkey is important to ensuring that only handlers written by the
 	// original authors of the module are allowed to insert themselves as
 	// upgrades. This prevents malicious apps from supplying malicious
 	// handlers that can steal user data.
-
-	// Define the function that will create a blob from the handler code
-	// for the worker.
-	var runWorker = function(workerCode) {
-		console.log("runWorker is active");
-		var url = URL.createObjectURL(new Blob([workerCode]));
-		var worker = new Worker(url);
-		worker.onmessage = function(wEvent) {
-			console.log("got worker response");
-			console.log(wEvent.data);
-			// Check if the worker is trying to make a call to
-			// another module.
-			if (wEvent.data.kernelMethod === "moduleCallV1") {
-				handleSkynetNodeModuleCallV1(wEvent, worker);
-				return;
-			}
-
-			// TODO: Check if the worker is trying to make a core
-			// kernel call.
-
-			// Check if the worker is responding to the original
-			// caller.
-			if (wEvent.data.kernelMethod === "moduleResponseV1") {
-				console.log("calling postmessage on event.source")
-				console.log(event);
-				console.log(event.source);
-				if (event.source === null) {
-					console.log("trying to talk back to the worker");
-					srcWorker.postMessage({
-						kernelMethod: "moduleResponseV1",
-						requestNonce: wEvent.data.requestNonce,
-						domain: wEvent.data.domain,
-						moduleMethod: wEvent.data.moduleMethod,
-						workerResponse: wEvent.data.workerResponse
-					});
-				}
-				event.source.postMessage({
-					kernelMethod: "moduleResponseV1",
-					requestNonce: event.data.requestNonce,
-					domain: event.data.domain,
-					moduleMethod: event.data.moduleMethod,
-					workerResponse: wEvent.data.workerResponse
-				}, "*");
-				worker.terminate();
-				return;
-			}
-
-			// TODO: Some sort of error framework here, we
-			// shouldn't be arriving to this code block unless the
-			// request was malformed.
-			worker.terminate();
-			return;
-		};
-
-		// When sending a method to the worker, we need to clearly
-		// distinguish between a new request being sent to the worker
-		// and a response that the worker is receiving from a request
-		// by the worker. This distinction is made using the 'method'
-		// field, and must be set only by the kernel, such that the
-		// worker does not have to worry about some module pretending
-		// to be responding to a request the worker made when in fact
-		// it has made a new request.
-		// 
-		// NOTE: There are legacy modules that aren't going to be able
-		// to update or add code if the kernel method changes. If a
-		// spec for a V2 ever gets defined, the kernel needs to know in
-		// advance of sending the postmessage which versions the module
-		// knows how to handle. We version these regardless because
-		// it's entirely possible that a V2 gets defined, and user does
-		// not upgrade their kernel to V2, which means that the module
-		// needs to be able to communicate using the V1 protocol since
-		// that's the only thing the user's kernel understands.
-		worker.postMessage({
-			kernelMethod: "moduleCallV1",
-			moduleMethod: event.data.moduleMethod,
-			workerInput: event.data.workerInput
-		});
-	};
 
 	// TODO: Check the in-memory map to see if there is an alternative
 	// handler that we use for this API endpoint.
@@ -161,7 +171,7 @@ handleSkynetNodeModuleCallV1 = function(event, srcWorker) {
 				// the handler instead of pretending that no
 				// signature exists and just parsing the whole
 				// thing as js.
-				runWorker(response);
+				runModuleCallV1Worker(event, source, response);
 			});
 	}
 }
@@ -201,7 +211,7 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 handleMessage = function(event) {
 	// Establish a handler that will manage a v1 module api call.
 	if (event.data.kernelMethod === "moduleCallV1") {
-		handleSkynetNodeModuleCallV1(event);
+		handleSkynetNodeModuleCallV1(event, event.source);
 		return;
 	}
 

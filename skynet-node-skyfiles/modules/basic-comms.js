@@ -22,13 +22,14 @@ handleModuleRequest = function(event) {
 	// dependent, we don't need to provide any nonce. There is another
 	// example worker that properly makes use of the nonce field.
 	postMessage({
-		kernelMethod: "moduleCallV1",
 		domain: "TODO", // TODO
+		kernelMethod: "moduleCallV1",
 		moduleMethod: "requestModification",
+		requestNonce: event.data.requestNonce,
 		workerInput: {
 			testField: event.data.workerInput.testField + ".double"
 		},
-		defaultHandler: "https://siasky.net/AACvEziMdRPtF-lac8Z76rNAbsyGqqR_8fzX2zjSJJj9Ug/"
+		defaultHandler: "https://siasky.net/AACrIfoxiYExNnIu39uqATS63edURQi-GmyflxiKBmOpBQ/"
 	});
 }
 
@@ -37,18 +38,14 @@ handleModuleRequest = function(event) {
 handleModuleResponse = function(event) {
 	console.log("comms worker got the response from the basic worker");
 	console.log(event.data);
-	// TODO: Need to check the domain as well.
-	if (event.data.moduleMethod !== "requestModification") {
-		// TODO: Error handling
-		return;
-	}
+	// TODO: Need to figure out how to ensure that this call maps to the
+	// original call we made. We do need some sort of nonce system.
 
 	// Respond to the caller with the double-modified test field.
 	postMessage({
 		kernelMethod: "moduleResponseV1",
 		requestNonce: event.data.requestNonce,
 		domain: event.data.domain,
-		moduleMethod: event.data.moduleMethod,
 		workerResponse: event.data.workerResponse
 	});
 }

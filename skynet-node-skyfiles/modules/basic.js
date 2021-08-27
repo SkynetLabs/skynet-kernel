@@ -15,10 +15,9 @@ handleModuleRequest = function(event) {
 
 	// Respond to the caller after modifying the testField.
 	postMessage({
+		domain: event.data.domain,
 		kernelMethod: "moduleResponseV1",
 		requestNonce: event.data.requestNonce,
-		domain: event.data.domain,
-		moduleMethod: event.data.moduleMethod,
 		workerResponse: {
 			result: event.data.workerInput.testField + ".extended"
 		}

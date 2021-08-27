@@ -64,7 +64,7 @@ var loadSkynetNode = function() {
 	// TODO: If there is some sort of error, need to set nodeLoading to
 	// false and then send a 'authFailed' message or some other sort of
 	// error notification.
-	downloadV1Skylink("https://siasky.net/EABHOQzQgQyEfHPYhqryBLymEaFVYig4i-sQTKdS84dnRw/")
+	downloadV1Skylink("https://siasky.net/EACIlF4iLAcLAlEHnCUx42kKoK4243fRz6phD9Pva49YQA/")
 		.then(text => {
 			eval(text);
 			nodeLoaded = true;
@@ -86,7 +86,8 @@ var handleMessage = function(event) {
 window.addEventListener("message", (event) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
-	console.log("Skynet Node: message received: ", event.data.kernelMethod);
+	console.log("Skynet Node: message received");
+	console.log(event.data);
 
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.

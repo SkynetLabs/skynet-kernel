@@ -32,7 +32,7 @@ function incrementErrors() {
 
 // Set up a counter that establishes how many tests are supposed to pass.
 var testsPassed = 0;
-var expectedTestsPassed = 6;
+var expectedTestsPassed = 4;
 var testsPassedDOM = document.createElement("p");
 testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
 testsPassedDOM.style.color = "blue";
@@ -62,10 +62,79 @@ function appendMessage(message, error) {
 		p.style.color = "red";
 	}
 	document.body.appendChild(p);
+
+	if (error) {
+		console.log("appending error: " + message + " :: ", performance.now());
+	} else {
+		console.log("appending message: " + message + " :: ", performance.now());
+	}
+}
+
+var skynetNodeLoaded = false;
+var handleSkynetNodeLoaded = function(event) {
+	if (skynetNodeLoaded === false) {
+		skynetNodeLoaded = true;
+		appendMessage("skynet node has loaded");
+		incrementTestsPassed();
+	} else {
+		appendMessage("received skynetNodeLoaded multiple times", true);
+		incrementErrors();
+	}
+}
+
+var receivedTest = false;
+var handleReceiveTest = function(event) {
+	if (receivedTest === true) {
+		appendMessage("received test multiple times", true);
+		incrementErrors();
+		return;
+	}
+	receivedTest = true;
+
+	appendMessage("receiveTest called");
+	incrementTestsPassed();
+}
+
+var receivedResponse1 = false;
+var handleReceiveModuleResponse1 = function(event) {
+	if (receivedResponse1 === true) {
+		appendMessage("received response1 multiple times");
+		incrementErrors();
+	}
+	receivedRepsonse1 = true;
+
+	// Check that the result was received correctly.
+	if (event.data.workerResponse !== undefined && event.data.workerResponse.result === "test success.extended") {
+		appendMessage("moduleResponseV1 workerResponse is consistent");
+		incrementTestsPassed();
+	} else {
+		console.log(event.data.workerResponse);
+		appendMessage("moduleResponseV1 workerResponse is inconsistent", true);
+		incrementErrors();
+	}
+}
+
+var receivedResponse2 = false;
+var handleReceiveModuleResponse2 = function(event) {
+	if (receivedResponse2 === true) {
+		appendMessage("received response1 multiple times");
+		incrementErrors();
+	}
+	receivedRepsonse2 = true;
+
+	// Check that the result was received correctly.
+	if (event.data.workerResponse !== undefined && event.data.workerResponse.result === "test success.double.extended") {
+		appendMessage("moduleResponseV1 double modification workerResponse is consistent");
+		incrementTestsPassed();
+	} else {
+		console.log("double modification worker response is inconsistent");
+		console.log(event.data.workerResponse);
+		appendMessage("moduleResponseV1 double modification workerResponse is inconsistent", true);
+		incrementErrors();
+	}
 }
 
 // Create a listener that will receive messages and help conduct tests.
-var nodeLoaded = false
 window.addEventListener("message", (event) => {
 	// Only receive messages from node.siasky.net.
 	if (event.origin !== "https://node.siasky.net") {
@@ -74,33 +143,24 @@ window.addEventListener("message", (event) => {
 		return;
 	}
 	// Log every message that comes in.
-	console.log("Received message: " + event.data.kernelMethod, " :: ", performance.now());
+	console.log("Tester received message: ", performance.now());
+	console.log(event.data);
 
 	// Listen for the skynetNodeLoaded message.
 	if (event.data.kernelMethod === "skynetNodeLoaded") {
-		if (!nodeLoaded) {
-			nodeLoaded = true;
-			console.log("node loaded: ", performance.now());
-			appendMessage("skynet node has loaded");
-			incrementTestsPassed();
-			// Send a message to trigger the next test: basic communication.
-			node.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://node.siasky.net");
-		} else {
-			appendMessage("received skynetNodeLoaded multiple times", true);
-			incrementErrors();
-		}
+		handleSkynetNodeLoaded(event);
+
+		// Send a message to trigger the next test: basic communication.
+		node.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://node.siasky.net");
 		return;
 	}
 
 	// Listen for the response from the test message.
 	if (event.data.kernelMethod === "receiveTest") {
-		appendMessage("receiveTest called");
-		incrementTestsPassed();
-		console.log("receiveTest completed: ", performance.now());
+		handleReceiveTest(event);
 
 		// Send a message to trigger the next test: using a kernel
-		// module. We've got an api call in a tester domain using the
-		// method 'requestModification'.
+		// module.
 		//
 		// TODO: The default handler needs to be a portal-less skylink.
 		node.contentWindow.postMessage({
@@ -110,36 +170,15 @@ window.addEventListener("message", (event) => {
 			workerInput: {
 				testField: "test success"
 			},
-			requestNonce: 123,
-			defaultHandler: "https://siasky.net/AACvEziMdRPtF-lac8Z76rNAbsyGqqR_8fzX2zjSJJj9Ug/"
+			requestNonce: 1,
+			defaultHandler: "https://siasky.net/AACrIfoxiYExNnIu39uqATS63edURQi-GmyflxiKBmOpBQ/"
 		}, "https://node.siasky.net");
+		return;
 	}
 
 	// Listen for the response from the test module call.
-	//
-	// TODO: The conditional should be checking the domain as well.
-	if (event.data.kernelMethod === "moduleResponseV1" && event.data.moduleMethod === "requestModification") {
-		console.log("moduleResponseV1 requestModification received :: ", performance.now())
-
-		// Check that the request nonces are being handled correctly.
-		if (event.data.requestNonce === 123) {
-			appendMessage("moduleResponseV1 requestNonce is consistent");
-			incrementTestsPassed();
-		} else {
-			console.log(event.data.requestNonce);
-			appendMessage("moduleResponseV1 requestNonce is inconsistent", true);
-			incrementErrors();
-		}
-
-		// Check that the result was received correctly.
-		if (event.data.workerResponse.result === "test success.extended") {
-			appendMessage("moduleResponseV1 workerResponse is consistent");
-			incrementTestsPassed();
-		} else {
-			console.log(event.data.workerResponse);
-			appendMessage("moduleResponseV1 workerResponse is inconsistent", true);
-			incrementErrors();
-		}
+	if (event.data.kernelMethod === "moduleResponseV1" && event.data.requestNonce === 1) {
+		handleReceiveModuleResponse1(event);
 
 		// Send a message to trigger the next test: using a kernel
 		// module that uses another kernel module. We will send
@@ -153,40 +192,18 @@ window.addEventListener("message", (event) => {
 			workerInput: {
 				testField: "test success"
 			},
-			requestNonce: 121,
-			defaultHandler: "https://siasky.net/AABep4CIflKMvS5TyrxiSh_V41Evm8RuFufnVEcAoYBk8A/"
+			requestNonce: 2,
+			defaultHandler: "https://siasky.net/AACe7Ch6V4GCwM7YjNGXfsIEM7ZjcxnI3Uf1t2nn83c2bA/"
 		}, "https://node.siasky.net");
+		return;
 	}
 
 	// Listen for the response from the test comms module call.
-	//
-	// TODO: The conditional should be checking the domain as well.
-	if (event.data.kernelMethod === "moduleResponseV1" && event.data.moduleMethod === "requestDoubleModification") {
-		console.log("moduleResponseV1 requestDoubleModification received :: ", performance.now())
-
-		// Check that the request nonces are being handled correctly.
-		if (event.data.requestNonce === 121) {
-			appendMessage("moduleResponseV1 double modification requestNonce is consistent");
-			incrementTestsPassed();
-		} else {
-			console.log(event.data.requestNonce);
-			appendMessage("moduleResponseV1 double modification requestNonce is inconsistent", true);
-			incrementErrors();
-		}
-
-		// Check that the result was received correctly.
-		if (event.data.workerResponse !== undefined && event.data.workerResponse.result === "test success.double.extended") {
-			appendMessage("moduleResponseV1 double modification workerResponse is consistent");
-			incrementTestsPassed();
-		} else {
-			console.log(event.data.workerResponse);
-			appendMessage("moduleResponseV1 double modification workerResponse is inconsistent", true);
-			incrementErrors();
-		}
+	if (event.data.kernelMethod === "moduleResponseV1" && event.data.requestNonce === 2) {
+		handleReceiveModuleResponse2(event);
+		return;
 	}
-
 }, false);
-
 
 	</script>
 </html>
