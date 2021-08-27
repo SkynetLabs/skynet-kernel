@@ -47,7 +47,7 @@ handleSkynetNodeModuleCallV1 = function(event, srcWorker) {
 
 	// Define the function that will create a blob from the handler code
 	// for the worker.
-	var runWorker = function(event, workerCode) {
+	var runWorker = function(workerCode) {
 		console.log("runWorker is active");
 		var url = URL.createObjectURL(new Blob([workerCode]));
 		var worker = new Worker(url);
@@ -161,13 +161,15 @@ handleSkynetNodeModuleCallV1 = function(event, srcWorker) {
 				// the handler instead of pretending that no
 				// signature exists and just parsing the whole
 				// thing as js.
-				runWorker(event, response);
+				runWorker(response);
 			});
 	}
 }
 
 // handleSkynetNodeRequestHomescreen will fetch the user's homescreen from
 // their Skynet account and serve it to the caller.
+//
+// TODO: Turn this into a moduleCallV1.
 var handleSkynetNodeRequestHomescreen = function(event) {
 	// TODO: Instead of using hardcoded skylinks, derive some
 	// registry locations from the user's seed, verify the

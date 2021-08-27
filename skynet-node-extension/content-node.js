@@ -64,7 +64,7 @@ var loadSkynetNode = function() {
 	// TODO: If there is some sort of error, need to set nodeLoading to
 	// false and then send a 'authFailed' message or some other sort of
 	// error notification.
-	downloadV1Skylink("https://siasky.net/EADSrQCtrP1dLIrGWG4kXIB7GbReva2E3DtdxmvCbGCy_w/")
+	downloadV1Skylink("https://siasky.net/EABHOQzQgQyEfHPYhqryBLymEaFVYig4i-sQTKdS84dnRw/")
 		.then(text => {
 			eval(text);
 			nodeLoaded = true;
