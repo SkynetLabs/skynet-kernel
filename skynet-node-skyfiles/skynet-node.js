@@ -132,6 +132,11 @@ handleSkynetNodeModuleCallV1 = function(event, source) {
 	// original authors of the module are allowed to insert themselves as
 	// upgrades. This prevents malicious apps from supplying malicious
 	// handlers that can steal user data.
+	
+	// TODO: We need some way to encode into the handler what kernel
+	// message protocol version the handler recognizes. We can't be sending
+	// it a moduleCallV2 if it only supports moduleCallV1. This I guess
+	// will be part of the packaging that wraps the module code.
 
 	// TODO: Check the in-memory map to see if there is an alternative
 	// handler that we use for this API endpoint.
