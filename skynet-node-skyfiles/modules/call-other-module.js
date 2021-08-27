@@ -20,7 +20,6 @@ handleModuleRequest = function(event) {
 	}
 
 	// Send a request to the basic module with the modified input.
-	//
 	postMessage({
 		// The default handler contains the packaged basic.js module.
 		// The kernel may already have this code, but in the event that
@@ -44,10 +43,13 @@ handleModuleRequest = function(event) {
 		// Since this is the only request we are making, the request
 		// nonce can be hard coded to '0'. If we were making multiple
 		// requests, we would need to make sure each request has a
-		// different nonce, so we could tell the responses apart as
-		// they come back. The requestNonce does not need to be
-		// randomized nor globally unique, it just needs to be unique
-		// within this instance of this module.
+		// different nonce. When we get results back from requests we
+		// make to the kernel or to other modules, those results all
+		// come through the same channel, and the nonce is the only way
+		// that we have to tell which request is which.
+		//
+		// The kernel ensures that the response to a request will
+		// always have the same nonce as that request.
 		requestNonce: 0,
 		// moduleInput is the input that we're sending to basic.js.
 		moduleInput: {
@@ -56,12 +58,10 @@ handleModuleRequest = function(event) {
 	});
 }
 
-// handleModuleResponse will handle responses from the calls we made to the
-// basic module.
+// handleModuleResponse is called after the basic.js module returns the result.
+// Once we have the result, we only need to forward the result to the original
+// caller with a new call to postMessage.
 handleModuleResponse = function(event) {
-	console.log("comms module got the response from the basic module");
-	console.log(event.data);
-
 	// Respond to the caller with the double-modified test field.
 	postMessage({
 		kernelMethod: "moduleResponseV1",
@@ -69,8 +69,12 @@ handleModuleResponse = function(event) {
 	});
 }
 
+// Listen for messages from the kernel. For this module, there are two
+// different messages we are listening for. The first is the moduleCallV1,
+// which is a caller trying to use the API of this module. The second is a
+// moduleResponseV1, which will contain the response to an API call that this
+// module will make to another module (the basic.js module).
 onmessage = function(event) {
-	console.log("messaging called on comms module");
 	if (event.data.kernelMethod === "moduleCallV1") {
 		handleModuleRequest(event);
 		return;
