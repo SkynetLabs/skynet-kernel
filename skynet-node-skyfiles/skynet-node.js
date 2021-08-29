@@ -90,22 +90,24 @@ var saveModuleMap = function() {
 // bits of untrusted code running inside of this worker, and those bits of code
 // may intentionally be trying to mess with each other as well as mess with the
 // kernel itself.
-var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
+var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, workerCode) {
 	kernelLog("Skynet Node: creating worker to handle a moduleCallV1");
 	kernelLog(rwEvent.data);
 	kernelLog(rwSource);
+	kernelLog(rwSourceIsWorker);
 	let url = URL.createObjectURL(new Blob([workerCode]));
 	let worker = new Worker(url);
 	worker.onmessage = function(wEvent) {
 		kernelLog("Skynet Node: moduleCallV1 worker got a message");
 		kernelLog(rwEvent.data);
 		kernelLog(rwSource);
+		kernelLog(rwSourceIsWorker);
 		kernelLog(wEvent.data);
 		// Check if the worker is trying to make a call to
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCallV1") {
 			kernelLog("Skynet Node: moduleCallV1 worker is calling moduleCallV1");
-			handleModuleCallV1(wEvent, worker);
+			handleModuleCallV1(wEvent, worker, true);
 			return;
 		}
 
@@ -120,21 +122,13 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 				moduleResponse: wEvent.data.moduleResponse
 			}
 
-			// If the source is a window, we need to supply some
-			// CORS information as arguments. If the source is a
-			// web worker, we need to not supply any parameters as
-			// a second arg. Detect if the source is a web worker
-			// by comparing to the wEvent.source value. It is
-			// completely unknown if this is a reliable way of
-			// telling them apart, but it seems to work. JANKY.
-			//
-			// TODO: Fix this jank.
-			if (rwEvent.source === rwSource) {
-				// The source is a window.
-				rwSource.postMessage(message, "*");
-			} else {
-				// The source is a worker.
+			// If the source is a worker, the postMessage call
+			// needs to be constructed differently than if the
+			// source is a window.
+			if (rwSourceIsWorker) {
 				rwSource.postMessage(message);
+			} else {
+				rwSource.postMessage(message, "*");
 			}
 			worker.terminate();
 			return;
@@ -145,7 +139,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 		// request was malformed.
 		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCallV1";
 		kernelLog("Skynet Node: " + err);
-		reportModuleCallV1KernelError(rwSource, false, rwEvent.data.requestNonce, err);
+		reportModuleCallV1KernelError(rwSource, true, rwEvent.data.requestNonce, err);
 		worker.terminate();
 		return;
 	};
@@ -209,7 +203,7 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 // to identify within the string the version of the handler so we can detect
 // whether a newer handler is being suggested. I guess the override entry also
 // needs to specify which pubkey is allowed to announce a new version.
-var handleModuleCallV1 = function(event, source) {
+var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	// Perform input validation - anyone can send any message to the
 	// kernel, need to make sure any malicious messages result in an error.
 	if (event.data.domain === undefined) {
@@ -258,7 +252,7 @@ var handleModuleCallV1 = function(event, source) {
 		workerCode = secureLoad(handlerStorageKey);
 	}
 	if (workerCode !== "" && workerCode !== undefined) {
-		runModuleCallV1Worker(event, source, workerCode);
+		runModuleCallV1Worker(event, source, sourceIsWorker, workerCode);
 		return;
 	}
 
@@ -303,7 +297,7 @@ var handleModuleCallV1 = function(event, source) {
 				// the handler instead of pretending that no
 				// signature exists and just parsing the whole
 				// thing as js.
-				runModuleCallV1Worker(event, source, response);
+				runModuleCallV1Worker(event, source, sourceIsWorker, response);
 			});
 	}
 }
@@ -343,7 +337,7 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 handleMessage = function(event) {
 	// Establish a handler that will manage a v1 module api call.
 	if (event.data.kernelMethod === "moduleCallV1") {
-		handleModuleCallV1(event, event.source);
+		handleModuleCallV1(event, event.source, false);
 		return;
 	}
 
