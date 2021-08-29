@@ -32,7 +32,7 @@ function incrementErrors() {
 
 // Set up a counter that establishes how many tests are supposed to pass.
 var testsPassed = 0;
-var expectedTestsPassed = 4;
+var expectedTestsPassed = 5;
 var testsPassedDOM = document.createElement("p");
 testsPassedDOM.innerHTML = testsPassed.toString() + " out of " + expectedTestsPassed.toString() + " tests passed";
 testsPassedDOM.style.color = "blue";
@@ -70,6 +70,8 @@ function appendMessage(message, error) {
 	}
 }
 
+// This test ensures that the kernel is sending a message when startup
+// completes.
 var skynetNodeLoaded = false;
 var handleSkynetNodeLoaded = function(event) {
 	if (skynetNodeLoaded === false) {
@@ -82,6 +84,9 @@ var handleSkynetNodeLoaded = function(event) {
 	}
 }
 
+// This method is ensuring that the kernel's tester function is working. The
+// tester function is used by devs to see that they are properly connected to
+// the kernel.
 var receivedTest = false;
 var handleReceiveTest = function(event) {
 	if (receivedTest === true) {
@@ -95,6 +100,7 @@ var handleReceiveTest = function(event) {
 	incrementTestsPassed();
 }
 
+// This method checks that basic module communication is working.
 var receivedResponse1 = false;
 var handleReceiveModuleResponse1 = function(event) {
 	if (receivedResponse1 === true) {
@@ -102,6 +108,13 @@ var handleReceiveModuleResponse1 = function(event) {
 		incrementErrors();
 	}
 	receivedRepsonse1 = true;
+
+	// Check whether there was an error.
+	if (event.data.kernelErr !== undefined) {
+		appendMessage(event.data.kernelErr, true);
+		incrementErrors();
+		return;
+	}
 
 	// Check that the result was received correctly.
 	if (event.data.moduleResponse !== undefined && event.data.moduleResponse.result === "test success.extended") {
@@ -114,6 +127,29 @@ var handleReceiveModuleResponse1 = function(event) {
 	}
 }
 
+// This method checks that the kernel retruns an error if no domain handler is
+// provided.
+var receivedResponseErr1 = false;
+var handleReceiveModuleResponseErr1 = function(event) {
+	if (receivedResponseErr1 === true) {
+		appendMessage("received response1 multiple times");
+		incrementErrors();
+	}
+	receivedRepsonseErr1 = true;
+
+	// Check whether there was an error.
+	if (event.data.kernelErr !== undefined) {
+		appendMessage("moduleResponseV1 successfully errored when no domainHandler is provided");
+		incrementTestsPassed();
+		return;
+	}
+
+	// We were supposed to get an error, this was a bad request.
+	appendMessage("expecting an error from the kernel, no error provided", true);
+	incrementErrors();
+}
+
+// This method checks that cross-module-communication is working.
 var receivedResponse2 = false;
 var handleReceiveModuleResponse2 = function(event) {
 	if (receivedResponse2 === true) {
@@ -121,6 +157,13 @@ var handleReceiveModuleResponse2 = function(event) {
 		incrementErrors();
 	}
 	receivedRepsonse2 = true;
+
+	// Check whether there was an error.
+	if (event.data.kernelErr !== undefined) {
+		appendMessage(event.data.kernelErr, true);
+		incrementErrors();
+		return;
+	}
 
 	// Check that the result was received correctly.
 	if (event.data.moduleResponse !== undefined && event.data.moduleResponse.result === "test success.double.extended") {
@@ -170,15 +213,35 @@ window.addEventListener("message", (event) => {
 			moduleInput: {
 				testField: "test success"
 			},
-			requestNonce: 1,
+			requestNonce: 0,
 			defaultHandler: "https://siasky.net/AACq5NmB1mV3bB_GFznEK899l3Rt17WICuLWn8oVu3yu6Q/"
+		}, "https://node.siasky.net");
+		return;
+	}
+
+	if (event.data.kernelMethod === "moduleResponseV1" && event.data.requestNonce === 0) {
+		handleReceiveModuleResponse1(event);
+
+		// Send a message to trigger the next test: using a kernel
+		// module with bad inputs - no domainHandler. This should
+		// result in an error being returned.
+		//
+		// TODO: The default handler needs to be a portal-less skylink.
+		node.contentWindow.postMessage({
+			kernelMethod: "moduleCallV1",
+			domain: "TODO", // TODO
+			moduleMethod: "requestModification",
+			moduleInput: {
+				testField: "test success"
+			},
+			requestNonce: 1,
 		}, "https://node.siasky.net");
 		return;
 	}
 
 	// Listen for the response from the test module call.
 	if (event.data.kernelMethod === "moduleResponseV1" && event.data.requestNonce === 1) {
-		handleReceiveModuleResponse1(event);
+		handleReceiveModuleResponseErr1(event);
 
 		// Send a message to trigger the next test: using a kernel
 		// module that uses another kernel module. We will send

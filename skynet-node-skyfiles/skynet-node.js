@@ -22,6 +22,61 @@
 // seed, meaning another user on the same machine who logs in afterwards has no
 // ability to see what the previous person's seed was.
 
+// Set up a logging method that can be enabled and disabled.
+//
+// TODO: Add an RPC to enable and disable this at runtime.
+debugging = true;
+var kernelLog = function(msg) {
+	if (debugging) {
+		console.log(msg)
+	}
+}
+
+// Define an abstraction around localStorage that puts everything into a
+// namespace based on the user's seed, encrypts the contents, and authenticates
+// the contents. Then back the contents up to Skynet.
+//
+// TODO: namespace the localstorage, encrypt it, and authenticate it. Then back
+// the contents up to skynet.
+var secureSave = function(key, value) {
+	localStorage.setItem(key, value);
+}
+var secureLoad = function(key) {
+	// TODO: Check that the secureLoad matches checksums and auth and
+	// passes decryption. That's what can cause an error.
+	if (false) {
+		throw "unable to securely load the storage";
+	}
+	return localStorage.getItem(key);
+}
+
+// Load all of the modules that we have saved locally into memory.
+var moduleMap = {};
+var loadModuleMap = function() {
+	var modules = "";
+	try {
+		modules = secureLoad("moduleMap");
+		moduleMap = JSON.parse(modules);
+	} catch {
+		kernelLog("Skynet Node ERROR: unable securely load the moduleMap");
+		moduleMap = {};
+	}
+
+	// TODO: Kick off a background worker that will talk to Skynet, compare
+	// against the latest set of modules, grab any that are missing, post
+	// any that skynet doesn't seem to have, and then begin updating the
+	// modules to their latest versions.
+}
+
+// saveModuleMap will save the map of the user's modules.
+var saveModuleMap = function() {
+	secureSave("moduleMap", JSON.stringify(moduleMap));
+
+	// TODO: Communicate with the background thread that syncs local
+	// modules to skynet and make sure this new module is visible to the
+	// user's other devices.
+}
+
 // Define the function that will create a blob from the handler code for the
 // worker. We need to define this as a separate function because any code we
 // fetch from Skynet needs to be run in a promise.
@@ -36,20 +91,20 @@
 // may intentionally be trying to mess with each other as well as mess with the
 // kernel itself.
 var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
-	console.log("Skynet Node: creating worker to handle a moduleCallV1");
-	console.log(rwEvent.data);
-	console.log(rwSource);
+	kernelLog("Skynet Node: creating worker to handle a moduleCallV1");
+	kernelLog(rwEvent.data);
+	kernelLog(rwSource);
 	let url = URL.createObjectURL(new Blob([workerCode]));
 	let worker = new Worker(url);
 	worker.onmessage = function(wEvent) {
-		console.log("Skynet Node: moduleCallV1 worker got a message");
-		console.log(rwEvent.data);
-		console.log(rwSource);
-		console.log(wEvent.data);
+		kernelLog("Skynet Node: moduleCallV1 worker got a message");
+		kernelLog(rwEvent.data);
+		kernelLog(rwSource);
+		kernelLog(wEvent.data);
 		// Check if the worker is trying to make a call to
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCallV1") {
-			console.log("Skynet Node: moduleCallV1 worker is calling moduleCallV1");
+			kernelLog("Skynet Node: moduleCallV1 worker is calling moduleCallV1");
 			handleModuleCallV1(wEvent, worker);
 			return;
 		}
@@ -57,7 +112,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 		// Check if the worker is responding to the original
 		// caller.
 		if (wEvent.data.kernelMethod === "moduleResponseV1") {
-			console.log("Skynet Node: moduleCallV1 worker is sending a moduleResponseV1");
+			kernelLog("Skynet Node: moduleCallV1 worker is sending a moduleResponseV1");
 			let message = {
 				domain: wEvent.data.domain,
 				kernelMethod: "moduleResponseV1",
@@ -88,7 +143,9 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 		// TODO: Some sort of error framework here, we
 		// shouldn't be arriving to this code block unless the
 		// request was malformed.
-		console.log("ERROR!")
+		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCallV1";
+		kernelLog("Skynet Node: " + err);
+		reportModuleCallV1KernelError(rwSource, false, rwEvent.data.requestNonce, err);
 		worker.terminate();
 		return;
 	};
@@ -120,6 +177,23 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 	});
 };
 
+// reportModuleCallV1KernelError will repsond to the source with an error message,
+// indicating that the RPC failed.
+//
+// The kernel provides a guarantee that 'err' will always be a string.
+var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonce, err) {
+	let message = {
+		kernelMethod: "moduleResponseV1",
+		requestNonce: requestNonce,
+		kernelErr: err,
+	}
+	if (sourceIsWorker) {
+		source.postMessage(message);
+	} else {
+		source.postMessage(message, "*");
+	}
+}
+
 // handleModuleCallV1 handles a call to a version 1 skynet node module.
 // 
 // TODO: Write documentation for using V1 skynet node module calls. Need to
@@ -135,7 +209,34 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, workerCode) {
 // to identify within the string the version of the handler so we can detect
 // whether a newer handler is being suggested. I guess the override entry also
 // needs to specify which pubkey is allowed to announce a new version.
-handleModuleCallV1 = function(event, source) {
+var handleModuleCallV1 = function(event, source) {
+	// Perform input validation - anyone can send any message to the
+	// kernel, need to make sure any malicious messages result in an error.
+	if (event.data.domain === undefined) {
+		kernelLog("Skynet Node: invalid message, domain must be set for moduleCallV1");
+		let err = "bad moduleCallV1 request: domain is not specified";
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	if (typeof event.data.domain !== "string") {
+		kernelLog("Skynet Node: invalid message, domain must be a string for moduleCallV1");
+		let err = "bad moduleCallV1 request: domain is not a string";
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	if (event.data.defaultHandler === undefined) {
+		kernelLog("Skynet Node: invalid message, defaultHandler must be a string for moduleCallV1");
+		let err = "bad moduleCallV1 request: defaultHandler is not specified";
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	if (typeof event.data.defaultHandler !== "string") {
+		kernelLog("Skynet Node: invalid message, defaultHandler must be a string for moduleCallV1");
+		let err = "bad moduleCallV1 request: defaultHandler is not a string";
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+
 	// TODO: Check that the domain decodes to a fully valid pubkey. The
 	// pubkey is important to ensuring that only handlers written by the
 	// original authors of the module are allowed to insert themselves as
@@ -147,9 +248,26 @@ handleModuleCallV1 = function(event, source) {
 	// it a moduleCallV2 if it only supports moduleCallV1. This I guess
 	// will be part of the packaging that wraps the module code.
 
-	// TODO: Check the in-memory map to see if there is an alternative
-	// handler that we use for this API endpoint.
-	if (false) {
+	// Check the moduleMap for the domain specified in this RPC.
+	var handler = moduleMap[event.data.domain];
+	var workerCode = "";
+	// Try to load the worker code from localstorage.
+	if (handler !== undefined) {
+		// TODO: Error handling.
+		var handlerStorageKey = "handlerWorkerCode" + handler;
+		workerCode = secureLoad(handlerStorageKey);
+	}
+	if (workerCode !== "" && workerCode !== undefined) {
+		runModuleCallV1Worker(event, source, workerCode);
+		return;
+	}
+
+	// TODO: Next steps: remember to save the handler if it works. Save the
+	// code as well. Figure out a safe scheme to store the code in
+	// localstorage, we probably don't want to have massive blobs in our
+	// object.
+
+	if (handler !== undefined) {
 		// TODO: Check whether we can grab the worker code from local
 		// storage or if we have to pull the worker code from Skynet.
 		// Once the workerCode has been retrieved, call runWorker with
@@ -169,7 +287,7 @@ handleModuleCallV1 = function(event, source) {
 		// Validate that the provided defaultHandler is a string.
 		if (typeof event.data.defaultHandler !== "string" ) {
 			// TODO: Error handling.
-			console.log("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
+			kernelLog("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
 			return;
 		}
 
@@ -234,5 +352,5 @@ handleMessage = function(event) {
 		handleSkynetNodeRequestHomescreen(event);
 	}
 
-	console.log("Received unrecognized call: ", event.data.kernelMethod);
+	kernelLog("Received unrecognized call: ", event.data.kernelMethod);
 }
