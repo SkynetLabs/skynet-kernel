@@ -22,6 +22,26 @@
 // seed, meaning another user on the same machine who logs in afterwards has no
 // ability to see what the previous person's seed was.
 
+// TODO: When implementing versioning, need to distinguish between a developer
+// domain and a production domain, and add some extra steps to publishing
+// updates to the publisher domain to ensure beta code doesn't make it to the
+// public.
+
+// TODO: Need to figure out some way to avoid race conditions when a module is
+// upgrading itself. The potential race is that an RPC gets called on the
+// module in the middle of a module upgrade.
+
+// TODO: We need some sort of call we can make that will block until the kernel
+// has finished upgrading all modules. This call is particularly useful for
+// development, devs can push a new update to their dev-module and then make
+// sure the testing software gets to block until the upgrade is loaded.
+
+// TODO: One of the consistency errors that we could run into when upgrading
+// the kernel is having two windows open on different devices that are each
+// running different versions of the kernel. That could cause data corruption
+// and inconsistency if they aren't coordinating around the upgrade together
+// effectively.
+
 // Set up a logging method that can be enabled and disabled.
 //
 // TODO: Add an RPC to enable and disable this at runtime.
@@ -90,6 +110,9 @@ var saveModuleMap = function() {
 // bits of untrusted code running inside of this worker, and those bits of code
 // may intentionally be trying to mess with each other as well as mess with the
 // kernel itself.
+//
+// TODO: provide the domain of the caller to the modules so they can implement
+// permissions.
 var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, workerCode) {
 	kernelLog("Skynet Node: creating worker to handle a moduleCallV1");
 	kernelLog(rwEvent.data);
@@ -207,99 +230,147 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	// Perform input validation - anyone can send any message to the
 	// kernel, need to make sure any malicious messages result in an error.
 	if (event.data.domain === undefined) {
-		kernelLog("Skynet Node: invalid message, domain must be set for moduleCallV1");
 		let err = "bad moduleCallV1 request: domain is not specified";
+		kernelLog("Skynet Node: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
 	if (typeof event.data.domain !== "string") {
-		kernelLog("Skynet Node: invalid message, domain must be a string for moduleCallV1");
 		let err = "bad moduleCallV1 request: domain is not a string";
+		kernelLog("Skynet Node: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
 	if (event.data.defaultHandler === undefined) {
-		kernelLog("Skynet Node: invalid message, defaultHandler must be a string for moduleCallV1");
 		let err = "bad moduleCallV1 request: defaultHandler is not specified";
+		kernelLog("Skynet Node: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
 	if (typeof event.data.defaultHandler !== "string") {
-		kernelLog("Skynet Node: invalid message, defaultHandler must be a string for moduleCallV1");
 		let err = "bad moduleCallV1 request: defaultHandler is not a string";
+		kernelLog("Skynet Node: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
+	/*
+	// Check the encoding of the defaultHandler. The encoding is:
+	// + 2 bytes for the kernel version of the handler.
+	// + 17 bytes for the revision number
+	// + 34 bytes for the skylinkV1
+	// + 64 bytes for the signature from the domain
+	//
+	// That's 117 bytes total which encodes to 156 bytes of base64.
+	//
+	// TODO: I wasn't sure how else to support the revision number, in
+	// theory it only needs to be 8 bytes but I couldn't figure out how to
+	// do this with uint8arrays or other convenient binary objects.
+	if (event.data.defaultHandler.length !== 156) {
+		let err = "bad moduleCallV1 request: defaultHandler should be 156 characters long";
+		kernelLog("Skynet Node: "+err);
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	// Convert to binary. Be sure to catch any parsing errors.
+	let defaultHandlerBinary = ""
+	try {
+		let defaultHandlerBinary = atob(event.data.defaultHandler);
+	} catch {
+		let err = "bad moduleCallV1 request: defaultHandler is not valid base64";
+		kernelLog("Skynet Node: "+err);
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	// Parse out the encoding version. The main reason this is two bytes
+	// instead of one is to allow the full base64 string to encode to an
+	// even number of bytes.
+	//
+	// NOTE: Version "01" tells us how the rest of the default handler is
+	// parsed, and also tells us that the hander speaks kernel version 01.
+	let version = defaultHandlerBinary.substring(0, 2);
+	if (version !== "01") {
+		let err = "bad moduleCallV1 request: unrecognized defaultHandler version";
+		kernelLog("Skynet Node: "+err);
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	// Parse out the revision number.
+	let defaultHandlerRevisionNumber = 0h
+	try {
+		defaultHandlerRevisionNumber = BigInt(defaultHandlerBinary.substring(2,19);
+	} catch {
+		let err = "bad moduleCallV1 request: defaultHandler revision number could not be parsed";
+		kernelLog("Skynet Node: "+err);
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
+		return;
+	}
+	// Parse out the skylink.
+	let skylink = defaultHandlerBinary.substring(19, 53);
+	// TODO: Make sure it's a valid V1 skylink.
+	let skylinkB64 = btoa(skylink);
+	// TODO: Parse out the domain and make sure it's a fully valid pubkey.
+	//
+	// TODO: Parse out the signature and make sure the signature matches
+	// the domain.
+	*/
 
-	// TODO: Check that the domain decodes to a fully valid pubkey. The
-	// pubkey is important to ensuring that only handlers written by the
-	// original authors of the module are allowed to insert themselves as
-	// upgrades. This prevents malicious apps from supplying malicious
-	// handlers that can steal user data.
-	
-	// TODO: We need some way to encode into the handler what kernel
-	// message protocol version the handler recognizes. We can't be sending
-	// it a moduleCallV2 if it only supports moduleCallV1. This I guess
-	// will be part of the packaging that wraps the module code.
+	// Define a helper function to fetch the workerCode from a skylink.
+	// This will be called if for some reason the worker code is not
+	// available locally.
+	var runModuleFromSkylink = function(skylink) {
+		downloadV1Skylink(skylink)
+			.then(response => {
+				// Kick off a worker to handle the request.
+				runModuleCallV1Worker(event, source, sourceIsWorker, response);
 
+				// TODO: This was only called if the worker
+				// code was not available in the local storage.
+				// Kick off a background thread to save the
+				// worker code to local storage, and then
+				// subsequently run an upgrade process. When
+				// implementing this, we'll want the handler as
+				// well.
+			});
+			// TODO: Error handling.
+	}
+	// TODO: This line is just here to help debugging.
+	runModuleFromSkylink(event.data.defaultHandler);
+
+	/*
 	// Check the moduleMap for the domain specified in this RPC.
 	var handler = moduleMap[event.data.domain];
-	var workerCode = "";
-	// Try to load the worker code from localstorage.
-	if (handler !== undefined) {
-		// TODO: Error handling.
-		var handlerStorageKey = "handlerWorkerCode" + handler;
-		workerCode = secureLoad(handlerStorageKey);
+	if (handler === undefined) {
+		runModuleFromSkylink(event.data.defaultHandler);
+		return;
 	}
-	if (workerCode !== "" && workerCode !== undefined) {
-		runModuleCallV1Worker(event, source, sourceIsWorker, workerCode);
+	// Parse the version of the saved handler and make sure the version is
+	// greater than or equal to the version in the default handler.
+	let savedHandlerKernelVersion = handler.substring(0, 2);
+	if (savedHandlerKernelVersion !== "01") {
+		runModuleFromSkylink(event.data.defaultHandler);
+		return;
+	}
+	try {
+		let savedHandlerRevisionNumber = BigInt(handler.substring(2, 19));
+		if (savedHandlerRevisionNumber < defaultHandlerRevisionNumber) {
+			runModuleFromSkylink(event.data.defaultHandler);
+			return;
+		}
+	} catch {
+		runModuleFromSkylink(event.data.defaultHandler);
 		return;
 	}
 
-	// TODO: Next steps: remember to save the handler if it works. Save the
-	// code as well. Figure out a safe scheme to store the code in
-	// localstorage, we probably don't want to have massive blobs in our
-	// object.
-
-	if (handler !== undefined) {
-		// TODO: Check whether we can grab the worker code from local
-		// storage or if we have to pull the worker code from Skynet.
-		// Once the workerCode has been retrieved, call runWorker with
-		// the worker code.
-		//
-		// Note that since we're here because there's an override for
-		// this API call, there's no need to verify that the worker
-		// code is properly signed. It may even be the case that the
-		// override intentionally replaced the original worker code
-		// with an alternate implementation, and the alternate
-		// implementor does not have the required private key. As long
-		// as the user (or distro maintainer) consented to the override
-		// (which is implied by the existence of the override), we do
-		// not care if the author had permission from the original
-		// module creator.
-	} else {
-		// Validate that the provided defaultHandler is a string.
-		if (typeof event.data.defaultHandler !== "string" ) {
-			// TODO: Error handling.
-			kernelLog("Skynet Node: invalid message, defaultHandler must be a v1 skylink");
-			return;
-		}
-
-		// Fetch the handler from skynet.
-		//
-		// TODO: If there is no default handler set, set this handler
-		// as the default handler for this API. Have some sort of
-		// versioning in place so that we can recognize if a newer
-		// handler is a higher version that we should be updating to.
-		downloadV1Skylink(event.data.defaultHandler)
-			.then(response => {
-				// TODO: Pull out and verify the signature for
-				// the handler instead of pretending that no
-				// signature exists and just parsing the whole
-				// thing as js.
-				runModuleCallV1Worker(event, source, sourceIsWorker, response);
-			});
+	// Try to load the worker code from local storage.
+	try {
+		let handlerStorageKey = "handlerWorkerCode" + handler;
+		let workerCode = secureLoad(handlerStorageKey);
+		runModuleCallV1Worker(event, source, sourceIsWorker, workerCode);
+	} catch {
+		// Try to fetch the worker code from Skynet.
+		runModuleFromSkylink(skylinkB64);
 	}
+	*/
 }
 
 // handleSkynetNodeRequestHomescreen will fetch the user's homescreen from
