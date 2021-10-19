@@ -28,11 +28,16 @@
     "scripts": ["background-verify.js"]
   },
 
+  // This is only here to try and get redirects working. I was not successful in
+  // getting redirects working, but I left this here so someone else could explore
+  // what went wrong.
+  "web_accessible_resources": ["homescreen.html"],
+
+  // These content scripts perfectly match the pages
+  // that are already being served by siasky.net,
+  // we only inject them in the browser extension to
+  // protect the user against siasky.net going rogue.
   "content_scripts": [
-	  // These content scripts perfectly match the pages
-	  // that are already being served by siasky.net,
-	  // we only inject them in the browser extension to
-	  // protect the user against siasky.net going rogue.
 	  {
 		  "matches": ["https://home.siasky.net/"],
 		  "js": ["content-home.js"],
