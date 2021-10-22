@@ -1,16 +1,16 @@
 {
-  "description": "Turns your browser into a full Skynet node",
+  "description": "Adds a fully trustless skynet-kernel to your browser",
   "manifest_version": 2,
-  "name": "skynet-node",
+  "name": "skynet-kernel",
   "version": "0.1",
-  "homepage_url": "https://node.siasky.net/",
+  "homepage_url": "https://kernel.siasky.net/",
   "icons": {
     "48": "icon.png",
     "96": "icon@2x.png"
   },
 
   // Any page can gain access to Skynet by opening an iframe to
-  // node.siasky.net, and we want the user to be confident that
+  // kernel .siasky.net, and we want the user to be confident that
   // all applications which are using Skynet in the browser are
   // trustlessly enabled, regardless of which url opened the
   // iframe. Therefore, the <all_urls> option is needed.
@@ -19,7 +19,7 @@
   ],
 
   // The background-verify script will block all requests to
-  // node.siasky.net and home.siasky.net, so that they can be
+  // kernel.siasky.net and home.siasky.net, so that they can be
   // replaced by the correct pages using the content scripts.
   // This ensures that the user gets the javascript they are
   // expecting, even if siasky.net has gone rogue and started
@@ -44,13 +44,13 @@
 		  "all_frames": true
 	  },
 	  {
-		  "matches": ["https://node.siasky.net/"],
-		  "js": ["content-node.js"],
+		  "matches": ["https://kernel.siasky.net/"],
+		  "js": ["content-kernel.js"],
 		  "all_frames": true
 	  },
 	  {
-		  "matches": ["https://node.siasky.net/auth.html"],
-		  "js": ["content-node-auth.js"],
+		  "matches": ["https://kernel.siasky.net/auth.html"],
+		  "js": ["content-kernel-auth.js"],
 		  "all_frames": true
 	  }
   ]

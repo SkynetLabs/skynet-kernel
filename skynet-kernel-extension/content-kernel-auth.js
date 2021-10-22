@@ -1,5 +1,5 @@
 // Set the header of the page.
-document.title = "skynet-node: login";
+document.title = "skynet-kernel: login";
 
 // authUser is a function which will inspect the value of the input field to
 // find the seed, and then will set the user's local seed to that value.

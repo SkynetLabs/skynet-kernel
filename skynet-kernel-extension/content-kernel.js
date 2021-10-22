@@ -1,6 +1,6 @@
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
-document.title = "node.siasky.net"
+document.title = "kernel.siasky.net"
 var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
@@ -36,22 +36,22 @@ var downloadV1Skylink = function(skylink) {
 	return fetch(skylink).then(response => response.text())
 }
 
-// loadSkynetNode handles loading the rest of the skynet-node from the user's
+// loadSkynetNode handles loading the rest of the skynet-kernel from the user's
 // skynet storage. This will include loading all installed modules. A global
 // variable is used to ensure that the loading process only happens once.
-var nodeLoaded = false;
-var nodeLoading = false;
+var kernelLoaded = false;
+var kernelLoading = false;
 var loadSkynetNode = function() {
-	// Check whether the node has already loaded. If so, there is nothing
+	// Check whether the kernel has already loaded. If so, there is nothing
 	// to do.
 	//
-	// TODO: I'm not sure that nodeLoading is necessary. I'm also not sure
+	// TODO: I'm not sure that kernelLoading is necessary. I'm also not sure
 	// that this provides any actual safety, because there is still a
 	// window between the conditional check and the setting of the value.
-	if (nodeLoaded || nodeLoading) {
+	if (kernelLoaded || kernelLoading) {
 		return;
 	}
-	nodeLoading = true;
+	kernelLoading = true;
 
 	// Load the rest of the script from Skynet.
 	// 
@@ -61,13 +61,13 @@ var loadSkynetNode = function() {
 	// round trip by being the full javascript instead of being a v1
 	// skylink.
 	//
-	// TODO: If there is some sort of error, need to set nodeLoading to
+	// TODO: If there is some sort of error, need to set kernelLoading to
 	// false and then send a 'authFailed' message or some other sort of
 	// error notification.
-	downloadV1Skylink("https://siasky.net/IACti9pGtZFd0X7eigDQaS-AlJqPhU5Xq_zd1NuLF5kh_A/")
+	downloadV1Skylink("https://siasky.net/IACQsNpIIDfJW_yxVJl0rOflXgF7FwWd2Ci400LH32693g/")
 		.then(text => {
 			eval(text);
-			nodeLoaded = true;
+			kernelLoaded = true;
 			window.parent.postMessage({kernelMethod: "skynetNodeLoaded"}, "*");
 		});
 }
@@ -79,10 +79,10 @@ var handleMessage = function(event) {
 	return;
 }
 
-// Establish the event listener for the node. There are several default
+// Establish the event listener for the kernel. There are several default
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
-// seed we cannot load the rest of the skynet node.
+// seed we cannot load the rest of the skynet kernel.
 window.addEventListener("message", (event) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
@@ -99,7 +99,7 @@ window.addEventListener("message", (event) => {
 	// Establish a handler to handle a request which states that
 	// authentication has been completed. Because we have already called
 	// hasUserSeed() earlier in the function, we know that the correct seed
-	// exists. We therefore just need to load the rest of the Skynet node.
+	// exists. We therefore just need to load the rest of the Skynet kernel.
 	if (event.data.kernelMethod === "authCompleted") {
 		loadSkynetNode();
 		return;
@@ -107,7 +107,7 @@ window.addEventListener("message", (event) => {
 
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
-	// the node and the calling application.
+	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
 		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
 		return;
@@ -118,7 +118,7 @@ window.addEventListener("message", (event) => {
 	handleMessage(event);
 }, false);
 
-// If the user seed is in local storage, we'll load the node. If the user seed
+// If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
 if (hasUserSeed()) {

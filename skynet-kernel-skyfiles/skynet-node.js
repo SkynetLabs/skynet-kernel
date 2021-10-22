@@ -211,9 +211,9 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 	}
 }
 
-// handleModuleCallV1 handles a call to a version 1 skynet node module.
+// handleModuleCallV1 handles a call to a version 1 skynet kernel module.
 // 
-// TODO: Write documentation for using V1 skynet node module calls. Need to
+// TODO: Write documentation for using V1 skynet kernel module calls. Need to
 // specify the intention, limitations, and every parameter.
 //
 // TODO: What we really want is for the handlers to be versioned, and then we
@@ -383,14 +383,14 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 	// downloads, and then use those.
 	//
 	// TODO: We can/should probably start fetching these as soon as
-	// the node starts up, instead of waiting until the first
+	// the kernel starts up, instead of waiting until the first
 	// request.
 	//
 	// TODO: We should save the user's homescreen files to local
 	// storage and load them from local storage for a performance
 	// boost. After loading them locally and serving them to the
 	// caller, we can check if there was an update.
-	var jsResp = downloadV1Skylink("https://siasky.net/AABVJQo3cSD7IWyRHHOq3PW1ryrvvjcKhdgUS3wrFSdivA/");
+	var jsResp = downloadV1Skylink("https://siasky.net/AACcCmVXNZZBypiIS3dzmb7aU7l58yr3ZPCcAbal9h8S2w/");
 	var htmlResp = downloadV1Skylink("https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/");
 	Promise.all([jsResp, htmlResp]).then((values) => {
 		var homescreenResponse = {

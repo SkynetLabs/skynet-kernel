@@ -23,6 +23,12 @@ installation process. This involves going to about:debugging. Just google it,
 you'll figure it out. The folder with the extension code is
 'skynet-node-extension'.
 
+## useful-code
+
+The useful-code folder contains a collection of example things that I built but
+didn't end up using, but wanted to keep around in case we figured out a way to
+make it useful in the future.
+
 ## skynet-node design
 
 The skynet-node itself is broken into 5 major pieces:

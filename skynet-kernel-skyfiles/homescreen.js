@@ -9,4 +9,4 @@ handleMessage = function(event) {
 
 // Send a message to perform a test ping and confirm that the script was loaded
 // correctly.
-node.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://node.siasky.net");
+kernel.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://kernel.siasky.net");
