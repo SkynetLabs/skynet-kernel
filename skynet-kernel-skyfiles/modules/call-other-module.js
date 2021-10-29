@@ -26,7 +26,9 @@ handleModuleRequest = function(event) {
 		// the kernel does not already know about basic.js, we provide
 		// a link that will let the kernel install and run basic.js at
 		// runtime.
-		defaultHandler: "https://siasky.net/AAD6aV5p8r5CfJSQofpkowGQ7HfFtEDP1UEF1SMVjHXKFg/",
+		//
+		// TODO: The defaultHandler needs to be without a portal.
+		defaultHandler: "https://siasky.net/branch-file:::skynet-kernel-skyfiles/modules/basic.js",
 		// The domain specifies the domain of basic.js. The domain is
 		// what the kernel uses to figure out which software to run.
 		// The kernel will only fall back to the defaultHandler if it

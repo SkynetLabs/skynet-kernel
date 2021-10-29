@@ -23,6 +23,18 @@ installation process. This involves going to about:debugging. Just google it,
 you'll figure it out. The folder with the extension code is
 'skynet-node-extension'.
 
+## Dependencies
+
+Successfully building the skynet kernel and all core modules requires the
+following dependencies:
+
++ make
++ curl
++ jq
+
+You can get all of them on debian using the command `sudo apt-get install make
+curl jq`
+
 ## useful-code
 
 The useful-code folder contains a collection of example things that I built but
