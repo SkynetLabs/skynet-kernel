@@ -10,7 +10,7 @@
   },
 
   // Any page can gain access to Skynet by opening an iframe to
-  // kernel .siasky.net, and we want the user to be confident that
+  // kernel.siasky.net, and we want the user to be confident that
   // all applications which are using Skynet in the browser are
   // trustlessly enabled, regardless of which url opened the
   // iframe. Therefore, the <all_urls> option is needed.
