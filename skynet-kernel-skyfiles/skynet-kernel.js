@@ -78,7 +78,7 @@ var loadModuleMap = function() {
 		modules = secureLoad("moduleMap");
 		moduleMap = JSON.parse(modules);
 	} catch {
-		kernelLog("Skynet Node ERROR: unable securely load the moduleMap");
+		kernelLog("Skynet Kernel ERROR: unable securely load the moduleMap");
 		moduleMap = {};
 	}
 
@@ -114,14 +114,14 @@ var saveModuleMap = function() {
 // TODO: provide the domain of the caller to the modules so they can implement
 // permissions.
 var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, workerCode) {
-	kernelLog("Skynet Node: creating worker to handle a moduleCallV1");
+	kernelLog("Skynet Kernel: creating worker to handle a moduleCallV1");
 	kernelLog(rwEvent.data);
 	kernelLog(rwSource);
 	kernelLog(rwSourceIsWorker);
 	let url = URL.createObjectURL(new Blob([workerCode]));
 	let worker = new Worker(url);
 	worker.onmessage = function(wEvent) {
-		kernelLog("Skynet Node: moduleCallV1 worker got a message");
+		kernelLog("Skynet Kernel: moduleCallV1 worker got a message");
 		kernelLog(rwEvent.data);
 		kernelLog(rwSource);
 		kernelLog(rwSourceIsWorker);
@@ -129,7 +129,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 		// Check if the worker is trying to make a call to
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCallV1") {
-			kernelLog("Skynet Node: moduleCallV1 worker is calling moduleCallV1");
+			kernelLog("Skynet Kernel: moduleCallV1 worker is calling moduleCallV1");
 			handleModuleCallV1(wEvent, worker, true);
 			return;
 		}
@@ -137,7 +137,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 		// Check if the worker is responding to the original
 		// caller.
 		if (wEvent.data.kernelMethod === "moduleResponseV1") {
-			kernelLog("Skynet Node: moduleCallV1 worker is sending a moduleResponseV1");
+			kernelLog("Skynet Kernel: moduleCallV1 worker is sending a moduleResponseV1");
 			let message = {
 				domain: wEvent.data.domain,
 				kernelMethod: "moduleResponseV1",
@@ -161,7 +161,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 		// shouldn't be arriving to this code block unless the
 		// request was malformed.
 		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCallV1";
-		kernelLog("Skynet Node: " + err);
+		kernelLog("Skynet Kernel: " + err);
 		reportModuleCallV1KernelError(rwSource, true, rwEvent.data.requestNonce, err);
 		worker.terminate();
 		return;
@@ -231,25 +231,25 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	// kernel, need to make sure any malicious messages result in an error.
 	if (event.data.domain === undefined) {
 		let err = "bad moduleCallV1 request: domain is not specified";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
 	if (typeof event.data.domain !== "string") {
 		let err = "bad moduleCallV1 request: domain is not a string";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
 	if (event.data.defaultHandler === undefined) {
 		let err = "bad moduleCallV1 request: defaultHandler is not specified";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
 	if (typeof event.data.defaultHandler !== "string") {
 		let err = "bad moduleCallV1 request: defaultHandler is not a string";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
@@ -267,7 +267,7 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	// do this with uint8arrays or other convenient binary objects.
 	if (event.data.defaultHandler.length !== 156) {
 		let err = "bad moduleCallV1 request: defaultHandler should be 156 characters long";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
@@ -277,7 +277,7 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 		let defaultHandlerBinary = atob(event.data.defaultHandler);
 	} catch {
 		let err = "bad moduleCallV1 request: defaultHandler is not valid base64";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
@@ -290,7 +290,7 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	let version = defaultHandlerBinary.substring(0, 2);
 	if (version !== "01") {
 		let err = "bad moduleCallV1 request: unrecognized defaultHandler version";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
@@ -300,7 +300,7 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 		defaultHandlerRevisionNumber = BigInt(defaultHandlerBinary.substring(2,19);
 	} catch {
 		let err = "bad moduleCallV1 request: defaultHandler revision number could not be parsed";
-		kernelLog("Skynet Node: "+err);
+		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
@@ -373,11 +373,11 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	*/
 }
 
-// handleSkynetNodeRequestHomescreen will fetch the user's homescreen from
+// handleSkynetKernelRequestHomescreen will fetch the user's homescreen from
 // their Skynet account and serve it to the caller.
 //
 // TODO: Turn this into a moduleCallV1. Maybe.
-var handleSkynetNodeRequestHomescreen = function(event) {
+var handleSkynetKernelRequestHomescreen = function(event) {
 	// TODO: Instead of using hardcoded skylinks, derive some
 	// registry locations from the user's seed, verify the
 	// downloads, and then use those.
@@ -390,8 +390,8 @@ var handleSkynetNodeRequestHomescreen = function(event) {
 	// storage and load them from local storage for a performance
 	// boost. After loading them locally and serving them to the
 	// caller, we can check if there was an update.
-	var jsResp = downloadV1Skylink("https://siasky.net/AACcCmVXNZZBypiIS3dzmb7aU7l58yr3ZPCcAbal9h8S2w/");
-	var htmlResp = downloadV1Skylink("https://siasky.net/AACIsYKvkvqKJnxdC-6MMLBvEFr2zoWpooXSkM4me5S2Iw/");
+	var jsResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.js");
+	var htmlResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.html");
 	Promise.all([jsResp, htmlResp]).then((values) => {
 		var homescreenResponse = {
 			kernelMethod: "receiveHomescreen",
@@ -414,7 +414,7 @@ handleMessage = function(event) {
 
 	// Establish a handler that will serve user's homescreen to the caller.
 	if (event.data.kernelMethod === "requestHomescreen") {
-		handleSkynetNodeRequestHomescreen(event);
+		handleSkynetKernelRequestHomescreen(event);
 	}
 
 	kernelLog("Received unrecognized call: ", event.data.kernelMethod);

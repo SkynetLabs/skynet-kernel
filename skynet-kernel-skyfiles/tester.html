@@ -72,14 +72,14 @@ function appendMessage(message, error) {
 
 // This test ensures that the kernel is sending a message when startup
 // completes.
-var skynetNodeLoaded = false;
-var handleSkynetNodeLoaded = function(event) {
-	if (skynetNodeLoaded === false) {
-		skynetNodeLoaded = true;
+var skynetKernelLoaded = false;
+var handleSkynetKernelLoaded = function(event) {
+	if (skynetKernelLoaded === false) {
+		skynetKernelLoaded = true;
 		appendMessage("skynet kernel has loaded");
 		incrementTestsPassed();
 	} else {
-		appendMessage("received skynetNodeLoaded multiple times", true);
+		appendMessage("received skynetKernelLoaded multiple times", true);
 		incrementErrors();
 	}
 }
@@ -189,9 +189,9 @@ window.addEventListener("message", (event) => {
 	console.log("Tester received message: ", performance.now());
 	console.log(event.data);
 
-	// Listen for the skynetNodeLoaded message.
-	if (event.data.kernelMethod === "skynetNodeLoaded") {
-		handleSkynetNodeLoaded(event);
+	// Listen for the skynetKernelLoaded message.
+	if (event.data.kernelMethod === "skynetKernelLoaded") {
+		handleSkynetKernelLoaded(event);
 
 		// Send a message to trigger the next test: basic communication.
 		kernel.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://kernel.siasky.net");

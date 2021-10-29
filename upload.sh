@@ -12,6 +12,9 @@
 # files in. The order matters because of dependency ranges.
 files=( "skynet-kernel-skyfiles/modules/basic.js" \
 	"skynet-kernel-skyfiles/modules/call-other-module.js" \
+	"skynet-kernel-skyfiles/homescreen.html" \
+	"skynet-kernel-skyfiles/homescreen.js" \
+	"skynet-kernel-skyfiles/skynet-kernel.js" \
 	"skynet-kernel-skyfiles/tester.html")
 
 # Create the build dir and copy all of relevant files into it.
@@ -46,6 +49,25 @@ do
 	grep -lr "branch-file:::$file" build | xargs -r sed -i -e "s/branch-file:::$escaped_file/$skylink/g"
 done
 
+# Formatting for the output
+echo
+
+# Output the skylink for the kernel code.
+#
+# TODO: Eventually the output for the kernel code is going to need to be
+# handled in a manual way. I'm not sure the best way to go about that, since we
+# have to actually inject the new code into the browser extension, or otherwise
+# find some way to have the browser extension fetch it from a dynamic spot.
+# We'll probably need to have an environment variable set somewhere that gives
+# us a persistent way to set the kernel.
+upload_output=$(curl -s -L -X POST "$1/skynet/skyfile" -F "file=@build/skynet-kernel-skyfiles/skynet-kernel.js")
+# Parse the skylink from the output with jq
+skylink=$(echo $upload_output | jq '.skylink')
+# Remove the leading and trailing quotes from the output.
+skylink="${skylink%\"}"
+skylink="${skylink#\"}"
+echo skynet-kernel.js skylink: $skylink
+
 # Pop open the tester file from the build.
 upload_output=$(curl -s -L -X POST "$1/skynet/skyfile" -F "file=@build/skynet-kernel-skyfiles/tester.html")
 # Parse the skylink from the output with jq
@@ -54,5 +76,5 @@ skylink=$(echo $upload_output | jq '.skylink')
 skylink="${skylink%\"}"
 skylink="${skylink#\"}"
 # Use xdg-open to pop open the browser window
-xdg-open $1/$skylink
 echo tester.html skylink: $skylink
+xdg-open $1/$skylink

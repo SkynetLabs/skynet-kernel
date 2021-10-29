@@ -36,12 +36,12 @@ var downloadV1Skylink = function(skylink) {
 	return fetch(skylink).then(response => response.text())
 }
 
-// loadSkynetNode handles loading the rest of the skynet-kernel from the user's
+// loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
 // skynet storage. This will include loading all installed modules. A global
 // variable is used to ensure that the loading process only happens once.
 var kernelLoaded = false;
 var kernelLoading = false;
-var loadSkynetNode = function() {
+var loadSkynetKernel = function() {
 	// Check whether the kernel has already loaded. If so, there is nothing
 	// to do.
 	//
@@ -64,11 +64,11 @@ var loadSkynetNode = function() {
 	// TODO: If there is some sort of error, need to set kernelLoading to
 	// false and then send a 'authFailed' message or some other sort of
 	// error notification.
-	downloadV1Skylink("https://siasky.net/IACQsNpIIDfJW_yxVJl0rOflXgF7FwWd2Ci400LH32693g/")
+	downloadV1Skylink("https://siasky.net/IAB0SQgJUIp5xJ1J00hK5Os6L4Z89Z7zHIFHN4lP_1UYEw/")
 		.then(text => {
 			eval(text);
 			kernelLoaded = true;
-			window.parent.postMessage({kernelMethod: "skynetNodeLoaded"}, "*");
+			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 		});
 }
 
@@ -86,7 +86,7 @@ var handleMessage = function(event) {
 window.addEventListener("message", (event) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
-	console.log("Skynet Node: message received");
+	console.log("Skynet Kernel: message received");
 	console.log(event.data);
 
 	// Check that the authentication suceeded. If authentication did not
@@ -101,7 +101,7 @@ window.addEventListener("message", (event) => {
 	// hasUserSeed() earlier in the function, we know that the correct seed
 	// exists. We therefore just need to load the rest of the Skynet kernel.
 	if (event.data.kernelMethod === "authCompleted") {
-		loadSkynetNode();
+		loadSkynetKernel();
 		return;
 	}
 
@@ -122,7 +122,7 @@ window.addEventListener("message", (event) => {
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
 if (hasUserSeed()) {
-	loadSkynetNode();
+	loadSkynetKernel();
 } else {
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 }

@@ -53,7 +53,7 @@ var handleMessage = function(event) {
 	// Establish a handler to detect when the skynet kernel is loaded. Once
 	// the skynet kernel is fully loaded, we will request the user's
 	// homescreen application from the kernel.
-	if (event.data.kernelMethod === "skynetNodeLoaded") {
+	if (event.data.kernelMethod === "skynetKernelLoaded") {
 		console.log("Homescreen: skynet kernel loaded time: ", performance.now());
 
 		// Send a postmessage to kernel.siasky.net to fetch the homepage.
