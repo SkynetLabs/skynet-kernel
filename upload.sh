@@ -15,7 +15,14 @@ files=( "skynet-kernel-skyfiles/modules/basic.js" \
 	"skynet-kernel-skyfiles/homescreen.html" \
 	"skynet-kernel-skyfiles/homescreen.js" \
 	"skynet-kernel-skyfiles/skynet-kernel.js" \
+	"skynet-kernel-extension/content-kernel.js" \
 	"skynet-kernel-skyfiles/tester.html")
+
+# Copy the kernel extension into the build folder. We do this so we don't have
+# to enumerate every file in the extension above, as only the kernel.js itself
+# needs to be processed.
+mkdir -p build
+cp -r skynet-kernel-extension build/
 
 # Create the build dir and copy all of relevant files into it.
 for file in "${files[@]}"
@@ -52,22 +59,6 @@ done
 # Formatting for the output
 echo
 
-# Output the skylink for the kernel code.
-#
-# TODO: Eventually the output for the kernel code is going to need to be
-# handled in a manual way. I'm not sure the best way to go about that, since we
-# have to actually inject the new code into the browser extension, or otherwise
-# find some way to have the browser extension fetch it from a dynamic spot.
-# We'll probably need to have an environment variable set somewhere that gives
-# us a persistent way to set the kernel.
-upload_output=$(curl -s -L -X POST "$1/skynet/skyfile" -F "file=@build/skynet-kernel-skyfiles/skynet-kernel.js")
-# Parse the skylink from the output with jq
-skylink=$(echo $upload_output | jq '.skylink')
-# Remove the leading and trailing quotes from the output.
-skylink="${skylink%\"}"
-skylink="${skylink#\"}"
-echo skynet-kernel.js skylink: $skylink
-
 # Pop open the tester file from the build.
 upload_output=$(curl -s -L -X POST "$1/skynet/skyfile" -F "file=@build/skynet-kernel-skyfiles/tester.html")
 # Parse the skylink from the output with jq
@@ -75,6 +66,8 @@ skylink=$(echo $upload_output | jq '.skylink')
 # Remove the leading and trailing quotes from the output.
 skylink="${skylink%\"}"
 skylink="${skylink#\"}"
-# Use xdg-open to pop open the browser window
-echo tester.html skylink: $skylink
-xdg-open $1/$skylink
+
+# Instruct the user on how to test the updated kernel
+echo refresh the extension in your browser and then test with the test file
+echo you can open the test file with the following command
+echo xdg-open $1/$skylink

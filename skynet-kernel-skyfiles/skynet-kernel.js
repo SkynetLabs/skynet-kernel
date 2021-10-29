@@ -390,8 +390,8 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 	// storage and load them from local storage for a performance
 	// boost. After loading them locally and serving them to the
 	// caller, we can check if there was an update.
-	var jsResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.js");
-	var htmlResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.html");
+	var jsResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.js/");
+	var htmlResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.html/");
 	Promise.all([jsResp, htmlResp]).then((values) => {
 		var homescreenResponse = {
 			kernelMethod: "receiveHomescreen",

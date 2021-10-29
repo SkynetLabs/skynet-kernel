@@ -64,7 +64,7 @@ var loadSkynetKernel = function() {
 	// TODO: If there is some sort of error, need to set kernelLoading to
 	// false and then send a 'authFailed' message or some other sort of
 	// error notification.
-	downloadV1Skylink("https://siasky.net/IAB0SQgJUIp5xJ1J00hK5Os6L4Z89Z7zHIFHN4lP_1UYEw/")
+	downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
 		.then(text => {
 			eval(text);
 			kernelLoaded = true;
