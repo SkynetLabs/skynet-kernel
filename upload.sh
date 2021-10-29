@@ -21,6 +21,12 @@ files=( "skynet-kernel-skyfiles/modules/basic.js" \
 # Copy the kernel extension into the build folder. We do this so we don't have
 # to enumerate every file in the extension above, as only the kernel.js itself
 # needs to be processed.
+#
+# TODO: Eventually this step will need to be replaced with a v2 skylink that
+# the developer will have to add to their kernel configuration. I'm not
+# completely sure how that is going to work. Maybe the best plan is to have the
+# developer extension always use a V1 link, and then have the deploy process
+# push the kernel up as a v2 link.
 mkdir -p build
 cp -r skynet-kernel-extension build/
 
@@ -33,12 +39,14 @@ do
 done
 
 # Upload the files in order, and then do a find and replace to replace the
-# trigger strings with the appropriate skylinks. Eventually, this loop will be
-# replaced by a trio of loops. The first loop will create a V2 skylink for each
-# file, and then the second loop will find and replace all of the trigger
-# strings, and then the final loop will upload each file and publish it under
-# the temporary V2 skylink. The final output will provide skylinks for the
-# kernel, the test files, and all of the modules.
+# trigger strings with the appropriate skylinks.
+#
+# TODO: Eventually, this loop will be replaced by a trio of loops. The first
+# loop will create a V2 skylink for each file, and then the second loop will
+# find and replace all of the trigger strings, and then the final loop will
+# upload each file and publish it under the temporary V2 skylink. The final
+# output will provide skylinks for the kernel, the test files, and all of the
+# modules.
 for file in "${files[@]}"
 do
 	echo "Uploading $file"

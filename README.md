@@ -35,6 +35,37 @@ following dependencies:
 You can get all of them on debian using the command `sudo apt-get install make
 curl jq`
 
+## Building the kernel
+
+To build the kernel, just run 'make'.
+
+Once the kernel is built, you will need to take the extension found in
+'build/skynet-kernel-extension' and load it into Firefox. If you have already
+loaded it, you will need to refresh it.
+
+Once the extension in Firefox is all set, you can run the 'xdg-open' command
+provided by the build process to open a tester file which will run a bunch of
+tests and assert whether everything is working properly.
+
+## Hacking on the Kernel
+
+Most of the kernel is plain javascript, however there is a compilation step
+that is handled by the Makefile. The entire kernel operates out of Skynet,
+which means that modules need to reference each other by their skylinks. To
+make life easy for the developer, you can reference a module using a relative
+path 'branch-file:::$relativePath'. Check out the defaultHandler in
+'skynet-kernel-skyfiles/modules/call-other-module.js' to see this in action.
+
+If you add any new files, they will need to be added to the list of files in
+'upload.sh' so that they get compiled correctly. Once they are compiled, their
+correct form will be placed in the 'build' folder.
+
+In general we recommend reading the full source code of the kernel before
+beginning development. At this stage, the source code is small enough and the
+code is being modified rapidly enough that knowing all the code is both
+reasonable and likely to result in the least total amount of time spent
+figuring out how to develop on the kernel or build modules.
+
 ## useful-code
 
 The useful-code folder contains a collection of example things that I built but
