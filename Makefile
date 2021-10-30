@@ -1,7 +1,7 @@
 .PHONY: clean
 
 all:
-	@./upload.sh
+	@./build.sh
 
 clean:
 	rm -r build
