@@ -35,6 +35,10 @@ following dependencies:
 You can get all of them on debian using the command `sudo apt-get install make
 curl jq`
 
+The deploy script will deploy files to Skynet using a portal. The default is
+https://siasky.net/, but another portal can be set with the environment
+variable SKYNET\_PORTAL.
+
 ## Building the kernel
 
 To build the kernel, just run 'make'.

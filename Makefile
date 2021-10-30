@@ -1,9 +1,7 @@
 .PHONY: clean
 
-PORTAL = https://siasky.net
-
 all:
-	@./upload.sh $(PORTAL)
+	@./upload.sh
 
 clean:
 	rm -r build
