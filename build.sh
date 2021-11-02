@@ -9,6 +9,10 @@
 # The result is that the files can be uploaded in any order, and the
 # 'branch-file' primitives allows for circular communication.
 
+# TODO: When we eventually switch to production deployments, we'll want to
+# integrate in a way that allows us to have primary and secondary registry
+# entries.
+
 # Detect that skynet-utils is available.
 if ! [ -x "$(command -v skynet-utils)" ]; then
 	echo "skynet-utils could not be found, please install skynet-utils"
@@ -37,7 +41,7 @@ do
 	fi
 
 	# Generate the v2 skylink for this file.
-	v2skylink=$(skynet-utils generate-v2skylink $file $seed)
+	v2skylink=$(skynet-utils generate-v2skylink ${file#*/} $seed)
 	# Escape the filename for compatibility.
 	escaped_file=$(printf '%s\n' "${file#*/}" | sed -e 's/[]\/$*.^[]/\\&/g')
 	# Update every other file in the directory to use the v2 skylink.
@@ -57,8 +61,8 @@ do
 
 	# Upload the file and get the v1 skylink.
 	v1skylink=$(skynet-utils upload-file $file)
-	echo "Uploaded $file: $v1skylink"
-	skynet-utils upload-to-v2skylink $v1skylink $file $seed
+	echo "Uploaded ${file#*/}: $v1skylink"
+	skynet-utils upload-to-v2skylink $v1skylink ${file#*/} $seed
 done
 
 # Get the skylink of the tester file.
@@ -71,6 +75,7 @@ tester_skylink=$(skynet-utils upload-file build/skynet-kernel-skyfiles/tester.ht
 skynet_portal="${SKYNET_PORTAL:-https://siasky.net}"
 
 # Instruct the user on how to test the updated kernel
+echo
 echo refresh the extension in your browser and then test with the test file
 echo you can open the test file with the following command
 echo xdg-open $skynet_portal/$tester_skylink
