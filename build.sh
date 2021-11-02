@@ -1,122 +1,76 @@
 #!/bin/bash
 
-# This is a script which builds and deploys the kernel. On Skynet, that
-# essentially just means uploading the files to Skynet. Before we do that
-# however, we need to perform a compilation step.
+# This is a script which builds and deploys the kernel. The general process is
+# that we copy every file to a build directory, then we compute a v2skylink for
+# each file, then we compile every file by replacing the 'branch-file'
+# directives with the correct v2skylinks, finally we upload the compiled files
+# to skynet and update the corresponding v2 skylinks.
 #
-# Some of the files in the kernel reference other files in the kernel by their
-# hash. To make development more convenient, we use a string
-# 'branch-file:::<relative filepath>' to reference other files. The compilation
-# step translates the relative paths into Skylinks that are unique to this
-# build, and then uploads the transformed files in the deploy step.
+# The result is that the files can be uploaded in any order, and the
+# 'branch-file' primitives allows for circular communication.
 
-# Detect that all required dependencies are available.
-if ! [ -x "$(command -v jq)" ]; then
-	echo "jq could not be found, please install jq"
-	exit
-fi
-if ! [ -x "$(command -v curl)" ]; then
-	echo "curl could not be found, please install curl"
+# Detect that skynet-utils is available.
+if ! [ -x "$(command -v skynet-utils)" ]; then
+	echo "skynet-utils could not be found, please install skynet-utils"
 	exit
 fi
 
-# Detect which portal should be used for uploading.
-skynet_portal="${SKYNET_PORTAL:-https://siasky.net}"
+# Generate a random seed that we will use to generate the public keys for every
+# file.
+seed=$(skynet-utils generate-seed)
 
-# TODO: There are several portal operations in this file that are currently
-# unverified. We have the ability to check that the portal is being honest when
-# we deploy, so we should. The best way to go about this would be to make a
-# separate binary in a separate repo, a CLI tool for Skynet (maybe even skyc)
-# that can perform the uploading and downloading instead of curl, and when we
-# start using the registry to make and deploy V2 skylinks, we should use the
-# tool for that as well.
-
-# TODO: Currently all the links used by the build script are V1 Skylinks. This
-# means that files need to be processed and uploaded in a specific order, and
-# that the file dependencies must form a DAG. If we switch to using V2
-# Skylinks, we can both ignore the order that files are processed and also
-# allow files to reference each other.
-#
-# When we switch to V2 skylinks, we will do things in a slightly different
-# order. First, we will determine (probably via script input) whether this
-# build is a developer build or a production build. If it is a developer build,
-# we will generate a random seed for the build. If it is a production build, we
-# will use an environment variable to fetch the production seed.
-#
-# After we have the seed, we will use that seed to deterministically generate a
-# unique public key for each file, and we will use that pubkey to determine the
-# V2 skylink of that file. We will then use that pubkey to find-and-replace the
-# 'branch-file:::' strings. Finally, we will upload all the files at once. This
-# lets us process files in any order, and allows files to reference each other.
-
-# Establish the order that we will use to process files. This step is only
-# necessary until we have support for V2 skylinks.
-files=( "skynet-kernel-skyfiles/modules/basic.js" \
-	"skynet-kernel-skyfiles/modules/call-other-module.js" \
-	"skynet-kernel-skyfiles/homescreen.html" \
-	"skynet-kernel-skyfiles/homescreen.js" \
-	"skynet-kernel-skyfiles/skynet-kernel.js" \
-	"skynet-kernel-extension/content-kernel.js" \
-	"skynet-kernel-skyfiles/tester.html")
-
-# Copy the kernel extension into the build folder. We do this so we don't have
-# to enumerate every file in the extension above, as only the kernel.js itself
-# needs to be processed.
+# Create the build directory and copy the required directories over.
 mkdir -p build
 cp -r skynet-kernel-extension build/
+cp -r skynet-kernel-skyfiles build/
 
-# Create the build dir and copy all of relevant files into it.
-for file in "${files[@]}"
+# Create a v2 skylink for each file in each directory, and perform a
+# find-and-replace on the rest of the files in the directory to replace
+# relative path references with the appropriate v2 skylink.
+files=$(find build)
+for file in $files
 do
-	dir=$(dirname "$file")
-	mkdir -p "build/$dir"
-	cp "$file" "build/$file"
+	# Skip any directories.
+	if [ -d $file ];
+	then
+		continue
+	fi
+
+	# Generate the v2 skylink for this file.
+	v2skylink=$(skynet-utils generate-v2skylink $file $seed)
+	# Escape the filename for compatibility.
+	escaped_file=$(printf '%s\n' "${file#*/}" | sed -e 's/[]\/$*.^[]/\\&/g')
+	# Update every other file in the directory to use the v2 skylink.
+	grep -lr "branch-file:::${file#*/}" build | xargs -r sed -i -e "s/branch-file:::$escaped_file/$v2skylink/g"
 done
 
-# Upload the files in order, and then do a find and replace to replace the
-# trigger strings with the appropriate skylinks.
+# Now that every file has been updated to reference the correct v2 skylinks,
+# upload them all to skynet and update the corresponding v2 skylinks to point
+# to the correct file. After this is done, the kernel should be functional.
+for file in $files
+do
+	# Skip any directories.
+	if [ -d $file ];
+	then
+		continue
+	fi
+
+	# Upload the file and get the v1 skylink.
+	v1skylink=$(skynet-utils upload-file $file)
+	echo "Uploaded $file: $v1skylink"
+	skynet-utils upload-to-v2skylink $v1skylink $file $seed
+done
+
+# Get the skylink of the tester file.
 #
-# TODO: Eventually, this loop will be replaced by a trio of loops. The first
-# loop will create a V2 skylink for each file, and then the second loop will
-# find and replace all of the trigger strings, and then the final loop will
-# upload each file and publish it under the temporary V2 skylink. The final
-# output will provide skylinks for the kernel, the test files, and all of the
-# modules.
-for file in "${files[@]}"
-do
-	echo "Uploading $file"
-	# Upload the file from the build folder to Skynet.
-	upload_output=$(curl -s -L -X POST "$skynet_portal/skynet/skyfile" -F "file=@build/$file")
-	# Parse the skylink from the output with jq
-	skylink=$(echo $upload_output | jq '.skylink')
-	# Remove the leading and trailing quotes from the output.
-	skylink="${skylink%\"}"
-	skylink="${skylink#\"}"
-	# Escape the string so it can be safely passed to sed's find and
-	# replace.
-	escaped_file=$(printf '%s\n' "$file" | sed -e 's/[]\/$*.^[]/\\&/g')
-	# Update every other file in the directory to use the skylink.
-	grep -lr "branch-file:::$file" build | xargs -r sed -i -e "s/branch-file:::$escaped_file/$skylink/g"
-done
+# TODO: Add a -dryrun flag which just returns the skylink without actually
+# uploading.
+tester_skylink=$(skynet-utils upload-file build/skynet-kernel-skyfiles/tester.html)
 
-# Formatting for the output
-echo
-
-# Pop open the tester file from the build.
-upload_output=$(curl -s -L -X POST "$skynet_portal/skynet/skyfile" -F "file=@build/skynet-kernel-skyfiles/tester.html")
-# Parse the skylink from the output with jq
-skylink=$(echo $upload_output | jq '.skylink')
-# Remove the leading and trailing quotes from the output.
-skylink="${skylink%\"}"
-skylink="${skylink#\"}"
+# Detect which portal should be used to open the test file.
+skynet_portal="${SKYNET_PORTAL:-https://siasky.net}"
 
 # Instruct the user on how to test the updated kernel
-#
-# TODO: There seems to be an issue with the extension where using another
-# portal prevents the test from being successful. That shouldn't be the case,
-# because the test is itself just a v1 skylink, and all other operations are
-# performend directly in the kernel, which is currently configured to just use
-# siasky.net.
 echo refresh the extension in your browser and then test with the test file
 echo you can open the test file with the following command
-echo xdg-open $skynet_portal/$skylink
+echo xdg-open $skynet_portal/$tester_skylink
