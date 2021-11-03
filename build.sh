@@ -68,11 +68,9 @@ done
 # Get the skylink of the tester file.
 tester_skylink=$(skynet-utils upload-file-dry build/skynet-kernel-skyfiles/tester.html)
 
-# Detect which portal should be used to open the test file.
-skynet_portal="${SKYNET_PORTAL:-https://siasky.net}"
-
-# Instruct the user on how to test the updated kernel
+# Instruct the user on how to test the updated kernel. Use siasky.net
+# regardless of what portal is set locally so that the kernel extension works.
 echo
 echo refresh the extension in your browser and then test with the test file
 echo you can open the test file with the following command
-echo xdg-open $skynet_portal/$tester_skylink
+echo xdg-open https://siasky.net/$tester_skylink
