@@ -66,10 +66,7 @@ do
 done
 
 # Get the skylink of the tester file.
-#
-# TODO: Add a -dryrun flag which just returns the skylink without actually
-# uploading.
-tester_skylink=$(skynet-utils upload-file build/skynet-kernel-skyfiles/tester.html)
+tester_skylink=$(skynet-utils upload-file-dry build/skynet-kernel-skyfiles/tester.html)
 
 # Detect which portal should be used to open the test file.
 skynet_portal="${SKYNET_PORTAL:-https://siasky.net}"
