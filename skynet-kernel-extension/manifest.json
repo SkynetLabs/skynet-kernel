@@ -25,7 +25,7 @@
   // expecting, even if siasky.net has gone rogue and started
   // serving malicious files.
   "background": {
-    "scripts": ["background-verify.js"]
+    "scripts": ["background.js"]
   },
 
   // This is only here to try and get redirects working. I was not successful in

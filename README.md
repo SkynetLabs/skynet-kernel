@@ -1,82 +1,130 @@
-# skynet-node-extension
+# skynet-kernel
 
-skynet-node is a browser extension for Firefox (soon cross-browser compatibile)
-which ensures the user is getting the correct set of code from siasky.net. In
-the typical case, the javascript loaded by the browser extension is exactly
-identical to the javascript that gets loaded from siasky.net. In the event that
-siasky.net goes rogue and begins serving malicious pages, the browser extension
-will protect the user, guaranteeing that the user only receives the original
-pages.
+skynet-kernel is a next generation platform for blockchain and dapp
+development. In the blockchain world today, users are forced to choose between
+convenience and security, because there is no convenient way to get trustless
+access to the blockchain space.
 
-To eliminate the need for siasky.net to be online at all, the entire javascript
-for skynet-node is contained within the browser extension. An alternative,
-though less desirable, implementation of this extension would not contain any
-code, but rather just a hash. There would be no content scripts at all, and
-instead the background script would ensure that the pages being served by
-siasky.net match a specific hash. This is less desirable because it means that
-in the event that siasky.net goes rogue, the user cannot use Skynet at all,
-whereas in the current implementation the user is able to trustlessly use
-Skynet even if siasky.net is serving malicious pages.
+skynet-kernel is a framework for building trustless applications entirely
+within the web browser. The kernel can support basic applications like a
+password manager or a notes app, and the kernel can support more complex
+applications like multiplayer videogames or even full blockchains.
 
-The extension can be installed using the standard firefox temporary extension
-installation process. This involves going to about:debugging. Just google it,
-you'll figure it out. The folder with the extension code is
-'skynet-node-extension'.
+The pinnacle of convenience today is the cloud. All of your data in one place,
+accessible from any device. People like using services like Coinbase and Infura
+because they are convenient. You get to access the blockchain, and you don't
+have to do anything beyond logging in.
 
-## Dependencies
+The kernel emulates this convenience by trustlessly storing all of a user's
+data and applications in the cloud. This 'data' can include a full blockchain
+state, along with some background scripts that will passively download and
+verify blocks in the background while the user browses the web. The resulting
+experience should be nearly identical to using Coinbase, except instead of
+using a trusted intermediary, users are getting access to a full blockchain.
+And similar to coinbase, this full blockchain and all of its state will follow
+users from device to device.
 
-Successfully building the skynet kernel and all core modules requires the
-following dependencies:
+## Building a Trustless Browser Experience
 
-+ make
-+ curl
-+ jq
+The web is fundamentally a trusted experience. The main idea of the web is that
+a user contacts a webserver, and then that webserver provides application code
+that the user can run in their browser. Because the application code is being
+provided by the server, the user is forced into trusted whatever code is being
+provided.
 
-You can get all of them on debian using the command `sudo apt-get install make
-curl jq`
+We can get in the middle of this using a browser extension. Browser extensions
+give us the ability to intercept webpages before they are served and verify the
+code that is being provided. We use this technique to bootstrap the kernel.
 
-The deploy script will deploy files to Skynet using a portal. The default is
-https://siasky.net/, but another portal can be set with the environment
-variable SKYNET\_PORTAL.
+The two most important pages to the Skynet kernel are home.siasky.net and
+kernel.siasky.net. home.siasky.net is the main UI, where the user will be
+logging in and managing the kernel. kernel.siasky.net is the webpage that
+developers will import (using iframes) to interact with the trustless web.
 
-## Building the kernel
+The entire purpose of the extension is to ensure that the code being served by
+home.siasky.net and kernel.siasky.net matches the code promised by the
+developers, protecting the user from attackers and malicious actions by the
+developers.
 
-To build the kernel, just run 'make'.
+Both home and kernel are shell bootstrap applications. Rather than being full
+applications themselves, they are small scripts that are able to securely
+access the user's Skynet account and then load the full homepage and kernel
+from the user's decentralized storage. Because home and kernel are both
+bootstrapped, the user has the full ability to change their experience and
+install upgrades or alternatives, even without having to modify or switch out
+the browser extension.
 
-Once the kernel is built, you will need to take the extension found in
-'build/skynet-kernel-extension' and load it into Firefox. If you have already
-loaded it, you will need to refresh it.
+The long term goal of the kernel project is to have the kernel natively
+supported by all web browsers. The bootstrap code itself is only a few hundred
+lines, and should never need to be maintained or updated. It is very simple for
+a browser to add support for their users, and users will get the same
+experience on every supported web browser regardless of how old the bootloader
+code is.
 
-Once the extension in Firefox is all set, you can run the 'xdg-open' command
-provided by the build process to open a tester file which will run a bunch of
-tests and assert whether everything is working properly.
+### Dependencies
 
-## Hacking on the Kernel
+You will need the `skynet-utils` binary to build the kernel. The code for the
+binary can be found at https://github.com/SkynetLabs/go-skynet. At the moment
+this binary is not distributed, you will need to clone the repo and run `go
+install ./...` to get the binary. The binary will then appear in your GOPATH.
 
-Most of the kernel is plain javascript, however there is a compilation step
-that is handled by the Makefile. The entire kernel operates out of Skynet,
-which means that modules need to reference each other by their skylinks. To
-make life easy for the developer, you can reference a module using a relative
-path 'branch-file:::$relativePath'. Check out the defaultHandler in
-'skynet-kernel-skyfiles/modules/call-other-module.js' to see this in action.
+### Building the Kernel
 
-If you add any new files, they will need to be added to the list of files in
-'upload.sh' so that they get compiled correctly. Once they are compiled, their
-correct form will be placed in the 'build' folder.
+Once you have all the dependencies, just run 'make'. This will create a build
+folder with all of the finished files. 'make' will also upload all of the
+relevant files to Skynet.
 
-In general we recommend reading the full source code of the kernel before
-beginning development. At this stage, the source code is small enough and the
-code is being modified rapidly enough that knowing all the code is both
-reasonable and likely to result in the least total amount of time spent
-figuring out how to develop on the kernel or build modules.
+After running 'make', you will need to load the browser extension found in
+build/skynet-kernel-extension into your browser. Currently, only Firefox is
+supported. If you are unfamiliar with extension development, use Google to
+figure out how to load a temporary extension into your web browser. Make sure
+you use the extension in the build folder, not the one in the source code
+folder.
 
-## useful-code
+The output of 'make' will contain an 'xdg-open' command which will open the
+test suite in your browser and verify that the kernel is working correctly.
+Make sure you have updated the extension before you run the test suite.
 
-The useful-code folder contains a collection of example things that I built but
-didn't end up using, but wanted to keep around in case we figured out a way to
-make it useful in the future.
+When uploading files to Skynet, the build script will use a Skynet portal. The
+default portal is siasky.net, but if the environment variable SKYNET\_PORTAL is
+set, the build script will use that portal instead.
 
-## skynet-node design
+At the moment, the only portal that works for kernel development is
+dev3.siasky.dev - there are required features that have not been deployed
+anywhere else. This should be resolved by December 2021.
+
+### Hacking on the Kernel
+
+Code in the kernel often references other code by skylink. To make life easier,
+the build process will replace relative filepaths listed in the kernel with the
+correct skylink after uploading the file to Skynet.
+
+You can reference another file using 'branch-file:::$relativePath'. You can see
+an example of this happening in
+'skynet-kernel-skyfiles/modules/call-other-module.js'.
+
+### The 'useful-code' Folder
+
+The useful-code folder contains some examples of code that may be useful in the
+future but hasn't been integrated into the kernel yet, for various reasons.
+
+## Browser Extension Design
+
+The browser extension code can be found in 'skynet-kernel-extension'. The most
+important file is 'background.js', which will swallow all pages from
+'home.siasky.net' and 'kernel.siasky.net' so that they can be replaced with
+custom code that the user can trust.
+
+TODO: Fill this out as the remaining components for the browser are completed.
+
+-----
+-----
+-----
+-----
+
+(old readme starts here)
+
+## Kernel Design
 
 The skynet-node itself is broken into 5 major pieces:
 

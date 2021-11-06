@@ -25,11 +25,7 @@ var handleMessage = function(event) {
 		// auth page.
 		mainDiv.innerHTML = '';
 
-		// TODO: Obviously we can make a nicer login page than this
-		// clumsy login button, I'm just not sure the best way to
-		// build/import the page. Would be kind of clumsy to build an
-		// entire webpage by manually constructucting the dom in JS,
-		// there's gotta be a better way.
+		// Create a login button.
 		var button = document.createElement("input");
 		button.type = "button";
 		button.value = "Click here to login";
