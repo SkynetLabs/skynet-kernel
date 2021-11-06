@@ -9,10 +9,6 @@
 # The result is that the files can be uploaded in any order, and the
 # 'branch-file' primitives allows for circular communication.
 
-# TODO: When we eventually switch to production deployments, we'll want to
-# integrate in a way that allows us to have primary and secondary registry
-# entries.
-
 # Detect that skynet-utils is available.
 if ! [ -x "$(command -v skynet-utils)" ]; then
 	echo "skynet-utils could not be found, please install skynet-utils"
@@ -60,8 +56,8 @@ do
 	fi
 
 	# Upload the file and get the v1 skylink.
+	echo "Uploading ${file#*/}: $v1skylink"
 	v1skylink=$(skynet-utils upload-file $file)
-	echo "Uploaded ${file#*/}: $v1skylink"
 	skynet-utils upload-to-v2skylink $v1skylink ${file#*/} $seed
 done
 
