@@ -18,12 +18,9 @@ handleMessage = function(event) {
 // correctly.
 kernel.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://kernel.siasky.net");
 
-// Create a button for logging out.
-var button = document.createElement("input");
-button.type = "button";
-button.value = "Click here to log out";
+// Add a log out action to the log out button.
 var logOut = function() {
 	kernel.contentWindow.postMessage({kernelMethod: "logOut"}, "https://kernel.siasky.net");
 };
-button.onclick = logOut;
-document.body.appendChild(button);
+var button = document.getElementById("logOutButton");
+button.onclick=logOut;

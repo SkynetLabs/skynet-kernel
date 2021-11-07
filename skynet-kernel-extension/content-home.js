@@ -65,6 +65,14 @@ var handleMessage = function(event) {
 	// Add a handler to support receiving the user's homescreen from the
 	// skynet kernel.
 	if (event.data.kernelMethod === "receiveHomescreen") {
+		// Load the html for the homescreen. This html will set up the
+		// entire page.
+		mainDiv.innerHTML = '';
+		document.body.insertAdjacentHTML("beforebegin", event.data.html);
+		// Log time until html is loaded.
+		var homescreenSetTime = performance.now();
+		console.log("Homescreen: html loaded in:", homescreenSetTime);
+
 		// Load the script for the homescreen.
 		// 
 		// NOTE: Some of the experienced devs reading this line of code
@@ -96,16 +104,9 @@ var handleMessage = function(event) {
 		// code into the user's kernel storage, the user is already
 		// badly compromised.
 		eval(event.data.script);
-
-		// Load the html for the homescreen. This html will set up the
-		// entire page.
-		mainDiv.innerHTML = '';
-		document.body.insertAdjacentHTML("beforebegin", event.data.html);
-
-		// Log time time elapsed until the homescreen html has been
-		// set.
+		// Log time until js is loaded.
 		var homescreenSetTime = performance.now();
-		console.log("Homescreen: html loaded in:", homescreenSetTime);
+		console.log("Homescreen: js loaded in:", homescreenSetTime);
 		return;
 	}
 }
