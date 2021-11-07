@@ -159,5 +159,4 @@ log("performance", "time to load kernel iframe:", performance.now())
 // is logged in, this div will house home itself.
 var mainDiv = document.createElement("div");
 document.body.appendChild(mainDiv);
-
-log("progress", "bootloader loaded");
+log("progress", "home bootstrapper loaded");

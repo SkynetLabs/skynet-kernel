@@ -118,6 +118,8 @@ window.addEventListener("message", (event) => {
 	// authentication has been completed. Because we have already called
 	// hasUserSeed() earlier in the function, we know that the correct seed
 	// exists. We therefore just need to load the rest of the Skynet kernel.
+	// 
+	// TODO: Need to check the origin here.
 	if (event.data.kernelMethod === "authCompleted") {
 		loadSkynetKernel();
 		return;
