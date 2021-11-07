@@ -35,6 +35,11 @@ do
 	then
 		continue
 	fi
+	# Skip any swp files.
+	if [ -z ${file##*.swp} ];
+	then
+		continue
+	fi
 
 	# Generate the v2 skylink for this file.
 	v2skylink=$(skynet-utils generate-v2skylink ${file#*/} $seed)
@@ -51,6 +56,11 @@ for file in $files
 do
 	# Skip any directories.
 	if [ -d $file ];
+	then
+		continue
+	fi
+	# Skip any swp files.
+	if [ -z ${file##*.swp} ];
 	then
 		continue
 	fi

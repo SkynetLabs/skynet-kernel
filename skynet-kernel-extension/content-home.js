@@ -1,5 +1,5 @@
-// TODO: This is a simulated object. Remove it when homescreen properly
-// supports changing the logging levels.
+// TODO: This is a simulated object. Remove it when home properly supports
+// changing the logging levels.
 var testSettings = JSON.stringify({
 	"message": false
 });
@@ -8,12 +8,17 @@ var logSettings = JSON.parse(localStorage.getItem("logSettings"));
 
 // log provides syntactic sugar for the logging functions. The first arugment
 // passed into 'log' checks whether the logSettings have explicitly disabled
-// that type of logging. If they have not, the full list of arguments is
-// logged.
+// that type of logging. The remaining args will be printed as they would if
+// 'console.log' was called directly.
 var log = function() {
+	// Check whether all logs are being suppressed.
+	if (logSettings !== null && logSettings.suppressAll === true) {
+		return;
+	}
+	// Check whether this log category is being suppressed.
 	if (logSettings === null || logSettings[arguments[0]] === undefined || logSettings[arguments[0]] !== false) {
 		let args = Array.prototype.slice.call(arguments);
-		args[0] = "[Homescreen] ";
+		args[0] = "["+args[0]+"] Home: ";
 		console.log.apply(console, args);
 		return;
 	}
@@ -22,31 +27,28 @@ var log = function() {
 // Establish a function to apply restrictions to what pages can send
 // postmessage requests to our message listener. This function can be
 // overwritten by code that is loaded from the skynet kernel.
-var checkHomeMessageRestrictions = function(event) {
-	// Restrict the listener to just hearing from https://kernel.siasky.net -
-	// if the homescreen app itself wants to be able to hear from other
-	// listeners, it can overwrite the checkHomeMessageRestrictions
-	// function.
+var homeRestrictIncomingMessage = function(event) {
+	// Restrict the listener to only https://kernel.siasky.net messages.
+	// If home itself wants to be able to hear from other listeners, it can
+	// overwrite the homeRestrictIncomingMessage function.
 	if (event.origin !== "https://kernel.siasky.net") {
-		console.log("Rejecting postmessage request from ", event.origin);
+		log("message", "rejecting postmessage request from ", event.origin);
 		return true;
 	}
 }
 
 // handleMessage is a function which handles the intial handshake with the
-// skynet kernel. It is intended to be overwritten by the homescreen script that
-// gets imported from the skynet kernel.
+// skynet kernel. It is intended to be overwritten by home when the js file is
+// loaded.
 var handleMessage = function(event) {
-	log("message", "Homescreen: message events are working");
-	log("messages", "Homescreen: messages events are working");
-	console.log("Homescreen: event received");
-	console.log(event.origin);
-	console.log(event.data);
+	log("message", "message received");
+	log("message", event.origin);
+	log("message", event.data);
 
 	// Establish a handler for the skynet kernel failing to complete auth. If
 	// that happens, we will open a window to collect the user's seed.
 	if (event.data.kernelMethod === "authFailed") {
-		console.log("Homescreen: skynet kernel auth failed time: ", performance.now());
+		log("message", "skynet kernel auth failed time: ", performance.now());
 
 		// Clear the html in the main div so that we can load in the
 		// auth page.
@@ -74,10 +76,10 @@ var handleMessage = function(event) {
 	}
 
 	// Establish a handler to detect when the skynet kernel is loaded. Once
-	// the skynet kernel is fully loaded, we will request the user's
-	// homescreen application from the kernel.
+	// the skynet kernel is fully loaded, we will request the user's home
+	// from the kernel.
 	if (event.data.kernelMethod === "skynetKernelLoaded") {
-		console.log("Homescreen: skynet kernel loaded time: ", performance.now());
+		log("performance", "skynet kernel loaded time: ", performance.now());
 
 		// Send a postmessage to kernel.siasky.net to fetch the homepage.
 		kernel.contentWindow.postMessage({kernelMethod: "requestHomescreen"}, "https://kernel.siasky.net");
@@ -92,10 +94,9 @@ var handleMessage = function(event) {
 		mainDiv.innerHTML = '';
 		document.body.insertAdjacentHTML("beforebegin", event.data.html);
 		// Log time until html is loaded.
-		var homescreenSetTime = performance.now();
-		console.log("Homescreen: html loaded in:", homescreenSetTime);
+		log("performance", "html loaded in:", performance.now());
 
-		// Load the script for the homescreen.
+		// Load the script for home.
 		// 
 		// NOTE: Some of the experienced devs reading this line of code
 		// probably have their eyebrows raised to the ceiling. We've
@@ -118,7 +119,7 @@ var handleMessage = function(event) {
 		// 
 		// This code is coming from kernel.siasky.net, which is verified
 		// by the Skynet kernel web extension, and loads a version of
-		// homescreen from the user's storage. The process is fully
+		// home from the user's storage. The process is fully
 		// decentralized, and there is no central intermediary that can
 		// tamper with the storage. The storage is cryptographically
 		// hashed, signed, and verified, which means any malicious code
@@ -127,19 +128,20 @@ var handleMessage = function(event) {
 		// badly compromised.
 		eval(event.data.script);
 		// Log time until js is loaded.
-		var homescreenSetTime = performance.now();
-		console.log("Homescreen: js loaded in:", homescreenSetTime);
+		log("performance", "js loaded in:", performance.now());
 		return;
 	}
 }
 
 // Establish the postmessage listener.
+log("performance", "time to reach event listener:", performance.now())
 window.addEventListener("message", (event) => {
-	if (checkHomeMessageRestrictions(event)) {
+	if (homeRestrictIncomingMessage(event)) {
 		return;
 	}
 	handleMessage(event);
 }, false);
+log("performance", "time to load event listener:", performance.now())
 
 // Open kernel.siasky.net in an invisible iframe.
 var kernel = document.createElement("iframe");
@@ -149,13 +151,13 @@ kernel.style.height = "0";
 kernel.style.border = "none";
 kernel.style.position = "absolute";
 document.body.appendChild(kernel);
+log("performance", "time to load kernel iframe:", performance.now())
 
 // Create a content div. This is the div that we are going to use to load any
 // content which needs to be presented the the user. If the user is not logged
 // in, this div will house a prompt that asks the user to log in. Once the user
-// is logged in, this div will house the homescreen app itself.
+// is logged in, this div will house home itself.
 var mainDiv = document.createElement("div");
 document.body.appendChild(mainDiv);
 
-// TODO: Debugging
-console.log("Homescreen bootloader loaded");
+log("progress", "bootloader loaded");
