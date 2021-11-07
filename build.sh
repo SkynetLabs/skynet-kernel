@@ -15,11 +15,19 @@ if ! [ -x "$(command -v skynet-utils)" ]; then
 	exit
 fi
 
-# Generate a random seed that we will use to generate the public keys for every
-# file.
-seed=$(skynet-utils generate-seed)
+# Check the build-cache for a seed. If none exists, create one and save it to
+# the build-cache.
+mkdir -p build-cache
+if [ -f build-cache/seed ];
+then
+	seed=$(cat build-cache/seed)
+else
+	seed=$(skynet-utils generate-seed)
+	echo $seed > build-cache/seed
+fi
 
-# Create the build directory and copy the required directories over.
+# Recreate the build directory and copy the source files over.
+rm -rf build
 mkdir -p build
 cp -r skynet-kernel-extension build/
 cp -r skynet-kernel-skyfiles build/
@@ -65,18 +73,44 @@ do
 		continue
 	fi
 
-	# Upload the file and get the v1 skylink.
+	# Get the v1skylink and determine whether the skylink has changed from
+	# the previous run. If it has not, skip this upload as the v2skylink
+	# should already be pointing to the right place.
+	v1skylink=$(skynet-utils upload-file-dry $file)
+	oldv1=$(cat build-cache/${file#*/} 2> /dev/null)
+	if [ "$v1skylink" == "$oldv1" ];
+	then
+		continue
+	fi
+	uploadedFile="true"
+
+	# Upload the file and update the v2skylink.
 	echo "Uploading ${file#*/}: $v1skylink"
-	v1skylink=$(skynet-utils upload-file $file)
-	skynet-utils upload-to-v2skylink $v1skylink ${file#*/} $seed
+	v1skylinkup=$(skynet-utils upload-file $file) || die "upload failed"
+	if [ "$v1skylink" != "$v1skylinkup" ];
+	then
+		echo "dry and v1 mismatch"
+	fi
+	skynet-utils upload-to-v2skylink $v1skylink ${file#*/} $seed || die "v2 update failed"
+
+	# Save the link in build-cache
+	mkdir -p $(dirname "build-cache/${file#*/}")
+	echo $v1skylink > build-cache/${file#*/}
 done
 
 # Get the skylink of the tester file.
 tester_skylink=$(skynet-utils upload-file-dry build/skynet-kernel-skyfiles/tester.html)
 
+# Only instruct the user to refersh their browser extension if something
+# changed.
+if [ "$uploadedFile" == "true" ];
+then
+	# If something changed, there will be prior output and we want an extra
+	# newline.
+	echo
+	echo refresh the extension in your browser and then test with the test file
+fi
 # Instruct the user on how to test the updated kernel. Use siasky.net
 # regardless of what portal is set locally so that the kernel extension works.
-echo
-echo refresh the extension in your browser and then test with the test file
 echo you can open the test file with the following command
 echo xdg-open https://siasky.net/$tester_skylink
