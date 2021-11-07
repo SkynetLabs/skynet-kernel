@@ -108,6 +108,19 @@ an example of this happening in
 The useful-code folder contains some examples of code that may be useful in the
 future but hasn't been integrated into the kernel yet, for various reasons.
 
+## Notable Features of the Kernel
+
+The kernel has been designed such that every action is trustless and controlled
+by the user. While the kernel itself is bootstrapped through siasky.net, all
+future requests will be made using the user's preferred portals. The bootstrap
+process is itself fully trustless and optimized to make the minimal possible
+use of siasky.net before switching over to using the user's preferred portal
+for all requests.
+
+All requests such as downloading files, uploading files, and interacting with
+the registry are verified cryptogrpahically. If the user's portal attempts to
+lie or present corrupted data, the request will be interrupted.
+
 ## Browser Extension Design
 
 The browser extension code can be found in 'skynet-kernel-extension'. The most

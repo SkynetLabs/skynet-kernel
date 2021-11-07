@@ -16,6 +16,11 @@ var checkHomeMessageRestrictions = function(event) {
 // skynet kernel. It is intended to be overwritten by the homescreen script that
 // gets imported from the skynet kernel.
 var handleMessage = function(event) {
+	// TODO: Debugging only.
+	console.log("Homescreen: event received");
+	console.log(event.origin);
+	console.log(event.data);
+
 	// Establish a handler for the skynet kernel failing to complete auth. If
 	// that happens, we will open a window to collect the user's seed.
 	if (event.data.kernelMethod === "authFailed") {
@@ -128,3 +133,6 @@ document.body.appendChild(kernel);
 // is logged in, this div will house the homescreen app itself.
 var mainDiv = document.createElement("div");
 document.body.appendChild(mainDiv);
+
+// TODO: Debugging
+console.log("Homescreen bootloader loaded");

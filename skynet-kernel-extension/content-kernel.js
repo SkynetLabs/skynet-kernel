@@ -19,6 +19,21 @@ var hasUserSeed = function() {
 	return true;
 }
 
+// logOut will erase the localStorage, which means the seed will no longer be
+// available, and any sensistive data that the kernel placed in localStorage
+// will also be cleared.
+//
+// This will require the user to re-download their full kernel cache the next
+// time they log in.
+var logOut = function() {
+	console.log("Clearing local storage");
+	localStorage.clear();
+}
+
+// TODO: Rather than going to the network, we should check local storage to see
+// if the user is already logged in and whether there is already a kernel that
+// has been loaded.
+
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
 // 
@@ -86,8 +101,11 @@ var handleMessage = function(event) {
 window.addEventListener("message", (event) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
+	//
+	// TODO: Switch this to only logging when debug mode is set.
 	console.log("Skynet Kernel: message received");
 	console.log(event.data);
+	console.log(event.origin);
 
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
@@ -110,6 +128,14 @@ window.addEventListener("message", (event) => {
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
 		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
+		return;
+	}
+
+	// Establish a means for the user to logout. Only logout requests
+	// provided by home are allowed.
+	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
+		logOut();
+		event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
 		return;
 	}
 
