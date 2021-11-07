@@ -5,61 +5,63 @@ development. In the blockchain world today, users are forced to choose between
 convenience and security, because there is no convenient way to get trustless
 access to the blockchain space.
 
-skynet-kernel is a framework for building trustless applications entirely
-within the web browser. The kernel can support basic applications like a
-password manager or a notes app, and the kernel can support more complex
-applications like multiplayer videogames or even full blockchains.
+skynet-kernel is a framework for building fully trustless applications in the
+cloud, accessible by a web browser. With skynet-kernel, developers can build
+applications that have all of the convenience of Coinbase and all of the
+trustlessness of running a local full node. Because all of the state is stored
+in the cloud, the user's experience can follow them from device-to-device.
 
-The pinnacle of convenience today is the cloud. All of your data in one place,
-accessible from any device. People like using services like Coinbase and Infura
-because they are convenient. You get to access the blockchain, and you don't
-have to do anything beyond logging in.
-
-The kernel emulates this convenience by trustlessly storing all of a user's
-data and applications in the cloud. This 'data' can include a full blockchain
-state, along with some background scripts that will passively download and
-verify blocks in the background while the user browses the web. The resulting
-experience should be nearly identical to using Coinbase, except instead of
-using a trusted intermediary, users are getting access to a full blockchain.
-And similar to coinbase, this full blockchain and all of its state will follow
-users from device to device.
+The kernel today is being used to build decentralized file sharing platforms
+(like alternatives to WeTransfer), decentralized streaming platforms (like
+alternatives to Twitch), in-browser blockchains (like alternatives to Bitcoin),
+and even alternatives to infrasturcture like Github.
 
 ## Building a Trustless Browser Experience
 
-The web is fundamentally a trusted experience. The main idea of the web is that
-a user contacts a webserver, and then that webserver provides application code
-that the user can run in their browser. Because the application code is being
-provided by the server, the user is forced into trusted whatever code is being
-provided.
+Due to fundamental limitations of the web, a browser extension is required to
+get the full trustless experience of the kernel. The platform has been built so
+that users without a browser extension still get the full expernience, however
+they are trusting siasky.net to bootstrap them honestly. With a browser
+extension, the trust involved with the bootstrapping process can be eliminated.
 
-We can get in the middle of this using a browser extension. Browser extensions
-give us the ability to intercept webpages before they are served and verify the
-code that is being provided. We use this technique to bootstrap the kernel.
+The two key domains for the kernel are home.siasky.net and kernel.siasky.net.
+Home is a user-facing application with a UI that interacts with the kernel.
+kernel.siasky.net is a background application that exposes APIs to web
+developers. Developers can import the kernel using an iframe, and then leverage
+the API to build fully trustless applications.
 
-The two most important pages to the Skynet kernel are home.siasky.net and
-kernel.siasky.net. home.siasky.net is the main UI, where the user will be
-logging in and managing the kernel. kernel.siasky.net is the webpage that
-developers will import (using iframes) to interact with the trustless web.
+### Using Bootstrapping for Consistency and Growth
 
-The entire purpose of the extension is to ensure that the code being served by
-home.siasky.net and kernel.siasky.net matches the code promised by the
-developers, protecting the user from attackers and malicious actions by the
-developers.
+The browser extension itself contains an absolute minimal amount of code. The
+only purpose of the browser extension is to fetch the seed from the user, and
+then use the seed to download the user's full home and kernel applications.
+This accomplishes several things.
 
-Both home and kernel are shell bootstrap applications. Rather than being full
-applications themselves, they are small scripts that are able to securely
-access the user's Skynet account and then load the full homepage and kernel
-from the user's decentralized storage. Because home and kernel are both
-bootstrapped, the user has the full ability to change their experience and
-install upgrades or alternatives, even without having to modify or switch out
-the browser extension.
+The first thing is that it gives the user a consistent experience across
+devices and browsers. Changes that the user makes to their home or kernel will
+be visible across all of their devices immediately, even if different devices
+and browsers are using slightly different versions or implementations of the
+bootstrap code.
 
-The long term goal of the kernel project is to have the kernel natively
-supported by all web browsers. The bootstrap code itself is only a few hundred
-lines, and should never need to be maintained or updated. It is very simple for
-a browser to add support for their users, and users will get the same
-experience on every supported web browser regardless of how old the bootloader
-code is.
+The most important thing is that it gives the user a high degree of control.
+The kernel is not something that SkynetLabs distibutes and forces onto users;
+users can download and run any version of the kernel that they want, including
+versions made by third parties.
+
+Having a simple bootstrap based extension also reduces the barriers for
+adoption. The bootstrap code has been designed to be both minimal and final.
+Once the bootstrap code has been released, it should not ever need to change in
+the future. This means that the maintenance overhead for browsers and teams
+that add native support for the kernel is very small. And the tiny, unobtrusive
+nature of the extension also means that the effort required to integrate it in
+the first place is minimal.
+
+## Hacking on the Kernel
+
+As much as possible, we've tried to make kernel development accessible to
+everyone. Our vision is that the kernel will one day have many different teams
+implementing different 'distros', much like the Linux kernel has many people
+working on it and publishing different flavors of the operating system.
 
 ### Dependencies
 
@@ -93,7 +95,7 @@ At the moment, the only portal that works for kernel development is
 dev3.siasky.dev - there are required features that have not been deployed
 anywhere else. This should be resolved by December 2021.
 
-### Hacking on the Kernel
+### Local File References
 
 Code in the kernel often references other code by skylink. To make life easier,
 the build process will replace relative filepaths listed in the kernel with the
@@ -120,6 +122,11 @@ for all requests.
 All requests such as downloading files, uploading files, and interacting with
 the registry are verified cryptogrpahically. If the user's portal attempts to
 lie or present corrupted data, the request will be interrupted.
+
+TODO: Document the logging framework
+
+TODO: Document the modules
+
 
 ## Browser Extension Design
 
