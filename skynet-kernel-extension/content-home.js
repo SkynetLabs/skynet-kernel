@@ -1,3 +1,24 @@
+// TODO: This is a simulated object. Remove it when homescreen properly
+// supports changing the logging levels.
+var testSettings = JSON.stringify({
+	"message": false
+});
+localStorage.setItem("logSettings", testSettings);
+var logSettings = JSON.parse(localStorage.getItem("logSettings"));
+
+// log provides syntactic sugar for the logging functions. The first arugment
+// passed into 'log' checks whether the logSettings have explicitly disabled
+// that type of logging. If they have not, the full list of arguments is
+// logged.
+var log = function() {
+	if (logSettings === null || logSettings[arguments[0]] === undefined || logSettings[arguments[0]] !== false) {
+		let args = Array.prototype.slice.call(arguments);
+		args[0] = "[Homescreen] ";
+		console.log.apply(console, args);
+		return;
+	}
+};
+
 // Establish a function to apply restrictions to what pages can send
 // postmessage requests to our message listener. This function can be
 // overwritten by code that is loaded from the skynet kernel.
@@ -16,7 +37,8 @@ var checkHomeMessageRestrictions = function(event) {
 // skynet kernel. It is intended to be overwritten by the homescreen script that
 // gets imported from the skynet kernel.
 var handleMessage = function(event) {
-	// TODO: Debugging only.
+	log("message", "Homescreen: message events are working");
+	log("messages", "Homescreen: messages events are working");
 	console.log("Homescreen: event received");
 	console.log(event.origin);
 	console.log(event.data);
