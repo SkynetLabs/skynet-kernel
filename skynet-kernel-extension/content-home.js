@@ -1,18 +1,13 @@
-// TODO: This is a simulated object. Remove it when home properly supports
-// changing the logging levels.
-var testSettings = JSON.stringify({
-	"message": false
-});
-localStorage.setItem("logSettings", testSettings);
-var logSettings = JSON.parse(localStorage.getItem("logSettings"));
-
 // log provides syntactic sugar for the logging functions. The first arugment
 // passed into 'log' checks whether the logSettings have explicitly disabled
 // that type of logging. The remaining args will be printed as they would if
 // 'console.log' was called directly.
 var log = function() {
+	// Fetch the most recent log settings.
+	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
+
 	// Check whether all logs are being suppressed.
-	if (logSettings !== null && logSettings.suppressAll === true) {
+	if (logSettings !== null && logSettings.disableAllLogs === true) {
 		return;
 	}
 	// Check whether this log category is being suppressed.

@@ -86,12 +86,14 @@ do
 
 	# Upload the file and update the v2skylink.
 	echo "Uploading ${file#*/}: $v1skylink"
-	v1skylinkup=$(skynet-utils upload-file $file) || die "upload failed"
+	v1skylinkup=$(skynet-utils upload-file $file)
 	if [ "$v1skylink" != "$v1skylinkup" ];
 	then
 		echo "dry and v1 mismatch"
+		echo $v1skylinkup
+		exit 1
 	fi
-	skynet-utils upload-to-v2skylink $v1skylink ${file#*/} $seed || die "v2 update failed"
+	skynet-utils upload-to-v2skylink $v1skylink ${file#*/} $seed || exit 1
 
 	# Save the link in build-cache
 	mkdir -p $(dirname "build-cache/${file#*/}")
