@@ -85,6 +85,7 @@ var loadSkynetKernel = function() {
 	downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
 		.then(text => {
 			console.log("progress", "full kernel loaded");
+			console.log(text);
 			eval(text);
 			console.log("progress", "full kernel eval'd");
 			kernelLoaded = true;

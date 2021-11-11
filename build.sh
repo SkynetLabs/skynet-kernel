@@ -80,6 +80,7 @@ do
 	then
 		continue
 	fi
+	# TODO: Skip all files in the extension dir, no need to upload those.
 
 	# Get the v1skylink and determine whether the skylink has changed from
 	# the previous run. If it has not, skip this upload as the v2skylink
