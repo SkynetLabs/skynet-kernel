@@ -75,7 +75,9 @@ var loadSkynetKernel = function () {
     // error notification.
     downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
         .then(text => {
+        console.log("progress", "full kernel loaded");
         eval(text);
+        console.log("progress", "full kernel eval'd");
         kernelLoaded = true;
         window.parent.postMessage({ kernelMethod: "skynetKernelLoaded" }, "*");
     });

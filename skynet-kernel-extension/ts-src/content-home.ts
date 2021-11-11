@@ -2,9 +2,6 @@
 // passed into 'log' checks whether the logSettings have explicitly disabled
 // that type of logging. The remaining args will be printed as they would if
 // 'console.log' was called directly.
-console.log("home loaded correctly");
-localStorage.setItem("logSettings", ""); // TODO: this is temporary so I can see all logs while debugging.
-console.log("log settings reset");
 var log = function(logType: string, ...inputs: any) {
 	// Fetch the log settings as a string.
 	let logSettingsStr = localStorage.getItem("logSettings");
@@ -15,28 +12,21 @@ var log = function(logType: string, ...inputs: any) {
 	// explicit disable on all logs, or if there is an explicit disable on
 	// this particular log type.
 	if (logSettingsStr !== null) {
-		console.log("logSettingsStr is not null");
+		// Wrap the JSON.parse in a try-catch block. If the parse
+		// fails, we want to catch the error and report that the
+		// logSettings persistence has corrupted.
 		try {
 			let logSettings = JSON.parse(logSettingsStr);
-			console.log("logSettings was parsed");
-			console.log(logSettings);
 			if (logSettings.disableAllLogs === true) {
-				console.log("disableAllLogs is true");
 				return;
 			}
 			if (logSettings[logType] === false) {
-				console.log("the log type is false");
-				console.log(logType);
-				console.log(logSettings[logType]);
-				console.log(logSettings);
 				return;
 			}
-			console.log("some other shit");
 		} catch {
-			console.log("error when trying to parse logs");
+			console.log("ERROR: logSettings item in localstorage is corrupt:", logSettingsStr);
 		}
 	}
-	console.log("logSettingsStr is null");
 
 	// Print the log.
 	let args = Array.prototype.slice.call(arguments);
@@ -44,7 +34,6 @@ var log = function(logType: string, ...inputs: any) {
 	console.log.apply(console, args);
 	return;
 };
-log("test", "this is a test log");
 
 // Establish a function to apply restrictions to what pages can send
 // postmessage requests to our message listener. This function can be

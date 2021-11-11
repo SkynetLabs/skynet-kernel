@@ -4,4 +4,4 @@ all:
 	@./build.sh
 
 clean:
-	rm -r build build-cache
+	@rm -r build build-cache
