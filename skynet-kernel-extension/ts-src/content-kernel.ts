@@ -1,5 +1,6 @@
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
+console.log("progress", "kernel has been opened");
 document.title = "kernel.siasky.net"
 var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
@@ -43,7 +44,7 @@ var logOut = function() {
 //
 // TODO: I have no idea how to get this to return an error, but it needs to
 // return an error if validation fails.
-var downloadV1Skylink = function(skylink) {
+var downloadV1Skylink = function(skylink: string) {
 	// TODO: Verify that the input is a valid V1 skylink.
 
 	// TODO: Actually verify the download.
@@ -57,6 +58,7 @@ var downloadV1Skylink = function(skylink) {
 var kernelLoaded = false;
 var kernelLoading = false;
 var loadSkynetKernel = function() {
+	console.log("progress", "kernel is loading");
 	// Check whether the kernel has already loaded. If so, there is nothing
 	// to do.
 	//
@@ -67,6 +69,7 @@ var loadSkynetKernel = function() {
 		return;
 	}
 	kernelLoading = true;
+	console.log("progress", "kernel loading passed the safety race condition");
 
 	// Load the rest of the script from Skynet.
 	// 
@@ -90,7 +93,9 @@ var loadSkynetKernel = function() {
 // handleMessage is called by the message event listener when a new message
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
-var handleMessage = function(event) {
+//
+// TODO: This doesn't have to be 'any' I just don't know what type to put here.
+var handleMessage = function(event: any) {
 	return;
 }
 
@@ -98,7 +103,9 @@ var handleMessage = function(event) {
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
-window.addEventListener("message", (event) => {
+//
+// TODO: This doesn't have to be 'any' I just don't know what type to put here.
+window.addEventListener("message", (event: any) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
 	//
@@ -110,9 +117,11 @@ window.addEventListener("message", (event) => {
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
 	if (!hasUserSeed()) {
+		console.log("progress", "auth has failed, sending an authFailed message");
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}
+	console.log("progress", "auth has succeeded");
 
 	// Establish a handler to handle a request which states that
 	// authentication has been completed. Because we have already called
@@ -150,7 +159,9 @@ window.addEventListener("message", (event) => {
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
 if (hasUserSeed()) {
+	console.log("progress", "auth succeeded, loading kernel");
 	loadSkynetKernel();
 } else {
+	console.log("progress", "auth failed, sending message");
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 }

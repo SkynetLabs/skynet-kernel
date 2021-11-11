@@ -4,7 +4,11 @@ document.title = "skynet-kernel: login";
 // authUser is a function which will inspect the value of the input field to
 // find the seed, and then will set the user's local seed to that value.
 var authUser = function() {
-	var userSeed = document.getElementById("seedInput");
+	var userSeed = <HTMLInputElement>document.getElementById("seedInput");
+	if (userSeed === null) {
+		// TODO: Report an auth error.
+		return;
+	}
 
 	// TODO: Verify that this is a valid seed.
 

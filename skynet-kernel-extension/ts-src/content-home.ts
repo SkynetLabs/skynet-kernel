@@ -2,27 +2,57 @@
 // passed into 'log' checks whether the logSettings have explicitly disabled
 // that type of logging. The remaining args will be printed as they would if
 // 'console.log' was called directly.
-var log = function() {
-	// Fetch the most recent log settings.
-	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
+console.log("home loaded correctly");
+localStorage.setItem("logSettings", ""); // TODO: this is temporary so I can see all logs while debugging.
+console.log("log settings reset");
+var log = function(logType: string, ...inputs: any) {
+	// Fetch the log settings as a string.
+	let logSettingsStr = localStorage.getItem("logSettings");
 
-	// Check whether all logs are being suppressed.
-	if (logSettings !== null && logSettings.disableAllLogs === true) {
-		return;
+	// Run through all the conditions that would result in the log not
+	// being printed. If the log is null, the log will be printed. The only
+	// two cases where the log will not be printed is if there is an
+	// explicit disable on all logs, or if there is an explicit disable on
+	// this particular log type.
+	if (logSettingsStr !== null) {
+		console.log("logSettingsStr is not null");
+		try {
+			let logSettings = JSON.parse(logSettingsStr);
+			console.log("logSettings was parsed");
+			console.log(logSettings);
+			if (logSettings.disableAllLogs === true) {
+				console.log("disableAllLogs is true");
+				return;
+			}
+			if (logSettings[logType] === false) {
+				console.log("the log type is false");
+				console.log(logType);
+				console.log(logSettings[logType]);
+				console.log(logSettings);
+				return;
+			}
+			console.log("some other shit");
+		} catch {
+			console.log("error when trying to parse logs");
+		}
 	}
-	// Check whether this log category is being suppressed.
-	if (logSettings === null || logSettings[arguments[0]] === undefined || logSettings[arguments[0]] !== false) {
-		let args = Array.prototype.slice.call(arguments);
-		args[0] = "["+args[0]+"] Home: ";
-		console.log.apply(console, args);
-		return;
-	}
+	console.log("logSettingsStr is null");
+
+	// Print the log.
+	let args = Array.prototype.slice.call(arguments);
+	args[0] = "["+logType+"] Home: ";
+	console.log.apply(console, args);
+	return;
 };
+log("test", "this is a test log");
 
 // Establish a function to apply restrictions to what pages can send
 // postmessage requests to our message listener. This function can be
 // overwritten by code that is loaded from the skynet kernel.
-var homeRestrictIncomingMessage = function(event) {
+// 
+// TODO: This doesn't need to be 'any' but I couldn't figure out what type is
+// actually passed in by the caller.
+var homeRestrictIncomingMessage = function(event: any) {
 	// Restrict the listener to only https://kernel.siasky.net messages.
 	// If home itself wants to be able to hear from other listeners, it can
 	// overwrite the homeRestrictIncomingMessage function.
@@ -35,7 +65,16 @@ var homeRestrictIncomingMessage = function(event) {
 // handleMessage is a function which handles the intial handshake with the
 // skynet kernel. It is intended to be overwritten by home when the js file is
 // loaded.
-var handleMessage = function(event) {
+// 
+// TODO: This doesn't need to be 'any' but I couldn't figure out what type is
+// actually passed in by the caller.
+var handleMessage = function(event: any) {
+	// Check for a null kernel.
+	if (kernel === null || kernel.contentWindow === null) {
+		log("error", "kernel is not initialized properly");
+		return;
+	}
+
 	log("message", "message received");
 	log("message", event.origin);
 	log("message", event.data);
@@ -74,6 +113,7 @@ var handleMessage = function(event) {
 	// the skynet kernel is fully loaded, we will request the user's home
 	// from the kernel.
 	if (event.data.kernelMethod === "skynetKernelLoaded") {
+		console.log("skynet kernel has loaded");
 		log("performance", "skynet kernel loaded time: ", performance.now());
 
 		// Send a postmessage to kernel.siasky.net to fetch the homepage.

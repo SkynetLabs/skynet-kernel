@@ -14,6 +14,10 @@ if ! [ -x "$(command -v skynet-utils)" ]; then
 	echo "skynet-utils could not be found, please install skynet-utils"
 	exit
 fi
+if ! [ -x "$(command -v tsc)" ]; then
+	echo "tsc (typescript) could not be found, please install skynet-utils"
+	exit
+fi
 
 # Check the build-cache for a seed. If none exists, create one and save it to
 # the build-cache.
@@ -26,10 +30,14 @@ else
 	echo $seed > build-cache/seed
 fi
 
+# Perform the typescript compilations.
+( cd skynet-kernel-extension && tsc )
+
 # Recreate the build directory and copy the source files over.
 rm -rf build
-mkdir -p build
-cp -r skynet-kernel-extension build/
+mkdir -p build/skynet-kernel-extension
+cp -r skynet-kernel-extension/other/* build/skynet-kernel-extension
+cp -r skynet-kernel-extension/ts-out/* build/skynet-kernel-extension
 cp -r skynet-kernel-skyfiles build/
 
 # Create a v2 skylink for each file in each directory, and perform a
