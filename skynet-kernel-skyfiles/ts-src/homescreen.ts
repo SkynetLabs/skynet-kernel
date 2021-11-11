@@ -2,10 +2,17 @@
 // be moving that from the extension code to here? Probably, because we really
 // do want the extension to be as thin as possible.
 
+// Declare the kernel const, since it will be available to us when this script
+// gets eval'd by the bootstrap code.
+declare const kernel;
+
 // Overwrite the handleMessage object of the homescreen
 // script so that we can add more communications to
 // homescreen.
-var handleMessage = function(event) {
+//
+// TODO: This doesn't need to be of type 'any' but I don't know what the real
+// type is supposed to be.
+var handleMessage = function(event: any) {
 	// TODO: Debugging logs only.
 	if (event.data.kernelMethod === "receiveTest") {
 		console.log("Homescreen: handleMessage override successful");
@@ -14,7 +21,7 @@ var handleMessage = function(event) {
 	// Reload the homepage if the user has logged out, so that they can log
 	// in again.
 	if (event.data.kernelMethod === "logOutSuccess") {
-		window.location.reload(true);
+		window.location.reload();
 	}
 }
 

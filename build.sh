@@ -32,13 +32,16 @@ fi
 
 # Perform the typescript compilations.
 ( cd skynet-kernel-extension && tsc )
+( cd skynet-kernel-skyfiles && tsc )
 
 # Recreate the build directory and copy the source files over.
 rm -rf build
 mkdir -p build/skynet-kernel-extension
+mkdir -p build/skynet-kernel-skyfiles
 cp -r skynet-kernel-extension/other/* build/skynet-kernel-extension
 cp -r skynet-kernel-extension/ts-out/* build/skynet-kernel-extension
-cp -r skynet-kernel-skyfiles build/
+cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
+cp -r skynet-kernel-skyfiles/ts-out/* build/skynet-kernel-skyfiles
 
 # Create a v2 skylink for each file in each directory, and perform a
 # find-and-replace on the rest of the files in the directory to replace

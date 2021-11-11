@@ -16,6 +16,21 @@ The kernel today is being used to build decentralized file sharing platforms
 alternatives to Twitch), in-browser blockchains (like alternatives to Bitcoin),
 and even alternatives to infrasturcture like Github.
 
+## TODO: ROADMAP (remove this section once completed)
+
+The kernel is in an early development phase where both the browser extension
+itself and the kernel code are in the same repository. This is complicating the
+build script and making the repository much more difficult to follow, including
+causing a more opaque README. Once the browser extension is more mature, we'll
+be migrating the browser extension to its own repository entirely.
+
+We will also likely be migrating some of the kernel modules to their own repos,
+though we may keep some core modules in the same repo as the kernel just to
+make sure that we can perform all the testing we need without depending on
+external code.
+
+Once all of the migrations are complete, the build process should get simpler.
+
 ## Building a Trustless Browser Experience
 
 Due to fundamental limitations of the web, a browser extension is required to

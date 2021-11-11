@@ -42,11 +42,15 @@
 // and inconsistency if they aren't coordinating around the upgrade together
 // effectively.
 
+declare const downloadV1Skylink
+
 // Set up a logging method that can be enabled and disabled.
 //
 // TODO: Add an RPC to enable and disable this at runtime.
-debugging = true;
-var kernelLog = function(msg) {
+//
+// TODO: Make this more like the one for home.
+var debugging = true;
+var kernelLog = function(...msg) {
 	if (debugging) {
 		console.log(msg)
 	}
