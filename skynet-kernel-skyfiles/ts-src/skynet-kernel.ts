@@ -419,6 +419,7 @@ handleMessage = function(event) {
 	// Establish a handler that will serve user's homescreen to the caller.
 	if (event.data.kernelMethod === "requestHomescreen") {
 		handleSkynetKernelRequestHomescreen(event);
+		return;
 	}
 
 	kernelLog("Received unrecognized call: ", event.data.kernelMethod);

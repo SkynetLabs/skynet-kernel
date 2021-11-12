@@ -1,21 +1,25 @@
 // Declare the kernel const, since it will be available to us when this script
 // gets eval'd by the bootstrap code.
 declare var kernel;
+declare var handleMessage;
 
 // Overwrite the handleMessage object of the homescreen script so that we can
 // add more communications to homescreen.
 //
 // TODO: This doesn't need to be of type 'any' but I don't know what the real
 // type is supposed to be.
-var handleMessage = function(event: any) {
+handleMessage = function(event: any) {
+	console.log("Home: message received");
+
 	// TODO: Debugging logs only.
 	if (event.data.kernelMethod === "receiveTest") {
-		console.log("Homescreen: handleMessage override successful");
+		console.log("Home: handleMessage override successful");
 	}
 
 	// Reload the homepage if the user has logged out, so that they can log
 	// in again.
 	if (event.data.kernelMethod === "logOutSuccess") {
+		console.log("Home: reloading window");
 		window.location.reload();
 	}
 }

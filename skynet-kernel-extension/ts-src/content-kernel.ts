@@ -27,7 +27,7 @@ var hasUserSeed = function() {
 // This will require the user to re-download their full kernel cache the next
 // time they log in.
 var logOut = function() {
-	console.log("Clearing local storage");
+	console.log("progress", "clearing local storage after logging out");
 	localStorage.clear();
 }
 
@@ -99,6 +99,7 @@ var loadSkynetKernel = function() {
 //
 // TODO: This doesn't have to be 'any' I just don't know what type to put here.
 var handleMessage = function(event: any) {
+	console.log("progress", "Skynet Kernel: handleMessage is being called with unloaded kernel");
 	return;
 }
 
@@ -124,7 +125,7 @@ window.addEventListener("message", (event: any) => {
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}
-	console.log("progress", "auth has succeeded");
+	console.log("progress", "user is authenticated");
 
 	// Establish a handler to handle a request which states that
 	// authentication has been completed. Because we have already called
@@ -141,6 +142,8 @@ window.addEventListener("message", (event: any) => {
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
+		console.log("progress", "sending receiveTest message to source");
+		console.log("progress", event.source);
 		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
 		return;
 	}
@@ -149,7 +152,12 @@ window.addEventListener("message", (event: any) => {
 	// provided by home are allowed.
 	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
 		logOut();
-		event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
+		console.log("progress", "sending logOutSuccess message to home");
+		try {
+			event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
+		} catch (err) {
+			console.log("ERROR:", err);
+		}
 		return;
 	}
 
