@@ -4,7 +4,7 @@
 // 'console.log' was called directly.
 var log = function(logType: string, ...inputs: any) {
 	// Fetch the log settings as a string.
-	let logSettingsStr = localStorage.getItem("logSettings");
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
 
 	// Run through all the conditions that would result in the log not
 	// being printed. If the log is null, the log will be printed. The only

@@ -1,14 +1,9 @@
-// TODO: We already get access to the logging function don't we? And, should we
-// be moving that from the extension code to here? Probably, because we really
-// do want the extension to be as thin as possible.
-
 // Declare the kernel const, since it will be available to us when this script
 // gets eval'd by the bootstrap code.
 declare var kernel;
 
-// Overwrite the handleMessage object of the homescreen
-// script so that we can add more communications to
-// homescreen.
+// Overwrite the handleMessage object of the homescreen script so that we can
+// add more communications to homescreen.
 //
 // TODO: This doesn't need to be of type 'any' but I don't know what the real
 // type is supposed to be.
@@ -38,15 +33,6 @@ var doNothing = function() {}
 // setLoggingDefaults is a DRY function that specifies what happens if the
 // logging function is not available.
 var setLoggingDefaults = function() {
-	document.getElementById("disableAllLogsButton").textContent = "Click to disable all logs";
-	document.getElementById("disableAllLogsButton").onclick = disableAllLogs;
-
-	document.getElementById("messageLogsButton").textContent = "Enabled, click to disable";
-	document.getElementById("messageLogsButton").onclick = disableMessageLogs;
-	document.getElementById("performanceLogsButton").textContent = "Enabled, click to disable";
-	document.getElementById("performanceLogsButton").onclick = disablePerformanceLogs;
-	document.getElementById("progressLogsButton").textContent = "Enabled, click to disable";
-	document.getElementById("progressLogsButton").onclick = disableProgressLogs;
 }
 
 // Create a function to update the logging buttons. It'll look at local storage
@@ -57,88 +43,165 @@ var setLoggingDefaults = function() {
 // it should just let you add or remove tags.
 var updateLoggingButtons = function() {
 	// Grab the logSettings object.
-	let logSettingsStr = localStorage.getItem("logSettings");
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
 
-	// If there is no logSettings object, use the defaults.
-	if (logSettingsStr === null) {
-		setLoggingDefaults();
-		return;
-	}
-	try {
-		var logSettings = JSON.parse(logSettingsStr);
-	} catch {
-		console.log("ERROR: logSettings storage object is corrupted");
-		setLoggingDefaults();
-		return;
+	// Check for a valid logSettingsStr, if there is no valid str the
+	// default below will be to set all the buttons to their default
+	// config.
+	if (logSettingsStr !== null) {
+		try {
+			var logSettings = JSON.parse(logSettingsStr);
+			if (logSettings.disableAllLogs === true) {
+				// Update the suppress all logs button.
+				document.getElementById("disableAllLogsButton").textContent = "Logging disabled, click to enable";
+				document.getElementById("disableAllLogsButton").onclick = enableLogs;
+
+				// Update all the other buttons.
+				document.getElementById("messageLogsButton").textContent = "All logging disabled";
+				document.getElementById("messageLogsButton").onclick = doNothing;
+				document.getElementById("performanceLogsButton").textContent = "All logging disabled";
+				document.getElementById("performanceLogsButton").onclick = doNothing;
+				document.getElementById("progressLogsButton").textContent = "All logging disabled";
+				document.getElementById("progressLogsButton").onclick = doNothing;
+				return;
+			} else {
+				document.getElementById("disableAllLogsButton").textContent = "Click to disable all logs";
+				document.getElementById("disableAllLogsButton").onclick = disableAllLogs;
+			}
+			if (logSettings.message !== false) {
+				document.getElementById("messageLogsButton").textContent = "Enabled, click to disable";
+				document.getElementById("messageLogsButton").onclick = disableMessageLogs;
+			} else {
+				document.getElementById("messageLogsButton").textContent = "Disabled, click to enable";
+				document.getElementById("messageLogsButton").onclick = enableMessageLogs;
+			}
+			if (logSettings.performance !== false) {
+				document.getElementById("performanceLogsButton").textContent = "Enabled, click to disable";
+				document.getElementById("performanceLogsButton").onclick = disablePerformanceLogs;
+			} else {
+				document.getElementById("performanceLogsButton").textContent = "Disabled, click to enable";
+				document.getElementById("performanceLogsButton").onclick = enablePerformanceLogs;
+			}
+			if (logSettings.progress !== false) {
+				document.getElementById("progressLogsButton").textContent = "Enabled, click to disable";
+				document.getElementById("progressLogsButton").onclick = disableProgressLogs;
+			} else {
+				document.getElementById("progressLogsButton").textContent = "Disabled, click to enable";
+				document.getElementById("progressLogsButton").onclick = enableProgressLogs;
+			}
+			return;
+		} catch {
+			console.log("ERROR: logSettings storage object is corrupted");
+		}
 	}
 
-	if (logSettings.disableAllLogs === true) {
-		// Update the suppress all logs button.
-		document.getElementById("disableAllLogsButton").textContent = "Logging disabled, click to enable";
-		document.getElementById("disableAllLogsButton").onclick = enableLogs;
+	// If we reached here
+	document.getElementById("disableAllLogsButton").textContent = "Click to disable all logs";
+	document.getElementById("disableAllLogsButton").onclick = disableAllLogs;
 
-		// Update all the other buttons.
-		document.getElementById("messageLogsButton").textContent = "All logging disabled";
-		document.getElementById("messageLogsButton").onclick = doNothing;
-		document.getElementById("performanceLogsButton").textContent = "All logging disabled";
-		document.getElementById("performanceLogsButton").onclick = doNothing;
-		document.getElementById("progressLogsButton").textContent = "All logging disabled";
-		document.getElementById("progressLogsButton").onclick = doNothing;
-		return;
-	} else {
-		document.getElementById("disableAllLogsButton").textContent = "Click to disable all logs";
-		document.getElementById("disableAllLogsButton").onclick = disableAllLogs;
-	}
-	if (logSettings.message !== false) {
-		document.getElementById("messageLogsButton").textContent = "Enabled, click to disable";
-		document.getElementById("messageLogsButton").onclick = disableMessageLogs;
-	} else {
-		document.getElementById("messageLogsButton").textContent = "Disabled, click to enable";
-		document.getElementById("messageLogsButton").onclick = enableMessageLogs;
-	}
-	if (logSettings.performance !== false) {
-		document.getElementById("performanceLogsButton").textContent = "Enabled, click to disable";
-		document.getElementById("performanceLogsButton").onclick = disablePerformanceLogs;
-	} else {
-		document.getElementById("performanceLogsButton").textContent = "Disabled, click to enable";
-		document.getElementById("performanceLogsButton").onclick = enablePerformanceLogs;
-	}
-	if (logSettings.progress !== false) {
-		document.getElementById("progressLogsButton").textContent = "Enabled, click to disable";
-		document.getElementById("progressLogsButton").onclick = disableProgressLogs;
-	} else {
-		document.getElementById("progressLogsButton").textContent = "Disabled, click to enable";
-		document.getElementById("progressLogsButton").onclick = enableProgressLogs;
-	}
+	document.getElementById("messageLogsButton").textContent = "Enabled, click to disable";
+	document.getElementById("messageLogsButton").onclick = disableMessageLogs;
+	document.getElementById("performanceLogsButton").textContent = "Enabled, click to disable";
+	document.getElementById("performanceLogsButton").onclick = disablePerformanceLogs;
+	document.getElementById("progressLogsButton").textContent = "Enabled, click to disable";
+	document.getElementById("progressLogsButton").onclick = disableProgressLogs;
+
 }
 
 // Create the pair of functions that manage the button to disable logging.
 var disableAllLogs = function() {
-	let logSettingsStr = localStorage.getItem("logSettings");
-	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
-	logSettings.disableAllLogs = true;
-	localStorage.setItem("logSettings", JSON.stringify(logSettings));
+	// Try to parse the logSettings, if it works update the value to
+	// disable all logs.
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
+	if (logSettingsStr !== null) {
+		try {
+			let logSettings = JSON.parse(localStorage.getItem("v1-logSettings"));
+			logSettings.disableAllLogs = true;
+			localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
+			updateLoggingButtons();
+			return;
+		} catch {
+			console.log("ERROR: logSettings storage object is corrupted");
+		}
+	}
+
+	// There was an error parsing logSettingsStr, reset it.
+	let logSettings = {
+		disableAllLogs: true
+	};
+	localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
 	updateLoggingButtons();
 }
 var enableLogs = function() {
-	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
-	logSettings.disableAllLogs = false;
-	localStorage.setItem("logSettings", JSON.stringify(logSettings));
+	// Try to parse the logSettings, if it works update the value to enable
+	// all logs.
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
+	if (logSettingsStr !== null) {
+		try {
+			let logSettings = JSON.parse(localStorage.getItem("v1-logSettings"));
+			logSettings.disableAllLogs = false;
+			localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
+			updateLoggingButtons();
+			return;
+		} catch {
+			console.log("ERROR: logSettings storage object is corrupted");
+		}
+	}
+
+	// There was an error parsing logSettingsStr, reset it.
+	let logSettings = {
+		disableAllLogs: false
+	};
+	localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
 	updateLoggingButtons();
 }
 
 // enableXLogs is a generic function for enabling logs of type X.
 var enableXLogs = function(type) {
-	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
-	logSettings[type] = true;
-	localStorage.setItem("logSettings", JSON.stringify(logSettings));
+	// Try to parse the logSettings, if it works update the value to enable
+	// the log.
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
+	if (logSettingsStr !== null) {
+		try {
+			let logSettings = JSON.parse(localStorage.getItem("v1-logSettings"));
+			logSettings[type] = true;
+			localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
+			updateLoggingButtons();
+			return;
+		} catch {
+			console.log("ERROR: logSettings storage object is corrupted");
+		}
+	}
+
+	// There was an error parsing logSettingsStr, reset it.
+	let logSettings = {
+		[type]: true
+	};
+	localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
 	updateLoggingButtons();
 }
 // disableXLogs is a generic function for enabling logs of type X.
 var disableXLogs = function(type) {
-	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
-	logSettings[type] = false;
-	localStorage.setItem("logSettings", JSON.stringify(logSettings));
+	// Try to parse the logSettings, if it works update the value to enable
+	// the log.
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
+	if (logSettingsStr !== null) {
+		try {
+			let logSettings = JSON.parse(localStorage.getItem("v1-logSettings"));
+			logSettings[type] = false;
+			localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
+			updateLoggingButtons();
+			return;
+		} catch {
+			console.log("ERROR: logSettings storage object is corrupted");
+		}
+	}
+
+	// There was an error parsing logSettingsStr, reset it.
+	let logSettings = {
+		[type]: false
+	};
+	localStorage.setItem("v1-logSettings", JSON.stringify(logSettings));
 	updateLoggingButtons();
 }
 
