@@ -4,7 +4,7 @@
 
 // Declare the kernel const, since it will be available to us when this script
 // gets eval'd by the bootstrap code.
-declare const kernel;
+declare var kernel;
 
 // Overwrite the handleMessage object of the homescreen
 // script so that we can add more communications to
@@ -35,15 +35,43 @@ kernel.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://kernel.
 // better way.
 var doNothing = function() {}
 
+// setLoggingDefaults is a DRY function that specifies what happens if the
+// logging function is not available.
+var setLoggingDefaults = function() {
+	document.getElementById("disableAllLogsButton").textContent = "Click to disable all logs";
+	document.getElementById("disableAllLogsButton").onclick = disableAllLogs;
+
+	document.getElementById("messageLogsButton").textContent = "Enabled, click to disable";
+	document.getElementById("messageLogsButton").onclick = disableMessageLogs;
+	document.getElementById("performanceLogsButton").textContent = "Enabled, click to disable";
+	document.getElementById("performanceLogsButton").onclick = disablePerformanceLogs;
+	document.getElementById("progressLogsButton").textContent = "Enabled, click to disable";
+	document.getElementById("progressLogsButton").onclick = disableProgressLogs;
+}
+
 // Create a function to update the logging buttons. It'll look at local storage
 // and update all of the buttons according to the latest settings. Call this
 // function after modifying the settings.
+//
+// TODO: This whole logging ui needs to be rewritten. Instead of having buttons
+// it should just let you add or remove tags.
 var updateLoggingButtons = function() {
-	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
-	if (logSettings === null) {
-		// Create a fake object to avoid null errors.
-		logSettings = {};
+	// Grab the logSettings object.
+	let logSettingsStr = localStorage.getItem("logSettings");
+
+	// If there is no logSettings object, use the defaults.
+	if (logSettingsStr === null) {
+		setLoggingDefaults();
+		return;
 	}
+	try {
+		var logSettings = JSON.parse(logSettingsStr);
+	} catch {
+		console.log("ERROR: logSettings storage object is corrupted");
+		setLoggingDefaults();
+		return;
+	}
+
 	if (logSettings.disableAllLogs === true) {
 		// Update the suppress all logs button.
 		document.getElementById("disableAllLogsButton").textContent = "Logging disabled, click to enable";
@@ -86,6 +114,7 @@ var updateLoggingButtons = function() {
 
 // Create the pair of functions that manage the button to disable logging.
 var disableAllLogs = function() {
+	let logSettingsStr = localStorage.getItem("logSettings");
 	let logSettings = JSON.parse(localStorage.getItem("logSettings"));
 	logSettings.disableAllLogs = true;
 	localStorage.setItem("logSettings", JSON.stringify(logSettings));

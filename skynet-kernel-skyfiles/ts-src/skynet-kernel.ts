@@ -42,7 +42,7 @@
 // and inconsistency if they aren't coordinating around the upgrade together
 // effectively.
 
-declare const downloadV1Skylink
+declare var downloadV1Skylink
 
 // Set up a logging method that can be enabled and disabled.
 //

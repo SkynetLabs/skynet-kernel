@@ -31,8 +31,8 @@ else
 fi
 
 # Perform the typescript compilations.
-( cd skynet-kernel-extension && tsc )
-( cd skynet-kernel-skyfiles && tsc )
+( cd skynet-kernel-extension && tsc ) || exit 1
+( cd skynet-kernel-skyfiles && tsc ) || exit 1
 
 # Recreate the build directory and copy the source files over.
 rm -rf build
