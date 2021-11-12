@@ -1,19 +1,38 @@
 // Set the header of the page.
 document.title = "skynet-kernel: login";
 
+// validSeed will determine whether a provided seed is valid.
+// 
+// TODO: Finish the function.
+var validSeed = function(seed: string) {
+	let words = seed.split(" ");
+	if (words.length !== 1) {
+		document.getElementById("errorText").textContent = "seed must have 1 word";
+		return false;
+	}
+	return true;
+}
+
 // authUser is a function which will inspect the value of the input field to
 // find the seed, and then will set the user's local seed to that value.
 var authUser = function() {
+	// Check that the user has provided a seed.
 	var userSeed = <HTMLInputElement>document.getElementById("seedInput");
 	if (userSeed === null) {
-		// TODO: Report an auth error.
+		console.log("ERROR: user seed field not found");
 		return;
 	}
 
-	// TODO: Verify that this is a valid seed.
+	// Validate the seed.
+	if (!validSeed(userSeed.value)) {
+		return;
+	}
 
 	// Take the seed and store it in localstorage.
+	// 
+	// TODO: switch to using just the v1-seed.
 	window.localStorage.setItem("seed", userSeed.value);
+	window.localStorage.setItem("v1-seed", userSeed.value);
 
 	// Send a postmessage back to the caller that auth was successful.
 	window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
@@ -35,5 +54,9 @@ var submitButton = document.createElement("input");
 submitButton.type = "button";
 submitButton.value = "Submit";
 submitButton.onclick = authUser;
+var errorText = document.createElement("p");
+errorText.id = "errorText";
+errorText.textContent = "";
 document.body.appendChild(seedInput);
 document.body.appendChild(submitButton);
+document.body.appendChild(errorText);
