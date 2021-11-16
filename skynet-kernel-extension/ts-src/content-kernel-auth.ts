@@ -638,10 +638,7 @@ var validSeed = function(seedPhrase: string) {
 	let checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS+1];
 
 	// Convert the seedWords to a seed.
-	//
-	// TODO: I'm not sure how to declare an empty variable, we don't
-	// actually need to call 'new' here.
-	let seed = new Uint8Array(SEED_BYTES);
+	let seed: Uint8Array;
 	try {
 		seed = seedWordsToSeed(seedWords);
 	} catch(err) {
@@ -729,12 +726,10 @@ var generateSeedPhrase = function() {
 	}
 
 	// Generate the seed phrase from the randNums.
-	//
-	// TODO: I'm not sure how to make an empty array, so I did it by hand.
-	let seedWords = ["", "", "", "", "", "", "", "", "", "", "", "", ""];
+	let seedWords: string[] = [];
 	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
 		let wordIndex = randNums[i] % dictionary.length;
-		seedWords[i] = dictionary[wordIndex];
+		seedWords.push(dictionary[wordIndex]);
 	}
 	// Convert the seedWords to a seed.
 	//
