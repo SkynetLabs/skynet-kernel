@@ -5,6 +5,7 @@ document.title = "skynet-kernel: login";
 const SEED_ENTROPY_WORDS = 13;
 const SEED_CHECKSUM_WORDS = 2;
 const SEED_BYTES = 16;
+const DICTIONARY_UNIQUE_PREFIX = 3;
 
 // dictionary contains the word list for the mysky seed.
 //
@@ -607,6 +608,11 @@ function crypto_hash(out, m, n) {
 // seedToChecksumWords will compute the two checksum words for the provided
 // seed.
 var seedToChecksumWords = function(seed: Uint8Array): string[] {
+	// Input validation.
+	if (seed.length !== 16) {
+		throw "seed has the wrong length";
+	}
+
 	// Get the hash.
 	let h = new Uint8Array(64);
 	crypto_hash(h, seed, seed.length);
@@ -626,10 +632,10 @@ var seedToChecksumWords = function(seed: Uint8Array): string[] {
 var validSeed = function(seedPhrase: string) {
 	// Pull the seed into its respective parts.
 	let seedWordsAndChecksum = seedPhrase.split(" ");
-	let seedWords = seedWordsAndChecksum.slice(0, 13);
-	let checksumWords = seedWordsAndChecksum.slice(13, 15);
+	let seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS);
+	let checksumWords = seedWordsAndChecksum.slice(SEED_ENTROPY_WORDS, SEED_ENTROPY_WORDS+SEED_CHECKSUM_WORDS);
 
-	// Convert the seedPhrase in to a seed.
+	// Convert the seedWords to a seed.
 	//
 	// TODO: I'm not sure how to declare an empty variable, we don't
 	// actually need to call 'new' here.
@@ -640,18 +646,23 @@ var validSeed = function(seedPhrase: string) {
 		throw "unable to parse seed phrase: " + err;
 	}
 
-	let checksumWordsVerify = seedToChecksumWords(seed);
-	if (checksumWords[0].slice(0, 3) !== checksumWordsVerify[0].slice(0, 3)) {
+	let checksumWordsVerify = ["", ""];
+	try {
+		checksumWordsVerify = seedToChecksumWords(seed);
+	} catch(err) {
+		throw "could not compute checksum words:" + err;
+	}
+	if (checksumWords[0].slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumWordsVerify[0].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
 		throw "first checksum word is invalid";
 	}
-	if (checksumWords[1].slice(0, 3) !== checksumWordsVerify[1].slice(0, 3)) {
+	if (checksumWords[1].slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumWordsVerify[1].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
 		throw "second checksum word is invalid";
 	}
 }
 
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
 // represents the cryptographic seed in bytes.
-function seedWordsToSeed(seedWords: string[]): Uint8Array {
+var seedWordsToSeed = function(seedWords: string[]): Uint8Array {
 	if (seedWords.length !== SEED_ENTROPY_WORDS) {
 		throw `Input seed words should be length '${SEED_ENTROPY_WORDS}', was '${seedWords.length}'`;
 	}
@@ -664,7 +675,7 @@ function seedWordsToSeed(seedWords: string[]): Uint8Array {
 		// Determine which number corresponds to the next word.
 		let word = -1;
 		for (let j = 0; j < dictionary.length; j++) {
-			if (seedWords[i].slice(0, 3) === dictionary[j].slice(0, 3)) {
+			if (seedWords[i].slice(0, DICTIONARY_UNIQUE_PREFIX) === dictionary[j].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
 				word = j;
 				break;
 			}
@@ -708,25 +719,41 @@ var generateSeedPhrase = function() {
 	// bias, but only because the search space is a power of 2.
 	let randNums = new Uint16Array(SEED_ENTROPY_WORDS);
 	crypto.getRandomValues(randNums);
-
 	// Consistency check to verify the above statement.
 	if (dictionary.length !== 1024) {
 		document.getElementById("errorText").textContent = "ERROR: the dictionary is the wrong length!";
+		return;
 	}
 
 	// Generate the seed phrase from the randNums.
 	//
-	// TODO: I'm not sure how to make an empty array.
+	// TODO: I'm not sure how to make an empty array, so I did it by hand.
 	let seedWords = ["", "", "", "", "", "", "", "", "", "", "", "", ""];
 	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
 		let wordIndex = randNums[i] % dictionary.length;
 		seedWords[i] = dictionary[wordIndex];
 	}
-	let seed = seedWordsToSeed(seedWords);
+	// Convert the seedWords to a seed.
+	//
+	// TODO: I'm not sure how to declare an empty variable, we don't
+	// actually need to call 'new' here.
+	let seed = new Uint8Array(SEED_BYTES);
+	try {
+		seed = seedWordsToSeed(seedWords);
+	} catch(err) {
+		throw "unable to parse seed phrase: " + err;
+	}
 
-	// TODO: compute the checksum.
-	let checksumWords = seedToChecksumWords(seed);
-	let seedPhrase = ""
+	// Compute the checksum.
+	let checksumWords = ["", ""];
+	try {
+		checksumWords = seedToChecksumWords(seed);
+	} catch(err) {
+		throw "could not compute checksum words:" + err;
+	}
+
+	// Assemble the seedPhrase using the seedWords and the checksumWords.
+	let seedPhrase = "";
 	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
 		if (i !== 0) {
 			seedPhrase += " ";
@@ -737,6 +764,8 @@ var generateSeedPhrase = function() {
 		seedPhrase += " ";
 		seedPhrase += checksumWords[i];
 	}
+
+	// Set the text field that contains the seed phrase.
 	document.getElementById("seedText").textContent = seedPhrase;
 }
 
@@ -771,11 +800,8 @@ var authUser = function() {
 
 // Create the auth form and perform authentication.
 //
-// TODO: We also need to handle creating a new seed for the user.
-//
-// TODO: Obviously we can clean this up and make it prettier. I'm not sure how
-// to load a file here without going to the network, but surely there's some
-// way to get this page rendering without building the whole DOM by hand in js.
+// TODO: Figure out how to clean this up. I'm not sure how to import pretty
+// HTML+CSS within an extension, so for now it's all DOM manipulation.
 var seedInput = document.createElement("input");
 seedInput.type = "text";
 seedInput.placeholder = "Enter seed phrase here";
