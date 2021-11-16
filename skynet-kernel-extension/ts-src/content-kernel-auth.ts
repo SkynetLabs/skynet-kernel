@@ -738,19 +738,22 @@ var generateSeedPhrase = function() {
 	// Convert the seedWords to a seed.
 	let [seed, err1] = seedWordsToSeed(seedWords);
 	if (err1 !== "") {
-		throw "unable to parse seed phrase: " + err1;
+		document.getElementById("errorText").textContent = "ERROR: Unable to parse generated seed: " + err1;
+		return;
 	}
 
 	// Compute the checksum.
 	let [checksumOne, checksumTwo, err2] = seedToChecksumWords(seed);
 	if (err2 !== "") {
-		return "could not compute checksum words:" + err2;
+		document.getElementById("errorText").textContent = "ERROR: Unable to compute checksum: " + err2;
+		return;
 	}
 
 	// Assemble the final seed phrase and set the text field.
 	let allWords = [...seedWords, checksumOne, checksumTwo];
 	let seedPhrase = allWords.join(" ");
 	document.getElementById("seedText").textContent = seedPhrase;
+	return ""
 }
 
 // authUser is a function which will inspect the value of the input field to
