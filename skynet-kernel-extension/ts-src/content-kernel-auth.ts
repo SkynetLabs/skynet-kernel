@@ -607,11 +607,12 @@ function crypto_hash(out, m, n) {
 }
 
 // seedToChecksumWords will compute the two checksum words for the provided
-// seed.
-var seedToChecksumWords = function(seed: Uint8Array): [string, string] {
+// seed. The first two return values are the two checksum words, and the third
+// return value is the error. If the error is "", it means there was no error.
+var seedToChecksumWords = function(seed: Uint8Array): [string, string, string] {
 	// Input validation.
 	if (seed.length !== SEED_BYTES) {
-		throw "seed has the wrong length";
+		return ["", "", `seed has the wrong length: ${seed.length}`];
 	}
 
 	// Get the hash.
@@ -626,11 +627,12 @@ var seedToChecksumWords = function(seed: Uint8Array): [string, string] {
 	word2 &= 0xffff;
 	word2 += h[2] << 2;
 	word2 >>= 6;
-	return [dictionary[word1], dictionary[word2]];
+	return [dictionary[word1], dictionary[word2], ""];
 }
 
-// validSeed will determine whether a provided seed is valid.
-var validSeed = function(seedPhrase: string) {
+// validSeed will return "" if the provided seed is valid, and will return an
+// error string otherwise.
+var validSeed = function(seedPhrase: string): string {
 	// Create a helper function to make the below code more readable.
 	let prefix = function(s: string): string {
 		return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
@@ -650,19 +652,17 @@ var validSeed = function(seedPhrase: string) {
 		throw "unable to parse seed phrase: " + err;
 	}
 
-	let checksumOneVerify: string;
-	let checksumTwoVerify: string;
-	try {
-		[checksumOneVerify, checksumTwoVerify] = seedToChecksumWords(seed);
-	} catch(err) {
-		throw "could not compute checksum words:" + err;
+	let [checksumOneVerify, checksumTwoVerify, err] = seedToChecksumWords(seed);
+	if (err !== "") {
+		return "could not compute checksum words: " + err;
 	}
 	if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
-		throw "first checksum word is invalid";
+		return "first checksum word is invalid";
 	}
 	if (prefix(checksumTwo) !== prefix(checksumTwoVerify)) {
-		throw "second checksum word is invalid";
+		return "second checksum word is invalid";
 	}
+	return "";
 }
 
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
@@ -745,12 +745,9 @@ var generateSeedPhrase = function() {
 	}
 
 	// Compute the checksum.
-	let checksumOne: string;
-	let checksumTwo: string;
-	try {
-		[checksumOne, checksumTwo] = seedToChecksumWords(seed);
-	} catch(err) {
-		throw "could not compute checksum words:" + err;
+	let [checksumOne, checksumTwo, err] = seedToChecksumWords(seed);
+	if (err !== "") {
+		return "could not compute checksum words:" + err;
 	}
 
 	// Assemble the final seed phrase and set the text field.
@@ -765,14 +762,13 @@ var authUser = function() {
 	// Check that the user has provided a seed.
 	var userSeed = <HTMLInputElement>document.getElementById("seedInput");
 	if (userSeed === null) {
-		console.log("ERROR: user seed field not found");
+		document.getElementById("errorText").textContent = "ERROR: user seed field not found";
 		return;
 	}
 
 	// Validate the seed.
-	try {
-		validSeed(userSeed.value)
-	} catch (err) {
+	let err = validSeed(userSeed.value);
+	if (err !== "") {
 		document.getElementById("errorText").textContent = "Seed is not valid: " + err;
 		return;
 	}
@@ -784,7 +780,12 @@ var authUser = function() {
 	window.localStorage.setItem("v1-seed", userSeed.value);
 
 	// Send a postmessage back to the caller that auth was successful.
-	window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
+	try {
+		window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
+	} catch(err) {
+		document.getElementById("errorText").textContent = "Unable to report that authentication suceeded: " + err;
+		return;
+	}
 	window.close();
 }
 
