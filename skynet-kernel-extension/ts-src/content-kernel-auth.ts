@@ -732,10 +732,7 @@ var generateSeedPhrase = function() {
 		seedWords.push(dictionary[wordIndex]);
 	}
 	// Convert the seedWords to a seed.
-	//
-	// TODO: I'm not sure how to declare an empty variable, we don't
-	// actually need to call 'new' here.
-	let seed = new Uint8Array(SEED_BYTES);
+	let seed: Uint8Array;
 	try {
 		seed = seedWordsToSeed(seedWords);
 	} catch(err) {
@@ -751,17 +748,9 @@ var generateSeedPhrase = function() {
 		throw "could not compute checksum words:" + err;
 	}
 
-	// Assemble the seedPhrase using the seedWords and the checksumWords.
-	let seedPhrase = "";
-	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
-		if (i !== 0) {
-			seedPhrase += " ";
-		}
-		seedPhrase += seedWords[i];
-	}
-	seedPhrase += " " + checksumOne + " " + checksumTwo;
-
-	// Set the text field that contains the seed phrase.
+	// Assemble the final seed phrase and set the text field.
+	let allWords = [...seedWords, checksumOne, checksumTwo];
+	let seedPhrase = allWords.join(" ");
 	document.getElementById("seedText").textContent = seedPhrase;
 }
 
