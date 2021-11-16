@@ -3,7 +3,7 @@ document.title = "skynet-kernel: login";
 
 // Define the number of entropy words used when generating the seed.
 const SEED_ENTROPY_WORDS = 13;
-const SEED_CHECKSUM_WORDS = 2;
+const SEED_CHECKSUM_WORDS = 2; // Not used, but left as documentation.
 const SEED_BYTES = 16;
 const DICTIONARY_UNIQUE_PREFIX = 3;
 const HASH_SIZE = 64;
@@ -608,7 +608,7 @@ function crypto_hash(out, m, n) {
 
 // seedToChecksumWords will compute the two checksum words for the provided
 // seed.
-var seedToChecksumWords = function(seed: Uint8Array): string[] {
+var seedToChecksumWords = function(seed: Uint8Array): [string, string] {
 	// Input validation.
 	if (seed.length !== SEED_BYTES) {
 		throw "seed has the wrong length";
@@ -634,7 +634,8 @@ var validSeed = function(seedPhrase: string) {
 	// Pull the seed into its respective parts.
 	let seedWordsAndChecksum = seedPhrase.split(" ");
 	let seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS);
-	let checksumWords = seedWordsAndChecksum.slice(SEED_ENTROPY_WORDS, SEED_ENTROPY_WORDS+SEED_CHECKSUM_WORDS);
+	let checksumOne = seedWordsAndChecksum[SEED_ENTROPY_WORDS];
+	let checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS+1];
 
 	// Convert the seedWords to a seed.
 	//
@@ -647,16 +648,17 @@ var validSeed = function(seedPhrase: string) {
 		throw "unable to parse seed phrase: " + err;
 	}
 
-	let checksumWordsVerify = ["", ""];
+	let checksumOneVerify: string;
+	let checksumTwoVerify: string;
 	try {
-		checksumWordsVerify = seedToChecksumWords(seed);
+		[checksumOneVerify, checksumTwoVerify] = seedToChecksumWords(seed);
 	} catch(err) {
 		throw "could not compute checksum words:" + err;
 	}
-	if (checksumWords[0].slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumWordsVerify[0].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
+	if (checksumOne.slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumOneVerify.slice(0, DICTIONARY_UNIQUE_PREFIX)) {
 		throw "first checksum word is invalid";
 	}
-	if (checksumWords[1].slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumWordsVerify[1].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
+	if (checksumTwo.slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumTwoVerify.slice(0, DICTIONARY_UNIQUE_PREFIX)) {
 		throw "second checksum word is invalid";
 	}
 }
@@ -746,9 +748,10 @@ var generateSeedPhrase = function() {
 	}
 
 	// Compute the checksum.
-	let checksumWords = ["", ""];
+	let checksumOne: string;
+	let checksumTwo: string;
 	try {
-		checksumWords = seedToChecksumWords(seed);
+		[checksumOne, checksumTwo] = seedToChecksumWords(seed);
 	} catch(err) {
 		throw "could not compute checksum words:" + err;
 	}
@@ -761,10 +764,7 @@ var generateSeedPhrase = function() {
 		}
 		seedPhrase += seedWords[i];
 	}
-	for (let i = 0; i < SEED_CHECKSUM_WORDS; i++) {
-		seedPhrase += " ";
-		seedPhrase += checksumWords[i];
-	}
+	seedPhrase += " " + checksumOne + " " + checksumTwo;
 
 	// Set the text field that contains the seed phrase.
 	document.getElementById("seedText").textContent = seedPhrase;
