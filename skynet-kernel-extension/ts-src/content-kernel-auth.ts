@@ -623,8 +623,6 @@ var seedToChecksumWords = function(seed: Uint8Array): string[] {
 }
 
 // validSeed will determine whether a provided seed is valid.
-// 
-// TODO: Finish the function.
 var validSeed = function(seedPhrase: string) {
 	// Pull the seed into its respective parts.
 	let seedWordsAndChecksum = seedPhrase.split(" ");
@@ -642,18 +640,13 @@ var validSeed = function(seedPhrase: string) {
 		throw "unable to parse seed phrase: " + err;
 	}
 
-	// let checksumWordsVerify = seedToChecksumWords(seed);
-	// if (checksumWords[0].slice(0, 3) !== checksumWordsVerify[0].slice(0, 3)) {
-	// 	throw "BAH";
-	// }
-	// if (checksumWords[1].slice(0, 3) !== checksumWordsVerify[1].slice(0, 3)) {
-	// 	throw "BAH";
-	// }
-
-	// TODO: Throw a valid string just so we can debug easier as we code the
-	// function up.
-	document.getElementById("errorText").textContent = JSON.stringify(seed);
-	throw `seed is valid: ${seed.length}`;
+	let checksumWordsVerify = seedToChecksumWords(seed);
+	if (checksumWords[0].slice(0, 3) !== checksumWordsVerify[0].slice(0, 3)) {
+		throw "first checksum word is invalid";
+	}
+	if (checksumWords[1].slice(0, 3) !== checksumWordsVerify[1].slice(0, 3)) {
+		throw "second checksum word is invalid";
+	}
 }
 
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
