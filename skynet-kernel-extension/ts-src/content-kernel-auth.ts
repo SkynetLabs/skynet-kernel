@@ -645,16 +645,14 @@ var validSeed = function(seedPhrase: string): string {
 	let checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS+1];
 
 	// Convert the seedWords to a seed.
-	let seed: Uint8Array;
-	try {
-		seed = seedWordsToSeed(seedWords);
-	} catch(err) {
-		throw "unable to parse seed phrase: " + err;
+	let [seed, err1] = seedWordsToSeed(seedWords);
+	if (err1 !== "") {
+		return "unable to parse seed phrase: " + err1;
 	}
 
-	let [checksumOneVerify, checksumTwoVerify, err] = seedToChecksumWords(seed);
-	if (err !== "") {
-		return "could not compute checksum words: " + err;
+	let [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed);
+	if (err2 !== "") {
+		return "could not compute checksum words: " + err2;
 	}
 	if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
 		return "first checksum word is invalid";
@@ -666,10 +664,11 @@ var validSeed = function(seedPhrase: string): string {
 }
 
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
-// represents the cryptographic seed in bytes.
-var seedWordsToSeed = function(seedWords: string[]): Uint8Array {
+// represents the cryptographic seed in bytes. The string return value is an
+// error, with "" indicating no error.
+var seedWordsToSeed = function(seedWords: string[]): [Uint8Array, string] {
 	if (seedWords.length !== SEED_ENTROPY_WORDS) {
-		throw `Input seed words should be length '${SEED_ENTROPY_WORDS}', was '${seedWords.length}'`;
+		return [null, `Seed words should have length ${SEED_ENTROPY_WORDS} but has length ${seedWords.length}`];
 	}
 
 	// We are getting 16 bytes of entropy.
@@ -686,7 +685,7 @@ var seedWordsToSeed = function(seedWords: string[]): Uint8Array {
 			}
 		}
 		if (word === -1) {
-			throw "seed word not found in dictionary";
+			return [null, `word '${seedWords[i]}' at index ${i} not found in dictionary`];
 		}
 		let wordBits = 10;
 		if (i === SEED_ENTROPY_WORDS - 1) {
@@ -710,7 +709,7 @@ var seedWordsToSeed = function(seedWords: string[]): Uint8Array {
 		}
 	}
 
-	return bytes;
+	return [bytes, ""];
 }
 
 // generateSeedPhrase will generate and verify a seed phrase for the user.
@@ -737,17 +736,15 @@ var generateSeedPhrase = function() {
 		seedWords.push(dictionary[wordIndex]);
 	}
 	// Convert the seedWords to a seed.
-	let seed: Uint8Array;
-	try {
-		seed = seedWordsToSeed(seedWords);
-	} catch(err) {
-		throw "unable to parse seed phrase: " + err;
+	let [seed, err1] = seedWordsToSeed(seedWords);
+	if (err1 !== "") {
+		throw "unable to parse seed phrase: " + err1;
 	}
 
 	// Compute the checksum.
-	let [checksumOne, checksumTwo, err] = seedToChecksumWords(seed);
-	if (err !== "") {
-		return "could not compute checksum words:" + err;
+	let [checksumOne, checksumTwo, err2] = seedToChecksumWords(seed);
+	if (err2 !== "") {
+		return "could not compute checksum words:" + err2;
 	}
 
 	// Assemble the final seed phrase and set the text field.
