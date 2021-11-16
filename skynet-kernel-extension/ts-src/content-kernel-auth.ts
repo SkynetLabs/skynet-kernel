@@ -6,6 +6,7 @@ const SEED_ENTROPY_WORDS = 13;
 const SEED_CHECKSUM_WORDS = 2;
 const SEED_BYTES = 16;
 const DICTIONARY_UNIQUE_PREFIX = 3;
+const HASH_SIZE = 64;
 
 // dictionary contains the word list for the mysky seed.
 //
@@ -609,12 +610,12 @@ function crypto_hash(out, m, n) {
 // seed.
 var seedToChecksumWords = function(seed: Uint8Array): string[] {
 	// Input validation.
-	if (seed.length !== 16) {
+	if (seed.length !== SEED_BYTES) {
 		throw "seed has the wrong length";
 	}
 
 	// Get the hash.
-	let h = new Uint8Array(64);
+	let h = new Uint8Array(HASH_SIZE);
 	crypto_hash(h, seed, seed.length);
 
 	// Turn the hash into two words.

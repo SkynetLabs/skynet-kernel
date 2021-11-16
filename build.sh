@@ -15,7 +15,7 @@ if ! [ -x "$(command -v skynet-utils)" ]; then
 	exit
 fi
 if ! [ -x "$(command -v tsc)" ]; then
-	echo "tsc (typescript) could not be found, please install skynet-utils"
+	echo "tsc (typescript compiler) could not be found, please install typescript"
 	exit
 fi
 
