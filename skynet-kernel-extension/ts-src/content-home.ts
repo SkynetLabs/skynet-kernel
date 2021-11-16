@@ -30,7 +30,7 @@ var log = function(logType: string, ...inputs: any) {
 
 	// Print the log.
 	let args = Array.prototype.slice.call(arguments);
-	args[0] = "["+logType+"] Home: ";
+	args[0] = `[${logType}] Home: `;
 	console.log.apply(console, args);
 	return;
 };

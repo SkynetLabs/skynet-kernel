@@ -631,6 +631,11 @@ var seedToChecksumWords = function(seed: Uint8Array): [string, string] {
 
 // validSeed will determine whether a provided seed is valid.
 var validSeed = function(seedPhrase: string) {
+	// Create a helper function to make the below code more readable.
+	let prefix = function(s: string): string {
+		return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
+	}
+
 	// Pull the seed into its respective parts.
 	let seedWordsAndChecksum = seedPhrase.split(" ");
 	let seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS);
@@ -652,10 +657,10 @@ var validSeed = function(seedPhrase: string) {
 	} catch(err) {
 		throw "could not compute checksum words:" + err;
 	}
-	if (checksumOne.slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumOneVerify.slice(0, DICTIONARY_UNIQUE_PREFIX)) {
+	if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
 		throw "first checksum word is invalid";
 	}
-	if (checksumTwo.slice(0, DICTIONARY_UNIQUE_PREFIX) !== checksumTwoVerify.slice(0, DICTIONARY_UNIQUE_PREFIX)) {
+	if (prefix(checksumTwo) !== prefix(checksumTwoVerify)) {
 		throw "second checksum word is invalid";
 	}
 }
