@@ -764,6 +764,8 @@ var generateSeedPhrase = function() {
 
 // authUser is a function which will inspect the value of the input field to
 // find the seed, and then will set the user's local seed to that value.
+//
+// TODO: Decide the protocol for storing the seed.
 var authUser = function() {
 	// Check that the user has provided a seed.
 	var userSeed = <HTMLInputElement>document.getElementById("seedInput");
