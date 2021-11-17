@@ -599,38 +599,39 @@ var seedToChecksumWords = function (
   return [dictionary[word1], dictionary[word2], ""];
 };
 
-// validSeed will return "" if the provided seed is valid, and will return an
-// error string otherwise.
-var validSeed = function (seedPhrase: string): string {
-  // Create a helper function to make the below code more readable.
-  let prefix = function (s: string): string {
-    return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
-  };
+// validSeedPhrase will return the seed. If there is an error parsing the seed,
+// the string return value will contain the error. If there is no error. the
+// string return value will be "".
+var validSeedPhrase = function(seedPhrase: string): [Uint8Array, string] {
+	// Create a helper function to make the below code more readable.
+	let prefix = function(s: string): string {
+		return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
+	}
 
-  // Pull the seed into its respective parts.
-  let seedWordsAndChecksum = seedPhrase.split(" ");
-  let seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS);
-  let checksumOne = seedWordsAndChecksum[SEED_ENTROPY_WORDS];
-  let checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS + 1];
+	// Pull the seed into its respective parts.
+	let seedWordsAndChecksum = seedPhrase.split(" ");
+	let seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS);
+	let checksumOne = seedWordsAndChecksum[SEED_ENTROPY_WORDS];
+	let checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS+1];
 
-  // Convert the seedWords to a seed.
-  let [seed, err1] = seedWordsToSeed(seedWords);
-  if (err1 !== "") {
-    return "unable to parse seed phrase: " + err1;
-  }
+	// Convert the seedWords to a seed.
+	let [seed, err1] = seedWordsToSeed(seedWords);
+	if (err1 !== "") {
+		return [null, "unable to parse seed phrase: " + err1];
+	}
 
-  let [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed);
-  if (err2 !== "") {
-    return "could not compute checksum words: " + err2;
-  }
-  if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
-    return "first checksum word is invalid";
-  }
-  if (prefix(checksumTwo) !== prefix(checksumTwoVerify)) {
-    return "second checksum word is invalid";
-  }
-  return "";
-};
+	let [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed);
+	if (err2 !== "") {
+		return [null, "could not compute checksum words: " + err2];
+	}
+	if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
+		return [null, "first checksum word is invalid"];
+	}
+	if (prefix(checksumTwo) !== prefix(checksumTwoVerify)) {
+		return [null, "second checksum word is invalid"];
+	}
+	return [seed, ""];
+}
 
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
 // represents the cryptographic seed in bytes. The string return value is an
@@ -742,32 +743,35 @@ var generateSeedPhrase = function () {
 
 // authUser is a function which will inspect the value of the input field to
 // find the seed, and then will set the user's local seed to that value.
-var authUser = function () {
-  // Check that the user has provided a seed.
-  var userSeed = <HTMLInputElement>document.getElementById("seedInput");
-  if (userSeed === null) {
-    setErrorText("ERROR: user seed field not found");
-    return;
-  }
+//
+// TODO: Decide the protocol for storing the seed.
+var authUser = function() {
+	// Check that the user has provided a seed.
+	var userSeed = <HTMLInputElement>document.getElementById("seedInput");
+	if (userSeed === null) {
+		setErrorText("ERROR: user seed field not found");
+		return;
+	}
 
-  // Validate the seed.
-  let err = validSeed(userSeed.value);
-  if (err !== "") {
-    setErrorText("Seed is not valid: " + err);
-    return;
-  }
-  // Take the seed and store it in localStorage.
-  window.localStorage.setItem("v1-seed", userSeed.value);
+	// Validate the seed.
+	let [seed, err] = validSeedPhrase(userSeed.value);
+	if (err !== "") {
+		setErrorText("Seed is not valid: " + err);
+		return;
+	}
+	// Take the seed and store it in localStorage.
+	let seedString = new TextDecoder().decode(seed);
+	window.localStorage.setItem("v1-seed", seedString);
 
-  // Send a postmessage back to the caller that auth was successful.
-  try {
-    window.opener.postMessage({ kernelMethod: "authCompleted" }, "*");
-  } catch (err) {
-    setErrorText("Unable to report that authentication suceeded: " + err);
-    return;
-  }
-  window.close();
-};
+	// Send a postmessage back to the caller that auth was successful.
+	try {
+		window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
+	} catch(err) {
+		setErrorText("Unable to report that authentication suceeded: " + err);
+		return;
+	}
+	window.close();
+}
 
 // Create the auth form and perform authentication.
 //

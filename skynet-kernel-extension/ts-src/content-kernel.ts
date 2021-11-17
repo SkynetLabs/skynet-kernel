@@ -6,18 +6,19 @@ var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
 
-// hasUserSeed is a function which checks localStorage for the user's seed.
-var hasUserSeed = function() {
-	var userSeed = window.localStorage.getItem("v1-seed");
-	if (userSeed === null) {
-		return false;
+// getUserSeed will return the seed that is stored in localStorage.
+var getUserSeed = function(): [Uint8Array, string] {
+	let userSeedString = window.localStorage.getItem("v1-seed");
+	if (userSeedString === null) {
+		return [null, "no user seed in local storage"];
 	}
-
-	// TODO: Verify that the seed is a valid seed. If the user installed
-	// the browser extension after dealing with malicous code, there could
-	// be an invalid seed in the localStorage.
-
-	return true;
+	let userSeed: Uint8Array;
+	try {
+		userSeed = new TextEncoder().encode(userSeedString);
+	} catch(err) {
+		return [null, "user seed is not valid"];
+	}
+	return [userSeed, ""];
 }
 
 // logOut will erase the localStorage, which means the seed will no longer be
@@ -120,8 +121,9 @@ window.addEventListener("message", (event: any) => {
 
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
-	if (!hasUserSeed()) {
-		console.log("progress", "auth has failed, sending an authFailed message");
+	let [userSeed, err] = getUserSeed();
+	if (err !== "") {
+		console.log("progress", "auth has failed, sending an authFailed message", err);
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}
@@ -169,10 +171,11 @@ window.addEventListener("message", (event: any) => {
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
-if (hasUserSeed()) {
-	console.log("progress", "auth succeeded, loading kernel");
-	loadSkynetKernel();
-} else {
+let [userSeed, err] = getUserSeed()
+if (err !== "") {
 	console.log("progress", "auth failed, sending message");
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
+} else {
+	console.log("progress", "auth succeeded, loading kernel");
+	loadSkynetKernel();
 }
