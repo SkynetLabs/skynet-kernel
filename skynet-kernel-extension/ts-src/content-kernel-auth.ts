@@ -712,6 +712,12 @@ var seedWordsToSeed = function(seedWords: string[]): [Uint8Array, string] {
 	return [bytes, ""];
 }
 
+// setErrorText sets the errorText item in the DOM. This function is mainly
+// used for readability.
+var setErrorText = function(t: string) {
+	document.getElementById("errorText").textContent = t;
+}
+
 // generateSeedPhrase will generate and verify a seed phrase for the user.
 var generateSeedPhrase = function() {
 	// Get the random numbers for the seed phrase. Typically, you need to
@@ -725,7 +731,7 @@ var generateSeedPhrase = function() {
 	crypto.getRandomValues(randNums);
 	// Consistency check to verify the above statement.
 	if (dictionary.length !== 1024) {
-		document.getElementById("errorText").textContent = "ERROR: the dictionary is the wrong length!";
+		setErrorText("ERROR: the dictionary is the wrong length!");
 		return;
 	}
 
@@ -738,14 +744,14 @@ var generateSeedPhrase = function() {
 	// Convert the seedWords to a seed.
 	let [seed, err1] = seedWordsToSeed(seedWords);
 	if (err1 !== "") {
-		document.getElementById("errorText").textContent = "ERROR: Unable to parse generated seed: " + err1;
+		setErrorText("ERROR: Unable to parse generated seed: " + err1);
 		return;
 	}
 
 	// Compute the checksum.
 	let [checksumOne, checksumTwo, err2] = seedToChecksumWords(seed);
 	if (err2 !== "") {
-		document.getElementById("errorText").textContent = "ERROR: Unable to compute checksum: " + err2;
+		setErrorText("ERROR: Unable to compute checksum: " + err2);
 		return;
 	}
 
@@ -762,28 +768,24 @@ var authUser = function() {
 	// Check that the user has provided a seed.
 	var userSeed = <HTMLInputElement>document.getElementById("seedInput");
 	if (userSeed === null) {
-		document.getElementById("errorText").textContent = "ERROR: user seed field not found";
+		setErrorText("ERROR: user seed field not found");
 		return;
 	}
 
 	// Validate the seed.
 	let err = validSeed(userSeed.value);
 	if (err !== "") {
-		document.getElementById("errorText").textContent = "Seed is not valid: " + err;
+		setErrorText("Seed is not valid: " + err);
 		return;
 	}
-
-	// Take the seed and store it in localstorage.
-	// 
-	// TODO: switch to using just the v1-seed.
-	window.localStorage.setItem("seed", userSeed.value);
+	// Take the seed and store it in localStorage.
 	window.localStorage.setItem("v1-seed", userSeed.value);
 
 	// Send a postmessage back to the caller that auth was successful.
 	try {
 		window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
 	} catch(err) {
-		document.getElementById("errorText").textContent = "Unable to report that authentication suceeded: " + err;
+		setErrorText("Unable to report that authentication suceeded: " + err);
 		return;
 	}
 	window.close();

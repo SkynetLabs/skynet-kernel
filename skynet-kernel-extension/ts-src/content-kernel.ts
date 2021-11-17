@@ -8,7 +8,7 @@ document.body.appendChild(header);
 
 // hasUserSeed is a function which checks localStorage for the user's seed.
 var hasUserSeed = function() {
-	var userSeed = window.localStorage.getItem("seed");
+	var userSeed = window.localStorage.getItem("v1-seed");
 	if (userSeed === null) {
 		return false;
 	}
