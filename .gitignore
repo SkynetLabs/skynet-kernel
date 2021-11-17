@@ -4,3 +4,5 @@ notes
 build
 build-cache
 ts-out
+
+node_modules
