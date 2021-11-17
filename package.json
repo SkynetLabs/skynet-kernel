@@ -1,0 +1,24 @@
+{
+  "name": "skynet-kernel",
+  "version": "1.0.0",
+  "description": "skynet-kernel is a next generation platform for blockchain and dapp development. In the blockchain world today, users are forced to choose between convenience and security, because there is no convenient way to get trustless access to the blockchain space.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SkynetLabs/skynet-kernel.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/SkynetLabs/skynet-kernel/issues"
+  },
+  "homepage": "https://github.com/SkynetLabs/skynet-kernel#readme",
+  "dependencies": {
+    "rollup-plugin-babel": "^4.4.0",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-node-resolve": "^5.2.0"
+  }
+}

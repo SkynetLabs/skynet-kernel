@@ -31,7 +31,7 @@ else
 fi
 
 # Perform the typescript compilations.
-( cd skynet-kernel-extension && tsc ) || exit 1
+( cd skynet-kernel-extension && tsc && rollup -c) || exit 1
 ( cd skynet-kernel-skyfiles && tsc ) || exit 1
 
 # Recreate the build directory and copy the source files over.
@@ -65,7 +65,7 @@ do
 	# Escape the filename for compatibility.
 	escaped_file=$(printf '%s\n' "${file#*/}" | sed -e 's/[]\/$*.^[]/\\&/g')
 	# Update every other file in the directory to use the v2 skylink.
-	grep -lr "branch-file:::${file#*/}" build | xargs -r sed -i -e "s/branch-file:::$escaped_file/$v2skylink/g"
+	grep -lr "branch-file:::${file#*/}" build | xargs sed -i -e "s/branch-file:::$escaped_file/$v2skylink/g"
 done
 
 # Now that every file has been updated to reference the correct v2 skylinks,
