@@ -566,7 +566,7 @@ function crypto_hashblocks_hl(hh, hl, m, n) {
 
 // TODO: I couldn't figure out how to do imports within an extension, this is
 // part of the crypto library, it gives us hashing.
-function crypto_hash(out, m, n) {
+function sha512(out, m, n) {
   var hh = new Int32Array(8),
       hl = new Int32Array(8),
       x = new Uint8Array(256),
@@ -617,7 +617,7 @@ var seedToChecksumWords = function(seed: Uint8Array): [string, string, string] {
 
 	// Get the hash.
 	let h = new Uint8Array(HASH_SIZE);
-	crypto_hash(h, seed, seed.length);
+	sha512(h, seed, seed.length);
 
 	// Turn the hash into two words.
 	let word1 = h[0] << 8;
