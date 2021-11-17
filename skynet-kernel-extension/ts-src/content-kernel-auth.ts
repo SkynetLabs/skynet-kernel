@@ -630,9 +630,10 @@ var seedToChecksumWords = function(seed: Uint8Array): [string, string, string] {
 	return [dictionary[word1], dictionary[word2], ""];
 }
 
-// validSeed will return "" if the provided seed is valid, and will return an
-// error string otherwise.
-var validSeed = function(seedPhrase: string): string {
+// validSeedPhrase will return the seed. If there is an error parsing the seed,
+// the string return value will contain the error. If there is no error. the
+// string return value will be "".
+var validSeedPhrase = function(seedPhrase: string): [Uint8Array, string] {
 	// Create a helper function to make the below code more readable.
 	let prefix = function(s: string): string {
 		return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
@@ -647,20 +648,20 @@ var validSeed = function(seedPhrase: string): string {
 	// Convert the seedWords to a seed.
 	let [seed, err1] = seedWordsToSeed(seedWords);
 	if (err1 !== "") {
-		return "unable to parse seed phrase: " + err1;
+		return [null, "unable to parse seed phrase: " + err1];
 	}
 
 	let [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed);
 	if (err2 !== "") {
-		return "could not compute checksum words: " + err2;
+		return [null, "could not compute checksum words: " + err2];
 	}
 	if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
-		return "first checksum word is invalid";
+		return [null, "first checksum word is invalid"];
 	}
 	if (prefix(checksumTwo) !== prefix(checksumTwoVerify)) {
-		return "second checksum word is invalid";
+		return [null, "second checksum word is invalid"];
 	}
-	return "";
+	return [seed, ""];
 }
 
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
@@ -775,13 +776,14 @@ var authUser = function() {
 	}
 
 	// Validate the seed.
-	let err = validSeed(userSeed.value);
+	let [seed, err] = validSeedPhrase(userSeed.value);
 	if (err !== "") {
 		setErrorText("Seed is not valid: " + err);
 		return;
 	}
 	// Take the seed and store it in localStorage.
-	window.localStorage.setItem("v1-seed", userSeed.value);
+	let seedString = new TextDecoder().decode(seed);
+	window.localStorage.setItem("v1-seed", seedString);
 
 	// Send a postmessage back to the caller that auth was successful.
 	try {
