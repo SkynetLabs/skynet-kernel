@@ -6,4 +6,4 @@ build-cache
 ts-out
 
 node_modules
-.package_lock
+package-lock.json
