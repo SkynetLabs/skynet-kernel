@@ -1,3 +1,5 @@
+declare var browser;
+
 // Create a listener that completely swallows the page, returning nothing
 // instead.
 function listener(details) {

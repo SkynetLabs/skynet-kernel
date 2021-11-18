@@ -30,6 +30,46 @@ else
 	echo $seed > build-cache/seed
 fi
 
+# Copy the source folder so we can perform preprocessing.
+#
+# TODO: The skylink replacement preprocessing should probably also be done at
+# the bundling phase, that way the typescript compiler is actually running on
+# the fully updated code.
+cp skynet-kernel-extension/src/* skynet-kernel-extension/ts-src/
+
+# Perform some bundling on the extension directory. We are copying input files
+# into source files.
+#
+# TODO: Make this programatic so it doesn't need to be updated every time you
+# make a change.
+#
+# seed stuff
+fileD="skynet-kernel-extension/lib/dictionary.ts"
+fileO="skynet-kernel-extension/ts-src/content-kernel-auth.ts"
+importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
+upTo=$((importLine-1))
+after=$((importLine+1))
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+dictionaryCode=$(cat skynet-kernel-extension/lib/dictionary.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+rm $fileO
+cat <<< $authFilePrefix >> $fileO
+cat <<< $dictionaryCode >> $fileO
+cat <<< $authFileSuffix >> $fileO
+# sha512
+fileD="skynet-kernel-extension/lib/sha512.ts"
+fileO="skynet-kernel-extension/ts-src/content-kernel-auth.ts"
+importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
+upTo=$((importLine-1))
+after=$((importLine+1))
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+dictionaryCode=$(cat skynet-kernel-extension/lib/sha512.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+rm $fileO
+cat <<< $authFilePrefix >> $fileO
+cat <<< $dictionaryCode >> $fileO
+cat <<< $authFileSuffix >> $fileO
+
 # Perform the typescript compilations.
 ( cd skynet-kernel-extension && tsc ) || exit 1
 ( cd skynet-kernel-skyfiles && tsc ) || exit 1
