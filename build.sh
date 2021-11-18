@@ -75,7 +75,6 @@ mkdir -p build/skynet-kernel-extension
 mkdir -p build/skynet-kernel-skyfiles
 cp -r skynet-kernel-extension/assets/* build/skynet-kernel-extension
 cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
-cp -r skynet-kernel-skyfiles/ts-out/* build/skynet-kernel-skyfiles
 
 # Perform the typescript compilations.
 ( cd skynet-kernel-extension && tsc ) || exit 1

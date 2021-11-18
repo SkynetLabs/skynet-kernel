@@ -4,4 +4,4 @@ all:
 	@./build.sh
 
 clean:
-	@rm -rf build build-cache */bundle */ts-out
+	@rm -rf build build-cache */bundle
