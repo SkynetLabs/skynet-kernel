@@ -31,10 +31,6 @@ else
 fi
 
 # Copy the source folder so we can perform preprocessing.
-#
-# TODO: The skylink replacement preprocessing should probably also be done at
-# the bundling phase, that way the typescript compiler is actually running on
-# the fully updated code.
 mkdir -p skynet-kernel-extension/ts-src
 cp skynet-kernel-extension/src/* skynet-kernel-extension/ts-src/
 
@@ -44,7 +40,9 @@ cp skynet-kernel-extension/src/* skynet-kernel-extension/ts-src/
 # TODO: Make this programatic so it doesn't need to be updated every time you
 # make a change.
 #
-# seed stuff
+# TODO: The skylink replacement preprocessing should probably also be done at
+# the bundling phase, that way the typescript compiler is actually running on
+# the fully updated code.
 fileD="skynet-kernel-extension/lib/dictionary.ts"
 fileO="skynet-kernel-extension/ts-src/content-kernel-auth.ts"
 importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
@@ -71,18 +69,17 @@ cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO
 cat <<< $authFileSuffix >> $fileO
 
-# Perform the typescript compilations.
-( cd skynet-kernel-extension && tsc ) || exit 1
-( cd skynet-kernel-skyfiles && tsc ) || exit 1
-
 # Recreate the build directory and copy the source files over.
 rm -rf build
 mkdir -p build/skynet-kernel-extension
 mkdir -p build/skynet-kernel-skyfiles
 cp -r skynet-kernel-extension/assets/* build/skynet-kernel-extension
-cp -r skynet-kernel-extension/ts-out/* build/skynet-kernel-extension
 cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
 cp -r skynet-kernel-skyfiles/ts-out/* build/skynet-kernel-skyfiles
+
+# Perform the typescript compilations.
+( cd skynet-kernel-extension && tsc ) || exit 1
+( cd skynet-kernel-skyfiles && tsc ) || exit 1
 
 # Create a v2 skylink for each file in each directory, and perform a
 # find-and-replace on the rest of the files in the directory to replace
