@@ -35,6 +35,7 @@ fi
 # TODO: The skylink replacement preprocessing should probably also be done at
 # the bundling phase, that way the typescript compiler is actually running on
 # the fully updated code.
+mkdir -p skynet-kernel-extension/ts-src
 cp skynet-kernel-extension/src/* skynet-kernel-extension/ts-src/
 
 # Perform some bundling on the extension directory. We are copying input files
@@ -80,7 +81,7 @@ mkdir -p build/skynet-kernel-extension
 mkdir -p build/skynet-kernel-skyfiles
 cp -r skynet-kernel-extension/assets/* build/skynet-kernel-extension
 cp -r skynet-kernel-extension/ts-out/* build/skynet-kernel-extension
-cp -r skynet-kernel-skyfiles/assets/* build/skynet-kernel-skyfiles
+cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
 cp -r skynet-kernel-skyfiles/ts-out/* build/skynet-kernel-skyfiles
 
 # Create a v2 skylink for each file in each directory, and perform a
