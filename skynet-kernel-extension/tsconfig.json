@@ -6,6 +6,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["./ts-src"],
+  "include": ["./bundle"],
   "exclude": []
 }

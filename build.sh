@@ -31,8 +31,8 @@ else
 fi
 
 # Copy the source folder so we can perform preprocessing.
-mkdir -p skynet-kernel-extension/ts-src
-cp skynet-kernel-extension/src/* skynet-kernel-extension/ts-src/
+mkdir -p skynet-kernel-extension/bundle
+cp skynet-kernel-extension/src/* skynet-kernel-extension/bundle/
 
 # Perform some bundling on the extension directory. We are copying input files
 # into source files.
@@ -44,26 +44,26 @@ cp skynet-kernel-extension/src/* skynet-kernel-extension/ts-src/
 # the bundling phase, that way the typescript compiler is actually running on
 # the fully updated code.
 fileD="skynet-kernel-extension/lib/dictionary.ts"
-fileO="skynet-kernel-extension/ts-src/content-kernel-auth.ts"
+fileO="skynet-kernel-extension/bundle/content-kernel-auth.ts"
 importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
 upTo=$((importLine-1))
 after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel-auth.ts)
 dictionaryCode=$(cat skynet-kernel-extension/lib/dictionary.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel-auth.ts)
 rm $fileO
 cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO
 cat <<< $authFileSuffix >> $fileO
 # sha512
 fileD="skynet-kernel-extension/lib/sha512.ts"
-fileO="skynet-kernel-extension/ts-src/content-kernel-auth.ts"
+fileO="skynet-kernel-extension/bundle/content-kernel-auth.ts"
 importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
 upTo=$((importLine-1))
 after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel-auth.ts)
 dictionaryCode=$(cat skynet-kernel-extension/lib/sha512.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/ts-src/content-kernel-auth.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel-auth.ts)
 rm $fileO
 cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO

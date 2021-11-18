@@ -1,7 +1,9 @@
+# Dev tools
 *.swp
-
 notes
+
+# Folders created in the build process
 build
 build-cache
+bundle
 ts-out
-skynet-kernel-extension/ts-src
