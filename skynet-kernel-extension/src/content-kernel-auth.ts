@@ -12,8 +12,6 @@ const SEED_ENTROPY_WORDS = 13;
 const SEED_CHECKSUM_WORDS = 2; // Not used, but left as documentation.
 const SEED_BYTES = 16;
 
-// The dictionary gets imported because it improved code readability. 
-//
 // import:::skynet-kernel-extension/lib/dictionary.ts
 
 // import:::skynet-kernel-extension/lib/sha512.ts
@@ -206,9 +204,6 @@ var authUser = function() {
 }
 
 // Create the auth form and perform authentication.
-//
-// TODO: Figure out how to clean this up. I'm not sure how to import pretty
-// HTML+CSS within an extension, so for now it's all DOM manipulation.
 var seedInput = document.createElement("input");
 seedInput.type = "text";
 seedInput.placeholder = "Enter seed phrase here";

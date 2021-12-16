@@ -1,3 +1,8 @@
+// TODO: Right now every application that opens an iframe to the kernel is
+// going to load a separate instance of the kernel, it may make more sense to
+// have the kernel operate entirely from shared workers. Still need to explore
+// that.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 console.log("progress", "kernel has been opened");
@@ -6,7 +11,14 @@ var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
 
-// getUserSeed will return the seed that is stored in localStorage.
+// import:::skynet-kernel-extension/lib/sha512.ts
+
+// import:::skynet-kernel-extension/lib/ed25519.ts
+
+// getUserSeed will return the seed that is stored in localStorage. This is the
+// first function that gets called when the kernel iframe is openend. The
+// kernel will not be loaded if no seed is present, as it means that the user
+// is not logged in.
 var getUserSeed = function(): [Uint8Array, string] {
 	let userSeedString = window.localStorage.getItem("v1-seed");
 	if (userSeedString === null) {
@@ -24,17 +36,10 @@ var getUserSeed = function(): [Uint8Array, string] {
 // logOut will erase the localStorage, which means the seed will no longer be
 // available, and any sensistive data that the kernel placed in localStorage
 // will also be cleared.
-//
-// This will require the user to re-download their full kernel cache the next
-// time they log in.
 var logOut = function() {
 	console.log("progress", "clearing local storage after logging out");
 	localStorage.clear();
 }
-
-// TODO: Rather than going to the network, we should check local storage to see
-// if the user is already logged in and whether there is already a kernel that
-// has been loaded.
 
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
@@ -53,24 +58,55 @@ var downloadV1Skylink = function(skylink: string) {
 	return fetch(skylink).then(response => response.text())
 }
 
+// deriveKernelEntry will derive the keypair and tweak for the registry entry
+// that holds the kernel.
+var deriveKernelEntry = function(): [Uint8Array, Uint8Array] {
+	// TODO:
+	//
+	// We can use the sha512 function to derive some unique data, then we
+	// can pass that data to the keyPairFromSeed() function. This will
+	// create a keypair, which we can pull the pubkey from to figure out
+	// what key we are supposed to look up.
+	//
+	// We can use the sha512 function to derive the datakey.
+	//
+	// We can sign the entry using sign when we're pushing an update, and
+	// we can verify the entry using verify.
+}
+
 // loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
 // skynet storage. This will include loading all installed modules. A global
 // variable is used to ensure that the loading process only happens once.
+//
+// We have the variables kernelLoaded and kernelLoading to prevent race
+// conditions if multiple threads attempt to trigger a kernel load
+// simultaneously. kernelLoading is set initially to indicate that we are
+// attempting to load the kernel. It may fail, which will cause the value to be
+// un-set.
+//
+// TODO: Need to switch the kernelLoaded and kernelLoading variables to use
+// atomics.
 var kernelLoaded = false;
 var kernelLoading = false;
 var loadSkynetKernel = function() {
 	console.log("progress", "kernel is loading");
-	// Check whether the kernel has already loaded. If so, there is nothing
-	// to do.
+
+	// Check the loading status of the kernel. If the kernel is loading,
+	// block until the loading is complete and then send a message to the
+	// caller indicating a successful load.
 	//
-	// TODO: I'm not sure that kernelLoading is necessary. I'm also not sure
-	// that this provides any actual safety, because there is still a
-	// window between the conditional check and the setting of the value.
+	// TODO: I'm not sure this flow is correct.
 	if (kernelLoaded || kernelLoading) {
 		return;
 	}
 	kernelLoading = true;
 	console.log("progress", "kernel loading passed the safety race condition");
+
+	// TODO: Check localstorage (or perhaps an encrypted indexededdb) for
+	// the kernel to see if it is already loaded.
+
+	// TODO: Grab the registry entry that should be holding the location of
+	// the user's kernel.
 
 	// Load the rest of the script from Skynet.
 	// 
