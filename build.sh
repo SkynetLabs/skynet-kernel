@@ -108,6 +108,15 @@ cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
 ( cd skynet-kernel-extension && tsc ) || exit 1
 ( cd skynet-kernel-skyfiles && tsc ) || exit 1
 
+# Strip the typescript declaration from all of the files in the browser
+# extension, as this breaks compatibility with the extensions system. The
+# declaration always appears at the second line of the file.
+ebDir="build/skynet-kernel-extension"
+for file in $ebDir/background.js $ebDir/content-home.js $ebDir/content-kernel-auth.js $ebDir/content-kernel.js
+do
+	sed -i '2d' $file
+done
+
 # Create a v2 skylink for each file in each directory, and perform a
 # find-and-replace on the rest of the files in the directory to replace
 # relative path references with the appropriate v2 skylink.
