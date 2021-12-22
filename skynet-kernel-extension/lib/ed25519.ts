@@ -1,9 +1,9 @@
 var crypto_sign_BYTES = 64,
 	crypto_sign_PUBLICKEYBYTES = 32,
 	crypto_sign_SECRETKEYBYTES = 64,
-	crypto_sign_SEEDBYTES = 32,
+	crypto_sign_SEEDBYTES = 32
 
-var gf = function(init) {
+var gf = function(...init: any) {
   var i, r = new Float64Array(16);
   if (init) for (i = 0; i < init.length; i++) r[i] = init[i];
   return r;
@@ -566,6 +566,8 @@ function scalarbase(p, s) {
   scalarmult(p, q, s);
 }
 
+var L = new Float64Array([0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10]);
+
 function modL(r, x) {
   var carry, i, j, k;
   for (i = 63; i >= 32; --i) {
@@ -719,7 +721,7 @@ function crypto_sign(sm, m, n, sk) {
   return smlen;
 }
 
-function checkArrayTypes() {
+function checkArrayTypes(...args: any[]) {
   for (var i = 0; i < arguments.length; i++) {
 	if (!(arguments[i] instanceof Uint8Array))
 	  throw new TypeError('unexpected type, use Uint8Array');

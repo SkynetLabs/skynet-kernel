@@ -1,3 +1,5 @@
+export {};
+
 // Set the header of the page.
 document.title = "skynet-kernel: login";
 

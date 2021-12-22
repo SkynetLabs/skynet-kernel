@@ -1,3 +1,5 @@
+export {};
+
 // log provides syntactic sugar for the logging functions. The first arugment
 // passed into 'log' checks whether the logSettings have explicitly disabled
 // that type of logging. The remaining args will be printed as they would if

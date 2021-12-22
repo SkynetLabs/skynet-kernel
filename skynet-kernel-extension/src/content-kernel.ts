@@ -1,3 +1,5 @@
+export {};
+
 // TODO: Right now every application that opens an iframe to the kernel is
 // going to load a separate instance of the kernel, it may make more sense to
 // have the kernel operate entirely from shared workers. Still need to explore
@@ -72,6 +74,7 @@ var deriveKernelEntry = function(): [Uint8Array, Uint8Array] {
 	//
 	// We can sign the entry using sign when we're pushing an update, and
 	// we can verify the entry using verify.
+	return [null, null]
 }
 
 // loadSkynetKernel handles loading the rest of the skynet-kernel from the user's

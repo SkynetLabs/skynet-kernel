@@ -43,6 +43,8 @@ cp skynet-kernel-extension/src/* skynet-kernel-extension/bundle/
 # TODO: The skylink replacement preprocessing should probably also be done at
 # the bundling phase, that way the typescript compiler is actually running on
 # the fully updated code.
+#
+# dictionary -> content-kernel-auth.ts
 fileD="skynet-kernel-extension/lib/dictionary.ts"
 fileO="skynet-kernel-extension/bundle/content-kernel-auth.ts"
 importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
@@ -55,7 +57,7 @@ rm $fileO
 cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO
 cat <<< $authFileSuffix >> $fileO
-# sha512
+# sha512 -> content-kernel-auth.ts
 fileD="skynet-kernel-extension/lib/sha512.ts"
 fileO="skynet-kernel-extension/bundle/content-kernel-auth.ts"
 importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
@@ -64,6 +66,32 @@ after=$((importLine+1))
 authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel-auth.ts)
 dictionaryCode=$(cat skynet-kernel-extension/lib/sha512.ts)
 authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel-auth.ts)
+rm $fileO
+cat <<< $authFilePrefix >> $fileO
+cat <<< $dictionaryCode >> $fileO
+cat <<< $authFileSuffix >> $fileO
+# sha512 -> content-kernel.ts
+fileD="skynet-kernel-extension/lib/sha512.ts"
+fileO="skynet-kernel-extension/bundle/content-kernel.ts"
+importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
+upTo=$((importLine-1))
+after=$((importLine+1))
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
+dictionaryCode=$(cat skynet-kernel-extension/lib/sha512.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
+rm $fileO
+cat <<< $authFilePrefix >> $fileO
+cat <<< $dictionaryCode >> $fileO
+cat <<< $authFileSuffix >> $fileO
+# ed25519 -> content-kernel.ts
+fileD="skynet-kernel-extension/lib/ed25519.ts"
+fileO="skynet-kernel-extension/bundle/content-kernel.ts"
+importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
+upTo=$((importLine-1))
+after=$((importLine+1))
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
+dictionaryCode=$(cat skynet-kernel-extension/lib/ed25519.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
 rm $fileO
 cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO
