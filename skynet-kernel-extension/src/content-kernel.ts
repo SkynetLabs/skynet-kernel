@@ -60,6 +60,80 @@ var downloadV1Skylink = function(skylink: string) {
 	return fetch(skylink).then(response => response.text())
 }
 
+// preferredPortals will determine the user's preferred portals by looking in
+// localstorage. If no portals are listed in localstorage, derivePortal will
+// access the Sia registry using a portal list hardcoded by the extension. This
+// should be the only time that the user needs to make a request that is not
+// going directly to their preferred portals.
+var preferredPortals = function(): string[] {
+	let defaultList = ["siasky.net"];
+	let portalListStr = window.localStorage.getItem("v1-portalList");
+	if (portalListStr !== null) {
+		try {
+			// TODO: In the main kernel (though perhaps not the browser
+			// extension), we should run a background process that checks
+			// whether the user's list of portals has been updated.
+			//
+			// TODO: Within the extension, we should probably append the set of
+			// default portals to the user's list of portals so that in the
+			// event that all of the user's portals are offline, the user is
+			// still able to connect to Skynet.
+			let portalList = JSON.parse(portalListStr);
+			return portalList;
+		} catch {
+			console.log("error", "corrupt portalListStr found in localStorage: "+portalListStr);
+		}
+	}
+
+	// Use the user's seed to derive the registry entry that is going to contain
+	// the user's portal list.
+	let secretKeyEntropy = new Uint8Array(HASH_SIZE);
+	let secretKeyTag = new TextEncoder().encode("v1-skynet-portal-list");
+	let entropyInput = new Uint8Array(secretKeyTag.length+userSeed.length);
+	entropyInput.set(secretKeyTag);
+	entropyInput.set(userSeed, secretKeyTag.length);
+	sha512(secretKeyEntropy, entropyInput, entropyInput.length);
+	// Use the user's seed to dervie the dataKey for the registry entry. We use
+	// a different tag to ensure that the dataKey is independently random, such
+	// that the registry entry looks like it could be any other registry entry.
+	let dataKey = new Uint8Array(HASH_SIZE);
+	let dataKeyTag = new TextEncoder().encode("v1-skynet-portal-list-dataKey");
+	let dataKeyInput = new Uint8Array(dataKeyTag.length+userSeed.length);
+	dataKeyInput.set(dataKeyTag);
+	dataKeyInput.set(userSeed, dataKeyTag.length);
+	sha512(dataKey, dataKeyInput, dataKeyInput.length);
+
+	// Create the private key for the registry entry.
+	console.log("DAY");
+	let keyPair = keyPairFromSeed(secretKeyEntropy.slice(0, 32));
+	console.log("CAY");
+	let message = new TextEncoder().encode("this is a test message to sign");
+	let message8 = new Uint8Array(message.length);
+	message8.set(message);
+	console.log(typeof message);
+	console.log(message);
+	console.log(message8);
+	console.log("BAY");
+	console.log(keyPair);
+	try {
+		let sig = sign(message8, keyPair.secretKey);
+		console.log("AAY");
+		console.log(verify(message8, sig, keyPair.publicKey));
+		console.log("YAY");
+	} catch(err) {
+		console.log(err);
+	}
+
+	// TODO: Try signing and verifying some data.
+
+	console.log("ASDFASDFASDFASDF");
+	console.log(secretKeyEntropy);
+	console.log(dataKey);
+
+	// TODO: Actually fetch the list from the registry and from Skynet.
+	return defaultList;
+}
+
 // deriveKernelEntry will derive the keypair and tweak for the registry entry
 // that holds the kernel.
 var deriveKernelEntry = function(): [Uint8Array, Uint8Array] {
@@ -216,5 +290,6 @@ if (err !== "") {
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 } else {
 	console.log("progress", "auth succeeded, loading kernel");
+	let portals = preferredPortals();
 	loadSkynetKernel();
 }
