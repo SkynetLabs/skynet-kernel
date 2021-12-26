@@ -96,39 +96,33 @@ var preferredPortals = function(): string[] {
 	// Use the user's seed to dervie the dataKey for the registry entry. We use
 	// a different tag to ensure that the dataKey is independently random, such
 	// that the registry entry looks like it could be any other registry entry.
-	let dataKey = new Uint8Array(HASH_SIZE);
+	let dataKeyEntropy = new Uint8Array(HASH_SIZE);
 	let dataKeyTag = new TextEncoder().encode("v1-skynet-portal-list-dataKey");
 	let dataKeyInput = new Uint8Array(dataKeyTag.length+userSeed.length);
 	dataKeyInput.set(dataKeyTag);
 	dataKeyInput.set(userSeed, dataKeyTag.length);
-	sha512(dataKey, dataKeyInput, dataKeyInput.length);
+	sha512(dataKeyEntropy, dataKeyInput, dataKeyInput.length);
 
 	// Create the private key for the registry entry.
-	console.log("DAY");
 	let keyPair = keyPairFromSeed(secretKeyEntropy.slice(0, 32));
-	console.log("CAY");
+	let dataKey = dataKeyEntropy.slice(0, 32);
+
+	// Try signing and verifying some data using the keyPair.
+	console.log(keyPair);
 	let message = new TextEncoder().encode("this is a test message to sign");
 	let message8 = new Uint8Array(message.length);
 	message8.set(message);
-	console.log(typeof message);
-	console.log(message);
-	console.log(message8);
-	console.log("BAY");
-	console.log(keyPair);
 	try {
 		let sig = sign(message8, keyPair.secretKey);
-		console.log("AAY");
-		console.log(verify(message8, sig, keyPair.publicKey));
-		console.log("YAY");
+		let result = verify(message8, sig, keyPair.publicKey);
+		if (!result) {
+			console.log("error", "pubkey verification failed", err);
+		}
+		console.log("YEEEEEEEEEE");
+		console.log(result);
 	} catch(err) {
-		console.log(err);
+		console.log("error", "unable to produce signature from keypair", err);
 	}
-
-	// TODO: Try signing and verifying some data.
-
-	console.log("ASDFASDFASDFASDF");
-	console.log(secretKeyEntropy);
-	console.log(dataKey);
 
 	// TODO: Actually fetch the list from the registry and from Skynet.
 	return defaultList;
