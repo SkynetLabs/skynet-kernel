@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "lib": ["dom", "es6", "es2017.string"],
     "target": "es6",
     "module": "commonjs",
     "outDir": "../build/skynet-kernel-extension",
