@@ -98,7 +98,7 @@ var handleMessage = function(event: any) {
 	// the skynet kernel is fully loaded, we will request the user's home
 	// from the kernel.
 	if (event.data.kernelMethod === "skynetKernelLoaded") {
-		console.log("skynet kernel has loaded");
+		log("progress", "skynet kernel has loaded");
 		log("performance", "skynet kernel loaded time: ", performance.now());
 
 		// Send a postmessage to kernel.siasky.net to fetch the homepage.

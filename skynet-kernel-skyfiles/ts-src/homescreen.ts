@@ -2,6 +2,7 @@
 // gets eval'd by the bootstrap code.
 declare var kernel;
 declare var handleMessage;
+declare var log;
 
 // Overwrite the handleMessage object of the homescreen script so that we can
 // add more communications to homescreen.
@@ -9,17 +10,17 @@ declare var handleMessage;
 // TODO: This doesn't need to be of type 'any' but I don't know what the real
 // type is supposed to be.
 handleMessage = function(event: any) {
-	console.log("Home: message received");
+	log("message", "message received");
 
 	// TODO: Debugging logs only.
 	if (event.data.kernelMethod === "receiveTest") {
-		console.log("Home: handleMessage override successful");
+		log("progress", "handleMessage override successful");
 	}
 
 	// Reload the homepage if the user has logged out, so that they can log
 	// in again.
 	if (event.data.kernelMethod === "logOutSuccess") {
-		console.log("Home: reloading window");
+		log("progress", "reloading window");
 		window.location.reload();
 	}
 }

@@ -96,6 +96,8 @@ log("lifecycle", "kernel has been opened");
 
 var defaultPortalList = ["siasky.net"];
 
+// transplant:::skynet-kernel-skyfiles/skynet-kernel.js
+
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
 // kernel will not be loaded if no seed is present, as it means that the user
@@ -291,9 +293,8 @@ var loadUserPortalPreferences = function(callback: any) {
 		log("loadUserPortalPreferences", "callback reached");
 		log("loadUserPortalPreferences", response);
 		if (response.status === 404) {
-			// TODO: Uncomment. This is currently commented out for debugging purposes.
-			// window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
-			log("loadUserPortalPreferences", "we reached the localStorage setitem part of the process");
+			window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
+			log("loadUserPortalPreferences", "user portalList set to the default list after getting 404 on registry lookup");
 		} else {
 			// TODO: Need to parse the data and correctly set the
 			// user's portal list.

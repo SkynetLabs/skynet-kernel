@@ -97,6 +97,30 @@ cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO
 cat <<< $authFileSuffix >> $fileO
 
+# skynet-kernel-resolver -> content-kernel.ts
+#
+# This one is a bit different from the other imports, because instead of
+# pulling in a whole file, we're just transplating a single variable which will
+# set the default kernel for users of the extension.
+#
+# TODO: Eventually this should be hardcoded to a production value. We'll do
+# that once the first versions of the kernel are stable and nearing completion.
+# For now, things are still changing fast enough that it's not productive to
+# have a hardcoded value here.
+kernelV2skylink=$(skynet-utils generate-v2skylink skynet-kernel-skyfiles/skynet-kernel.js $seed)
+fileD="skynet-kernel-skyfiles/skynet-kernel.js"
+fileO="skynet-kernel-extension/bundle/content-kernel.ts"
+importLine=$(grep -n "// transplant:::$fileD" $fileO | cut -f1 -d:)
+upTo=$((importLine-1))
+after=$((importLine+1))
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
+transplantCode="var defaultKernelResolverLink = \"$kernelV2skylink\";"
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
+rm $fileO
+cat <<< $authFilePrefix >> $fileO
+cat <<< $transplantCode >> $fileO
+cat <<< $authFileSuffix >> $fileO
+
 # Recreate the build directory and copy the source files over.
 rm -rf build
 mkdir -p build/skynet-kernel-extension
