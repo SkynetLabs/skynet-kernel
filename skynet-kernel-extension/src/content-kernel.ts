@@ -140,7 +140,7 @@ var buf2hex = function(buffer: ArrayBuffer) { // buffer is an ArrayBuffer
 // receiving a list of signatures from a set of hosts (likely established TOFU
 // style through previous successful lookups) to verify that multiple trusted
 // hosts as well as the portal are reporting the same result.
-var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, callback: any) {
+var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, resolveCallback: any, rejectCallback: any) {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
 	let keyPairEntropy = new Uint8Array(HASH_SIZE);
@@ -172,23 +172,20 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	// (meaning the portal will hash it for us), but I think the default is
 	// actually 'true' (meaning the portal assumes it is already hashed).
 	// The example doesn't use it and provides an already hashed datakey.
-	// 
-	// TODO: The actual way that we iterate through the portals is going to
-	// be complicated. Not likely to be a for loop.
 	let portalList = preferredPortals();
 	let pubkeyHex = buf2hex(keyPair.publicKey);
 	let dataKeyHex = buf2hex(dataKey);
 	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
-	progressiveFetch(endpoint, portalList, callback);
+	progressiveFetch(endpoint, portalList, resolveCallback, rejectCallback);
 }
 
 // progressiveFetch will query multiple portals until one returns with the
 // correct response. If there is a success, it will call the success callback.
 // If all of the portals fail, it will call the failure callback.
-var progressiveFetch = function(endpoint: string, portals: string[], callback: any) {
+var progressiveFetch = function(endpoint: string, portals: string[], resolveCallback: any, rejectCallback: any) {
 	if (portals.length === 0) {
-		// TODO: Error handling, the request did not succeed and we
-		// need to handle that somehow.
+		log("lifecycle", "no more portals available, rejecting");
+		rejectCallback("no portals available");
 		return;
 	}
 
@@ -198,12 +195,12 @@ var progressiveFetch = function(endpoint: string, portals: string[], callback: a
 	fetch(query)
 	.then(response => {
 		// Success! Handle the response.
-		callback(response)
+		resolveCallback(response);
 	})
 	.catch((error) => {
-		// No luck, repeat but with the next portal.
-		log("portal", error);
-		progressiveFetch(endpoint, portals, callback)
+		// Try the next portal.
+		log("portal", query, "::", error);
+		progressiveFetch(endpoint, portals, resolveCallback, rejectCallback)
 	})
 }
 
@@ -259,17 +256,17 @@ var preferredPortals = function(): string[] {
 					}
 				}
 				if (!found) {
-					portalList.basicPortals.push(defaultPortalList[i]);
+					portalList.push(defaultPortalList[i]);
 				}
 			}
-			return portalList.basicPortals;
-		} catch {
+			return portalList;
+		} catch (err) {
 			// We log an error but we don't change anything because
 			// the data may have been placed there by a future
 			// version of the kernel and we don't want to clear
 			// anything that might be relevant or useful once the
 			// full kernel has finished loading.
-			log("error", "corrupt portalListStr found in localStorage: "+portalListStr);
+			log("error", err, portalListStr);
 		}
 	}
 
@@ -283,13 +280,17 @@ var preferredPortals = function(): string[] {
 // preferences, no network operations are performed, we will allow the full
 // kernel to decide when and how to update the user's local portal settings.
 //
-// The callback will run once the user's preferences have been loaded.
+// The callback will be run once the user's preferred portals have been
+// established. If there is some error in establishing the user's portals,
+// localstorage will remain blank and the callback will be called anyway. This
+// function does not guarantee that the user's portals are properly loaded, it
+// merely makes a best attempt.
 var loadUserPortalPreferences = function(callback: any) {
 	// Try to get the list of portals from localstorage.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
 	if (portalListStr !== null) {
-		callback();
-		return;
+		// callback();
+		// return;
 	}
 
 	// Attempt to fetch the user's list of portals from Skynet. This
@@ -300,16 +301,27 @@ var loadUserPortalPreferences = function(callback: any) {
 	// If the user does not have any portals set on Skynet either, we will
 	// write the default list of portals to localstorage, which will
 	// eliminate the need to perform this call in the future.
-	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey", function(response) {
-		log("loadUserPortalPreferences", "callback reached");
-		log("loadUserPortalPreferences", response);
+	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey",
+	// This is the success callback.
+	function(response) {
+		// In the event of a 404, we want to store the default list as
+		// the set of user's portals. We do this so that subsequent
+		// kernel iframes that the user opens don't need to go to the
+		// network as part of the startup process. The full kernel will
+		// set the localStorage item to another value when the user
+		// selects portals.
 		if (response.status === 404) {
 			window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
-			log("loadUserPortalPreferences", "user portalList set to the default list after getting 404 on registry lookup");
+			log("lifecycle", "user portalList set to the default list after getting 404 on registry lookup");
 		} else {
 			// TODO: Need to parse the data and correctly set the
 			// user's portal list.
 		}
+		callback();
+	},
+	// This is the error callback.
+	function(err) {
+		log("lifecycle", "unable to load the users list of preferred portals", err);
 		callback();
 	})
 }
