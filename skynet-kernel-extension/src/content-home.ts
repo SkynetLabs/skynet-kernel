@@ -40,9 +40,6 @@ var log = function(logType: string, ...inputs: any) {
 // Establish a function to apply restrictions to what pages can send
 // postmessage requests to our message listener. This function can be
 // overwritten by code that is loaded from the skynet kernel.
-// 
-// TODO: This doesn't need to be 'any' but I couldn't figure out what type is
-// actually passed in by the caller.
 var homeRestrictIncomingMessage = function(event: any) {
 	// Restrict the listener to only https://kernel.siasky.net messages.
 	// If home itself wants to be able to hear from other listeners, it can
@@ -56,9 +53,6 @@ var homeRestrictIncomingMessage = function(event: any) {
 // handleMessage is a function which handles the intial handshake with the
 // skynet kernel. It is intended to be overwritten by home when the js file is
 // loaded.
-// 
-// TODO: This doesn't need to be 'any' but I couldn't figure out what type is
-// actually passed in by the caller.
 var handleMessage = function(event: any) {
 	// Check for a null kernel.
 	if (kernel === null || kernel.contentWindow === null) {

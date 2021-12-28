@@ -5,16 +5,26 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
-// TODO: The next step is that we need to actually set up the flow for figuring
-// out the user's preferred portal, right? Or do we keep trucking with the v1
-// downloads? At some point we need to have the user set up a portal, I guess
-// that can happen later?
-
-// TODO: First we get the user's preferred portal, then we get the user's
-// preferred kernel. Then instead of loading the default kernel we load the
-// user's preferred kernel. If the user doesn't have a preferred kernel, we can
-// set the user's preferred kernel. So that's where we can get the first
-// writeRegistry item in place.
+// Below is some code that might be useful later.
+/*
+	// Try signing and verifying some data using the keyPair.
+	//
+	// TODO: This only needs to be here for as long as we aren't doing the
+	// full registry fetch and verify.
+	let message = new TextEncoder().encode("this is a test message to sign");
+	let message8 = new Uint8Array(message.length);
+	message8.set(message);
+	try {
+		let sig = sign(message8, keyPair.secretKey);
+		let result = verify(message8, sig, keyPair.publicKey);
+		if (!result) {
+			console.log("error", "pubkey verification failed", err);
+			throw 'pubkey verification failed when trying to get the list of portals from the registry';
+		}
+	} catch(err) {
+		console.log("error", "unable to produce signature from keypair", err);
+	}
+*/
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -28,7 +38,7 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/ed25519.ts
 
-var defaultPortalList = ["siasky.net"];
+var defaultPortalList = ["booba.boo", "siasky.net"];
 
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
@@ -72,10 +82,6 @@ var buf2hex = function(buffer: ArrayBuffer) { // buffer is an ArrayBuffer
 // receiving a list of signatures from a set of hosts (likely established TOFU
 // style through previous successful lookups) to verify that multiple trusted
 // hosts as well as the portal are reporting the same result.
-//
-// TODO: Need to provide error and success callbacks, as this is a generic
-// function. Or maybe we just provide response callbacks? Let the caller decide
-// how to handle the response? Probably for the better that way.
 var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, callback: any) {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
@@ -99,24 +105,6 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	let keyPair = keyPairFromSeed(keyPairEntropy.slice(0, 32));
 	let dataKey = dataKeyEntropy.slice(0, 32);
 
-	// Try signing and verifying some data using the keyPair.
-	// 
-	// TODO: This only needs to be here for as long as we aren't doing the
-	// full registry fetch and verify.
-	let message = new TextEncoder().encode("this is a test message to sign");
-	let message8 = new Uint8Array(message.length);
-	message8.set(message);
-	try {
-		let sig = sign(message8, keyPair.secretKey);
-		let result = verify(message8, sig, keyPair.publicKey);
-		if (!result) {
-			console.log("error", "pubkey verification failed", err);
-			throw 'pubkey verification failed when trying to get the list of portals from the registry';
-		}
-	} catch(err) {
-		console.log("error", "unable to produce signature from keypair", err);
-	}
-
 	// Get a list of portals, then try fetching the entry from each portal
 	// until a successful response is received. A 404 is considered a
 	// successful response.
@@ -130,32 +118,35 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	// TODO: The actual way that we iterate through the portals is going to
 	// be complicated. Not likely to be a for loop.
 	let portalList = preferredPortals();
-	for (let i = 0; i < portalList.length; i++) {
-		let portal = portalList[i];
-		let pubkeyHex = buf2hex(keyPair.publicKey);
-		let dataKeyHex = buf2hex(dataKey);
-		let query = "https://" + portal + "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
-		console.log("registryGET", query);
-		callback()
-		fetch(query)
-			.then(response => {
-				// TODO: If the status is not 404, we need to
-				// parse and verify the entry and then use the
-				// contents of that entry to set the
-				// localstorage list of portals. This is being
-				// postponed for the moment because we don't
-				// have any flow to write the user's preferred
-				// list of portals.
-				console.log("RESPONSE HAS BEEN RECEIVED");
-				console.log(response);
-				console.log(response.status);
-			})
-		return
+	let pubkeyHex = buf2hex(keyPair.publicKey);
+	let dataKeyHex = buf2hex(dataKey);
+	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
+	progressiveFetch(endpoint, portalList, callback);
+}
+
+// progressiveFetch will query multiple portals until one returns with the
+// correct response. If there is a success, it will call the success callback.
+// If all of the portals fail, it will call the failure callback.
+var progressiveFetch = function(endpoint: string, portals: string[], callback: any) {
+	if (portals.length === 0) {
+		// TODO: Error handling, the request did not succeed and we
+		// need to handle that somehow.
+		return;
 	}
 
-	// Fetch the registry data.
-	// 
-	// TODO: Design the error handling.
+	// Try the next portal in the array.
+	let portal = portals.shift();
+	let query = "https://" + portal + endpoint;
+	fetch(query)
+	.then(response => {
+		// Success! Handle the response.
+		callback(response)
+	})
+	.catch((error) => {
+		// No luck, repeat but with the next portal.
+		console.log('REGREAD ERROR:', error);
+		progressiveFetch(endpoint, portals, callback)
+	})
 }
 
 // downloadV1Skylink will download the raw data for a skylink and then verify
@@ -219,21 +210,40 @@ var preferredPortals = function(): string[] {
 
 // loadUserPortalPreferences will fetch the user's remote portal preferences
 // from their portal registry entry and update local storage to reflect the
-// user's preferences.
+// user's preferences. If the localstorage is already set containing a set of
+// preferences, no network operations are performed, we will allow the full
+// kernel to decide when and how to update the user's local portal settings.
 //
-// TODO: Switch this to use registry subscriptions.
-var loadUserPortalPreferences = function() {
-	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey", function() {
-		// TODO: Remove this console.log.
-		console.log("DEBUG", "callback reached");
-	})
-	if (err !== null) {
-		// TODO: Error handling.
+// The callback will run once the user's preferences have been loaded.
+var loadUserPortalPreferences = function(callback: any) {
+	// Try to get the list of portals from localstorage.
+	let portalListStr = window.localStorage.getItem("v1-portalList");
+	if (portalListStr !== null) {
+		callback();
 		return;
 	}
 
-	// TODO: decode the registry entry and set localstorage entry for the
-	// portal list.
+	// Attempt to fetch the user's list of portals from Skynet. This
+	// particular request will use the default set of portals established
+	// by the browser extension, as there is no information available yet
+	// about the user's preferred portal.
+	//
+	// If the user does not have any portals set on Skynet either, we will
+	// write the default list of portals to localstorage, which will
+	// eliminate the need to perform this call in the future.
+	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey", function(response) {
+		console.log("DEBUG", "callback reached");
+		console.log(response);
+		if (response.status === 404) {
+			// TODO: Uncomment. This is currently commented out for debugging purposes.
+			// window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
+			console.log("DEBUG: we reached the local storage setitem part of the process");
+		} else {
+			// TODO: Need to parse the data and correctly set the
+			// user's portal list.
+		}
+		callback();
+	})
 }
 
 // loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
@@ -268,23 +278,37 @@ var loadSkynetKernel = function() {
 	// the kernel to see if it is already loaded.
 
 	// Load the user's preferred portals from remote.
-	loadUserPortalPreferences();
-
-	// TODO: Grab the registry entry that should be holding the location of
-	// the user's kernel.
-
-	// Load the rest of the script from Skynet.
 	// 
-	// TODO: Instead of loading a hardcoded skylink, fetch the data from
-	// the user's Skynet account. If there is no data in the user's Skynet
-	// account, fall back to a hardcoded default. The default can save a
-	// round trip by being the full javascript instead of being a v1
-	// skylink.
+	// TODO: Wrap this in a promise, then from that promise we fetch the
+	// user's kernel location, then from there we load the user's kernel.
+	// When we do the download we need to verify the proofs coming in.
+	// Right? We shouldn't be fetching the user's kernel from siasky.net
+	// should we? Or should we? I guess the worst that can happen is that
+	// it loads slow the first time, but we do need to ensure that it will
+	// load quickly on subsequent initializations.
 	//
-	// TODO: If there is some sort of error, need to set kernelLoading to
-	// false and then send a 'authFailed' message or some other sort of
-	// error notification.
-	downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
+	// I guess that means we need to figure out the flow for determining
+	// whether to just go with the settings that are local or deciding to
+	// try to see if there's an update on the network. This is just
+	// initialization, I don't think the extension needs to worry about
+	// doing updates, that can be handled by the full kernel, which can
+	// also overwrite the localstorage for future initializations.
+	//
+	// TODO: Sneak the download into here as a callback? Or is there some
+	// way we can .then it here rather than going into callback hell.
+	loadUserPortalPreferences(function() {
+		// Load the rest of the script from Skynet.
+		//
+		// TODO: Instead of loading a hardcoded skylink, fetch the data from
+		// the user's Skynet account. If there is no data in the user's Skynet
+		// account, fall back to a hardcoded default. The default can save a
+		// round trip by being the full javascript instead of being a v1
+		// skylink.
+		//
+		// TODO: If there is some sort of error, need to set kernelLoading to
+		// false and then send a 'authFailed' message or some other sort of
+		// error notification.
+		downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
 		.then(text => {
 			console.log("progress", "full kernel loaded");
 			console.log(text);
@@ -293,13 +317,12 @@ var loadSkynetKernel = function() {
 			kernelLoaded = true;
 			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 		});
+	});
 }
 
 // handleMessage is called by the message event listener when a new message
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
-//
-// TODO: This doesn't have to be 'any' I just don't know what type to put here.
 var handleMessage = function(event: any) {
 	console.log("progress", "Skynet Kernel: handleMessage is being called with unloaded kernel");
 	return;
@@ -309,8 +332,6 @@ var handleMessage = function(event: any) {
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
-//
-// TODO: This doesn't have to be 'any' I just don't know what type to put here.
 window.addEventListener("message", (event: any) => {
 	// Log every incoming message to help app developers debug their
 	// applications.
