@@ -225,19 +225,7 @@ var downloadV1Skylink = function(skylink: string) {
 }
 
 // preferredPortals will determine the user's preferred portals by looking in
-// localstorage. If no portals are listed in localstorage, derivePortal will
-// access the Sia registry using a portal list hardcoded by the extension. This
-// should be the only time that the user needs to make a request that is not
-// going directly to their preferred portals.
-// 
-// TODO: To prevent an infinite loop, we need to split the init function off
-// from the core read function. Or maybe the core read function can return...
-// something that will prevent a circular lookup on the registry lookup? This
-// has to return without a network lookup but maybe it can kick off a network
-// lookup? That might cause some spinning still anyway.
-//
-// I think that the best solution here is to have a separate init function
-// which works in the background to fetch the portal list.
+// localstorage. If no local list of portals is found, the hardcoded d
 var preferredPortals = function(): string[] {
 	// Try to get the list of portals from localstorage.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
@@ -246,18 +234,41 @@ var preferredPortals = function(): string[] {
 			// TODO: In the main kernel (though perhaps not the browser
 			// extension), we should run a background process that checks
 			// whether the user's list of portals has been updated.
-			//
-			// TODO: Within the extension, we should probably append the set of
-			// default portals to the user's list of portals so that in the
-			// event that all of the user's portals are offline, the user is
-			// still able to connect to Skynet.
 			let portalList = JSON.parse(portalListStr);
+
+			// Append the list of default portals to the set of
+			// portals. In the event that all of the user's portals
+			// are bad, they will still be able to connect to
+			// Skynet. Because the portals are trust minimized,
+			// there shouldn't be an issue with potentially
+			// connecting to portals that the user hasn't strictly
+			// authorized.
 			for (let i = 0; i < defaultPortalList.length; i++) {
-				portalList.basicPortals.push(defaultPortalList[i]);
+				// Check for duplicates between the default
+				// list and the user's list. This deduplication
+				// is relevant for performance, because lookups
+				// will sequentially check every portal until a
+				// working portal is found. If there are broken
+				// portals duplicated in the final list, it
+				// will take longer to get through the list.
+				let found = false;
+				for (let j = 0; j < portalList.length; j++) {
+					if (portalList[j] === defaultPortalList[i]) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					portalList.basicPortals.push(defaultPortalList[i]);
+				}
 			}
 			return portalList.basicPortals;
 		} catch {
-			// TODO: We should probably clear the entry so that the user can make progress.
+			// We log an error but we don't change anything because
+			// the data may have been placed there by a future
+			// version of the kernel and we don't want to clear
+			// anything that might be relevant or useful once the
+			// full kernel has finished loading.
 			log("error", "corrupt portalListStr found in localStorage: "+portalListStr);
 		}
 	}
@@ -334,37 +345,23 @@ var loadSkynetKernel = function() {
 	// TODO: Check localstorage (or perhaps an encrypted indexededdb) for
 	// the kernel to see if it is already loaded.
 
-	// Load the user's preferred portals from remote.
-	// 
-	// TODO: Wrap this in a promise, then from that promise we fetch the
-	// user's kernel location, then from there we load the user's kernel.
-	// When we do the download we need to verify the proofs coming in.
-	// Right? We shouldn't be fetching the user's kernel from siasky.net
-	// should we? Or should we? I guess the worst that can happen is that
-	// it loads slow the first time, but we do need to ensure that it will
-	// load quickly on subsequent initializations.
-	//
-	// I guess that means we need to figure out the flow for determining
-	// whether to just go with the settings that are local or deciding to
-	// try to see if there's an update on the network. This is just
-	// initialization, I don't think the extension needs to worry about
-	// doing updates, that can be handled by the full kernel, which can
-	// also overwrite the localstorage for future initializations.
-	//
-	// TODO: Sneak the download into here as a callback? Or is there some
-	// way we can .then it here rather than going into callback hell.
+	// Load the user's preferred portals from their skynet data. Add a
+	// callback which will load the user's preferred kernel from Skynet
+	// once the preferred portal has been established.
 	loadUserPortalPreferences(function() {
-		// Load the rest of the script from Skynet.
+		// TODO: First we need to look up the resolver link for the
+		// kernel by opening the user's registry to see if they have a
+		// preferred kernel version already stored.
 		//
-		// TODO: Instead of loading a hardcoded skylink, fetch the data from
-		// the user's Skynet account. If there is no data in the user's Skynet
-		// account, fall back to a hardcoded default. The default can save a
-		// round trip by being the full javascript instead of being a v1
-		// skylink.
+		// If they don't have a kernel version already stored, we need
+		// to write one. And through all of this, we need to be able to
+		// handle errors.
+
+		// Load the kernel itself from Skynet.
 		//
-		// TODO: If there is some sort of error, need to set kernelLoading to
-		// false and then send a 'authFailed' message or some other sort of
-		// error notification.
+		// TODO: If there is some sort of error, need to set
+		// kernelLoading to false and then report an error to the
+		// parent.
 		downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
 		.then(text => {
 			log("lifecycle", "full kernel loaded");
@@ -372,6 +369,9 @@ var loadSkynetKernel = function() {
 			eval(text);
 			log("lifecycle", "full kernel eval'd");
 			kernelLoaded = true;
+
+			// Tell the parent that the kernel has finished
+			// loading.
 			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 		});
 	});
