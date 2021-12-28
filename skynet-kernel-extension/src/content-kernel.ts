@@ -18,21 +18,77 @@ export {};
 		let sig = sign(message8, keyPair.secretKey);
 		let result = verify(message8, sig, keyPair.publicKey);
 		if (!result) {
-			console.log("error", "pubkey verification failed", err);
+			log("error", "pubkey verification failed", err);
 			throw 'pubkey verification failed when trying to get the list of portals from the registry';
 		}
 	} catch(err) {
-		console.log("error", "unable to produce signature from keypair", err);
+		log("error", "unable to produce signature from keypair", err);
 	}
 */
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
-console.log("progress", "kernel has been opened");
 document.title = "kernel.siasky.net"
 var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
+
+// log provides syntactic sugar for the logging functions. The first arugment
+// passed into 'log' checks whether the logSettings have explicitly disabled
+// that type of logging. The remaining args will be printed as they would if
+// 'console.log' was called directly.
+// 
+// This is a minimal logging function that we expect will be overwritten by the
+// kernel.
+//
+// TODO: Need to create an API for changing the logging settings in the kernel.
+// API should be built from the kernel proper though no reason to have it in
+// the browser extension. We only put it in the browser extension in the first
+// place because so many of the lifecycle messages are important.
+var log = function(logType: string, ...inputs: any) {
+	// Fetch the log settings as a string.
+	let logSettingsStr = localStorage.getItem("v1-logSettings");
+
+	// If there is no logSettingsStr set yet, create one with the default
+	// logging settings active. These don't get persisted, which makes
+	// debugging easier (just wipe the log settings and make changes here
+	// as needed, to avoid having to use the kernel api to change your log
+	// settings as you develop).
+	if (logSettingsStr === null) {
+		logSettingsStr = '{"ERROR": true, "error": true, "lifecycle": true, "portal": true}';
+	}
+
+	// Run through all the conditions that would result in the log not
+	// being printed. If the log is null, the log will be printed. The only
+	// two cases where the log will not be printed is if there is an
+	// explicit disable on all logs, or if there is an explicit disable on
+	// this particular log type.
+	if (logSettingsStr !== null) {
+		// Wrap the JSON.parse in a try-catch block. If the parse
+		// fails, we want to catch the error and report that the
+		// logSettings persistence has corrupted.
+		try {
+			// Logging is disabled by default, except for the
+			// messages that are explicitly set to come through.
+			let logSettings = JSON.parse(logSettingsStr);
+			if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
+				return;
+			}
+		} catch (err) {
+			console.log("ERROR: logSettings item in localstorage is corrupt:", err);
+			console.log(logSettingsStr);
+			return;
+		}
+	}
+
+	// Print the log.
+	let args = Array.prototype.slice.call(arguments);
+	args[0] = `[${logType}] Kernel: `;
+	console.log.apply(console, args);
+	return;
+};
+
+log("lifecycle", "kernel has been opened");
 
 // import:::skynet-kernel-extension/lib/sha512.ts
 
@@ -62,7 +118,7 @@ var getUserSeed = function(): [Uint8Array, string] {
 // available, and any sensistive data that the kernel placed in localStorage
 // will also be cleared.
 var logOut = function() {
-	console.log("progress", "clearing local storage after logging out");
+	log("lifecycle", "clearing local storage after logging out");
 	localStorage.clear();
 }
 
@@ -144,7 +200,7 @@ var progressiveFetch = function(endpoint: string, portals: string[], callback: a
 	})
 	.catch((error) => {
 		// No luck, repeat but with the next portal.
-		console.log('REGREAD ERROR:', error);
+		log("portal", error);
 		progressiveFetch(endpoint, portals, callback)
 	})
 }
@@ -200,7 +256,7 @@ var preferredPortals = function(): string[] {
 			return portalList.basicPortals;
 		} catch {
 			// TODO: We should probably clear the entry so that the user can make progress.
-			console.log("error", "corrupt portalListStr found in localStorage: "+portalListStr);
+			log("error", "corrupt portalListStr found in localStorage: "+portalListStr);
 		}
 	}
 
@@ -232,12 +288,12 @@ var loadUserPortalPreferences = function(callback: any) {
 	// write the default list of portals to localstorage, which will
 	// eliminate the need to perform this call in the future.
 	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey", function(response) {
-		console.log("DEBUG", "callback reached");
-		console.log(response);
+		log("loadUserPortalPreferences", "callback reached");
+		log("loadUserPortalPreferences", response);
 		if (response.status === 404) {
 			// TODO: Uncomment. This is currently commented out for debugging purposes.
 			// window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
-			console.log("DEBUG: we reached the local storage setitem part of the process");
+			log("loadUserPortalPreferences", "we reached the localStorage setitem part of the process");
 		} else {
 			// TODO: Need to parse the data and correctly set the
 			// user's portal list.
@@ -261,7 +317,7 @@ var loadUserPortalPreferences = function(callback: any) {
 var kernelLoaded = false;
 var kernelLoading = false;
 var loadSkynetKernel = function() {
-	console.log("progress", "kernel is loading");
+	log("lifecycle", "kernel is loading");
 
 	// Check the loading status of the kernel. If the kernel is loading,
 	// block until the loading is complete and then send a message to the
@@ -272,7 +328,7 @@ var loadSkynetKernel = function() {
 		return;
 	}
 	kernelLoading = true;
-	console.log("progress", "kernel loading passed the safety race condition");
+	log("lifecycle", "kernel loading passed the safety race condition");
 
 	// TODO: Check localstorage (or perhaps an encrypted indexededdb) for
 	// the kernel to see if it is already loaded.
@@ -310,10 +366,10 @@ var loadSkynetKernel = function() {
 		// error notification.
 		downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
 		.then(text => {
-			console.log("progress", "full kernel loaded");
-			console.log(text);
+			log("lifecycle", "full kernel loaded");
+			log("fullKernel", text);
 			eval(text);
-			console.log("progress", "full kernel eval'd");
+			log("lifecycle", "full kernel eval'd");
 			kernelLoaded = true;
 			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 		});
@@ -324,7 +380,7 @@ var loadSkynetKernel = function() {
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
 var handleMessage = function(event: any) {
-	console.log("progress", "Skynet Kernel: handleMessage is being called with unloaded kernel");
+	log("lifecycle", "handleMessage is being called with unloaded kernel");
 	return;
 }
 
@@ -333,23 +389,19 @@ var handleMessage = function(event: any) {
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
 window.addEventListener("message", (event: any) => {
-	// Log every incoming message to help app developers debug their
-	// applications.
-	//
-	// TODO: Switch this to only logging when debug mode is set.
-	console.log("Skynet Kernel: message received");
-	console.log(event.data);
-	console.log(event.origin);
+	log("message", "message received");
+	log("message", event.data);
+	log("message", event.origin);
 
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
 	let [userSeed, err] = getUserSeed();
 	if (err !== "") {
-		console.log("progress", "auth has failed, sending an authFailed message", err);
+		log("message", "auth has failed, sending an authFailed message", err);
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}
-	console.log("progress", "user is authenticated");
+	log("lifecycle", "user is authenticated");
 
 	// Establish a handler to handle a request which states that
 	// authentication has been completed. Because we have already called
@@ -366,8 +418,8 @@ window.addEventListener("message", (event: any) => {
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
-		console.log("progress", "sending receiveTest message to source");
-		console.log("progress", event.source);
+		log("lifecycle", "sending receiveTest message to source");
+		log("lifecycle", event.source);
 		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
 		return;
 	}
@@ -376,11 +428,11 @@ window.addEventListener("message", (event: any) => {
 	// provided by home are allowed.
 	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
 		logOut();
-		console.log("progress", "sending logOutSuccess message to home");
+		log("lifecycle", "sending logOutSuccess message to home");
 		try {
 			event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
 		} catch (err) {
-			console.log("ERROR:", err);
+			log("lifecycle", "unable to inform source that logOut was competed", err);
 		}
 		return;
 	}
@@ -395,9 +447,9 @@ window.addEventListener("message", (event: any) => {
 // authentication.
 let [userSeed, err] = getUserSeed()
 if (err !== "") {
-	console.log("progress", "auth failed, sending message");
+	log("lifecycle", "auth failed, sending message");
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 } else {
-	console.log("progress", "auth succeeded, loading kernel");
+	log("lifecycle", "auth succeeded, loading kernel");
 	loadSkynetKernel();
 }
