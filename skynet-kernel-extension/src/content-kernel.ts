@@ -94,7 +94,7 @@ log("lifecycle", "kernel has been opened");
 
 // import:::skynet-kernel-extension/lib/ed25519.ts
 
-var defaultPortalList = ["fakeportal.fakeout", "siasky.net"];
+var defaultPortalList = ["siasky.net"];
 
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
