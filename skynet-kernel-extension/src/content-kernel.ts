@@ -459,9 +459,10 @@ var loadUserPortalPreferences = function(callback: any) {
 	);
 }
 
-// readRegistryAndLoadKernelRegReadSuccessCallback defines the callback that is
-// called in readRegistryAndLoadKernel after reading the registry entry
-// successfully.
+// kernelDiscoveryComplete defines the callback that is called in
+// readRegistryAndLoadKernel after reading the registry entry containing the
+// kernel successfully. Note that success can imply a 404 or some other
+// non-result, but it does mean that we successfully reached Skynet.
 //
 // We're going to check what the kernel is supposed to be and then download it.
 // If there is kernel, we'll set the user's kernel to the default kernel
@@ -471,7 +472,7 @@ var loadUserPortalPreferences = function(callback: any) {
 // the same kernel again. We don't want the user jumping between kernels as
 // they change web browsers simply because they never got far enough to
 // complete setup, we want a consistent user experience.
-var readRegistryAndLoadKernelRegReadSuccessCallback = function(response) {
+var kernelDiscoveryComplete = function(response) {
 	let userKernel = "";
 	if (response.status === 404) {
 		log("lifecycle", "user has no established kernel, trying to set the default");
@@ -483,6 +484,7 @@ var readRegistryAndLoadKernelRegReadSuccessCallback = function(response) {
 		// have set the default kernel for the user. But then we just
 		// read it an load it.
 	}
+
 	// TODO: By this point 'userKernel' should be set, we want to download
 	// and verify that kernel.  Load the kernel itself from Skynet.
 	//
@@ -502,15 +504,16 @@ var readRegistryAndLoadKernelRegReadSuccessCallback = function(response) {
 	});
 }
 
-// readRegistryAndLoadKernelRegReadRejectCallback defines the callback that is
-// called in readRegistryAndLoadKernel after reading the registry entry
-// successfully.
+// kernelDiscoveryFailed defines the callback that is called in
+// readRegistryAndLoadKernel after we were unable to read the user's registry
+// entry from Skynet. Note that this is different from a 404, it means that we
+// could not get a reliable read at all.
 //
 // If we can't figure out what kernel the user wants to load, we are going to
 // abort and send an error message to the parent, because we don't want the UX
 // of loading the default kernel for the user if there's a different kernel
 // that they are already used to.
-var readRegistryAndLoadKernelRegReadRejectCallback = function(err) {
+var kernelDiscoveryFailed = function(err) {
 	log("lifecycle", "unable to determine user's preferred kernel");
 	// TODO: Need to update the homescreen auth to be able to receive such
 	// a message.
@@ -519,22 +522,15 @@ var readRegistryAndLoadKernelRegReadRejectCallback = function(err) {
 
 // readRegistryAndLoadKernel is called after the loadSkynetKernel function has
 // loaded the user portal preferences. This function is passed to
-// loadUserPortalPreferences as the callback.
+// loadUserPortalPreferences as the callback. It starts by reading the registry
+// entry for the kernel, and then passing in a callback to load the actual
+// kernel.
 var readRegistryAndLoadKernel = function() {
-	// By the time this is called, the user's portal preferences
-	// have been established. We are now going to try and load the
-	// kernel.
-	//
-	// TODO: We're probably going to want to switch this lookup to
-	// being a v2 skylink download where we check all of the proofs
-	// that the server supplies. To make that as effective as
-	// possible, we may need a new endpoint, though the existing
-	// endpoints may actually already give us enough information.
 	readOwnRegistryEntry(
 		"v1-skynet-kernel", 
 		"v1-skynet-kernel-dataKey", 
-		readRegistryAndLoadKernelRegReadSuccessCallback, 
-		readRegistryAndLoadKernelRegReadRejectCallback
+		kernelDiscoveryComplete,
+		kernelDiscoveryFailed
 	)
 }
 
