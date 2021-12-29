@@ -98,6 +98,11 @@ var defaultPortalList = ["siasky.net"];
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
+interface Ed25519KeyPair {
+	publicKey: Uint8Array;
+	secretKey: Uint8Array;
+}
+
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
 // kernel will not be loaded if no seed is present, as it means that the user
@@ -130,17 +135,9 @@ var buf2hex = function(buffer: ArrayBuffer) { // buffer is an ArrayBuffer
 		.join('');
 }
 
-// readOwnRegistryEntry will read and verify a registry entry that is owned by
-// the user. The tag strings will be hashed with the user's seed to produce the
-// correct entropy.
-// 
-// TODO: This function currently protects the user from a portal providing
-// incorrect data, but does not protect the user from a portal providing
-// outdated data or a false 404. Getting protection against those would require
-// receiving a list of signatures from a set of hosts (likely established TOFU
-// style through previous successful lookups) to verify that multiple trusted
-// hosts as well as the portal are reporting the same result.
-var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, resolveCallback: any, rejectCallback: any) {
+// ownRegistryEntryKeys will use the user's seed to derive a keypair and a
+// datakey using the provided tags.
+var ownRegistryEntryKeys = function(keyPairTagStr: string, dataKeyTagStr: string): [Ed25519KeyPair, Uint8Array] {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
 	let keyPairEntropy = new Uint8Array(HASH_SIZE);
@@ -162,6 +159,15 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	// Create the private key for the registry entry.
 	let keyPair = keyPairFromSeed(keyPairEntropy.slice(0, 32));
 	let dataKey = dataKeyEntropy.slice(0, 32);
+	return [keyPair, dataKey];
+}
+
+// readOwnRegistryEntry will read and verify a registry entry that is owned by
+// the user. The tag strings will be hashed with the user's seed to produce the
+// correct entropy.
+var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, resolveCallback: any, rejectCallback: any) {
+	// Fetch the keypair.
+	let [keyPair, dataKey] = ownRegistryEntryKeys(keyPairTagStr, dataKeyTagStr);
 
 	// Get a list of portals, then try fetching the entry from each portal
 	// until a successful response is received. A 404 is considered a
@@ -176,7 +182,30 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	let pubkeyHex = buf2hex(keyPair.publicKey);
 	let dataKeyHex = buf2hex(dataKey);
 	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
-	progressiveFetch(endpoint, portalList, resolveCallback, rejectCallback);
+
+	// The adjustedResolveCallback allows us to verify the integrity of the
+	// portal's response before passing it back to the caller. If the
+	// portal's response is found to be malicious or otherwise
+	// untrustworthy, we will redo the progressiveFetch with the remaining
+	// portal list.
+	//
+	// TODO: Add basic verification. We will do this after we make the
+	// first call that will allow us to make a registry query which
+	// actually resolves (which will be loading the kernel).
+	//
+	// TODO: We should add some level of host-response verification, if the
+	// portal is telling us that there's a 404, it should include some
+	// hosts that are reporting the 404 so we aren't just blindly accepting
+	// the 404. If the portal presents a certain revision number as the
+	// latest revision number, it should include some hosts that agree with
+	// the portal. This level of verification makes a lot more sense once
+	// we add the skylink hinting to the skylink types, because then we
+	// will have some way of knowing which hosts we should be expected
+	// responses from.
+	let adjustedResolveCallback = function(response, remainingPortalList) {
+		resolveCallback(response);
+	}
+	progressiveFetch(endpoint, portalList, adjustedResolveCallback, rejectCallback);
 }
 
 // progressiveFetch will query multiple portals until one returns with the
@@ -195,7 +224,7 @@ var progressiveFetch = function(endpoint: string, portals: string[], resolveCall
 	fetch(query)
 	.then(response => {
 		// Success! Handle the response.
-		resolveCallback(response);
+		resolveCallback(response, portals);
 	})
 	.catch((error) => {
 		// Try the next portal.
@@ -289,8 +318,8 @@ var loadUserPortalPreferences = function(callback: any) {
 	// Try to get the list of portals from localstorage.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
 	if (portalListStr !== null) {
-		// callback();
-		// return;
+		callback();
+		return;
 	}
 
 	// Attempt to fetch the user's list of portals from Skynet. This
@@ -302,28 +331,28 @@ var loadUserPortalPreferences = function(callback: any) {
 	// write the default list of portals to localstorage, which will
 	// eliminate the need to perform this call in the future.
 	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey",
-	// This is the success callback.
-	function(response) {
-		// In the event of a 404, we want to store the default list as
-		// the set of user's portals. We do this so that subsequent
-		// kernel iframes that the user opens don't need to go to the
-		// network as part of the startup process. The full kernel will
-		// set the localStorage item to another value when the user
-		// selects portals.
-		if (response.status === 404) {
-			window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
-			log("lifecycle", "user portalList set to the default list after getting 404 on registry lookup");
-		} else {
-			// TODO: Need to parse the data and correctly set the
-			// user's portal list.
-		}
-		callback();
-	},
-	// This is the error callback.
-	function(err) {
-		log("lifecycle", "unable to load the users list of preferred portals", err);
-		callback();
-	})
+// This is the success callback.
+function(response) {
+	// In the event of a 404, we want to store the default list as
+	// the set of user's portals. We do this so that subsequent
+	// kernel iframes that the user opens don't need to go to the
+	// network as part of the startup process. The full kernel will
+	// set the localStorage item to another value when the user
+	// selects portals.
+	if (response.status === 404) {
+		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
+		log("lifecycle", "user portalList set to the default list after getting 404 on registry lookup");
+	} else {
+		// TODO: Need to parse the data and correctly set the
+		// user's portal list.
+	}
+	callback();
+},
+// This is the error callback.
+function(err) {
+	log("lifecycle", "unable to load the users list of preferred portals", err);
+	callback();
+})
 }
 
 // loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
@@ -361,31 +390,60 @@ var loadSkynetKernel = function() {
 	// callback which will load the user's preferred kernel from Skynet
 	// once the preferred portal has been established.
 	loadUserPortalPreferences(function() {
-		// TODO: First we need to look up the resolver link for the
-		// kernel by opening the user's registry to see if they have a
-		// preferred kernel version already stored.
-		//
-		// If they don't have a kernel version already stored, we need
-		// to write one. And through all of this, we need to be able to
-		// handle errors.
+	// By the time this is called, the user's portal preferences
+	// have been established. We are now going to try and load the
+	// kernel.
+	//
+	// TODO: We're probably going to want to switch this lookup to
+	// being a v2 skylink download where we check all of the proofs
+	// that the server supplies. To make that as effective as
+	// possible, we may need a new endpoint, though the existing
+	// endpoints may actually already give us enough information.
+	readOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-dataKey",
+// This is the success callback. We're going to check what the kernel is
+// supposed to be and then download it. If there is kernel, we'll set
+// the user's kernel to the default kernel hardcoded into the extension
+// and download that.
+function(response) {
+	let userKernel = "";
+	if (response.status === 404) {
+		log("lifecycle", "user has no established kernel, trying to set the default");
+		// TODO: This is where we need to do our first registry write.
+		// We have to write the hardcoded default kernel in as the
+		// user's kernel.
+	} else {
+		// TODO: We won't be able to build this branch out until we
+		// have set the default kernel for the user. But then we just
+		// read it an load it.
+	}
+	// TODO: By this point 'userKernel' should be set, we want to download
+	// and verify that kernel.  Load the kernel itself from Skynet.
+	//
+	// TODO: If there is some sort of error, need to set kernelLoading to
+	// false and then report an error to the parent.
+	downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
+	.then(text => {
+		log("lifecycle", "full kernel loaded");
+		log("fullKernel", text);
+		eval(text);
+		log("lifecycle", "full kernel eval'd");
+		kernelLoaded = true;
 
-		// Load the kernel itself from Skynet.
-		//
-		// TODO: If there is some sort of error, need to set
-		// kernelLoading to false and then report an error to the
-		// parent.
-		downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
-		.then(text => {
-			log("lifecycle", "full kernel loaded");
-			log("fullKernel", text);
-			eval(text);
-			log("lifecycle", "full kernel eval'd");
-			kernelLoaded = true;
-
-			// Tell the parent that the kernel has finished
-			// loading.
-			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
-		});
+		// Tell the parent that the kernel has finished
+		// loading.
+		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
+	});
+},
+// This is the reject callback. If we can't figure out what kernel the user
+// wants to load, we are going to abort because it means we are having trouble
+// connecting to Skynet at all, and we don't want to load the wrong kernel for
+// the user.
+function(err) {
+	log("lifecycle", "unable to determine user's preferred kernel");
+	// TODO: Need to update the homescreen auth to be able to receive such
+	// a message.
+	window.parent.postMessage({kernelMethod: "skynetKernelLoadFailed"}, "*");
+});
 	});
 }
 
