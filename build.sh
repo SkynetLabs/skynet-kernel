@@ -96,6 +96,19 @@ rm $fileO
 cat <<< $authFilePrefix >> $fileO
 cat <<< $dictionaryCode >> $fileO
 cat <<< $authFileSuffix >> $fileO
+# blake2b -> content-kernel.ts
+fileD="skynet-kernel-extension/lib/blake2b.ts"
+fileO="skynet-kernel-extension/bundle/content-kernel.ts"
+importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
+upTo=$((importLine-1))
+after=$((importLine+1))
+authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
+dictionaryCode=$(cat skynet-kernel-extension/lib/blake2b.ts)
+authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
+rm $fileO
+cat <<< $authFilePrefix >> $fileO
+cat <<< $dictionaryCode >> $fileO
+cat <<< $authFileSuffix >> $fileO
 
 # skynet-kernel-resolver -> content-kernel.ts
 #

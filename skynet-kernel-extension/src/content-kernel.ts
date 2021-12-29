@@ -5,6 +5,10 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
+// TODO: This whole file is lax on input checking, we probably need to wire
+// some error handling throughout to make sure that all foreign inputs are
+// being checked for malicious values.
+
 // Below is some code that might be useful later.
 /*
 	// Try signing and verifying some data using the keyPair.
@@ -90,14 +94,21 @@ var log = function(logType: string, ...inputs: any) {
 
 log("lifecycle", "kernel has been opened");
 
+// NOTE: The imports need to happen in a specific order. In particular, ed25519
+// depends on sha512, so the sha512 import should be listed first.
+
 // import:::skynet-kernel-extension/lib/sha512.ts
 
 // import:::skynet-kernel-extension/lib/ed25519.ts
+
+// import:::skynet-kernel-extension/lib/blake2b.ts
 
 var defaultPortalList = ["siasky.net"];
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
+// Define an Ed25519KeyPair so that it can be returned as part of an array and
+// still pass the Typescript type checks.
 interface Ed25519KeyPair {
 	publicKey: Uint8Array;
 	secretKey: Uint8Array;
@@ -129,10 +140,40 @@ var logOut = function() {
 	localStorage.clear();
 }
 
+// buf2hex takes a Uint8Array as input (or any ArrayBuffer) and returns the hex
+// encoding of those bytes. The return value is a string.
 var buf2hex = function(buffer: ArrayBuffer) { // buffer is an ArrayBuffer
 	return [...new Uint8Array(buffer)]
 		.map(x => x.toString(16).padStart(2, '0'))
 		.join('');
+}
+
+// encodeNumber will take a number as input and return a corresponding
+// Uint8Array.
+var encodeNumber = function(num: number): Uint8Array {
+	let encoded = new Uint8Array(8);
+	for (let index = 0; index < encoded.length; index++) {
+		let byte = num & 0xff;
+		encoded[index] = byte
+		num = num >> 8;
+	}
+	return encoded
+}
+
+// encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
+// that has the length prefixed as an 8 byte prefix. Inside the function we use
+// 'setUint32', which means that the input needs to be less than 4 GiB. For all
+// known use cases, this is fine.
+//
+// TODO: Could we do better by refactoring this to use encodeBigintAsUint64?
+var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
+	let len = bytes.length;
+	let buf = new ArrayBuffer(8 + len);
+	let view = new DataView(buf);
+	view.setUint32(0, len, true);
+	let uint8Bytes = new Uint8Array(buf);
+	uint8Bytes.set(bytes, 8);
+	return uint8Bytes;
 }
 
 // ownRegistryEntryKeys will use the user's seed to derive a keypair and a
@@ -166,8 +207,10 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, dataKeyTagStr: string
 // the user. The tag strings will be hashed with the user's seed to produce the
 // correct entropy.
 var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, resolveCallback: any, rejectCallback: any) {
-	// Fetch the keypair.
+	// Fetch the keys.
 	let [keyPair, dataKey] = ownRegistryEntryKeys(keyPairTagStr, dataKeyTagStr);
+	let pubkeyHex = buf2hex(keyPair.publicKey);
+	let dataKeyHex = buf2hex(dataKey);
 
 	// Get a list of portals, then try fetching the entry from each portal
 	// until a successful response is received. A 404 is considered a
@@ -179,8 +222,6 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	// actually 'true' (meaning the portal assumes it is already hashed).
 	// The example doesn't use it and provides an already hashed datakey.
 	let portalList = preferredPortals();
-	let pubkeyHex = buf2hex(keyPair.publicKey);
-	let dataKeyHex = buf2hex(dataKey);
 	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
 
 	// The adjustedResolveCallback allows us to verify the integrity of the
@@ -206,6 +247,57 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 		resolveCallback(response);
 	}
 	progressiveFetch(endpoint, portalList, adjustedResolveCallback, rejectCallback);
+}
+
+// writeNewOwnRegistryEntry will write the provided data to a new registry
+// entry. A revision number of 0 will be used, because this function is
+// assuming that no data yet exists at that registry entry location.
+var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, data: Uint8Array, resolveCallback: any, rejectCallback: any) {
+	// Fetch the keys.
+	let [keyPair, dataKey] = ownRegistryEntryKeys(keyPairTagStr, dataKeyTagStr);
+	let pubkeyHex = buf2hex(keyPair.publicKey);
+	let dataKeyHex = buf2hex(dataKey);
+
+	// Create the data field, which contains the default kernel.
+	//
+	// TODO: We should probably do a base64 conversion here so that we
+	// store the actual raw data.
+	let dataFieldStr = defaultKernelResolverLink
+	let dataField = Uint8Array.from(Array.from(dataFieldStr).map(letter => letter.charCodeAt(0)));
+
+	// Compute the signature of the new registry entry.
+	let encodedData = encodePrefixedBytes(data);
+	let encodedRevision = encodeNumber(0);
+	let dataToSign = new Uint8Array(32 + 8 + data.length + 8);
+	dataToSign.set(dataKey, 0);
+	dataToSign.set(encodedData, 32);
+	dataToSign.set(encodedRevision, 32+8+data.length);
+	let sigHash = blake2b(dataToSign, 32);
+	let sig = sign(sigHash, keyPair.secretKey);
+
+	// Compose the registry entry.
+	//
+	// TODO: I'm not sure that the type is correct. I'm also not sure that
+	// this is all going to encode properly in json. But typing and
+	// encoding aside, this should be roughly what we need.
+	/*
+	let entry = {
+		publickey: {
+			algorithm: "ed25519",
+			key: keyPair.publicKey,
+		}
+		dataKey: dataKeyHex,
+		revision: 0,
+		data: dataField,
+		signature: sig,
+	}
+       */
+
+	// Compose the query.
+	//
+	// TODO: Turn this into a POST query.
+	let portalList = preferredPortals();
+	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
 }
 
 // progressiveFetch will query multiple portals until one returns with the
@@ -460,9 +552,7 @@ var handleMessage = function(event: any) {
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
 window.addEventListener("message", (event: any) => {
-	log("message", "message received");
-	log("message", event.data);
-	log("message", event.origin);
+	log("message", "message received\n", event.data, "\n", event.origin);
 
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
