@@ -9,26 +9,9 @@ export {};
 // some error handling throughout to make sure that all foreign inputs are
 // being checked for malicious values.
 
-// Below is some code that might be useful later.
-/*
-	// Try signing and verifying some data using the keyPair.
-	//
-	// TODO: This only needs to be here for as long as we aren't doing the
-	// full registry fetch and verify.
-	let message = new TextEncoder().encode("this is a test message to sign");
-	let message8 = new Uint8Array(message.length);
-	message8.set(message);
-	try {
-		let sig = sign(message8, keyPair.secretKey);
-		let result = verify(message8, sig, keyPair.publicKey);
-		if (!result) {
-			log("error", "pubkey verification failed", err);
-			throw 'pubkey verification failed when trying to get the list of portals from the registry';
-		}
-	} catch(err) {
-		log("error", "unable to produce signature from keypair", err);
-	}
-*/
+// TODO: Next steps: need to get registry reads verified, need to start
+// downloading the right kernel, and need to start verifying the downloads that
+// we do.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -38,7 +21,7 @@ header.textContent = "Something went wrong! You should not be visiting this page
 document.body.appendChild(header);
 
 // log provides syntactic sugar for the logging functions. The first arugment
-// passed into 'log' checks whether the logSettings have explicitly disabled
+// passed into 'log' checks whether the logSettings have explicitly enabled
 // that type of logging. The remaining args will be printed as they would if
 // 'console.log' was called directly.
 // 
@@ -96,6 +79,12 @@ log("lifecycle", "kernel has been opened");
 
 // NOTE: The imports need to happen in a specific order. In particular, ed25519
 // depends on sha512, so the sha512 import should be listed first.
+//
+// TODO: The transplant contains the V2 skylink of the full kernel that we have
+// developed in the other folder. This link should actually not be a
+// transplant, it should be hardcoded! During this early phase of development -
+// before the core kernel and the bootloader have been split into separate
+// repos - we are keeping the transplant to make development easier.
 
 // import:::skynet-kernel-extension/lib/sha512.ts
 
@@ -103,9 +92,9 @@ log("lifecycle", "kernel has been opened");
 
 // import:::skynet-kernel-extension/lib/blake2b.ts
 
-var defaultPortalList = ["siasky.net"];
-
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
+
+var defaultPortalList = ["siasky.net"];
 
 // Define an Ed25519KeyPair so that it can be returned as part of an array and
 // still pass the Typescript type checks.
@@ -165,7 +154,8 @@ var encodeNumber = function(num: number): Uint8Array {
 // 'setUint32', which means that the input needs to be less than 4 GiB. For all
 // known use cases, this is fine.
 //
-// TODO: Could we do better by refactoring this to use encodeBigintAsUint64?
+// TODO: I'm not completely sure why the implementation of encodeNumber and
+// encodePrefixBytes is so different.
 var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
 	let len = bytes.length;
 	let buf = new ArrayBuffer(8 + len);
@@ -177,15 +167,19 @@ var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
 }
 
 // preferredPortals will determine the user's preferred portals by looking in
-// localstorage. If no local list of portals is found, the hardcoded d
+// localStorage. If no local list of portals is found, the hardcoded default
+// list of portals will be set. This function does not check the network.
+//
+// Even if there is a list of preferred portals in localStorage, this function
+// will append the list of default portals to that list (as lower priority
+// portals) to increase the chance that a user is able to connect to Skynet.
+// This is particularly useful for users who are reviving very old Skynet
+// accounts and may have an outdated list of preferred portals.
 var preferredPortals = function(): string[] {
 	// Try to get the list of portals from localstorage.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
 	if (portalListStr !== null) {
 		try {
-			// TODO: In the main kernel (though perhaps not the browser
-			// extension), we should run a background process that checks
-			// whether the user's list of portals has been updated.
 			let portalList = JSON.parse(portalListStr);
 
 			// Append the list of default portals to the set of
@@ -222,11 +216,37 @@ var preferredPortals = function(): string[] {
 			// anything that might be relevant or useful once the
 			// full kernel has finished loading.
 			log("error", err, portalListStr);
+			return defaultPortalList;
 		}
 	}
 
 	// No list found. Just provide the default portal list.
 	return defaultPortalList;
+}
+
+// progressiveFetch will query multiple portals until one returns with the
+// correct response. If there is a success, it will call the success callback.
+// If all of the portals fail, it will call the failure callback.
+var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
+	if (portals.length === 0) {
+		log("lifecycle", "no more portals available, rejecting");
+		rejectCallback("no portals available");
+		return;
+	}
+
+	// Try the next portal in the array.
+	let portal = portals.shift();
+	let query = "https://" + portal + endpoint;
+	fetch(query, fetchOpts)
+	.then(response => {
+		// Success! Handle the response.
+		resolveCallback(response, portals);
+	})
+	.catch((error) => {
+		// Try the next portal.
+		log("portal", query, "::", error);
+		progressiveFetch(endpoint, fetchOpts, portals, resolveCallback, rejectCallback)
+	})
 }
 
 // ownRegistryEntryKeys will use the user's seed to derive a keypair and a
@@ -299,7 +319,7 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 		// should be expected responses from.
 		resolveCallback(response);
 	}
-	progressiveFetch(endpoint, portalList, adjustedResolveCallback, rejectCallback);
+	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
 }
 
 // writeNewOwnRegistryEntry will write the provided data to a new registry
@@ -311,13 +331,6 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 	let pubkeyHex = buf2hex(keyPair.publicKey);
 	let dataKeyHex = buf2hex(dataKey);
 
-	// Create the data field, which contains the default kernel.
-	//
-	// TODO: We should probably do a base64 conversion here so that we
-	// store the actual raw data.
-	let dataFieldStr = defaultKernelResolverLink
-	let dataField = Uint8Array.from(Array.from(dataFieldStr).map(letter => letter.charCodeAt(0)));
-
 	// Compute the signature of the new registry entry.
 	let encodedData = encodePrefixedBytes(data);
 	let encodedRevision = encodeNumber(0);
@@ -328,54 +341,36 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 	let sigHash = blake2b(dataToSign, 32);
 	let sig = sign(sigHash, keyPair.secretKey);
 
-	// Compose the registry entry.
-	//
-	// TODO: I'm not sure that the type is correct. I'm also not sure that
-	// this is all going to encode properly in json. But typing and
-	// encoding aside, this should be roughly what we need.
-	/*
-	let entry = {
+	// Compose the registry entry query.
+	let postBody = {
 		publickey: {
 			algorithm: "ed25519",
-			key: keyPair.publicKey,
-		}
+			key: Array.from(keyPair.publicKey),
+		},
 		dataKey: dataKeyHex,
 		revision: 0,
-		data: dataField,
-		signature: sig,
+		data: Array.from(data),
+		signature: Array.from(sig),
 	}
-       */
-
-	// Compose the query.
-	//
-	// TODO: Turn this into a POST query.
+	let fetchOpts = {
+		method: 'post',
+		body: JSON.stringify(postBody)
+	};
 	let portalList = preferredPortals();
-	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
-}
-
-// progressiveFetch will query multiple portals until one returns with the
-// correct response. If there is a success, it will call the success callback.
-// If all of the portals fail, it will call the failure callback.
-var progressiveFetch = function(endpoint: string, portals: string[], resolveCallback: any, rejectCallback: any) {
-	if (portals.length === 0) {
-		log("lifecycle", "no more portals available, rejecting");
-		rejectCallback("no portals available");
-		return;
-	}
-
-	// Try the next portal in the array.
-	let portal = portals.shift();
-	let query = "https://" + portal + endpoint;
-	fetch(query)
-	.then(response => {
-		// Success! Handle the response.
-		resolveCallback(response, portals);
-	})
-	.catch((error) => {
-		// Try the next portal.
-		log("portal", query, "::", error);
-		progressiveFetch(endpoint, portals, resolveCallback, rejectCallback)
-	})
+	let endpoint = "/skynet/registry";
+	progressiveFetch(endpoint, fetchOpts, portalList,
+	// Success callback. Success does not imply the registry write worked,
+	// only that a protal responded in a non-malicious way.
+	function(response) {
+		response.json().then(data => console.log(data));
+	},
+	// Reject callback. Reject implies that no non-malicious portal could
+	// be reached. If a portal returns an error like 400, that is
+	// considered a success.
+	function(err) {
+		log("lifecycle", "unable to write the user's preferred kernel to Skynet", err);
+	});
+	return;
 }
 
 // downloadV1Skylink will download the raw data for a skylink and then verify
@@ -476,13 +471,35 @@ var kernelDiscoveryComplete = function(response) {
 	let userKernel = "";
 	if (response.status === 404) {
 		log("lifecycle", "user has no established kernel, trying to set the default");
-		// TODO: This is where we need to do our first registry write.
-		// We have to write the hardcoded default kernel in as the
+		// Create the data field, which contains the default kernel.
+		//
+		// TODO: We should probably do a base64 conversion here so that
+		// we store the actual raw data and match the protocol for a
+		// resolver link.
+		userKernel = defaultKernelResolverLink
+		let dataFieldStr = defaultKernelResolverLink
+		let dataField = Uint8Array.from(Array.from(dataFieldStr).map(letter => letter.charCodeAt(0)));
+
+		// Make a call to write the default kernel to the user's kernel
+		// registry entry. The callbacks here are sparse because we
+		// don't need to know the result of the write to load the
 		// user's kernel.
+		writeNewOwnRegistryEntry(
+			"v1-skynet-kernel",
+			"v1-skynet-kernel-dataKey",
+			dataField,
+			// Success callback - nothing to do.
+			function(response) {},
+			// Failure callback - only need to log.
+			function(err) {
+				log("lifecycle", "unable to set the user's kernel", err);
+			}
+		)
 	} else {
 		// TODO: We won't be able to build this branch out until we
 		// have set the default kernel for the user. But then we just
-		// read it an load it.
+		// read it an load it. The response will already be verified at
+		// this point.
 	}
 
 	// TODO: By this point 'userKernel' should be set, we want to download
@@ -490,7 +507,7 @@ var kernelDiscoveryComplete = function(response) {
 	//
 	// TODO: If there is some sort of error, need to set kernelLoading to
 	// false and then report an error to the parent.
-	downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/skynet-kernel.js/")
+	downloadV1Skylink("https://siasky.net/" + userKernel + "/")
 	.then(text => {
 		log("lifecycle", "full kernel loaded");
 		log("fullKernel", text);
