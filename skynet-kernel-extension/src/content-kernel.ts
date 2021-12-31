@@ -13,6 +13,15 @@ export {};
 // downloading the right kernel, and need to start verifying the downloads that
 // we do.
 
+// TODO: We can probably make more liberal use of the typing system in
+// typescript to get more robust code, especially around error handling.
+
+// TODO: The promise handling here is really atrocious, surely there is a
+// better way!?
+
+// TODO: I don't think we are verifying all of the untrusted inputs we are
+// receiving.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.siasky.net"
@@ -135,6 +144,29 @@ var buf2hex = function(buffer: ArrayBuffer) { // buffer is an ArrayBuffer
 	return [...new Uint8Array(buffer)]
 		.map(x => x.toString(16).padStart(2, '0'))
 		.join('');
+}
+
+// hex2buf takes an untrusted string as input, verifies that the string is
+// valid hex, and then converts the string to a Uint8Array.
+var hex2buf = function(hex: string): [Uint8Array, string] {
+	// Check that the length makes sense.
+	if (hex.length%2 != 0) {
+		return [null, "input has incorrect length"];
+	}
+
+	// Check that all of the characters are legal.
+	let match = /[0-9A-Fa-f]*/g;
+	if (!match.test(hex)) {
+		return [null, "input has invalid character"];
+	}
+
+	// Create the buffer and fill it.
+	let matches = hex.match(/.{1,2}/g);
+	if (matches === null) {
+		return [null, "input is incomplete"];
+	}
+	let u8 = new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
+	return [u8, null];
 }
 
 // encodeNumber will take a number as input and return a corresponding
@@ -303,22 +335,115 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	// untrustworthy, we will redo the progressiveFetch with the remaining
 	// portal list.
 	let adjustedResolveCallback = function(response, remainingPortalList) {
-		// TODO: Add basic verification. We will do this after we make
-		// the first call that will allow us to make a registry query
-		// which actually resolves (which will be loading the kernel).
-		//
-		// TODO: We should add some level of host-response
-		// verification, if the portal is telling us that there's a
-		// 404, it should include some hosts that are reporting the 404
-		// so we aren't just blindly accepting the 404. If the portal
-		// presents a certain revision number as the latest revision
-		// number, it should include some hosts that agree with the
-		// portal. This level of verification makes a lot more sense
-		// once we add the skylink hinting to the skylink types,
-		// because then we will have some way of knowing which hosts we
-		// should be expected responses from.
-		resolveCallback(response);
-	}
+		// Read the response, then handle the response in callbacks.
+		response.json()
+		.then(result => {
+			// If the portal reports that it's having trouble
+			// filling the request, try the next portal. The
+			// portals are set up so that a 5XX error indicates
+			// that other portals may have better luck.
+			if (response.status >= 500 && response.status < 600) {
+				log("portal", "received 5XX from portal", response.status, response.statusText, response.url, result);
+				progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+				return;
+			}
+
+			// TODO: Probably want to add some sort of special case
+			// handling for any 429's (portal is ratelimiting us).
+
+			// Perform basic verification. If the portal returns
+			// the response as successful, check the signature.
+			console.log(response);
+			console.log(result);
+			if (response.status === 200) {
+				// Check that the result has type '1', this
+				// code hasn't been programmed to verify
+				// registry entries with any other type.
+				if (result.type !== 1) {
+					resolveCallback({
+						err: "unable to parse the result type, your skynet browser extension may be out of date",
+						response: response,
+						result: result,
+					});
+					return;
+				}
+
+				// Verify the signature on the registry entry.
+				if (
+					!result.hasOwnProperty("data") ||
+					!result.hasOwnProperty("datakey") ||
+					!result.hasOwnProperty("revision") ||
+					!result.hasOwnProperty("signature") ||
+					!(typeof(result.data) === "string") ||
+					!(typeof(result.datakey) === "string") ||
+					!(typeof(result.revision) === "number") ||
+					!(typeof(result.signature) === "string")) {
+					log("portal", "portal has provided corrupted results", response.status, response.statusText, response.url, result);
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					return;
+				}
+				// Attempt to decode the hex values of the
+				// results.
+				let [data, err1] = hex2buf(result.data);
+				if (err1 !== null) {
+					log("portal", "portal has provided corrupted data", response.status, response.statusText, response.url, result);
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+				}
+				let [dataKey, err2] = hex2buf(result.datakey);
+				if (err2 !== null) {
+					log("portal", "portal has provided corrupted dataKey", response.status, response.statusText, response.url, result);
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+				}
+				let [sig, err3] = hex2buf(result.signature);
+				if (err3 !== null) {
+					log("portal", "portal has provided corrupted sig", response.status, response.statusText, response.url, result);
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+				}
+
+				// The data has passed verification, check the
+				// signature.
+				let encodedData = encodePrefixedBytes(data);
+				let encodedRevision = encodeNumber(result.revision);
+				let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
+				dataToVerify.set(dataKey, 0);
+				dataToVerify.set(encodedData, 32);
+				dataToVerify.set(encodedRevision, 32+8+data.length);
+				let sigHash = blake2b(dataToVerify, 32);
+				if (!verify(sigHash, sig, keyPair.publicKey)) {
+					console.log(dataKey)
+					console.log(data)
+					console.log(result.revision)
+					log("portal", "signature mismatch", response.status, response.statusText, response.url, result);
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+				}
+
+				// All verification has passed, provide the
+				// response and result to the callback.
+				resolveCallback({
+					err: "none",
+					response: response,
+					result: result,
+				});
+				return;
+			}
+
+			// TODO: Add verification of other response types. For example,
+			// if the portal returns a 404, there should be checking that
+			// the 404 is reliable. The best known way to do this is have
+			// the portal return a bunch of host responses where the hosts
+			// all confirm that it's a 404. The default should probably not
+			// be to approve the response... but that's where we are atm.
+			resolveCallback({
+				err: "none",
+				response: response,
+				result: result,
+			});
+		})
+		.catch(err => {
+			log("portal", "unable to parse response body", response.status, response.url, err);
+			progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+		})
+	};
 	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
 }
 
@@ -393,13 +518,13 @@ var downloadV1Skylink = function(skylink: string) {
 // loadUserPortalPreferencesRegReadSuccess is the callback that will be
 // performed by loadUserPortalPreferences after a successful call to the
 // registry entry that holds all of the user's preferred portals.
-var loadUserPortalPreferencesRegReadSuccess = function(response) {
+var loadUserPortalPreferencesRegReadSuccess = function(output) {
 	// In the event of a 404, we want to store the default list as the set
 	// of user's portals. We do this so that subsequent kernel iframes that
 	// the user opens don't need to go to the network as part of the
 	// startup process. The full kernel will set the localStorage item to
 	// another value when the user selects portals.
-	if (response.status === 404) {
+	if (output.response.status === 404) {
 		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
 		log("lifecycle", "user portalList set to the default list after getting 404 on registry lookup");
 	} else {
@@ -442,8 +567,8 @@ var loadUserPortalPreferences = function(callback: any) {
 	// inline. Yay javascript (if there's a better way, lmk).
 	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey",
 		// This is the success callback.
-		function(response) {
-			loadUserPortalPreferencesRegReadSuccess(response);
+		function(output) {
+			loadUserPortalPreferencesRegReadSuccess(output);
 			callback();
 		},
 		// This is the error callback.
@@ -500,6 +625,7 @@ var kernelDiscoveryComplete = function(response) {
 		// have set the default kernel for the user. But then we just
 		// read it an load it. The response will already be verified at
 		// this point.
+		userKernel = defaultKernelResolverLink
 	}
 
 	// TODO: By this point 'userKernel' should be set, we want to download
