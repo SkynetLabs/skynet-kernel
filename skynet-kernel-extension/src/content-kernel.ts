@@ -5,19 +5,11 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
-// TODO: This whole file is lax on input checking, we probably need to wire
-// some error handling throughout to make sure that all foreign inputs are
-// being checked for malicious values.
-
-// TODO: Next steps: need to get registry reads verified, need to start
-// downloading the right kernel, and need to start verifying the downloads that
-// we do.
+// TODO: Next steps: need to start downloading the right kernel, and need to
+// start verifying the downloads that we do.
 
 // TODO: We can probably make more liberal use of the typing system in
 // typescript to get more robust code, especially around error handling.
-
-// TODO: The promise handling here is really atrocious, surely there is a
-// better way!?
 
 // TODO: I don't think we are verifying all of the untrusted inputs we are
 // receiving.
@@ -308,6 +300,80 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, dataKeyTagStr: string
 	return [keyPair, dataKey];
 }
 
+// verifyRegReadResp will check the response body of a registry read on a
+// portal. The first return value indicates whether the error that gets
+// returned is a problem with the portal, or a problem with the underlying
+// registry entry. If the problem is with the portal, the caller should try the
+// next portal. If the problem is with the underyling registry entry, the
+// caller should handle the error and not try any more portals.
+var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, string] {
+	// If the portal reports that it's having trouble filling the request,
+	// try the next portal. The portals are set up so that a 5XX error
+	// indicates that other portals may have better luck.
+	if (response.status >= 500 && response.status < 600) {
+		return [true, "received 5XX from portal"];
+	}
+
+	// A 404 is considered a successful response.
+	//
+	// TODO: We should verify the 404 by having the portal provide some
+	// host signatures where the hosts are asserting that they did not have
+	// the response.
+	if (response.status == 404) {
+		return [false, null];
+	}
+
+	// TODO: Probably want to add some sort of special case
+	// handling for any 429's (portal is ratelimiting us).
+
+	// Perform basic verification. If the portal returns the response as
+	// successful, check the signature.
+	if (response.status === 200) {
+		// Check that the result has type '1', this code hasn't been
+		// programmed to verify registry entries with any other type.
+		if (result.type !== 1) {
+			return [false, "registry entry is not of type 1"];
+		}
+
+		// Verify the reponse has all required fields.
+		if (!result.hasOwnProperty("data") || !result.hasOwnProperty("revision") || !result.hasOwnProperty("signature")) {
+			return [true, "response is missing fields"];
+		}
+		// Verify the signature on the registry entry.
+		if (!(typeof(result.data) === "string") || !(typeof(result.revision) === "number") || !(typeof(result.signature) === "string")) {
+			return [true, "portal response has invalid format"]
+		}
+
+		// Attempt to decode the hex values of the results.
+		let [data, err1] = hex2buf(result.data);
+		if (err1 !== null) {
+			return [true, "portal result data did not decode from hex"];
+		}
+		let [sig, err3] = hex2buf(result.signature);
+		if (err3 !== null) {
+			return [true, "portal result signature did not decode from hex"];
+		}
+
+		// The data has passed verification, check the
+		// signature.
+		let encodedData = encodePrefixedBytes(data);
+		let encodedRevision = encodeNumber(result.revision);
+		let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
+		dataToVerify.set(dataKey, 0);
+		dataToVerify.set(encodedData, 32);
+		dataToVerify.set(encodedRevision, 32+8+data.length);
+		let sigHash = blake2b(dataToVerify, 32);
+		if (!verify(sigHash, sig, pubkey)) {
+			return [true, "portal response has a signature mismatch"];
+		}
+
+		// Verfifcation is complete!
+		return [false, null];
+	}
+
+	return [true, "portal response not recognized"];
+}
+
 // readOwnRegistryEntry will read and verify a registry entry that is owned by
 // the user. The tag strings will be hashed with the user's seed to produce the
 // correct entropy.
@@ -338,101 +404,28 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 		// Read the response, then handle the response in callbacks.
 		response.json()
 		.then(result => {
-			// If the portal reports that it's having trouble
-			// filling the request, try the next portal. The
-			// portals are set up so that a 5XX error indicates
-			// that other portals may have better luck.
-			if (response.status >= 500 && response.status < 600) {
-				log("portal", "received 5XX from portal", response.status, response.statusText, response.url, result);
+			console.log(response);
+			console.log(result);
+
+			// Check the response from the portal and then either
+			// try the next portal or call the resolve callback.
+			let [portalIssue, err] = verifyRegReadResp(response, result, keyPair.publicKey, dataKey);
+			if (err !== null && portalIssue === true) {
+				log("portal", "portal returned an invalid regread response", err, response.status, response.statusText, response.url, result);
 				progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 				return;
 			}
-
-			// TODO: Probably want to add some sort of special case
-			// handling for any 429's (portal is ratelimiting us).
-
-			// Perform basic verification. If the portal returns
-			// the response as successful, check the signature.
-			console.log(response);
-			console.log(result);
-			if (response.status === 200) {
-				// Check that the result has type '1', this
-				// code hasn't been programmed to verify
-				// registry entries with any other type.
-				if (result.type !== 1) {
-					resolveCallback({
-						err: "unable to parse the result type, your skynet browser extension may be out of date",
-						response: response,
-						result: result,
-					});
-					return;
-				}
-
-				// Verify the signature on the registry entry.
-				if (
-					!result.hasOwnProperty("data") ||
-					!result.hasOwnProperty("datakey") ||
-					!result.hasOwnProperty("revision") ||
-					!result.hasOwnProperty("signature") ||
-					!(typeof(result.data) === "string") ||
-					!(typeof(result.datakey) === "string") ||
-					!(typeof(result.revision) === "number") ||
-					!(typeof(result.signature) === "string")) {
-					log("portal", "portal has provided corrupted results", response.status, response.statusText, response.url, result);
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-					return;
-				}
-				// Attempt to decode the hex values of the
-				// results.
-				let [data, err1] = hex2buf(result.data);
-				if (err1 !== null) {
-					log("portal", "portal has provided corrupted data", response.status, response.statusText, response.url, result);
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-				}
-				let [dataKey, err2] = hex2buf(result.datakey);
-				if (err2 !== null) {
-					log("portal", "portal has provided corrupted dataKey", response.status, response.statusText, response.url, result);
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-				}
-				let [sig, err3] = hex2buf(result.signature);
-				if (err3 !== null) {
-					log("portal", "portal has provided corrupted sig", response.status, response.statusText, response.url, result);
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-				}
-
-				// The data has passed verification, check the
-				// signature.
-				let encodedData = encodePrefixedBytes(data);
-				let encodedRevision = encodeNumber(result.revision);
-				let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
-				dataToVerify.set(dataKey, 0);
-				dataToVerify.set(encodedData, 32);
-				dataToVerify.set(encodedRevision, 32+8+data.length);
-				let sigHash = blake2b(dataToVerify, 32);
-				if (!verify(sigHash, sig, keyPair.publicKey)) {
-					console.log(dataKey)
-					console.log(data)
-					console.log(result.revision)
-					log("portal", "signature mismatch", response.status, response.statusText, response.url, result);
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-				}
-
-				// All verification has passed, provide the
-				// response and result to the callback.
+			if (err !== null && portalIssue === false) {
+				log("lifecycle", "registry entry is corrupt or browser extension is out of date", err, response.status, response.statusText, response.url, result);
 				resolveCallback({
-					err: "none",
+					err: err,
 					response: response,
 					result: result,
 				});
 				return;
 			}
 
-			// TODO: Add verification of other response types. For example,
-			// if the portal returns a 404, there should be checking that
-			// the 404 is reliable. The best known way to do this is have
-			// the portal return a bunch of host responses where the hosts
-			// all confirm that it's a 404. The default should probably not
-			// be to approve the response... but that's where we are atm.
+			// The err is null, call the resolve callback.
 			resolveCallback({
 				err: "none",
 				response: response,
@@ -613,9 +606,11 @@ var kernelDiscoveryComplete = function(response) {
 			"v1-skynet-kernel",
 			"v1-skynet-kernel-dataKey",
 			dataField,
-			// Success callback - nothing to do.
-			function(response) {},
-			// Failure callback - only need to log.
+			// Success callback.
+			function(response) {
+				log("lifecycle", "set the user's kernel to the extension default", err);
+			},
+			// Failure callback.
 			function(err) {
 				log("lifecycle", "unable to set the user's kernel", err);
 			}
