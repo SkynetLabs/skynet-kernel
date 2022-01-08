@@ -99,7 +99,7 @@ log("lifecycle", "kernel has been opened");
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
-var defaultPortalList = ["siasky.net"];
+var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net"];
 
 // Define an Ed25519KeyPair so that it can be returned as part of an array and
 // still pass the Typescript type checks.
@@ -257,8 +257,7 @@ var preferredPortals = function(): string[] {
 // If all of the portals fail, it will call the failure callback.
 var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
 	if (portals.length === 0) {
-		log("lifecycle", "no more portals available, rejecting");
-		rejectCallback("no portals available");
+		rejectCallback("no more portals available");
 		return;
 	}
 
@@ -268,6 +267,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: strin
 	fetch(query, fetchOpts)
 	.then(response => {
 		// Success! Handle the response.
+		log("allFetch", "fetch returned successfully", query, "::", response);
 		resolveCallback(response, portals);
 	})
 	.catch((error) => {
@@ -327,9 +327,6 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 		return [false, null];
 	}
 
-	// TODO: Probably want to add some sort of special case
-	// handling for any 429's (portal is ratelimiting us).
-
 	// Perform basic verification. If the portal returns the response as
 	// successful, check the signature.
 	if (response.status === 200) {
@@ -340,7 +337,7 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 		}
 
 		// Verify the reponse has all required fields.
-		if (!result.hasOwnProperty("data") || !result.hasOwnProperty("revision") || !result.hasOwnProperty("signature")) {
+		if (!("data" in result) || !("revision" in result) || !("signature" in result)) {
 			return [true, "response is missing fields"];
 		}
 		// Verify the signature on the registry entry.
@@ -374,6 +371,9 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 		// Verfifcation is complete!
 		return [false, null];
 	}
+
+	// TODO: Probably want to add some sort of special case
+	// handling for any 429's (portal is ratelimiting us).
 
 	return [true, "portal response not recognized"];
 }
@@ -436,7 +436,7 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 			});
 		})
 		.catch(err => {
-			log("portal", "unable to parse response body", response.status, response.url, err);
+			log("portal", "unable to parse response body", response, err);
 			progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 		})
 	};
@@ -483,14 +483,19 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 	// Write an adjusted success callback which checks the status of the
 	// registry write.
 	let adjustedResolveCallback = function(response, remainingPortalList) {
-		if (response.hasOwnProperty("status") && response.status == 204) {
+		if ("status" in response && response.status === 204) {
+			// TODO: We probably want some way to verify that the
+			// write was actually committed, rather than just
+			// trusting the portal that they relayed the messages
+			// to hosts. Perhaps have the portal supply a list of
+			// signatures from hosts?
 			log("wrtieNewOwnRegistryEntry", "successful regwrite", response);
 			resolveCallback({
 				err: "none",
 				response: response,
 			});
 		} else {
-			log("writeNewOwnRegistryEntry", "unexpected response from server upon regwrite", response)
+			log("error", "unexpected response from server upon regwrite", "status" in response, response.status, response)
 			progressiveFetch(endpoint, fetchOpts, remainingPortalList, adjustedResolveCallback, rejectCallback);
 		}
 	}
@@ -530,6 +535,8 @@ var loadUserPortalPreferencesRegReadSuccess = function(output) {
 	} else {
 		// TODO: Need to parse the data and correctly set the
 		// user's portal list.
+		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
+		log("error", "user portalList set to the default list after getting a response but not bothering to check it");
 	}
 }
 
@@ -622,7 +629,7 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 		// resolver link.
 		userKernel = defaultKernelResolverLink
 		let dataFieldStr = defaultKernelResolverLink
-		let dataField = Uint8Array.from(Array.from(dataFieldStr).map(letter => letter.charCodeAt(0)));
+		let dataField = new TextEncoder().encode(dataFieldStr);
 
 		// Make a call to write the default kernel to the user's kernel
 		// registry entry. The callbacks here are sparse because we
@@ -634,19 +641,27 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 			dataField,
 			// Success callback.
 			function(response) {
-				log("lifecycle", "set the user's kernel to the extension default", err);
+				log("lifecycle", "set the user's kernel to the extension default", response);
 			},
 			// Failure callback.
 			function(err) {
 				log("lifecycle", "unable to set the user's kernel", err);
 			}
 		);
-	} else {
-		// TODO: We won't be able to build this branch out until we
-		// have set the default kernel for the user. But then we just
-		// read it an load it. The response will already be verified at
-		// this point.
+	} else if (response.status === 200) {
+		let [data, err] = hex2buf(result.data)
+		if (err !== null) {
+			log("lifecycle", "portal response could not be parsed", response, err);
+			kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
+			return;
+		}
+		let dataStr = new TextDecoder("utf-8").decode(data);
 		userKernel = defaultKernelResolverLink;
+		log("lifecycle", "read the user's preferred kernel", dataStr);
+	} else {
+		log("lifecycle", "portal response not recognized", response);
+		kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
+		return;
 	}
 
 	// Now that we have the kernel, we want to download and load the kernel.
@@ -678,7 +693,7 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 //
 // TODO: I believe we need to set 'kernelLoading' to false in here somewhere.
 var kernelDiscoveryFailed = function(err) {
-	log("lifecycle", "unable to determine user's preferred kernel");
+	log("lifecycle", "unable to determine user's preferred kernel", err);
 	// TODO: Need to update the homescreen auth to be able to receive such
 	// a message.
 	window.parent.postMessage({kernelMethod: "skynetKernelLoadFailed"}, "*");
@@ -691,7 +706,7 @@ var kernelDiscoveryFailed = function(err) {
 // kernel.
 var readRegistryAndLoadKernel = function() {
 	readOwnRegistryEntry(
-		"v1-skynet-kernele",
+		"v1-skynet-kernel",
 		"v1-skynet-kernel-dataKey",
 		kernelDiscoveryComplete,
 		kernelDiscoveryFailed
