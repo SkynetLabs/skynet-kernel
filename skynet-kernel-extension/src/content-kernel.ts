@@ -32,7 +32,11 @@ document.body.appendChild(header);
 // TODO: Need to create an API for changing the logging settings in the kernel.
 // API should be built from the kernel proper though no reason to have it in
 // the browser extension. We only put it in the browser extension in the first
-// place because so many of the lifecycle messages are important.
+// place because so many of the lifecycle messages are important. One of the
+// things we can do here is have the 'log' functino pay attention to all the
+// different log types that come through, and present the user with the option
+// to enable any particular set of them. May as well also have an option to
+// enable all logs, though that could potentially be very verbose.
 var log = function(logType: string, ...inputs: any) {
 	// Fetch the log settings as a string.
 	let logSettingsStr = localStorage.getItem("v1-logSettings");
@@ -404,8 +408,7 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 		// Read the response, then handle the response in callbacks.
 		response.json()
 		.then(result => {
-			console.log(response);
-			console.log(result);
+			log("readOwnRegistryEntry", "progressiveFetch called the successCallback", response, result);
 
 			// Check the response from the portal and then either
 			// try the next portal or call the resolve callback.
@@ -476,18 +479,22 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 	};
 	let portalList = preferredPortals();
 	let endpoint = "/skynet/registry";
-	progressiveFetch(endpoint, fetchOpts, portalList,
-	// Success callback. Success does not imply the registry write worked,
-	// only that a protal responded in a non-malicious way.
-	function(response) {
-		response.json().then(data => console.log(data));
-	},
-	// Reject callback. Reject implies that no non-malicious portal could
-	// be reached. If a portal returns an error like 400, that is
-	// considered a success.
-	function(err) {
-		log("lifecycle", "unable to write the user's preferred kernel to Skynet", err);
-	});
+
+	// Write an adjusted success callback which checks the status of the
+	// registry write.
+	let adjustedResolveCallback = function(response, remainingPortalList) {
+		if (response.hasOwnProperty("status") && response.status == 204) {
+			log("wrtieNewOwnRegistryEntry", "successful regwrite", response);
+			resolveCallback({
+				err: "none",
+				response: response,
+			});
+		} else {
+			log("writeNewOwnRegistryEntry", "unexpected response from server upon regwrite", response)
+			progressiveFetch(endpoint, fetchOpts, remainingPortalList, adjustedResolveCallback, rejectCallback);
+		}
+	}
+	progressiveFetch(endpoint, fetchOpts, portalList, adjustedResolveCallback, rejectCallback);
 	return;
 }
 
@@ -585,7 +592,26 @@ var loadUserPortalPreferences = function(callback: any) {
 // the same kernel again. We don't want the user jumping between kernels as
 // they change web browsers simply because they never got far enough to
 // complete setup, we want a consistent user experience.
-var kernelDiscoveryComplete = function(response) {
+//
+// TODO: We should adjust the flow here so that instead of doing two round
+// trips to load the user kernel, we should use the full resolver link protocol
+// and load the kernel in a single round trip. This will require adding a new
+// function to the kernel that can fetch resolver links and fully verify them.
+var kernelDiscoveryComplete = function(regReadReturn) {
+	let err = regReadReturn.err;
+	let response = regReadReturn.response;
+	let result = regReadReturn.result;
+
+	// If there was an error in loading the kernel, we want to abort
+	// loading the kernel.
+	if (err !== "none") {
+		kernelDiscoveryFailed(err);
+		return;
+	}
+
+	// Check for a 404, which means that the user does not have a kernel.
+	// If the user does not have a kernel, we will set their kernel to the
+	// default.
 	let userKernel = "";
 	if (response.status === 404) {
 		log("lifecycle", "user has no established kernel, trying to set the default");
@@ -614,31 +640,29 @@ var kernelDiscoveryComplete = function(response) {
 			function(err) {
 				log("lifecycle", "unable to set the user's kernel", err);
 			}
-		)
+		);
 	} else {
 		// TODO: We won't be able to build this branch out until we
 		// have set the default kernel for the user. But then we just
 		// read it an load it. The response will already be verified at
 		// this point.
-		userKernel = defaultKernelResolverLink
+		userKernel = defaultKernelResolverLink;
 	}
 
-	// TODO: By this point 'userKernel' should be set, we want to download
-	// and verify that kernel.  Load the kernel itself from Skynet.
-	//
-	// TODO: If there is some sort of error, need to set kernelLoading to
-	// false and then report an error to the parent.
+	// Now that we have the kernel, we want to download and load the kernel.
 	downloadV1Skylink("https://siasky.net/" + userKernel + "/")
 	.then(text => {
-		log("lifecycle", "full kernel loaded");
 		log("fullKernel", text);
 		eval(text);
-		log("lifecycle", "full kernel eval'd");
+		log("lifecycle", "full kernel loaded");
 		kernelLoaded = true;
 
 		// Tell the parent that the kernel has finished
 		// loading.
 		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
+	})
+	.catch(err => {
+		kernelDiscoveryFailed(err);
 	});
 }
 
@@ -651,6 +675,8 @@ var kernelDiscoveryComplete = function(response) {
 // abort and send an error message to the parent, because we don't want the UX
 // of loading the default kernel for the user if there's a different kernel
 // that they are already used to.
+//
+// TODO: I believe we need to set 'kernelLoading' to false in here somewhere.
 var kernelDiscoveryFailed = function(err) {
 	log("lifecycle", "unable to determine user's preferred kernel");
 	// TODO: Need to update the homescreen auth to be able to receive such
@@ -665,8 +691,8 @@ var kernelDiscoveryFailed = function(err) {
 // kernel.
 var readRegistryAndLoadKernel = function() {
 	readOwnRegistryEntry(
-		"v1-skynet-kernel", 
-		"v1-skynet-kernel-dataKey", 
+		"v1-skynet-kernele",
+		"v1-skynet-kernel-dataKey",
 		kernelDiscoveryComplete,
 		kernelDiscoveryFailed
 	)
