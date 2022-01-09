@@ -497,7 +497,10 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
 var downloadV1Skylink = function(skylink: string) {
-	// TODO: Verify that the input is a valid V1 skylink.
+	// TODO: Verify that the input is a valid V1 skylink. Which probably
+	// required doing base64. Or maybe we could change the function to be a
+	// v1 and v2 download? But we still want to verify the version number
+	// because we don't know how to handle v3 links.
 
 	// TODO: Actually verify the download.
 
@@ -641,7 +644,7 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 		}
 		let dataStr = new TextDecoder("utf-8").decode(data);
 		userKernel = defaultKernelResolverLink;
-		log("lifecycle", "read the user's preferred kernel", dataStr);
+		log("lifecycle", "found the user's kernel skylink:", dataStr);
 	} else {
 		log("lifecycle", "portal response not recognized", response);
 		kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
@@ -651,9 +654,10 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 	// Now that we have the kernel, we want to download and load the kernel.
 	downloadV1Skylink("https://siasky.net/" + userKernel + "/")
 	.then(text => {
+		log("lifecycle", "kernel has been downloaded");
 		log("fullKernel", text);
 		eval(text);
-		log("lifecycle", "full kernel loaded");
+		log("lifecycle", "full kernel loaded and evaluated");
 		kernelLoaded = true;
 
 		// Tell the parent that the kernel has finished
@@ -712,7 +716,7 @@ var readRegistryAndLoadKernel = function() {
 var kernelLoaded = false;
 var kernelLoading = false;
 var loadSkynetKernel = function() {
-	log("lifecycle", "kernel is loading");
+	log("lifecycle", "attempting to load kernel");
 
 	// Check the loading status of the kernel. If the kernel is loading,
 	// block until the loading is complete and then send a message to the
@@ -720,10 +724,11 @@ var loadSkynetKernel = function() {
 	//
 	// TODO: I'm not sure this flow is correct.
 	if (kernelLoaded || kernelLoading) {
+		log("lifecycle", "aborting attempted kernel load, another attempt is already in progress");
 		return;
 	}
 	kernelLoading = true;
-	log("lifecycle", "kernel loading passed the safety race condition");
+	log("lifecycle", "kernel has lock on loading process, proceeding");
 
 	// TODO: Check localstorage (or perhaps an encrypted indexededdb) for
 	// the kernel to see if it is already loaded.
