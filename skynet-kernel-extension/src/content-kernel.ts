@@ -65,7 +65,7 @@ var log = function(logType: string, ...inputs: any) {
 
 	// Print the log.
 	let args = Array.prototype.slice.call(arguments);
-	args[0] = `[${logType}] Kernel (${performance.now()}): `;
+	args[0] = `[${logType}] Kernel (${performance.now()} ms): `;
 	console.log.apply(console, args);
 	return;
 };
