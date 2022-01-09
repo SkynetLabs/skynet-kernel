@@ -5,9 +5,6 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
-// TODO: Next steps: need to start downloading the right kernel, and need to
-// start verifying the downloads that we do.
-
 // TODO: We can probably make more liberal use of the typing system in
 // typescript to get more robust code, especially around error handling.
 
@@ -50,32 +47,25 @@ var log = function(logType: string, ...inputs: any) {
 		logSettingsStr = '{"ERROR": true, "error": true, "lifecycle": true, "portal": true}';
 	}
 
-	// Run through all the conditions that would result in the log not
-	// being printed. If the log is null, the log will be printed. The only
-	// two cases where the log will not be printed is if there is an
-	// explicit disable on all logs, or if there is an explicit disable on
-	// this particular log type.
-	if (logSettingsStr !== null) {
-		// Wrap the JSON.parse in a try-catch block. If the parse
-		// fails, we want to catch the error and report that the
-		// logSettings persistence has corrupted.
-		try {
-			// Logging is disabled by default, except for the
-			// messages that are explicitly set to come through.
-			let logSettings = JSON.parse(logSettingsStr);
-			if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
-				return;
-			}
-		} catch (err) {
-			console.log("ERROR: logSettings item in localstorage is corrupt:", err);
-			console.log(logSettingsStr);
+	// Wrap the JSON.parse in a try-catch block. If the parse
+	// fails, we want to catch the error and report that the
+	// logSettings persistence has corrupted.
+	try {
+		// Logging is disabled by default, except for the
+		// messages that are explicitly set to come through.
+		let logSettings = JSON.parse(logSettingsStr);
+		if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
 			return;
 		}
+	} catch (err) {
+		console.log("ERROR: logSettings item in localstorage is corrupt:", err);
+		console.log(logSettingsStr);
+		return;
 	}
 
 	// Print the log.
 	let args = Array.prototype.slice.call(arguments);
-	args[0] = `[${logType}] Kernel: `;
+	args[0] = `[${logType}] Kernel (${performance.now()}): `;
 	console.log.apply(console, args);
 	return;
 };
@@ -98,6 +88,8 @@ log("lifecycle", "kernel has been opened");
 // import:::skynet-kernel-extension/lib/blake2b.ts
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
+
+log("lifecycle", "imports have loaded");
 
 var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net"];
 
@@ -204,52 +196,50 @@ var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
 // This is particularly useful for users who are reviving very old Skynet
 // accounts and may have an outdated list of preferred portals.
 var preferredPortals = function(): string[] {
-	// Try to get the list of portals from localstorage.
+	// Try to get the list of portals from localstorage. If there is no
+	// list, just use the list hardcoded by the extension.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
-	if (portalListStr !== null) {
-		try {
-			let portalList = JSON.parse(portalListStr);
-
-			// Append the list of default portals to the set of
-			// portals. In the event that all of the user's portals
-			// are bad, they will still be able to connect to
-			// Skynet. Because the portals are trust minimized,
-			// there shouldn't be an issue with potentially
-			// connecting to portals that the user hasn't strictly
-			// authorized.
-			for (let i = 0; i < defaultPortalList.length; i++) {
-				// Check for duplicates between the default
-				// list and the user's list. This deduplication
-				// is relevant for performance, because lookups
-				// will sequentially check every portal until a
-				// working portal is found. If there are broken
-				// portals duplicated in the final list, it
-				// will take longer to get through the list.
-				let found = false;
-				for (let j = 0; j < portalList.length; j++) {
-					if (portalList[j] === defaultPortalList[i]) {
-						found = true;
-						break;
-					}
-				}
-				if (!found) {
-					portalList.push(defaultPortalList[i]);
-				}
-			}
-			return portalList;
-		} catch (err) {
-			// We log an error but we don't change anything because
-			// the data may have been placed there by a future
-			// version of the kernel and we don't want to clear
-			// anything that might be relevant or useful once the
-			// full kernel has finished loading.
-			log("error", err, portalListStr);
-			return defaultPortalList;
-		}
+	if (portalListStr === null) {
+		return defaultPortalList;
 	}
 
-	// No list found. Just provide the default portal list.
-	return defaultPortalList;
+	try {
+		let portalList = JSON.parse(portalListStr);
+
+		// Append the list of default portals to the set of portals. In
+		// the event that all of the user's portals are bad, they will
+		// still be able to connect to Skynet. Because the portals are
+		// trust minimized, there shouldn't be an issue with
+		// potentially connecting to portals that the user hasn't
+		// strictly authorized.
+		for (let i = 0; i < defaultPortalList.length; i++) {
+			// Check for duplicates between the default list and
+			// the user's list. This deduplication is relevant for
+			// performance, because lookups will sequentially check
+			// every portal until a working portal is found. If
+			// there are broken portals duplicated in the final
+			// list, it will take longer to get through the list.
+			let found = false;
+			for (let j = 0; j < portalList.length; j++) {
+				if (portalList[j] === defaultPortalList[i]) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				portalList.push(defaultPortalList[i]);
+			}
+		}
+		return portalList;
+	} catch (err) {
+		// We log an error but we don't change anything because the
+		// data may have been placed there by a future version of the
+		// kernel and we don't want to clear anything that might be
+		// relevant or useful once the full kernel has finished
+		// loading.
+		log("error", err, portalListStr);
+		return defaultPortalList;
+	}
 }
 
 // progressiveFetch will query multiple portals until one returns with the
@@ -257,6 +247,7 @@ var preferredPortals = function(): string[] {
 // If all of the portals fail, it will call the failure callback.
 var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
 	if (portals.length === 0) {
+		log("progressiveFetch", "progressiveFetch failed because all portals have been tried", endpoint, fetchOpts);
 		rejectCallback("no more portals available");
 		return;
 	}
@@ -505,13 +496,6 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
-// 
-// TODO: Figure out how to use the user's preferred portal at this point
-// instead of using siasky. We probably do that by checking localstorage. If
-// there is no list of portals specified, default to siasky.
-//
-// TODO: I have no idea how to get this to return an error, but it needs to
-// return an error if validation fails.
 var downloadV1Skylink = function(skylink: string) {
 	// TODO: Verify that the input is a valid V1 skylink.
 
