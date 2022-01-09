@@ -494,6 +494,45 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 	return;
 }
 
+// downloadSkylink will securely download a skylink, checking all of the proofs
+// associated with any resolver links, and then verifying the hash of the final
+// v1 skylink.
+var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCallback: any) {
+	// Establish the endpoint that we want to call on the portal and the
+	// list of portals we want to use.
+	let endpoint = "/" + skylink + "/";
+	let portalList = preferredPortals();
+
+	// Establish the modified resolve callback which will cryptographically
+	// verify the responses from the portals.
+	let adjustedResolveCallback = function(response, remainingPortalList) {
+		response.text()
+		.then(result => {
+			log("lifecycle", "downloadSkylink response parsed successfully", response, result, remainingPortalList)
+
+			// TODO: Verify any skylink resolutions that had to be
+			// made. We also need to verify that the version of the
+			// skylink provided to the function matches the
+			// response - if it's a v2 link, we are expecting the
+			// portal to provide resolution proofs. If its a v1
+			// link, we should expect that there are no resolution
+			// proofs.
+
+			resolveCallback({
+				err: "none",
+				response: response,
+				result: result,
+			});
+		})
+		.catch(err => {
+			log("lifecycle", "downloadSkylink response parsed unsuccessfully", response, err, remainingPortalList)
+			progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+		})
+
+	}
+	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
+}
+
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
 var downloadV1Skylink = function(skylink: string) {
@@ -667,6 +706,20 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 	.catch(err => {
 		kernelDiscoveryFailed(err);
 	});
+
+	// TODO: Replace the above call to downloadV1Skylink with the below
+	// call to downloadSkylink. The main thing we need to do is copy-paste
+	// the logic in the V1 into the standard download, and then delete the
+	// entire downloadV1 function.
+	downloadSkylink(userKernel,
+	// Resolve callback.
+	function() {
+		log("lifecycle", "downloadSkylink call resolved");
+	},
+	// Reject callback.
+	function() {
+		log("lifecycle", "downloadSkylink call rejected");
+	})
 }
 
 // kernelDiscoveryFailed defines the callback that is called in
