@@ -11,6 +11,8 @@ export {};
 // TODO: I don't think we are verifying all of the untrusted inputs we are
 // receiving.
 
+// TODO: Need to switch the entire protocol over to using encryption.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.siasky.net"
@@ -128,7 +130,7 @@ var logOut = function() {
 
 // buf2hex takes a Uint8Array as input (or any ArrayBuffer) and returns the hex
 // encoding of those bytes. The return value is a string.
-var buf2hex = function(buffer: ArrayBuffer) { // buffer is an ArrayBuffer
+var buf2hex = function(buffer: ArrayBuffer) {
 	return [...new Uint8Array(buffer)]
 		.map(x => x.toString(16).padStart(2, '0'))
 		.join('');
@@ -155,6 +157,29 @@ var hex2buf = function(hex: string): [Uint8Array, string] {
 	}
 	let u8 = new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
 	return [u8, null];
+}
+
+// b64ToBuf will take an untrusted base64 string and convert it into a
+// Uin8Array, returning an error if the input is not valid base64.
+var b64ToBuf = function(b64: string): [Uint8Array, string] {
+	// Check that the final string is valid base64.
+	let b64regex = /^[0-9a-zA-Z-_]*$/;
+	if (!b64regex.test(b64)) {
+		return [null, "provided string is not valid base64"];
+	}
+
+	// Swap any '-' characters for '+', and swap any '_' characters for '/'
+	// for use in the atob function.
+	b64 = b64.replace(/-/g, "+").replace(/_/g, "/");
+
+	// Perform the conversion.
+	let binStr = atob(b64);
+	let len = binStr.length;
+	let buf = new Uint8Array(len);
+	for (let i = 0; i < len; i++) {
+		buf[i] = binStr.charCodeAt(i);
+	}
+	return [buf, null];
 }
 
 // encodeNumber will take a number as input and return a corresponding
@@ -363,8 +388,17 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 		return [false, null];
 	}
 
-	// TODO: Probably want to add some sort of special case
-	// handling for any 429's (portal is ratelimiting us).
+	// NOTE: 429's (request denied due to ratelimit) aren't handled by the
+	// bootloader because the bootloader only makes five requests total in
+	// the worst case (registry entry to get portal list, download for
+	// portal list, registry entry for user's preferred portal, registry
+	// entry resolving the user's preferred portal, download the user's
+	// preferred portal) and those requests are split across two endpoints.
+	//
+	// The full kernel may overwrite this function to handle ratelimiting,
+	// though premium portals may be able to eventually switch to a
+	// pay-per-request model using ephemeral accounts that eliminates the
+	// need for ratelimiting.
 
 	return [true, "portal response not recognized"];
 }
@@ -381,12 +415,6 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 	// Get a list of portals, then try fetching the entry from each portal
 	// until a successful response is received. A 404 is considered a
 	// successful response.
-	// 
-	// TODO: Need to check whether we need to add the 'hashedDataKeyHex'
-	// param to our query strings. The docs say the default is 'false'
-	// (meaning the portal will hash it for us), but I think the default is
-	// actually 'true' (meaning the portal assumes it is already hashed).
-	// The example doesn't use it and provides an already hashed datakey.
 	let portalList = preferredPortals();
 	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
 
@@ -510,6 +538,25 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 		.then(result => {
 			log("lifecycle", "downloadSkylink response parsed successfully", response, result, remainingPortalList)
 
+			for (let header of response.headers) {
+				log("lifecycle", header)
+			}
+
+			// TODO: Determine whether the input link is a V2
+			// skylink. If the input link is a V2 skylink, the
+			// first N elements of the 'skynet-proof' header will
+			// contain registry proofs that show the registry entry
+			// resolved
+
+			// TODO: The 'skynet-proof' header contains the
+			// resolution data that we need to verify the link was
+			// resolved correctly. Unfortunately, it doesn't seem
+			// to contain merkle proofs in the event that we have
+			// made a ranged request. We can get around this
+			// temporarily by assuming zero-padding in the tail,
+			// but even that is sort of bad because none of this
+			// stuff has been encrypted.
+
 			// TODO: Verify any skylink resolutions that had to be
 			// made. We also need to verify that the version of the
 			// skylink provided to the function matches the
@@ -536,12 +583,7 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 // downloadV1Skylink will download the raw data for a skylink and then verify
 // that the downloaded content matches the hash of the skylink.
 var downloadV1Skylink = function(skylink: string) {
-	// TODO: Verify that the input is a valid V1 skylink. Which probably
-	// required doing base64. Or maybe we could change the function to be a
-	// v1 and v2 download? But we still want to verify the version number
-	// because we don't know how to handle v3 links.
-
-	// TODO: Actually verify the download.
+	// TODO: Delete as soon as downloadSkylink is done.
 
 	return fetch(skylink).then(response => response.text())
 }
@@ -783,8 +825,8 @@ var loadSkynetKernel = function() {
 	kernelLoading = true;
 	log("lifecycle", "kernel has lock on loading process, proceeding");
 
-	// TODO: Check localstorage (or perhaps an encrypted indexededdb) for
-	// the kernel to see if it is already loaded.
+	// TODO: Check localstorage for the kernel to see if it is already
+	// loaded.
 
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
