@@ -522,10 +522,96 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 	return;
 }
 
+// parseSkylinkV1Bitfield is a helper function to downloadSkylink which pulls
+// the fetchSize out of the bitfield. parseSkylink will return an error if the
+// offset is not zero.
+var parseSkylinkV1Bitfield = function(bitfield: number): [number, number, string] {
+	// Verify that the mode is valid.
+	bitfield = bitfield >> 2;
+	if ((bitfield&255) === 255) {
+		return [0, 0, "provided skylink has an unrecognized version"];
+	}
+
+	// Fetch the mode, consuming the mode bits in the process.
+	let mode = 0;
+	for (let i = 0; i < 8; i++) {
+		if ((bitfield & 1) === 0) {
+			bitfield = bitfield >> 1;
+			break;
+		}
+		bitfield = bitfield >> 1;
+		mode++;
+	}
+
+	// If the mode is greater than 7, this is not a valid v1 skylink.
+	if (mode > 7) {
+		return [0, 0, "provided skylink has an invalid v1 bitfield"];
+	}
+
+	// Determine the offset and fetchSize increment.
+	let offsetIncrement = 4096 << mode;
+	let fetchSizeIncrement = 4096;
+	if (mode > 0) {
+		fetchSizeIncrement = fetchSizeIncrement << mode-1;
+	}
+
+	// The next three bits decide the fetchSize.
+	let fetchSizeBits = bitfield & 7;
+	fetchSizeBits++ // semantic upstep, range should be [1,8] not [0,8).
+	let fetchSize = fetchSizeBits * fetchSizeIncrement;
+
+	// Determine the offset, which is the remaining bits.
+	let offset = bitfield * offsetIncrement;
+	if (offset + fetchSize > 1 << 22) {
+		return [0, 0, "provided skylink has an invalid v1 bitfield"];
+	}
+	return [offset, fetchSize, null];
+}
+
 // downloadSkylink will securely download a skylink, checking all of the proofs
 // associated with any resolver links, and then verifying the hash of the final
 // v1 skylink.
+//
+// downloadSkylink will verify that the input skylink is a valid skylink,
+// calling the rejectCallback with an error if it is not.
 var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCallback: any) {
+	// Verify that the provided skylink is a valid skylink.
+	let [u8Link, err] = b64ToBuf(skylink);
+	if (err !== null) {
+		rejectCallback("unable to decode skylink: " + err);
+		return;
+	}
+	if (u8Link.length !== 34) {
+		rejectCallback("input skylink is not the correct length");
+		return;
+	}
+	// Extract the bitfield.
+	let bitfield = new DataView(u8Link).getUint16(0, true);
+	let version = (bitfield & 3) + 1
+	// Only versions 1 and 2 are recognized.
+	if (version !== 1 && version !== 2) {
+		rejectCallback("provided skylink has an unrecognized version");
+		return;
+	}
+	// Version 2 links should have the rest of the bitfield unset.
+	if (version === 2 && (bitfield & 3) !== bitfield) {
+		rejectCallback("provided skylink has an unrecognized version");
+		return;
+	}
+
+	// If the link is a v1 skylink, determine the fetchSize.
+	let offset = 0;
+	let fetchSize = 0;
+	if (version === 1) {
+		let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
+		if (err !== null) {
+			rejectCallback(err)
+			return;
+		}
+		offset = o;
+		fetchSize = fs;
+	}
+
 	// Establish the endpoint that we want to call on the portal and the
 	// list of portals we want to use.
 	let endpoint = "/" + skylink + "/";
