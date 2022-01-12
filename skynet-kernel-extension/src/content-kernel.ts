@@ -5,13 +5,18 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
-// TODO: We can probably make more liberal use of the typing system in
-// typescript to get more robust code, especially around error handling.
+// TODO: We can make more liberal use of the typing system in typescript to get
+// more robust code, especially around error handling.
 
 // TODO: I don't think we are verifying all of the untrusted inputs we are
 // receiving.
 
 // TODO: Need to switch the entire protocol over to using encryption.
+
+// TODO: Need to update the progressive fetch flow so that we can figure out
+// which portal is lying if it is discovered that a portal is lying.
+
+// TODO: Remove the outlen param from our blake2b library.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -25,8 +30,7 @@ document.body.appendChild(header);
 // that type of logging. The remaining args will be printed as they would if
 // 'console.log' was called directly.
 // 
-// This is a minimal logging function that we expect will be overwritten by the
-// kernel.
+// This is a minimal logging function that can be overwritten by the kernel.
 //
 // TODO: Need to create an API for changing the logging settings in the kernel.
 // API should be built from the kernel proper though no reason to have it in
@@ -102,32 +106,6 @@ interface Ed25519KeyPair {
 	secretKey: Uint8Array;
 }
 
-// getUserSeed will return the seed that is stored in localStorage. This is the
-// first function that gets called when the kernel iframe is openend. The
-// kernel will not be loaded if no seed is present, as it means that the user
-// is not logged in.
-var getUserSeed = function(): [Uint8Array, string] {
-	let userSeedString = window.localStorage.getItem("v1-seed");
-	if (userSeedString === null) {
-		return [null, "no user seed in local storage"];
-	}
-	let userSeed: Uint8Array;
-	try {
-		userSeed = new TextEncoder().encode(userSeedString);
-	} catch(err) {
-		return [null, "user seed is not valid"];
-	}
-	return [userSeed, ""];
-}
-
-// logOut will erase the localStorage, which means the seed will no longer be
-// available, and any sensistive data that the kernel placed in localStorage
-// will also be cleared.
-var logOut = function() {
-	log("lifecycle", "clearing local storage after logging out");
-	localStorage.clear();
-}
-
 // buf2hex takes a Uint8Array as input (or any ArrayBuffer) and returns the hex
 // encoding of those bytes. The return value is a string.
 var buf2hex = function(buffer: ArrayBuffer) {
@@ -163,8 +141,9 @@ var hex2buf = function(hex: string): [Uint8Array, string] {
 // Uin8Array, returning an error if the input is not valid base64.
 var b64ToBuf = function(b64: string): [Uint8Array, string] {
 	// Check that the final string is valid base64.
-	let b64regex = /^[0-9a-zA-Z-_]*$/;
+	let b64regex = /^[0-9a-zA-Z-_/+=]*$/;
 	if (!b64regex.test(b64)) {
+		log("lifecycle", "not valid b64", b64);
 		return [null, "provided string is not valid base64"];
 	}
 
@@ -209,6 +188,32 @@ var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
 	let uint8Bytes = new Uint8Array(buf);
 	uint8Bytes.set(bytes, 8);
 	return uint8Bytes;
+}
+
+// getUserSeed will return the seed that is stored in localStorage. This is the
+// first function that gets called when the kernel iframe is openend. The
+// kernel will not be loaded if no seed is present, as it means that the user
+// is not logged in.
+var getUserSeed = function(): [Uint8Array, string] {
+	let userSeedString = window.localStorage.getItem("v1-seed");
+	if (userSeedString === null) {
+		return [null, "no user seed in local storage"];
+	}
+	let userSeed: Uint8Array;
+	try {
+		userSeed = new TextEncoder().encode(userSeedString);
+	} catch (err) {
+		return [null, "user seed is not valid"];
+	}
+	return [userSeed, ""];
+}
+
+// logOut will erase the localStorage, which means the seed will no longer be
+// available, and any sensistive data that the kernel placed in localStorage
+// will also be cleared.
+var logOut = function() {
+	log("lifecycle", "clearing local storage after logging out");
+	localStorage.clear();
 }
 
 // preferredPortals will determine the user's preferred portals by looking in
@@ -320,6 +325,24 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, dataKeyTagStr: string
 	return [keyPair, dataKey];
 }
 
+// verifyRegistrySignature will verify the signature of a registry entry.
+//
+// TODO: This does not currently verify the type.
+//
+// TODO: Add types to enforce that the types have already been verified.
+var verifyRegistrySignature = function(pubkey, datakey, data, revision, sig) {
+	let encodedData = encodePrefixedBytes(data);
+	let encodedRevision = encodeNumber(revision);
+	let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
+	dataToVerify.set(datakey, 0);
+	dataToVerify.set(encodedData, 32);
+	dataToVerify.set(encodedRevision, 32+8+data.length);
+	let sigHash = blake2b(dataToVerify, 32);
+	if (!verify(sigHash, sig, pubkey)) {
+		return [true, "portal response has a signature mismatch"];
+	}
+}
+
 // verifyRegReadResp will check the response body of a registry read on a
 // portal. The first return value indicates whether the error that gets
 // returned is a problem with the portal, or a problem with the underlying
@@ -373,6 +396,8 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 
 		// The data has passed verification, check the
 		// signature.
+		//
+		// TODO: Use verifyRegistrySignature intead
 		let encodedData = encodePrefixedBytes(data);
 		let encodedRevision = encodeNumber(result.revision);
 		let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
@@ -568,12 +593,112 @@ var parseSkylinkV1Bitfield = function(bitfield: number): [number, number, string
 	return [offset, fetchSize, null];
 }
 
-// downloadSkylink will securely download a skylink, checking all of the proofs
-// associated with any resolver links, and then verifying the hash of the final
-// v1 skylink.
+// deriveRegistryEntryID will take two untrusted inputs, validate that they are
+// a proper pubkey and datakey, and then return the associated registry entry
+// id.
+var deriveRegistryEntryID = function(pubkey: any, datakey: any): [Uint8Array, string] {
+	// Check that the pubkey is built correctly.
+	if (!("algorithm" in pubkey) || !("key" in pubkey)) {
+		return [null, "pubkey is malformed"];
+	}
+	if (pubkey.algorithm !== "ed25519") {
+		return [null, "pubkey has unrecognized algorithm"];
+	}
+
+	// The pubkey should be a base64 string. Verify the typing, and then
+	// decode the pubkey to a uint8array.
+	if (typeof pubkey.key !== "string") {
+		return [null, "pubkey key is malformed"];
+	}
+	let key64 = <string>pubkey.key;
+	let [keyBuf, err1] = b64ToBuf(key64);
+	if (err1 !== null) {
+		return [null, "pubkey key is invalid base64: " + err1];
+	}
+	if (keyBuf.length !== 32) {
+		return [null, "pubkey is invalid, length is wrong"];
+	}
+
+	// The datakey should be a hex string. Verify the typing, then decode
+	// the hex.
+	if (typeof datakey !== "string") {
+		return [null, "datakey is malformed"];
+	}
+	let dataKeyHex = <string>datakey;
+	let [dataKeyBuf, err2] = hex2buf(dataKeyHex);
+	if (err2 !== null) {
+		return [null, "datakey is invalid hex: " + err2];
+	}
+	if (dataKeyBuf.length !== 32) {
+		return [null, "datakey is not a valid hash, length is wrong"];
+	}
+
+	// We now have verified the typings of both the pubkey and the datakey,
+	// we can build the entryid encoding and then hash it.
+	let encoding = new Uint8Array(16 + 8 + 32 + 32)
+	// Set the specifier.
+	encoding[0] = "e".charCodeAt(0);
+	encoding[1] = "d".charCodeAt(0);
+	encoding[2] = "2".charCodeAt(0);
+	encoding[3] = "5".charCodeAt(0);
+	encoding[4] = "5".charCodeAt(0);
+	encoding[5] = "1".charCodeAt(0);
+	encoding[6] = "9".charCodeAt(0);
+	// Set the pubkey.
+	let encodedLen = encodeNumber(32);
+	encoding.set(encodedLen, 16);
+	encoding.set(keyBuf, 16+8);
+	encoding.set(dataKeyBuf, 16+8+32);
+	// Get the final ID.
+	let id = blake2b(encoding, 32);
+	return [id, null];
+}
+
+// verifyResolverLinkProof will check that the resolver proof which was
+// provided matches the provided skylink. If they match and the proofs are
+// correct, 'null' is returned. If the proofs are missing or invalid, an error
+// will be returned.
 //
-// downloadSkylink will verify that the input skylink is a valid skylink,
-// calling the rejectCallback with an error if it is not.
+// TODO: Currently this function only accepts a single proof, but for recursive
+// resolver links we need to verify multiple proofs. Probably the best way to
+// do that is to keep this function the same, but rename it to verify just one
+// level, and then create a higher level function which can loop over the
+// levels and verify each level.
+var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): string {
+	// Verify that all of the required fields are present.
+	if (!("data" in proof) || !("datakey" in proof) || !("publickey" in proof) || !("signature" in proof) || !("type" in proof) || !("revision" in proof)) {
+		log("lifecycle", proof);
+		return "proof is malformed, fields are missing";
+	}
+	if (skylink.length !== 34) {
+		return "skylink is malformed, expecting 34 bytes";
+	}
+
+	// Verify that the combination of the datakey and the public key match
+	// the skylink.
+	let [entryID, err] = deriveRegistryEntryID(proof.publickey, proof.datakey)
+	if (err !== null) {
+		return "proof pubkey is malformed: " + err;
+	}
+
+	// Compare the entry id to the skylink.
+	let linkID = skylink.slice(2, 34);
+	for (let i = 0; i < entryID.length; i++) {
+		if (entryID[i] !== linkID[i]) {
+			return "proof pubkey and datakey do not match the skylink root";
+		}
+	}
+
+	// TODO: Need to verify the signature.
+
+	return null;
+}
+
+// downloadSkylink will perform a download on the provided skylink, verifying
+// that the link is valid. If the link is a content link, the data returned by
+// the portal will be verified against the hash. If the link is a resolver
+// link, the registry entry proofs returned by the portal will be verified and
+// then the resulting content will also be verified.
 var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCallback: any) {
 	// Verify that the provided skylink is a valid skylink.
 	let [u8Link, err] = b64ToBuf(skylink);
@@ -605,7 +730,7 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 	if (version === 1) {
 		let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
 		if (err !== null) {
-			rejectCallback(err)
+			rejectCallback("unable to parse the v1 skylink bitfield: " + err)
 			return;
 		}
 		offset = o;
@@ -624,32 +749,43 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 		.then(result => {
 			log("lifecycle", "downloadSkylink response parsed successfully", response, result, remainingPortalList)
 
-			for (let header of response.headers) {
-				log("lifecycle", header)
+			// If the skylink was a resolver link (meaning the
+			// version is 2), check the 'skynet-proof' header to
+			// verify that the registry entry is being resolved
+			// correctly.
+			if (version === 2) {
+				// Grab the proof header.
+				let proofHeader = response.headers.get("skynet-proof");
+				if (proofHeader === null) {
+					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link");
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					return;
+				}
+
+				// Parse the proof header JSON.
+				//
+				// TODO: Might be able to clean this up by
+				// making a custom json parse function which
+				// handles the error wrap for us.
+				try {
+					let proof = JSON.parse(proofHeader);
+					let err = verifyResolverLinkProof(u8Link, proof[0]) // TODO: Need to switch over to multi-proof function.
+					if (err !== null) {
+						log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", err)
+						progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+						return;
+					}
+				} catch (err)  {
+					log("lifecycle", "error validating the resolver link proof from the portal", err)
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					return;
+				}
 			}
 
-			// TODO: Determine whether the input link is a V2
-			// skylink. If the input link is a V2 skylink, the
-			// first N elements of the 'skynet-proof' header will
-			// contain registry proofs that show the registry entry
-			// resolved
-
-			// TODO: The 'skynet-proof' header contains the
-			// resolution data that we need to verify the link was
-			// resolved correctly. Unfortunately, it doesn't seem
-			// to contain merkle proofs in the event that we have
-			// made a ranged request. We can get around this
-			// temporarily by assuming zero-padding in the tail,
-			// but even that is sort of bad because none of this
-			// stuff has been encrypted.
-
-			// TODO: Verify any skylink resolutions that had to be
-			// made. We also need to verify that the version of the
-			// skylink provided to the function matches the
-			// response - if it's a v2 link, we are expecting the
-			// portal to provide resolution proofs. If its a v1
-			// link, we should expect that there are no resolution
-			// proofs.
+			// TODO: We need to update the portal API so that we
+			// can get a range proof on the data that we
+			// downloaded. Currently we have no way to verify that
+			// the data returned by the portal is the correct data.
 
 			resolveCallback({
 				err: "none",
@@ -666,11 +802,10 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
 }
 
-// downloadV1Skylink will download the raw data for a skylink and then verify
-// that the downloaded content matches the hash of the skylink.
+// TODO: Remove this function. Currently we cannot remove it because the kernel
+// itself uses the function to download and serve the user's homescreen. Once
+// the kernel is cleaned up to use the secure functions, we can switch over.
 var downloadV1Skylink = function(skylink: string) {
-	// TODO: Delete as soon as downloadSkylink is done.
-
 	return fetch(skylink).then(response => response.text())
 }
 
@@ -818,36 +953,32 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 		return;
 	}
 
-	// Now that we have the kernel, we want to download and load the kernel.
-	downloadV1Skylink("https://siasky.net/" + userKernel + "/")
-	.then(text => {
-		log("lifecycle", "kernel has been downloaded");
-		log("fullKernel", text);
-		eval(text);
-		log("lifecycle", "full kernel loaded and evaluated");
+	// We've determined the user's kernel, perform the download.
+	downloadSkylink(userKernel,
+	// Resolve callback.
+	function(output) {
+		// Check that there was no error.
+		if (output.err !== "none") {
+			log("lifecycle", "user kernel was unable to download:", output.err);
+			kernelDiscoveryFailed(output.err);
+			return;
+		}
+
+		log("lifecycle", "user kernel was successfully downloaded");
+		log("fullKernel", output.result);
+		eval(output.result);
+		log("lifecycle", "user kernel loaded and evaluated");
 		kernelLoaded = true;
 
 		// Tell the parent that the kernel has finished
 		// loading.
 		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
-	})
-	.catch(err => {
-		kernelDiscoveryFailed(err);
-	});
-
-	// TODO: Replace the above call to downloadV1Skylink with the below
-	// call to downloadSkylink. The main thing we need to do is copy-paste
-	// the logic in the V1 into the standard download, and then delete the
-	// entire downloadV1 function.
-	downloadSkylink(userKernel,
-	// Resolve callback.
-	function() {
-		log("lifecycle", "downloadSkylink call resolved");
 	},
 	// Reject callback.
-	function() {
+	function(err) {
 		log("lifecycle", "downloadSkylink call rejected");
-	})
+		kernelDiscoveryFailed(err);
+	});
 }
 
 // kernelDiscoveryFailed defines the callback that is called in
