@@ -586,7 +586,7 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 		return;
 	}
 	// Extract the bitfield.
-	let bitfield = new DataView(u8Link).getUint16(0, true);
+	let bitfield = new DataView(u8Link.buffer).getUint16(0, true);
 	let version = (bitfield & 3) + 1
 	// Only versions 1 and 2 are recognized.
 	if (version !== 1 && version !== 2) {
