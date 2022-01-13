@@ -14,13 +14,14 @@ export {};
 // TODO: Need to switch the entire protocol over to using encryption.
 
 // TODO: Need to update the progressive fetch flow so that we can figure out
-// which portal is lying if it is discovered that a portal is lying.
-
-// TODO: Remove the outlen param from our blake2b library.
+// which portal is lying if it is discovered that a portal is lying. And within
+// the kernel we'll need to establish some system for tracking the reliability
+// of various portals over various endpoints, so we know whether or not to use
+// them.
 
 // TODO: There are places here where we could transition our types to used
 // fixed length arrays, which would eliminate some of the length checking that
-// we have to do in some of our functinos.
+// we have to do in some of our functions.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -341,7 +342,7 @@ var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, 
 	dataToVerify.set(datakey, 0);
 	dataToVerify.set(encodedData, 32);
 	dataToVerify.set(encodedRevision, 32+8+data.length);
-	let sigHash = blake2b(dataToVerify, 32);
+	let sigHash = blake2b(dataToVerify);
 	return verify(sigHash, sig, pubkey)
 }
 
@@ -496,7 +497,7 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 	dataToSign.set(datakey, 0);
 	dataToSign.set(encodedData, 32);
 	dataToSign.set(encodedRevision, 32+8+data.length);
-	let sigHash = blake2b(dataToSign, 32);
+	let sigHash = blake2b(dataToSign);
 	let sig = sign(sigHash, keyPair.secretKey);
 
 	// Compose the registry entry query.
@@ -617,7 +618,7 @@ var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [
 	encoding.set(datakey, 16+8+32);
 
 	// Get the final ID by hashing the encoded data.
-	let id = blake2b(encoding, 32);
+	let id = blake2b(encoding);
 	return [id, null];
 }
 
@@ -762,6 +763,13 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 			return [null, "one of the resolution proofs is invalid: " + err];
 		}
 	}
+
+	// TODO: Need to verify that the final skylink makes sense. I believe
+	// we are expecting it to be a V1 skylink but I'm not sure what happens
+	// if a resolver link resolves to a non-resolver registry entry.
+
+	// TODO: I'm not sure the data type is correct on the recursive lookup.
+
 	return [skylink, null];
 }
 
@@ -818,8 +826,6 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 	let adjustedResolveCallback = function(response, remainingPortalList) {
 		response.text()
 		.then(result => {
-			log("lifecycle", "downloadSkylink response parsed successfully", response, result, remainingPortalList)
-
 			// If the skylink was a resolver link (meaning the
 			// version is 2), check the 'skynet-proof' header to
 			// verify that the registry entry is being resolved
@@ -1046,7 +1052,6 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 		}
 
 		log("lifecycle", "user kernel was successfully downloaded");
-		log("fullKernel", output.result);
 		eval(output.result);
 		log("lifecycle", "user kernel loaded and evaluated");
 		kernelLoaded = true;

@@ -409,19 +409,9 @@ function blake2bFinal (ctx) {
 	return out
 }
 
-// Computes the BLAKE2B hash of a string or byte array, and returns a Uint8Array
-//
-// Returns a n-byte Uint8Array
-//
-// Parameters:
-// - input - the input bytes, as a string, Buffer or Uint8Array
-// - outlen - optional output length in bytes, default 64
-function blake2b (input: Uint8Array, outlen: number) {
-	// preprocess inputs
-	outlen = outlen || 64
-
-	// do the math
-	const ctx = blake2bInit(outlen)
+// Computes the BLAKE2B hash of a Uint8Array, and returns a 32 byte Uint8Array.
+function blake2b (input: Uint8Array) {
+	const ctx = blake2bInit(32)
 	blake2bUpdate(ctx, input)
 	return blake2bFinal(ctx)
 }
