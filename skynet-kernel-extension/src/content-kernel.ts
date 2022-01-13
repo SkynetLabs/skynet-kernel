@@ -5,6 +5,9 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
+// TODO: Visual inspection of the user seed suggests that it low entropy, there
+// seems to be an encoding issue.
+
 // TODO: I don't think we are verifying all of the untrusted inputs we are
 // receiving.
 
@@ -173,6 +176,13 @@ var b64ToBuf = function(b64: string): [Uint8Array, string] {
 	return [buf, null];
 }
 
+// bufToB64 will convert a Uint8Array to a base64 string with URL encoding and
+// no padding characters.
+var bufToB64 = function(buf: Uint8Array): string {
+	let b64Str = btoa(String.fromCharCode.apply(null, buf));
+	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "");
+}
+
 // encodeNumber will take a number as input and return a corresponding
 // Uint8Array.
 var encodeNumber = function(num: number): Uint8Array {
@@ -314,6 +324,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: strin
 var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [Ed25519KeyPair, Uint8Array] {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
+	log("lifecycle", "USER SEED", userSeed);
 	let keyPairEntropy = new Uint8Array(HASH_SIZE);
 	let keyPairTag = new TextEncoder().encode(keyPairTagStr);
 	let entropyInput = new Uint8Array(keyPairTag.length+userSeed.length);
@@ -815,6 +826,20 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 	let adjustedResolveCallback = function(response, remainingPortalList) {
 		response.text()
 		.then(result => {
+			// Check for 404s.
+			if (response.status === 404) {
+				resolveCallback({
+					err: "none",
+					response: response,
+					result: result,
+				});
+				return;
+			}
+
+			// TODO: Should only do the version check on certain
+			// status codes. Need to cover all the bases on the
+			// other status codes.
+
 			// If the skylink was a resolver link (meaning the
 			// version is 2), check the 'skynet-proof' header to
 			// verify that the registry entry is being resolved
@@ -823,7 +848,7 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 				// Grab the proof header.
 				let proofJSON = response.headers.get("skynet-proof");
 				if (proofJSON === null) {
-					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link");
+					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link", response.status);
 					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
@@ -919,7 +944,8 @@ var loadUserPortalPreferencesRegReadSuccess = function(output) {
 // function does not guarantee that the user's portals are properly loaded, it
 // merely makes a best attempt.
 var loadUserPortalPreferences = function(callback: any) {
-	// Try to get the list of portals from localstorage.
+	// Try to get the list of portals from localstorage. If the list
+	// already exists, we don't need to fetch the list.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
 	if (portalListStr !== null) {
 		callback();
@@ -966,94 +992,89 @@ var loadUserPortalPreferences = function(callback: any) {
 // the same kernel again. We don't want the user jumping between kernels as
 // they change web browsers simply because they never got far enough to
 // complete setup, we want a consistent user experience.
-//
-// TODO: We should adjust the flow here so that instead of doing two round
-// trips to load the user kernel, we should use the full resolver link protocol
-// and load the kernel in a single round trip. This will require adding a new
-// function to the kernel that can fetch resolver links and fully verify them.
-var kernelDiscoveryComplete = function(regReadReturn) {
-	let err = regReadReturn.err;
-	let response = regReadReturn.response;
-	let result = regReadReturn.result;
-
-	// If there was an error in loading the kernel, we want to abort
-	// loading the kernel.
-	if (err !== "none") {
-		kernelDiscoveryFailed(err);
+var fetchAndEvalKernel = function() {
+	// Determine the resolver link for the user's kernel.
+	let [keyPair, datakey] = ownRegistryEntryKeys("v1-skynet-kernel", "v1-skynet-kernel-datakey");
+	let [entryID, errID] = deriveRegistryEntryID(keyPair.publicKey, datakey)
+	if (errID !== null) {
+		kernelDiscoveryFailed("unable to determine entryID of user's kernel registry entry: " + errID);
 		return;
 	}
+	// Build the v2 skylink from the entryID.
+	let v2Skylink = new Uint8Array(34);
+	v2Skylink.set(entryID, 2);
+	v2Skylink[0] = 1;
 
-	// Check for a 404, which means that the user does not have a kernel.
-	// If the user does not have a kernel, we will set their kernel to the
-	// default.
-	let userKernel = "";
-	if (response.status === 404) {
-		log("lifecycle", "user has no established kernel, trying to set the default");
-		// Create the data field, which contains the default kernel.
-		//
-		// TODO: We should probably do a base64 conversion here so that
-		// we store the actual raw data and match the protocol for a
-		// resolver link.
-		userKernel = defaultKernelResolverLink
-		let dataFieldStr = defaultKernelResolverLink
-		let dataField = new TextEncoder().encode(dataFieldStr);
+	// Convert the v2Skylink to base64 for the download call.
+	let skylink = bufToB64(v2Skylink);
+	log("lifecycle", "v2 that we are looking up", skylink);
+	downloadSkylink(skylink,
+	// Resolve callback.
+	function(output) {
+		// Create helper variables around the output.
+		let err = output.err;
+		let response = output.response;
+		let result = output.result;
 
-		// Make a call to write the default kernel to the user's kernel
-		// registry entry. The callbacks here are sparse because we
-		// don't need to know the result of the write to load the
-		// user's kernel.
-		writeNewOwnRegistryEntry(
-			"v1-skynet-kernel",
-			"v1-skynet-kernel-datakey",
-			dataField,
-			// Success callback.
-			function(response) {
-				log("lifecycle", "set the user's kernel to the extension default", response);
-			},
-			// Failure callback.
-			function(err) {
-				log("lifecycle", "unable to set the user's kernel", err);
+		// Check the error.
+		if (err !== "none") {
+			kernelDiscoveryFailed("unable to download the user kernel: " + err);
+			return;
+		}
+
+		if (response.status === 404) {
+			log("lifecycle", "user has no established kernel, trying to set the default");
+			// Create the data field, which contains the default kernel.
+			let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
+			if (err64 !== null) {
+				log("lifecycle", "could not convert defaultKernelSkylink to a uin8array");
+				return;
 			}
-		);
-	} else if (response.status === 200) {
-		let [data, err] = hex2buf(result.data)
-		if (err !== null) {
-			log("lifecycle", "portal response could not be parsed", response, err);
+			log("lifecycle", "SETTING THE USERS DEFAULT KERNEL", defaultKernelSkylink);
+			if (defaultKernelSkylink.length !== 34) {
+				log("lifecycle", "encoding failed, length seems wrong");
+				return;
+			}
+
+			// Make a call to write the default kernel to the user's kernel
+			// registry entry. The callbacks here are sparse because we
+			// don't need to know the result of the write to load the
+			// user's kernel.
+			writeNewOwnRegistryEntry(
+				"v1-skynet-kernel",
+				"v1-skynet-kernel-datakey",
+				defaultKernelSkylink,
+				// Success callback.
+				function(response) {
+					log("lifecycle", "set the user's kernel to the extension default", response);
+				},
+				// Failure callback.
+				function(err) {
+					log("lifecycle", "unable to set the user's kernel", err);
+				}
+			);
+
+			// TODO: Need to download and eval the default kernel,
+			// which means we are probably going to need another
+			// layer of abstraction here.
+		} else if (response.status === 200) {
+			log("lifecycle", "user kernel was successfully downloaded");
+			eval(output.result);
+			log("lifecycle", "user kernel loaded and evaluated");
+			kernelLoaded = true;
+
+			// Tell the parent that the kernel has finished
+			// loading.
+			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
+		} else {
+			log("lifecycle", "portal response not recognized", response);
 			kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
 			return;
 		}
-		let dataStr = new TextDecoder("utf-8").decode(data);
-		userKernel = defaultKernelResolverLink;
-		log("lifecycle", "found the user's kernel skylink:", dataStr);
-	} else {
-		log("lifecycle", "portal response not recognized", response);
-		kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
-		return;
-	}
-
-	// We've determined the user's kernel, perform the download.
-	downloadSkylink(userKernel,
-	// Resolve callback.
-	function(output) {
-		// Check that there was no error.
-		if (output.err !== "none") {
-			log("lifecycle", "user kernel was unable to download:", output.err);
-			kernelDiscoveryFailed(output.err);
-			return;
-		}
-
-		log("lifecycle", "user kernel was successfully downloaded");
-		eval(output.result);
-		log("lifecycle", "user kernel loaded and evaluated");
-		kernelLoaded = true;
-
-		// Tell the parent that the kernel has finished
-		// loading.
-		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 	},
 	// Reject callback.
 	function(err) {
-		log("lifecycle", "downloadSkylink call rejected");
+		log("lifecycle", "user kernel download failed", err);
 		kernelDiscoveryFailed(err);
 	});
 }
@@ -1074,20 +1095,6 @@ var kernelDiscoveryFailed = function(err) {
 	// TODO: Need to update the homescreen auth to be able to receive such
 	// a message.
 	window.parent.postMessage({kernelMethod: "skynetKernelLoadFailed"}, "*");
-}
-
-// readRegistryAndLoadKernel is called after the loadSkynetKernel function has
-// loaded the user portal preferences. This function is passed to
-// loadUserPortalPreferences as the callback. It starts by reading the registry
-// entry for the kernel, and then passing in a callback to load the actual
-// kernel.
-var readRegistryAndLoadKernel = function() {
-	readOwnRegistryEntry(
-		"v1-skynet-kernel",
-		"v1-skynet-kernel-datakey",
-		kernelDiscoveryComplete,
-		kernelDiscoveryFailed
-	)
 }
 
 // loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
@@ -1125,7 +1132,7 @@ var loadSkynetKernel = function() {
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
 	// once the preferred portal has been established.
-	loadUserPortalPreferences(readRegistryAndLoadKernel);
+	loadUserPortalPreferences(fetchAndEvalKernel);
 }
 
 // handleMessage is called by the message event listener when a new message
