@@ -68,19 +68,13 @@ var log = function(logType: string, ...inputs: any) {
 		logSettingsStr = '{"ERROR": true, "error": true, "lifecycle": true, "portal": true}';
 	}
 
-	// Wrap the JSON.parse in a try-catch block. If the parse
-	// fails, we want to catch the error and report that the
-	// logSettings persistence has corrupted.
-	try {
-		// Logging is disabled by default, except for the
-		// messages that are explicitly set to come through.
-		let logSettings = JSON.parse(logSettingsStr);
-		if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
-			return;
-		}
-	} catch (err) {
+	let [logSettings, errJSON] = parseJSON(logSettingsStr);
+	if (errJSON !== null) {
 		console.log("ERROR: logSettings item in localstorage is corrupt:", err);
 		console.log(logSettingsStr);
+		return;
+	}
+	if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
 		return;
 	}
 
@@ -248,35 +242,8 @@ var preferredPortals = function(): string[] {
 		return defaultPortalList;
 	}
 
-	try {
-		let portalList = JSON.parse(portalListStr);
-
-		// Append the list of default portals to the set of portals. In
-		// the event that all of the user's portals are bad, they will
-		// still be able to connect to Skynet. Because the portals are
-		// trust minimized, there shouldn't be an issue with
-		// potentially connecting to portals that the user hasn't
-		// strictly authorized.
-		for (let i = 0; i < defaultPortalList.length; i++) {
-			// Check for duplicates between the default list and
-			// the user's list. This deduplication is relevant for
-			// performance, because lookups will sequentially check
-			// every portal until a working portal is found. If
-			// there are broken portals duplicated in the final
-			// list, it will take longer to get through the list.
-			let found = false;
-			for (let j = 0; j < portalList.length; j++) {
-				if (portalList[j] === defaultPortalList[i]) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				portalList.push(defaultPortalList[i]);
-			}
-		}
-		return portalList;
-	} catch (err) {
+	let [portalList, errJSON] = parseJSON(portalListStr);
+	if (errJSON !== null) {
 		// We log an error but we don't change anything because the
 		// data may have been placed there by a future version of the
 		// kernel and we don't want to clear anything that might be
@@ -285,6 +252,32 @@ var preferredPortals = function(): string[] {
 		log("error", err, portalListStr);
 		return defaultPortalList;
 	}
+
+	// Append the list of default portals to the set of portals. In
+	// the event that all of the user's portals are bad, they will
+	// still be able to connect to Skynet. Because the portals are
+	// trust minimized, there shouldn't be an issue with
+	// potentially connecting to portals that the user hasn't
+	// strictly authorized.
+	for (let i = 0; i < defaultPortalList.length; i++) {
+		// Check for duplicates between the default list and
+		// the user's list. This deduplication is relevant for
+		// performance, because lookups will sequentially check
+		// every portal until a working portal is found. If
+		// there are broken portals duplicated in the final
+		// list, it will take longer to get through the list.
+		let found = false;
+		for (let j = 0; j < portalList.length; j++) {
+			if (portalList[j] === defaultPortalList[i]) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			portalList.push(defaultPortalList[i]);
+		}
+	}
+	return portalList;
 }
 
 // progressiveFetch will query multiple portals until one returns with the
@@ -666,7 +659,6 @@ var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): [Uint8A
 
 	// Verify that all of the required fields are present in the proof.
 	if (!("data" in proof) || !("datakey" in proof) || !("publickey" in proof) || !("signature" in proof) || !("type" in proof) || !("revision" in proof)) {
-		log("lifecycle", proof);
 		return [null, "proof is malformed, fields are missing"];
 	}
 	if (!("algorithm" in proof.publickey) || !("key" in proof.publickey)) {
@@ -834,38 +826,37 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 			// correctly.
 			if (version === 2) {
 				// Grab the proof header.
-				let proofHeader = response.headers.get("skynet-proof");
-				log("lifecycle", proofHeader);
-				if (proofHeader === null) {
+				let proofJSON = response.headers.get("skynet-proof");
+				if (proofJSON === null) {
 					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link");
 					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
-
-				// Parse the proof header JSON.
-				//
-				// TODO: Might be able to clean this up by
-				// making a custom json parse function which
-				// handles the error wrap for us.
-				try {
-					let proof = JSON.parse(proofHeader);
-					let errVRLP;
-					[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
-					if (errVRLP !== null) {
-						log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", errVRLP)
-						progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-						return;
-					}
-					let bitfield = new DataView(u8Link.buffer).getUint16(0, true);
-					let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
-					version = 1;
-					offset = o;
-					fetchSize = fs;
-				} catch (err)  {
-					log("lifecycle", "error validating the resolver link proof from the portal", err)
+				let [proof, errPH] = parseJSON(proofJSON);
+				if (errPH !== null) {
+					log("lifecycle", "error validating the resolver link proof from the portal", errPH)
 					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
+
+				// Verify the proof.
+				let errVRLP;
+				[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
+				if (errVRLP !== null) {
+					log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", errVRLP)
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					return;
+				}
+
+				// The proof will have updated u8Link to be the
+				// final link in the resolver chain, we need to
+				// also update the version, offset, and
+				// fetchSize to match.
+				let bitfield = new DataView(u8Link.buffer).getUint16(0, true);
+				let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
+				version = 1;
+				offset = o;
+				fetchSize = fs;
 			}
 
 			// TODO: We need to update the portal API so that we
