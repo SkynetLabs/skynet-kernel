@@ -5,13 +5,12 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
-// TODO: We can make more liberal use of the typing system in typescript to get
-// more robust code, especially around error handling.
-
 // TODO: I don't think we are verifying all of the untrusted inputs we are
 // receiving.
 
 // TODO: Need to switch the entire protocol over to using encryption.
+
+// TODO: Move some of the helper functions to their own files and do imports.
 
 // TODO: Need to update the progressive fetch flow so that we can figure out
 // which portal is lying if it is discovered that a portal is lying. And within
@@ -22,6 +21,9 @@ export {};
 // TODO: There are places here where we could transition our types to used
 // fixed length arrays, which would eliminate some of the length checking that
 // we have to do in some of our functions.
+
+// TODO: We can make more liberal use in general of the typing system in
+// typescript to get more robust code, especially around error handling.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -763,11 +765,19 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 		}
 	}
 
-	// TODO: Need to verify that the final skylink makes sense. I believe
-	// we are expecting it to be a V1 skylink but I'm not sure what happens
-	// if a resolver link resolves to a non-resolver registry entry.
-
-	// TODO: I'm not sure the data type is correct on the recursive lookup.
+	// Though it says 'skylink', the verifier is actually just returning
+	// whatever the registry data is. We need to check that the final value
+	// is a V1 skylink.
+	if (skylink.length !== 34) {
+		return [null, "final value returned by the resolver link is not a skylink"];
+	}
+	let [version, x, xx, err] = parseSkylinkBitfield(skylink);
+	if (err !== null) {
+		return [null, "final value returned by resolver link is not a valid skylink: " + err];
+	}
+	if (version !== 1) {
+		return [null, "final value returned by resolver link is not a v1 skylink"];
+	}
 
 	return [skylink, null];
 }
