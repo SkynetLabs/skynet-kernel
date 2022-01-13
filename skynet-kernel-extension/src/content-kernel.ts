@@ -541,17 +541,30 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 	return;
 }
 
-// parseSkylinkV1Bitfield is a helper function to downloadSkylink which pulls
+// parseSkylinkBitfield is a helper function to downloadSkylink which pulls
 // the fetchSize out of the bitfield. parseSkylink will return an error if the
 // offset is not zero.
-var parseSkylinkV1Bitfield = function(bitfield: number): [number, number, string] {
-	// Verify that the mode is valid.
-	bitfield = bitfield >> 2;
-	if ((bitfield&255) === 255) {
-		return [0, 0, "provided skylink has an unrecognized version"];
+var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, number, string] {
+	// Validate the input.
+	if (skylink.length !== 34) {
+		return [0, 0, 0, "provided skylink has incorrect length"];
 	}
 
-	// Fetch the mode, consuming the mode bits in the process.
+	// Extract the bitfield.
+	let bitfield = new DataView(skylink.buffer).getUint16(0, true);
+
+	// Extract the version.
+	let version = (bitfield & 3) + 1
+	// Only versions 1 and 2 are recognized.
+	if (version !== 1 && version !== 2) {
+		return [0, 0, 0, "provided skylink has unrecognized version"];
+	}
+
+	// Verify that the mode is valid, then fetch the mode.
+	bitfield = bitfield >> 2;
+	if ((bitfield&255) === 255) {
+		return [0, 0, 0, "provided skylink has an unrecognized version"];
+	}
 	let mode = 0;
 	for (let i = 0; i < 8; i++) {
 		if ((bitfield & 1) === 0) {
@@ -561,10 +574,9 @@ var parseSkylinkV1Bitfield = function(bitfield: number): [number, number, string
 		bitfield = bitfield >> 1;
 		mode++;
 	}
-
 	// If the mode is greater than 7, this is not a valid v1 skylink.
 	if (mode > 7) {
-		return [0, 0, "provided skylink has an invalid v1 bitfield"];
+		return [0, 0, 0, "provided skylink has an invalid v1 bitfield"];
 	}
 
 	// Determine the offset and fetchSize increment.
@@ -579,12 +591,14 @@ var parseSkylinkV1Bitfield = function(bitfield: number): [number, number, string
 	fetchSizeBits++ // semantic upstep, range should be [1,8] not [0,8).
 	let fetchSize = fetchSizeBits * fetchSizeIncrement;
 
-	// Determine the offset, which is the remaining bits.
+	// The remaining bits determine the fetchSize.
 	let offset = bitfield * offsetIncrement;
 	if (offset + fetchSize > 1 << 22) {
-		return [0, 0, "provided skylink has an invalid v1 bitfield"];
+		return [0, 0, 0, "provided skylink has an invalid v1 bitfield"];
 	}
-	return [offset, fetchSize, null];
+
+	// Return what we learned.
+	return [version, offset, fetchSize, null];
 }
 
 // deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
@@ -623,28 +637,13 @@ var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [
 }
 
 // validSkylink returns true if the provided Uint8Array is a valid skylink.
+// This is an alias for 'parseSkylinkBitfield', as both perform the same
+// validation.
 var validSkylink = function(skylink: Uint8Array): boolean {
-	if (skylink.length !== 34) {
+	// Get the bitfield values. If the bitfield parsing doesn't return an error, 
+	let [version, offset, fetchSize, err] = parseSkylinkBitfield(skylink);
+	if (err !== null) {
 		return false;
-	}
-	// Extract the bitfield.
-	let bitfield = new DataView(skylink.buffer).getUint16(0, true);
-	let version = (bitfield & 3) + 1
-	// Only versions 1 and 2 are recognized.
-	if (version !== 1 && version !== 2) {
-		return false;
-	}
-	// Version 2 links should have the rest of the bitfield unset.
-	if (version === 2 && (bitfield & 3) !== bitfield) {
-		return false;
-	}
-	// If the link is a v1 skylink, parse the bitfield to see if there's an
-	// error.
-	if (version === 1) {
-		let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
-		if (err !== null) {
-			return false;
-		}
 	}
 	return true;
 }
@@ -780,40 +779,20 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 // then the resulting content will also be verified.
 var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCallback: any) {
 	// Verify that the provided skylink is a valid skylink.
-	let [u8Link, err] = b64ToBuf(skylink);
-	if (err !== null) {
-		rejectCallback("unable to decode skylink: " + err);
+	let [u8Link, err64] = b64ToBuf(skylink);
+	if (err64 !== null) {
+		rejectCallback("unable to decode skylink: " + err64);
 		return;
 	}
 	if (u8Link.length !== 34) {
 		rejectCallback("input skylink is not the correct length");
 		return;
 	}
-	// Extract the bitfield.
-	let bitfield = new DataView(u8Link.buffer).getUint16(0, true);
-	let version = (bitfield & 3) + 1
-	// Only versions 1 and 2 are recognized.
-	if (version !== 1 && version !== 2) {
-		rejectCallback("provided skylink has an unrecognized version");
-		return;
-	}
-	// Version 2 links should have the rest of the bitfield unset.
-	if (version === 2 && (bitfield & 3) !== bitfield) {
-		rejectCallback("provided skylink has an unrecognized version");
-		return;
-	}
 
-	// If the link is a v1 skylink, determine the fetchSize.
-	let offset = 0;
-	let fetchSize = 0;
-	if (version === 1) {
-		let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
-		if (err !== null) {
-			rejectCallback("unable to parse the v1 skylink bitfield: " + err)
-			return;
-		}
-		offset = o;
-		fetchSize = fs;
+	let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
+	if (errBF !== null) {
+		rejectCallback("skylink bitfield is invalid: ", errBF);
+		return;
 	}
 
 	// Establish the endpoint that we want to call on the portal and the
@@ -854,15 +833,17 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 					return;
 				}
 
-				// The proof will have updated u8Link to be the
-				// final link in the resolver chain, we need to
-				// also update the version, offset, and
-				// fetchSize to match.
-				let bitfield = new DataView(u8Link.buffer).getUint16(0, true);
-				let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
-				version = 1;
-				offset = o;
-				fetchSize = fs;
+				[version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
+				if (errBF !== null) {
+					log("lifecycle", "downloadSkylink response received bad final skylink", errBF)
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					return;
+				}
+				if (version !== 1) {
+					log("lifecycle", "downloadSkylink response received bad final skylink, it's not V1")
+					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					return;
+				}
 			}
 
 			// TODO: We need to update the portal API so that we
