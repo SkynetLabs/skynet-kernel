@@ -18,12 +18,27 @@ export {};
 
 // TODO: Remove the outlen param from our blake2b library.
 
+// TODO: There are places here where we could transition our types to used
+// fixed length arrays, which would eliminate some of the length checking that
+// we have to do in some of our functinos.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.siasky.net"
 var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
+
+// parseJSON is a wrapper for JSON.parse that returns an error rather than
+// throwing an error. This cleans up the code substantially.
+var parseJSON = function(json: string): [any, string] {
+	try {
+		let obj = JSON.parse(json);
+		return [obj, null];
+	} catch (err) {
+		return [null, err];
+	}
+}
 
 // log provides syntactic sugar for the logging functions. The first arugment
 // passed into 'log' checks whether the logSettings have explicitly enabled
@@ -300,7 +315,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: strin
 
 // ownRegistryEntryKeys will use the user's seed to derive a keypair and a
 // datakey using the provided tags.
-var ownRegistryEntryKeys = function(keyPairTagStr: string, dataKeyTagStr: string): [Ed25519KeyPair, Uint8Array] {
+var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [Ed25519KeyPair, Uint8Array] {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
 	let keyPairEntropy = new Uint8Array(HASH_SIZE);
@@ -309,28 +324,24 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, dataKeyTagStr: string
 	entropyInput.set(keyPairTag);
 	entropyInput.set(userSeed, keyPairTag.length);
 	sha512(keyPairEntropy, entropyInput, entropyInput.length);
-	// Use the user's seed to dervie the dataKey for the registry entry. We use
-	// a different tag to ensure that the dataKey is independently random, such
+	// Use the user's seed to dervie the datakey for the registry entry. We use
+	// a different tag to ensure that the datakey is independently random, such
 	// that the registry entry looks like it could be any other registry entry.
-	let dataKeyEntropy = new Uint8Array(HASH_SIZE);
-	let dataKeyTag = new TextEncoder().encode(dataKeyTagStr);
-	let dataKeyInput = new Uint8Array(dataKeyTag.length+userSeed.length);
-	dataKeyInput.set(dataKeyTag);
-	dataKeyInput.set(userSeed, dataKeyTag.length);
-	sha512(dataKeyEntropy, dataKeyInput, dataKeyInput.length);
+	let datakeyEntropy = new Uint8Array(HASH_SIZE);
+	let datakeyTag = new TextEncoder().encode(datakeyTagStr);
+	let datakeyInput = new Uint8Array(datakeyTag.length+userSeed.length);
+	datakeyInput.set(datakeyTag);
+	datakeyInput.set(userSeed, datakeyTag.length);
+	sha512(datakeyEntropy, datakeyInput, datakeyInput.length);
 
 	// Create the private key for the registry entry.
 	let keyPair = keyPairFromSeed(keyPairEntropy.slice(0, 32));
-	let dataKey = dataKeyEntropy.slice(0, 32);
-	return [keyPair, dataKey];
+	let datakey = datakeyEntropy.slice(0, 32);
+	return [keyPair, datakey];
 }
 
 // verifyRegistrySignature will verify the signature of a registry entry.
-//
-// TODO: This does not currently verify the type.
-//
-// TODO: Add types to enforce that the types have already been verified.
-var verifyRegistrySignature = function(pubkey, datakey, data, revision, sig) {
+var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, data: Uint8Array, revision: number, sig: Uint8Array): boolean {
 	let encodedData = encodePrefixedBytes(data);
 	let encodedRevision = encodeNumber(revision);
 	let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
@@ -338,9 +349,7 @@ var verifyRegistrySignature = function(pubkey, datakey, data, revision, sig) {
 	dataToVerify.set(encodedData, 32);
 	dataToVerify.set(encodedRevision, 32+8+data.length);
 	let sigHash = blake2b(dataToVerify, 32);
-	if (!verify(sigHash, sig, pubkey)) {
-		return [true, "portal response has a signature mismatch"];
-	}
+	return verify(sigHash, sig, pubkey)
 }
 
 // verifyRegReadResp will check the response body of a registry read on a
@@ -349,7 +358,7 @@ var verifyRegistrySignature = function(pubkey, datakey, data, revision, sig) {
 // registry entry. If the problem is with the portal, the caller should try the
 // next portal. If the problem is with the underyling registry entry, the
 // caller should handle the error and not try any more portals.
-var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, string] {
+var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, string] {
 	// If the portal reports that it's having trouble filling the request,
 	// try the next portal. The portals are set up so that a 5XX error
 	// indicates that other portals may have better luck.
@@ -383,6 +392,7 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 		if (!(typeof(result.data) === "string") || !(typeof(result.revision) === "number") || !(typeof(result.signature) === "string")) {
 			return [true, "portal response has invalid format"]
 		}
+		let revision = <number>result.revision;
 
 		// Attempt to decode the hex values of the results.
 		let [data, err1] = hex2buf(result.data);
@@ -394,18 +404,8 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 			return [true, "portal result signature did not decode from hex"];
 		}
 
-		// The data has passed verification, check the
-		// signature.
-		//
-		// TODO: Use verifyRegistrySignature intead
-		let encodedData = encodePrefixedBytes(data);
-		let encodedRevision = encodeNumber(result.revision);
-		let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
-		dataToVerify.set(dataKey, 0);
-		dataToVerify.set(encodedData, 32);
-		dataToVerify.set(encodedRevision, 32+8+data.length);
-		let sigHash = blake2b(dataToVerify, 32);
-		if (!verify(sigHash, sig, pubkey)) {
+		// Data is clean, check signature.
+		if (!verifyRegistrySignature(pubkey, datakey, data, revision, sig)) {
 			return [true, "portal response has a signature mismatch"];
 		}
 
@@ -431,17 +431,17 @@ var verifyRegReadResp = function(response, result, pubkey, dataKey): [boolean, s
 // readOwnRegistryEntry will read and verify a registry entry that is owned by
 // the user. The tag strings will be hashed with the user's seed to produce the
 // correct entropy.
-var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, resolveCallback: any, rejectCallback: any) {
+var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, resolveCallback: any, rejectCallback: any) {
 	// Fetch the keys.
-	let [keyPair, dataKey] = ownRegistryEntryKeys(keyPairTagStr, dataKeyTagStr);
+	let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
 	let pubkeyHex = buf2hex(keyPair.publicKey);
-	let dataKeyHex = buf2hex(dataKey);
+	let datakeyHex = buf2hex(datakey);
 
 	// Get a list of portals, then try fetching the entry from each portal
 	// until a successful response is received. A 404 is considered a
 	// successful response.
 	let portalList = preferredPortals();
-	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+dataKeyHex;
+	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+datakeyHex;
 
 	// The adjustedResolveCallback allows us to verify the integrity of the
 	// portal's response before passing it back to the caller. If the
@@ -456,7 +456,7 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 
 			// Check the response from the portal and then either
 			// try the next portal or call the resolve callback.
-			let [portalIssue, err] = verifyRegReadResp(response, result, keyPair.publicKey, dataKey);
+			let [portalIssue, err] = verifyRegReadResp(response, result, keyPair.publicKey, datakey);
 			if (err !== null && portalIssue === true) {
 				log("portal", "portal returned an invalid regread response", err, response.status, response.statusText, response.url, result);
 				progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
@@ -490,17 +490,17 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string
 // writeNewOwnRegistryEntry will write the provided data to a new registry
 // entry. A revision number of 0 will be used, because this function is
 // assuming that no data yet exists at that registry entry location.
-var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: string, data: Uint8Array, resolveCallback: any, rejectCallback: any) {
+var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, data: Uint8Array, resolveCallback: any, rejectCallback: any) {
 	// Fetch the keys.
-	let [keyPair, dataKey] = ownRegistryEntryKeys(keyPairTagStr, dataKeyTagStr);
+	let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
 	let pubkeyHex = buf2hex(keyPair.publicKey);
-	let dataKeyHex = buf2hex(dataKey);
+	let datakeyHex = buf2hex(datakey);
 
 	// Compute the signature of the new registry entry.
 	let encodedData = encodePrefixedBytes(data);
 	let encodedRevision = encodeNumber(0);
 	let dataToSign = new Uint8Array(32 + 8 + data.length + 8);
-	dataToSign.set(dataKey, 0);
+	dataToSign.set(datakey, 0);
 	dataToSign.set(encodedData, 32);
 	dataToSign.set(encodedRevision, 32+8+data.length);
 	let sigHash = blake2b(dataToSign, 32);
@@ -512,7 +512,7 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, dataKeyTagStr: st
 			algorithm: "ed25519",
 			key: Array.from(keyPair.publicKey),
 		},
-		dataKey: dataKeyHex,
+		datakey: datakeyHex,
 		revision: 0,
 		data: Array.from(data),
 		signature: Array.from(sig),
@@ -593,48 +593,21 @@ var parseSkylinkV1Bitfield = function(bitfield: number): [number, number, string
 	return [offset, fetchSize, null];
 }
 
-// deriveRegistryEntryID will take two untrusted inputs, validate that they are
-// a proper pubkey and datakey, and then return the associated registry entry
-// id.
-var deriveRegistryEntryID = function(pubkey: any, datakey: any): [Uint8Array, string] {
-	// Check that the pubkey is built correctly.
-	if (!("algorithm" in pubkey) || !("key" in pubkey)) {
-		return [null, "pubkey is malformed"];
-	}
-	if (pubkey.algorithm !== "ed25519") {
-		return [null, "pubkey has unrecognized algorithm"];
-	}
-
-	// The pubkey should be a base64 string. Verify the typing, and then
-	// decode the pubkey to a uint8array.
-	if (typeof pubkey.key !== "string") {
-		return [null, "pubkey key is malformed"];
-	}
-	let key64 = <string>pubkey.key;
-	let [keyBuf, err1] = b64ToBuf(key64);
-	if (err1 !== null) {
-		return [null, "pubkey key is invalid base64: " + err1];
-	}
-	if (keyBuf.length !== 32) {
+// deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
+// datakey.
+var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, string] {
+	// Check the lengths of the inputs.
+	if (pubkey.length !== 32) {
 		return [null, "pubkey is invalid, length is wrong"];
 	}
-
-	// The datakey should be a hex string. Verify the typing, then decode
-	// the hex.
-	if (typeof datakey !== "string") {
-		return [null, "datakey is malformed"];
-	}
-	let dataKeyHex = <string>datakey;
-	let [dataKeyBuf, err2] = hex2buf(dataKeyHex);
-	if (err2 !== null) {
-		return [null, "datakey is invalid hex: " + err2];
-	}
-	if (dataKeyBuf.length !== 32) {
+	if (datakey.length !== 32) {
 		return [null, "datakey is not a valid hash, length is wrong"];
 	}
 
-	// We now have verified the typings of both the pubkey and the datakey,
-	// we can build the entryid encoding and then hash it.
+	// Establish the encoding. First 16 bytes is a specifier, second 8
+	// bytes declares the length of the pubkey, the next 32 bytes is the
+	// pubkey and the final 32 bytes is the datakey. This encoding is
+	// determined by the Sia protocol.
 	let encoding = new Uint8Array(16 + 8 + 32 + 32)
 	// Set the specifier.
 	encoding[0] = "e".charCodeAt(0);
@@ -647,51 +620,157 @@ var deriveRegistryEntryID = function(pubkey: any, datakey: any): [Uint8Array, st
 	// Set the pubkey.
 	let encodedLen = encodeNumber(32);
 	encoding.set(encodedLen, 16);
-	encoding.set(keyBuf, 16+8);
-	encoding.set(dataKeyBuf, 16+8+32);
-	// Get the final ID.
+	encoding.set(pubkey, 16+8);
+	encoding.set(datakey, 16+8+32);
+
+	// Get the final ID by hashing the encoded data.
 	let id = blake2b(encoding, 32);
 	return [id, null];
 }
 
-// verifyResolverLinkProof will check that the resolver proof which was
-// provided matches the provided skylink. If they match and the proofs are
-// correct, 'null' is returned. If the proofs are missing or invalid, an error
-// will be returned.
-//
-// TODO: Currently this function only accepts a single proof, but for recursive
-// resolver links we need to verify multiple proofs. Probably the best way to
-// do that is to keep this function the same, but rename it to verify just one
-// level, and then create a higher level function which can loop over the
-// levels and verify each level.
-var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): string {
-	// Verify that all of the required fields are present.
+// validSkylink returns true if the provided Uint8Array is a valid skylink.
+var validSkylink = function(skylink: Uint8Array): boolean {
+	if (skylink.length !== 34) {
+		return false;
+	}
+	// Extract the bitfield.
+	let bitfield = new DataView(skylink.buffer).getUint16(0, true);
+	let version = (bitfield & 3) + 1
+	// Only versions 1 and 2 are recognized.
+	if (version !== 1 && version !== 2) {
+		return false;
+	}
+	// Version 2 links should have the rest of the bitfield unset.
+	if (version === 2 && (bitfield & 3) !== bitfield) {
+		return false;
+	}
+	// If the link is a v1 skylink, parse the bitfield to see if there's an
+	// error.
+	if (version === 1) {
+		let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
+		if (err !== null) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// verifyResolverLinkProof will check that the given resolver proof matches the
+// provided skylink. If the proof is correct and the signature matches, the
+// data will be returned. The returned link will be a verified skylink.
+var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): [Uint8Array, string] {
+	// Verify the presented skylink is formatted correctly.
+	if (skylink.length !== 34) {
+		return [null, "skylink is malformed, expecting 34 bytes"];
+	}
+
+	// Verify that all of the required fields are present in the proof.
 	if (!("data" in proof) || !("datakey" in proof) || !("publickey" in proof) || !("signature" in proof) || !("type" in proof) || !("revision" in proof)) {
 		log("lifecycle", proof);
-		return "proof is malformed, fields are missing";
+		return [null, "proof is malformed, fields are missing"];
 	}
-	if (skylink.length !== 34) {
-		return "skylink is malformed, expecting 34 bytes";
+	if (!("algorithm" in proof.publickey) || !("key" in proof.publickey)) {
+		return [null, "pubkey is malformed"];
+	}
+
+	// Verify the typing of the fields.
+	if (typeof proof.data !== "string") {
+		return [null, "data is malformed"];
+	}
+	let dataStr = <string>proof.data;
+	if (typeof proof.datakey !== "string") {
+		return [null, "datakey is malformed"];
+	}
+	let datakeyStr = <string>proof.datakey;
+	if (proof.publickey.algorithm !== "ed25519") {
+		return [null, "pubkey has unrecognized algorithm"];
+	}
+	if (typeof proof.publickey.key !== "string") {
+		return [null, "pubkey key is malformed"];
+	}
+	let pubkeyStr = <string>proof.publickey.key;
+	if (typeof proof.signature !== "string") {
+		return [null, "signature is malformed"];
+	}
+	if (proof.type !== 1) {
+		return [null, "registry entry has unrecognized type"];
+	}
+	let sigStr = <string>proof.signature;
+	if (typeof proof.revision !== "number") {
+		return [null, "revision is malformed"];
+	}
+	let revision = <number>proof.revision;
+
+	// Decode all of the fields. They are presented in varied types and
+	// encodings.
+	let [data, errD] = hex2buf(dataStr);
+	if (errD !== null) {
+		return [null, "data is invalid hex: " + errD];
+	}
+	let [datakey, errDK] = hex2buf(datakeyStr);
+	if (errDK !== null) {
+		return [null, "datakey is invalid hex: " + errDK];
+	}
+	let [pubkey, errPK] = b64ToBuf(pubkeyStr);
+	if (errPK !== null) {
+		return [null, "pubkey key is invalid base64: " + errPK];
+	}
+	let [sig, errS] = hex2buf(sigStr);
+	if (errS !== null) {
+		return [null, "signature is invalid hex: " + errS];
+	}
+
+	// Verify that the data is a skylink - this is a proof for a resolver,
+	// which means the proof is pointing to a specific skylink.
+	if (!validSkylink(data)) {
+		return [null, "this skylink does not resolve to another skylink"];
 	}
 
 	// Verify that the combination of the datakey and the public key match
 	// the skylink.
-	let [entryID, err] = deriveRegistryEntryID(proof.publickey, proof.datakey)
+	let [entryID, err] = deriveRegistryEntryID(pubkey, datakey)
 	if (err !== null) {
-		return "proof pubkey is malformed: " + err;
+		return [null, "proof pubkey is malformed: " + err];
 	}
-
-	// Compare the entry id to the skylink.
 	let linkID = skylink.slice(2, 34);
 	for (let i = 0; i < entryID.length; i++) {
 		if (entryID[i] !== linkID[i]) {
-			return "proof pubkey and datakey do not match the skylink root";
+			return [null, "proof pubkey and datakey do not match the skylink root"];
 		}
 	}
 
-	// TODO: Need to verify the signature.
+	// Verify the signature.
+	if (!verifyRegistrySignature(pubkey, datakey, data, revision, sig)) {
+		return [null, "signature does not match"];
+	}
+	return [data, null];
+}
 
-	return null;
+// verifyResolverLinkProofs will verify a set of resolver link proofs provided
+// by a portal after performing a resolver link lookup. Each proof corresponds
+// to one level of resolution. The final value returned will be the V1 skylink
+// at the end of the chain.
+//
+// This function treats the proof as untrusted data and will verify all of the
+// fields that are provided.
+var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8Array, string] {
+	// Check that the proof is an array.
+	if (!Array.isArray(proof)) {
+		return [null, "provided proof is not an array"];
+	}
+	if (proof.length === 0) {
+		return [null, "proof array is empty"];
+	}
+
+	// Check each proof in the chain, returning the final skylink.
+	for (let i = 0; i < proof.length; i++) {
+		let err;
+		[skylink, err] = verifyResolverLinkProof(skylink, proof[i]);
+		if (err !== null) {
+			return [null, "one of the resolution proofs is invalid: " + err];
+		}
+	}
+	return [skylink, null];
 }
 
 // downloadSkylink will perform a download on the provided skylink, verifying
@@ -756,6 +835,7 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 			if (version === 2) {
 				// Grab the proof header.
 				let proofHeader = response.headers.get("skynet-proof");
+				log("lifecycle", proofHeader);
 				if (proofHeader === null) {
 					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link");
 					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
@@ -769,12 +849,18 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 				// handles the error wrap for us.
 				try {
 					let proof = JSON.parse(proofHeader);
-					let err = verifyResolverLinkProof(u8Link, proof[0]) // TODO: Need to switch over to multi-proof function.
-					if (err !== null) {
-						log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", err)
+					let errVRLP;
+					[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
+					if (errVRLP !== null) {
+						log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", errVRLP)
 						progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 						return;
 					}
+					let bitfield = new DataView(u8Link.buffer).getUint16(0, true);
+					let [o, fs, err] = parseSkylinkV1Bitfield(bitfield)
+					version = 1;
+					offset = o;
+					fetchSize = fs;
 				} catch (err)  {
 					log("lifecycle", "error validating the resolver link proof from the portal", err)
 					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
@@ -786,6 +872,10 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 			// can get a range proof on the data that we
 			// downloaded. Currently we have no way to verify that
 			// the data returned by the portal is the correct data.
+			// The resolver link verifier updated the u8link,
+			// version, offset, and fetchSize already, so we can
+			// treat anything that reaches this point as a v1
+			// skylink with all the corect data already set.
 
 			resolveCallback({
 				err: "none",
@@ -861,7 +951,7 @@ var loadUserPortalPreferences = function(callback: any) {
 	// callbacks because there's no easy way to pass the
 	// loadUserPortalPreferences callback into them without doing it
 	// inline. Yay javascript (if there's a better way, lmk).
-	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-dataKey",
+	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-datakey",
 		// This is the success callback.
 		function(output) {
 			loadUserPortalPreferencesRegReadSuccess(output);
@@ -926,7 +1016,7 @@ var kernelDiscoveryComplete = function(regReadReturn) {
 		// user's kernel.
 		writeNewOwnRegistryEntry(
 			"v1-skynet-kernel",
-			"v1-skynet-kernel-dataKey",
+			"v1-skynet-kernel-datakey",
 			dataField,
 			// Success callback.
 			function(response) {
@@ -1007,7 +1097,7 @@ var kernelDiscoveryFailed = function(err) {
 var readRegistryAndLoadKernel = function() {
 	readOwnRegistryEntry(
 		"v1-skynet-kernel",
-		"v1-skynet-kernel-dataKey",
+		"v1-skynet-kernel-datakey",
 		kernelDiscoveryComplete,
 		kernelDiscoveryFailed
 	)
