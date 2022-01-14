@@ -34,81 +34,47 @@ fi
 mkdir -p skynet-kernel-extension/bundle
 cp skynet-kernel-extension/src/* skynet-kernel-extension/bundle/
 
-# Perform some bundling on the extension directory. We are copying input files
-# into source files.
-#
-# TODO: Make this programatic so it doesn't need to be updated every time you
-# make a change.
-#
-# TODO: The skylink replacement preprocessing should probably also be done at
-# the bundling phase, that way the typescript compiler is actually running on
-# the fully updated code.
-#
-# dictionary -> content-kernel-auth.ts
-fileD="skynet-kernel-extension/lib/dictionary.ts"
-fileO="skynet-kernel-extension/bundle/content-kernel-auth.ts"
-importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
-upTo=$((importLine-1))
-after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel-auth.ts)
-dictionaryCode=$(cat skynet-kernel-extension/lib/dictionary.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel-auth.ts)
-rm $fileO
-cat <<< $authFilePrefix >> $fileO
-cat <<< $dictionaryCode >> $fileO
-cat <<< $authFileSuffix >> $fileO
-# sha512 -> content-kernel-auth.ts
-fileD="skynet-kernel-extension/lib/sha512.ts"
-fileO="skynet-kernel-extension/bundle/content-kernel-auth.ts"
-importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
-upTo=$((importLine-1))
-after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel-auth.ts)
-dictionaryCode=$(cat skynet-kernel-extension/lib/sha512.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel-auth.ts)
-rm $fileO
-cat <<< $authFilePrefix >> $fileO
-cat <<< $dictionaryCode >> $fileO
-cat <<< $authFileSuffix >> $fileO
-# sha512 -> content-kernel.ts
-fileD="skynet-kernel-extension/lib/sha512.ts"
-fileO="skynet-kernel-extension/bundle/content-kernel.ts"
-importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
-upTo=$((importLine-1))
-after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
-dictionaryCode=$(cat skynet-kernel-extension/lib/sha512.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
-rm $fileO
-cat <<< $authFilePrefix >> $fileO
-cat <<< $dictionaryCode >> $fileO
-cat <<< $authFileSuffix >> $fileO
-# ed25519 -> content-kernel.ts
-fileD="skynet-kernel-extension/lib/ed25519.ts"
-fileO="skynet-kernel-extension/bundle/content-kernel.ts"
-importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
-upTo=$((importLine-1))
-after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
-dictionaryCode=$(cat skynet-kernel-extension/lib/ed25519.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
-rm $fileO
-cat <<< $authFilePrefix >> $fileO
-cat <<< $dictionaryCode >> $fileO
-cat <<< $authFileSuffix >> $fileO
-# blake2b -> content-kernel.ts
-fileD="skynet-kernel-extension/lib/blake2b.ts"
-fileO="skynet-kernel-extension/bundle/content-kernel.ts"
-importLine=$(grep -n "// import:::$fileD" $fileO | cut -f1 -d:)
-upTo=$((importLine-1))
-after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
-dictionaryCode=$(cat skynet-kernel-extension/lib/blake2b.ts)
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
-rm $fileO
-cat <<< $authFilePrefix >> $fileO
-cat <<< $dictionaryCode >> $fileO
-cat <<< $authFileSuffix >> $fileO
+# Iterate through the bundle files, looking for import statements.
+srcs=$(find skynet-kernel-extension/bundle)
+for src in $srcs
+do
+	# Skip any directories.
+	if [ -d $src ]
+	then
+		continue
+	fi
+	# Skip any swp files.
+	if [ -z ${src##*.swp} ]
+	then
+		continue
+	fi
+
+	# Find all of the import statements in this file, and for each
+	# statement execute the import.
+	imports=$(grep "// import:::" $src)
+	grep "// import:::" $src | while read line
+	do
+		# Trim the import to just the filename.
+		importFile=$(echo $line | cut -c 13-)
+
+		# Get the import line, and related variables that will allow us
+		# to inject the code.
+		importLine=$(grep -n "$line" $src | cut -f1 -d:)
+		upTo=$((importLine-1))
+		after=$((importLine+1))
+
+		# Get the composed data for each file.
+		prefix=$(sed -n 1,${upTo}p $src)
+		lib=$(cat $importFile)
+		suffix=$(sed -n ${after},'$p' $src)
+
+		bundleFile="${src/src/"bundle"}"
+		rm $bundleFile
+		cat <<< $prefix >> $bundleFile
+		cat <<< $lib >> $bundleFile
+		cat <<< $suffix >> $bundleFile
+	done
+done
 
 # skynet-kernel-resolver -> content-kernel.ts
 #
