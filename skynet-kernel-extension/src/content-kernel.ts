@@ -28,6 +28,8 @@ export {};
 // TODO: We can make more liberal use in general of the typing system in
 // typescript to get more robust code, especially around error handling.
 
+// TODO: Looks like the login flow is broken.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.siasky.net"
@@ -917,13 +919,6 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
 }
 
-// TODO: Remove this function. Currently we cannot remove it because the kernel
-// itself uses the function to download and serve the user's homescreen. Once
-// the kernel is cleaned up to use the secure functions, we can switch over.
-var downloadV1Skylink = function(skylink: string) {
-	return fetch(skylink).then(response => response.text())
-}
-
 // loadUserPortalPreferencesRegReadSuccess is the callback that will be
 // performed by loadUserPortalPreferences after a successful call to the
 // registry entry that holds all of the user's preferred portals.
@@ -1257,6 +1252,13 @@ window.addEventListener("message", (event: any) => {
 	// add additional API calls.
 	handleMessage(event);
 }, false);
+
+// TODO: Remove this function. Currently we cannot remove it because the kernel
+// itself uses the function to download and serve the user's homescreen. Once
+// the kernel is cleaned up to use the secure functions, we can switch over.
+var downloadV1Skylink = function(skylink: string) {
+	return fetch(skylink).then(response => response.text())
+}
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform

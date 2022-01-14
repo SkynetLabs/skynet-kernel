@@ -185,16 +185,19 @@ done
 for file in $files
 do
 	# Skip any directories.
-	if [ -d $file ];
+	if [ -d $file ]
 	then
 		continue
 	fi
 	# Skip any swp files.
-	if [ -z ${file##*.swp} ];
+	if [ -z ${file##*.swp} ]
 	then
 		continue
 	fi
-	# TODO: Skip all files in the extension dir, no need to upload those.
+	if [[ "$file" == *"skynet-kernel-extension"* ]]
+	then
+		continue
+	fi
 
 	# Get the v1skylink and determine whether the skylink has changed from
 	# the previous run. If it has not, skip this upload as the v2skylink
