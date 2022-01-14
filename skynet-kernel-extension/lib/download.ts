@@ -304,13 +304,13 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 				let proofJSON = response.headers.get("skynet-proof");
 				if (proofJSON === null) {
 					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link", response.status);
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
 				let [proof, errPH] = parseJSON(proofJSON);
 				if (errPH !== null) {
 					log("lifecycle", "error validating the resolver link proof from the portal", errPH)
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
 
@@ -319,19 +319,19 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 				[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
 				if (errVRLP !== null) {
 					log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", errVRLP)
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
 
 				[version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
 				if (errBF !== null) {
 					log("lifecycle", "downloadSkylink response received bad final skylink", errBF)
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
 				if (version !== 1) {
 					log("lifecycle", "downloadSkylink response received bad final skylink, it's not V1")
-					progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 					return;
 				}
 			}
@@ -353,9 +353,9 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 		})
 		.catch(err => {
 			log("lifecycle", "downloadSkylink response parsed unsuccessfully", response, err, remainingPortalList)
-			progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+			progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
 		})
 
 	}
-	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
+	progressiveFetchLegacy(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
 }

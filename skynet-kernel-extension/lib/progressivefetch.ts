@@ -9,6 +9,8 @@
 // accounts and may have an outdated list of preferred portals. The user's
 // kernel can overwrite this function so that the default portals aren't used
 // except for bootloading.
+//
+// TODO: Move this to a different import, probably its own file.
 var preferredPortals = function(): string[] {
 	// Try to get the list of portals from localstorage. If there is no
 	// list, just use the list hardcoded by the extension.
@@ -55,10 +57,13 @@ var preferredPortals = function(): string[] {
 	return portalList;
 }
 
-// progressiveFetch will query multiple portals until one returns with the
-// correct response. If there is a success, it will call the success callback.
-// If all of the portals fail, it will call the failure callback.
-var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
+// progressiveFetchLegacy will query multiple portals until one returns with
+// the correct response. If there is a success, it will call the success
+// callback. If all of the portals fail, it will call the failure callback.
+//
+// TODO: Remove this function entirely once all of the users have been updated
+// to use the new progressiveFetch.
+var progressiveFetchLegacy = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
 	if (portals.length === 0) {
 		log("progressiveFetch", "progressiveFetch failed because all portals have been tried", endpoint, fetchOpts);
 		rejectCallback("no more portals available");
@@ -77,6 +82,55 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, portals: strin
 	.catch((error) => {
 		// Try the next portal.
 		log("portal", query, "::", error);
-		progressiveFetch(endpoint, fetchOpts, portals, resolveCallback, rejectCallback)
+		progressiveFetchLegacy(endpoint, fetchOpts, portals, resolveCallback, rejectCallback)
+	})
+}
+
+// ProgressiveFetchResult defines the type returned by progressiveFetch.
+interface ProgressiveFetchResult {
+	err: string;
+	portal: string;
+	response: Response;
+	remainingPortals: string[];
+}
+
+// progressiveFetch will query multiple portals until one returns with the
+// correct response.
+var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPortals: string[]): Promise<ProgressiveFetchResult> {
+	return new Promise((resolve, reject) => {
+		if (!remainingPortals.length) {
+			log("progressiveFetch", "progressiveFetch failed because all portals have been tried\n", endpoint, "\n", fetchOpts);
+			reject({
+				err: "all portals have failed",
+				portal: null,
+				response: null,
+				remainingPortals,
+			});
+			return;
+		}
+
+		// Try the next portal in the array.
+		let portal = remainingPortals.shift();
+		let query = "https://" + portal + endpoint;
+		fetch(query, fetchOpts)
+		.then(response => {
+			// Success! Handle the response.
+			log("allFetch", "fetch returned successfully\n", query, "\n", response);
+			resolve({
+				err: null,
+				portal,
+				response,
+				remainingPortals,
+			})
+			return;
+		})
+		.catch((err) => {
+			// Try the next portal.
+			log("portal", "error with fetch call\n", portal, "\n", query, "\n", err);
+			progressiveFetch(endpoint, fetchOpts, remainingPortals)
+			.then(output => resolve(output))
+			.catch(err => reject(err));
+			return;
+		})
 	})
 }

@@ -65,6 +65,9 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, s
 	if (response.status === 200) {
 		// Check that the result has type '1', this code hasn't been
 		// programmed to verify registry entries with any other type.
+		//
+		// TODO: We need to verify the signature _first_ then determine
+		// that the type is invalid.
 		if (result.type !== 1) {
 			return [false, "registry entry is not of type 1"];
 		}
@@ -113,6 +116,60 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, s
 	return [true, "portal response not recognized"];
 }
 
+// readOwnRegistryEntryHandleFetch will handle a resolved call to
+// progressiveFetch.
+var readOwnRegistryEntryHandleFetch = function(output, endpoint, pubkey, datakey, resolveCallback, rejectCallback) {
+	// Check for an error.
+	if (output.err !== null) {
+		rejectCallback(output.err);
+		return;
+	}
+
+	let response = output.response;
+
+	// Read the response body.
+	response.json()
+	.then(result => {
+		// Check whether the response is valid. The response may be
+		// invalid in a way that indicates a disfunctional or malicious
+		// portal, which means that we should try another portal. Or
+		// the response may be invalid in a way that indicates a more
+		// fundamental error (portal is honest but something else
+		// doesn't match), and we can't make progress.
+		let [portalIssue, err] = verifyRegReadResp(response, result, pubkey, datakey);
+		if (err !== null && portalIssue === true) {
+			// The error is with the portal, so we want to keep
+			// trying more portals.
+			log("portal", "portal returned an invalid regread response\n", output.portal, "\n", err, "\n", response, "\n", result);
+			progressiveFetch(endpoint, null, output.remainingPortals)
+			.then(output => {
+				readOwnRegistryEntryHandleFetch(output, endpoint, pubkey, datakey, resolveCallback, rejectCallback);
+			})
+			return;
+		}
+		if (err !== null && portalIssue === false) {
+			log("lifecycle", "registry entry is corrupt or browser extension is out of date\n", err, "\n", response, "\n", result);
+			resolveCallback({
+				err,
+				response,
+				result,
+			});
+			return;
+		}
+
+		// The err is null, call the resolve callback.
+		resolveCallback({
+			err: "none",
+			response,
+			result,
+		});
+	})
+	.catch(err => {
+		log("portal", "unable to parse response body\n", output.portal, "\n", response, "\n", err);
+		progressiveFetchLegacy(endpoint, null, output.remainingPortals, resolveCallback, rejectCallback);
+	})
+}
+
 // readOwnRegistryEntry will read and verify a registry entry that is owned by
 // the user. The tag strings will be hashed with the user's seed to produce the
 // correct entropy.
@@ -128,48 +185,10 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string
 	let portalList = preferredPortals();
 	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+datakeyHex;
 
-	// The adjustedResolveCallback allows us to verify the integrity of the
-	// portal's response before passing it back to the caller. If the
-	// portal's response is found to be malicious or otherwise
-	// untrustworthy, we will redo the progressiveFetch with the remaining
-	// portal list.
-	let adjustedResolveCallback = function(response, remainingPortalList) {
-		// Read the response, then handle the response in callbacks.
-		response.json()
-		.then(result => {
-			log("readOwnRegistryEntry", "progressiveFetch called the successCallback", response, result);
-
-			// Check the response from the portal and then either
-			// try the next portal or call the resolve callback.
-			let [portalIssue, err] = verifyRegReadResp(response, result, keyPair.publicKey, datakey);
-			if (err !== null && portalIssue === true) {
-				log("portal", "portal returned an invalid regread response", err, response.status, response.statusText, response.url, result);
-				progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-				return;
-			}
-			if (err !== null && portalIssue === false) {
-				log("lifecycle", "registry entry is corrupt or browser extension is out of date", err, response.status, response.statusText, response.url, result);
-				resolveCallback({
-					err: err,
-					response: response,
-					result: result,
-				});
-				return;
-			}
-
-			// The err is null, call the resolve callback.
-			resolveCallback({
-				err: "none",
-				response: response,
-				result: result,
-			});
-		})
-		.catch(err => {
-			log("portal", "unable to parse response body", response, err);
-			progressiveFetch(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-		})
-	};
-	progressiveFetch(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
+	progressiveFetch(endpoint, null, portalList)
+	.then(output => {
+		readOwnRegistryEntryHandleFetch(output, endpoint, keyPair.publicKey, datakey, resolveCallback, rejectCallback);
+	})
 }
 
 // writeNewOwnRegistryEntry will write the provided data to a new registry
@@ -225,9 +244,9 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 			});
 		} else {
 			log("error", "unexpected response from server upon regwrite", "status" in response, response.status, response)
-			progressiveFetch(endpoint, fetchOpts, remainingPortalList, adjustedResolveCallback, rejectCallback);
+			progressiveFetchLegacy(endpoint, fetchOpts, remainingPortalList, adjustedResolveCallback, rejectCallback);
 		}
 	}
-	progressiveFetch(endpoint, fetchOpts, portalList, adjustedResolveCallback, rejectCallback);
+	progressiveFetchLegacy(endpoint, fetchOpts, portalList, adjustedResolveCallback, rejectCallback);
 	return;
 }
