@@ -37,78 +37,27 @@ var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
 
-// parseJSON is a wrapper for JSON.parse that returns an error rather than
-// throwing an error. This cleans up the code substantially.
-var parseJSON = function(json: string): [any, string] {
-	try {
-		let obj = JSON.parse(json);
-		return [obj, null];
-	} catch (err) {
-		return [null, err];
-	}
-}
+// NOTE: The imports need to happen in a specific order, as many of them depend
+// on prior imports. There's no dependency resolution in the bundle script, so
+// the ordering must be handled manually.
 
-// log provides syntactic sugar for the logging functions. The first arugment
-// passed into 'log' checks whether the logSettings have explicitly enabled
-// that type of logging. The remaining args will be printed as they would if
-// 'console.log' was called directly.
-// 
-// This is a minimal logging function that can be overwritten by the kernel.
-//
-// TODO: Need to create an API for changing the logging settings in the kernel.
-// API should be built from the kernel proper though no reason to have it in
-// the browser extension. We only put it in the browser extension in the first
-// place because so many of the lifecycle messages are important. One of the
-// things we can do here is have the 'log' functino pay attention to all the
-// different log types that come through, and present the user with the option
-// to enable any particular set of them. May as well also have an option to
-// enable all logs, though that could potentially be very verbose.
-var log = function(logType: string, ...inputs: any) {
-	// Fetch the log settings as a string.
-	let logSettingsStr = localStorage.getItem("v1-logSettings");
+// import:::skynet-kernel-extension/lib/parsejson.ts
 
-	// If there is no logSettingsStr set yet, create one with the default
-	// logging settings active. These don't get persisted, which makes
-	// debugging easier (just wipe the log settings and make changes here
-	// as needed, to avoid having to use the kernel api to change your log
-	// settings as you develop).
-	if (logSettingsStr === null) {
-		logSettingsStr = '{"ERROR": true, "error": true, "lifecycle": true, "portal": true}';
-	}
-
-	let [logSettings, errJSON] = parseJSON(logSettingsStr);
-	if (errJSON !== null) {
-		console.log("ERROR: logSettings item in localstorage is corrupt:", err);
-		console.log(logSettingsStr);
-		return;
-	}
-	if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
-		return;
-	}
-
-	// Print the log.
-	let args = Array.prototype.slice.call(arguments);
-	args[0] = `[${logType}] Kernel (${performance.now()} ms): `;
-	console.log.apply(console, args);
-	return;
-};
-
-log("lifecycle", "kernel has been opened");
-
-// NOTE: The imports need to happen in a specific order. In particular, ed25519
-// depends on sha512, so the sha512 import should be listed first.
-//
-// TODO: The transplant contains the V2 skylink of the full kernel that we have
-// developed in the other folder. This link should actually not be a
-// transplant, it should be hardcoded! During this early phase of development -
-// before the core kernel and the bootloader have been split into separate
-// repos - we are keeping the transplant to make development easier.
+// import:::skynet-kernel-extension/lib/log.ts
 
 // import:::skynet-kernel-extension/lib/sha512.ts
 
 // import:::skynet-kernel-extension/lib/ed25519.ts
 
 // import:::skynet-kernel-extension/lib/blake2b.ts
+
+// import:::skynet-kernel-extension/lib/encoding.ts
+
+// TODO: The transplant contains the V2 skylink of the full kernel that we have
+// developed in the other folder. This link should actually not be a
+// transplant, it should be hardcoded! During this early phase of development -
+// before the core kernel and the bootloader have been split into separate
+// repos - we are keeping the transplant to make development easier.
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
@@ -121,97 +70,6 @@ var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net"];
 interface Ed25519KeyPair {
 	publicKey: Uint8Array;
 	secretKey: Uint8Array;
-}
-
-// buf2hex takes a Uint8Array as input (or any ArrayBuffer) and returns the hex
-// encoding of those bytes. The return value is a string.
-var buf2hex = function(buffer: ArrayBuffer) {
-	return [...new Uint8Array(buffer)]
-		.map(x => x.toString(16).padStart(2, '0'))
-		.join('');
-}
-
-// hex2buf takes an untrusted string as input, verifies that the string is
-// valid hex, and then converts the string to a Uint8Array.
-var hex2buf = function(hex: string): [Uint8Array, string] {
-	// Check that the length makes sense.
-	if (hex.length%2 != 0) {
-		return [null, "input has incorrect length"];
-	}
-
-	// Check that all of the characters are legal.
-	let match = /[0-9A-Fa-f]*/g;
-	if (!match.test(hex)) {
-		return [null, "input has invalid character"];
-	}
-
-	// Create the buffer and fill it.
-	let matches = hex.match(/.{1,2}/g);
-	if (matches === null) {
-		return [null, "input is incomplete"];
-	}
-	let u8 = new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
-	return [u8, null];
-}
-
-// b64ToBuf will take an untrusted base64 string and convert it into a
-// Uin8Array, returning an error if the input is not valid base64.
-var b64ToBuf = function(b64: string): [Uint8Array, string] {
-	// Check that the final string is valid base64.
-	let b64regex = /^[0-9a-zA-Z-_/+=]*$/;
-	if (!b64regex.test(b64)) {
-		log("lifecycle", "not valid b64", b64);
-		return [null, "provided string is not valid base64"];
-	}
-
-	// Swap any '-' characters for '+', and swap any '_' characters for '/'
-	// for use in the atob function.
-	b64 = b64.replace(/-/g, "+").replace(/_/g, "/");
-
-	// Perform the conversion.
-	let binStr = atob(b64);
-	let len = binStr.length;
-	let buf = new Uint8Array(len);
-	for (let i = 0; i < len; i++) {
-		buf[i] = binStr.charCodeAt(i);
-	}
-	return [buf, null];
-}
-
-// bufToB64 will convert a Uint8Array to a base64 string with URL encoding and
-// no padding characters.
-var bufToB64 = function(buf: Uint8Array): string {
-	let b64Str = btoa(String.fromCharCode.apply(null, buf));
-	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "");
-}
-
-// encodeNumber will take a number as input and return a corresponding
-// Uint8Array.
-var encodeNumber = function(num: number): Uint8Array {
-	let encoded = new Uint8Array(8);
-	for (let index = 0; index < encoded.length; index++) {
-		let byte = num & 0xff;
-		encoded[index] = byte
-		num = num >> 8;
-	}
-	return encoded
-}
-
-// encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
-// that has the length prefixed as an 8 byte prefix. Inside the function we use
-// 'setUint32', which means that the input needs to be less than 4 GiB. For all
-// known use cases, this is fine.
-//
-// TODO: I'm not completely sure why the implementation of encodeNumber and
-// encodePrefixBytes is so different.
-var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
-	let len = bytes.length;
-	let buf = new ArrayBuffer(8 + len);
-	let view = new DataView(buf);
-	view.setUint32(0, len, true);
-	let uint8Bytes = new Uint8Array(buf);
-	uint8Bytes.set(bytes, 8);
-	return uint8Bytes;
 }
 
 // getUserSeed will return the seed that is stored in localStorage. This is the

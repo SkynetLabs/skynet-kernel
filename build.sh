@@ -76,16 +76,13 @@ do
 	done
 done
 
-# skynet-kernel-resolver -> content-kernel.ts
+# Inject the default user kernel into the content-kernel.ts bundled file.
 #
-# This one is a bit different from the other imports, because instead of
-# pulling in a whole file, we're just transplating a single variable which will
-# set the default kernel for users of the extension.
-#
-# TODO: Eventually this should be hardcoded to a production value. We'll do
-# that once the first versions of the kernel are stable and nearing completion.
-# For now, things are still changing fast enough that it's not productive to
-# have a hardcoded value here.
+# TODO: Eventually we will be able to scrap this code. The default user kernel
+# should be hardcoded, but while we're rapidly iterating on the first version
+# of the kernel it made more sense to load it in dynamically. We will remove
+# this code around the same time that we pull the full kernel into its own git
+# repo.
 kernelV2skylink=$(skynet-utils generate-v2skylink skynet-kernel-skyfiles/skynet-kernel.js $seed)
 fileD="skynet-kernel-skyfiles/skynet-kernel.js"
 fileO="skynet-kernel-extension/bundle/content-kernel.ts"
