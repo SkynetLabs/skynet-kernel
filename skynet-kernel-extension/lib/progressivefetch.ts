@@ -88,7 +88,6 @@ var progressiveFetchLegacy = function(endpoint: string, fetchOpts: any, portals:
 
 // ProgressiveFetchResult defines the type returned by progressiveFetch.
 interface ProgressiveFetchResult {
-	err: string;
 	portal: string;
 	response: Response;
 	remainingPortals: string[];
@@ -100,12 +99,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 	return new Promise((resolve, reject) => {
 		if (!remainingPortals.length) {
 			log("progressiveFetch", "progressiveFetch failed because all portals have been tried\n", endpoint, "\n", fetchOpts);
-			reject({
-				err: "all portals have failed",
-				portal: null,
-				response: null,
-				remainingPortals,
-			});
+			reject(new Error("no portals remaining"));
 			return;
 		}
 
@@ -117,7 +111,6 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 			// Success! Handle the response.
 			log("allFetch", "fetch returned successfully\n", query, "\n", response);
 			resolve({
-				err: null,
 				portal,
 				response,
 				remainingPortals,
@@ -125,7 +118,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 			return;
 		})
 		.catch((err) => {
-			// Try the next portal.
+			// This portal failed, try again with the next portal.
 			log("portal", "error with fetch call\n", portal, "\n", query, "\n", err);
 			progressiveFetch(endpoint, fetchOpts, remainingPortals)
 			.then(output => resolve(output))

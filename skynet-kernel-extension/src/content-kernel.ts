@@ -41,6 +41,8 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/parsejson.ts
 
+// import:::skynet-kernel-extension/lib/err.ts
+
 // import:::skynet-kernel-extension/lib/log.ts
 
 // import:::skynet-kernel-extension/lib/sha512.ts
@@ -152,23 +154,15 @@ var loadUserPortalPreferences = function(callback: any) {
 	// If the user does not have any portals set on Skynet either, we will
 	// write the default list of portals to localstorage, which will
 	// eliminate the need to perform this call in the future.
-	//
-	// We need to define inline functions for the resolve and reject
-	// callbacks because there's no easy way to pass the
-	// loadUserPortalPreferences callback into them without doing it
-	// inline. Yay javascript (if there's a better way, lmk).
-	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-datakey",
-		// This is the success callback.
-		function(output) {
-			loadUserPortalPreferencesRegReadSuccess(output);
-			callback();
-		},
-		// This is the error callback.
-		function(err) {
-			log("lifecycle", "unable to load the users list of preferred portals", err);
-			callback();
-		}
-	);
+	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-datakey")
+	.then(output => {
+		loadUserPortalPreferencesRegReadSuccess(output);
+		callback();
+	})
+	.catch(output => {
+		log("lifecycle", "unable to load the users list of preferred portals", err);
+		callback();
+	});
 }
 
 // processKernelDownload handles the result of attempting to download the

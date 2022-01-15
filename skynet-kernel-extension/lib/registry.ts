@@ -43,12 +43,12 @@ var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, 
 // registry entry. If the problem is with the portal, the caller should try the
 // next portal. If the problem is with the underyling registry entry, the
 // caller should handle the error and not try any more portals.
-var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, string] {
+var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, Error] {
 	// If the portal reports that it's having trouble filling the request,
 	// try the next portal. The portals are set up so that a 5XX error
 	// indicates that other portals may have better luck.
 	if (response.status >= 500 && response.status < 600) {
-		return [true, "received 5XX from portal"];
+		return [true, new Error("received 5XX from portal")];
 	}
 
 	// A 404 is considered a successful response.
@@ -69,32 +69,32 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, s
 		// TODO: We need to verify the signature _first_ then determine
 		// that the type is invalid.
 		if (result.type !== 1) {
-			return [false, "registry entry is not of type 1"];
+			return [false, new Error("registry entry is not of type 1")];
 		}
 
 		// Verify the reponse has all required fields.
 		if (!("data" in result) || !("revision" in result) || !("signature" in result)) {
-			return [true, "response is missing fields"];
+			return [true, new Error("response is missing fields")];
 		}
 		// Verify the signature on the registry entry.
 		if (!(typeof(result.data) === "string") || !(typeof(result.revision) === "number") || !(typeof(result.signature) === "string")) {
-			return [true, "portal response has invalid format"]
+			return [true, new Error("portal response has invalid format")]
 		}
 		let revision = <number>result.revision;
 
 		// Attempt to decode the hex values of the results.
 		let [data, err1] = hex2buf(result.data);
 		if (err1 !== null) {
-			return [true, "portal result data did not decode from hex"];
+			return [true, new Error("portal result data did not decode from hex")];
 		}
 		let [sig, err3] = hex2buf(result.signature);
 		if (err3 !== null) {
-			return [true, "portal result signature did not decode from hex"];
+			return [true, new Error("portal result signature did not decode from hex")];
 		}
 
 		// Data is clean, check signature.
 		if (!verifyRegistrySignature(pubkey, datakey, data, revision, sig)) {
-			return [true, "portal response has a signature mismatch"];
+			return [true, new Error("portal response has a signature mismatch")];
 		}
 
 		// Verfifcation is complete!
@@ -113,81 +113,105 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, s
 	// pay-per-request model using ephemeral accounts that eliminates the
 	// need for ratelimiting.
 
-	return [true, "portal response not recognized"];
+	return [true, new Error("portal response not recognized")];
+}
+
+interface RegistryEntry {
+	data: Uint8Array;
+	revision: number;
+}
+
+interface ReadOwnRegistryEntryResult {
+	response: Response;
+	result: RegistryEntry;
 }
 
 // readOwnRegistryEntryHandleFetch will handle a resolved call to
 // progressiveFetch.
-var readOwnRegistryEntryHandleFetch = function(output, endpoint, pubkey, datakey, resolveCallback, rejectCallback) {
-	// Check for an error.
-	if (output.err !== null) {
-		rejectCallback(output.err);
-		return;
-	}
-
-	let response = output.response;
-
-	// Read the response body.
-	response.json()
-	.then(result => {
-		// Check whether the response is valid. The response may be
-		// invalid in a way that indicates a disfunctional or malicious
-		// portal, which means that we should try another portal. Or
-		// the response may be invalid in a way that indicates a more
-		// fundamental error (portal is honest but something else
-		// doesn't match), and we can't make progress.
-		let [portalIssue, err] = verifyRegReadResp(response, result, pubkey, datakey);
-		if (err !== null && portalIssue === true) {
-			// The error is with the portal, so we want to keep
-			// trying more portals.
-			log("portal", "portal returned an invalid regread response\n", output.portal, "\n", err, "\n", response, "\n", result);
+var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, pubkey: Uint8Array, datakey: Uint8Array): Promise<ReadOwnRegistryEntryResult> {
+	return new Promise((resolve, reject) => {
+		// Build a helper function that will continue attempting the
+		// fetch call on other portals.
+		let continueFetch = function() {
 			progressiveFetch(endpoint, null, output.remainingPortals)
 			.then(output => {
-				readOwnRegistryEntryHandleFetch(output, endpoint, pubkey, datakey, resolveCallback, rejectCallback);
+				readOwnRegistryEntryHandleFetch(output, endpoint, pubkey, datakey)
+				.then(output => {
+					resolve(output);
+				})
+				.catch(err => {
+					reject(err);
+				})
 			})
-			return;
 		}
-		if (err !== null && portalIssue === false) {
-			log("lifecycle", "registry entry is corrupt or browser extension is out of date\n", err, "\n", response, "\n", result);
-			resolveCallback({
-				err,
+
+		// Read the response body.
+		let response = output.response;
+		response.json()
+		.then(untrustedResult => {
+			// Check whether the response is valid. The response
+			// may be invalid in a way that indicates a
+			// disfunctional or malicious portal, which means that
+			// we should try another portal. Or the response may be
+			// invalid in a way that indicates a more fundamental
+			// error (portal is honest but the entry itself is
+			// corrupt), and we can't make progress.
+			let [portalIssue, err] = verifyRegReadResp(response, untrustedResult, pubkey, datakey);
+			if (err !== null && portalIssue === true) {
+				// The error is with the portal, so we want to keep
+				// trying more portals.
+				log("portal", "portal returned an invalid regread response\n", output.portal, "\n", err, "\n", response, "\n", untrustedResult);
+				continueFetch();
+				return;
+			}
+			if (err !== null && portalIssue === false) {
+				log("lifecycle", "registry entry is corrupt or browser extension is out of date\n", err, "\n", response, "\n", untrustedResult);
+				reject(addContextToErr(err, "registry entry appears corrupt"));
+				return;
+			}
+			// Create a result with the correct typing.
+			let result = <RegistryEntry>untrustedResult;
+
+			// The err is null, call the resolve callback.
+			resolve({
 				response,
 				result,
 			});
+		})
+		.catch(err => {
+			log("portal", "unable to parse response body\n", output.portal, "\n", response, "\n", err);
+			continueFetch();
 			return;
-		}
-
-		// The err is null, call the resolve callback.
-		resolveCallback({
-			err: "none",
-			response,
-			result,
-		});
-	})
-	.catch(err => {
-		log("portal", "unable to parse response body\n", output.portal, "\n", response, "\n", err);
-		progressiveFetchLegacy(endpoint, null, output.remainingPortals, resolveCallback, rejectCallback);
+		})
 	})
 }
 
 // readOwnRegistryEntry will read and verify a registry entry that is owned by
 // the user. The tag strings will be hashed with the user's seed to produce the
 // correct entropy.
-var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, resolveCallback: any, rejectCallback: any) {
-	// Fetch the keys.
-	let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
-	let pubkeyHex = buf2hex(keyPair.publicKey);
-	let datakeyHex = buf2hex(datakey);
+var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string): Promise<ReadOwnRegistryEntryResult> {
+	return new Promise((resolve, reject) => {
+		// Fetch the keys and encode them to hex, then build the desired endpoint.
+		let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		let pubkeyHex = buf2hex(keyPair.publicKey);
+		let datakeyHex = buf2hex(datakey);
+		let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+datakeyHex;
 
-	// Get a list of portals, then try fetching the entry from each portal
-	// until a successful response is received. A 404 is considered a
-	// successful response.
-	let portalList = preferredPortals();
-	let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+datakeyHex;
-
-	progressiveFetch(endpoint, null, portalList)
-	.then(output => {
-		readOwnRegistryEntryHandleFetch(output, endpoint, keyPair.publicKey, datakey, resolveCallback, rejectCallback);
+		// Fetch the list of portals and call progressiveFetch.
+		let portalList = preferredPortals();
+		progressiveFetch(endpoint, null, portalList)
+		.then(output => {
+			readOwnRegistryEntryHandleFetch(output, endpoint, keyPair.publicKey, datakey)
+			.then(output => {
+				resolve(output);
+			})
+			.catch(output => {
+				reject(output);
+			})
+		})
+		.catch(err => {
+			reject(addContextToErr(err, "unable to read registry entry"));
+		})
 	})
 }
 
@@ -249,4 +273,8 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 	}
 	progressiveFetchLegacy(endpoint, fetchOpts, portalList, adjustedResolveCallback, rejectCallback);
 	return;
+			// TODO: Verify the fields here of the registry entry. Maybe? Actually aren't they already verified somewhere 
+
+			// TODO: Verify the fields here of the registry entry. Maybe? Actually aren't they already verified somewhere 
+
 }
