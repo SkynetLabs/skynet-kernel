@@ -102,7 +102,7 @@ var logOut = function() {
 // loadUserPortalPreferencesRegReadSuccess is the callback that will be
 // performed by loadUserPortalPreferences after a successful call to the
 // registry entry that holds all of the user's preferred portals.
-var loadUserPortalPreferencesRegReadSuccess = function(output) {
+var processUserPortalPreferences = function(output: readOwnRegistryEntryResult) {
 	// In the event of a 404, we want to store the default list as the set
 	// of user's portals. We do this so that subsequent kernel iframes that
 	// the user opens don't need to go to the network as part of the
@@ -121,43 +121,42 @@ var loadUserPortalPreferencesRegReadSuccess = function(output) {
 	}
 }
 
-// loadUserPortalPreferences will fetch the user's remote portal preferences
-// from their portal registry entry and update local storage to reflect the
-// user's preferences. If the localstorage is already set containing a set of
-// preferences, no network operations are performed, we will allow the full
-// kernel to decide when and how to update the user's local portal settings.
-//
-// The callback will be run once the user's preferred portals have been
-// established. If there is some error in establishing the user's portals,
-// localstorage will remain blank and the callback will be called anyway. This
-// function does not guarantee that the user's portals are properly loaded, it
-// merely makes a best attempt.
-var loadUserPortalPreferences = function(callback: any) {
-	// Try to get the list of portals from localstorage. If the list
-	// already exists, we don't need to fetch the list.
-	let portalListStr = window.localStorage.getItem("v1-portalList");
-	if (portalListStr !== null) {
-		callback();
-		return;
-	}
+// loadUserPortalPreferences will block until the user's portal preferences
+// have been loaded. If a set of preferneces already exist in localStorage,
+// those get used. If not, we try to fetch the user's portal preferences from
+// the network.
+var loadUserPortalPreferences = function(): Promise<void> {
+	return new Promise(resolve => {
+		// Try to get the list of portals from localstorage. If the
+		// list already exists, we don't need to fetch the list from
+		// the network.
+		let portalListStr = window.localStorage.getItem("v1-portalList");
+		if (portalListStr !== null) {
+			resolve();
+			return;
+		}
 
-	// Attempt to fetch the user's list of portals from Skynet. This
-	// particular request will use the default set of portals established
-	// by the browser extension, as there is no information available yet
-	// about the user's preferred portal.
-	//
-	// If the user does not have any portals set on Skynet either, we will
-	// write the default list of portals to localstorage, which will
-	// eliminate the need to perform this call in the future.
-	readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-datakey")
-	.then(output => {
-		loadUserPortalPreferencesRegReadSuccess(output);
-		callback();
+		// Attempt to fetch the user's list of portals from Skynet. This
+		// particular request will use the default set of portals established
+		// by the browser extension, as there is no information available yet
+		// about the user's preferred portal.
+		//
+		// If the user does not have any portals set on Skynet either, we will
+		// write the default list of portals to localstorage, which will
+		// eliminate the need to perform this call in the future.
+		//
+		// TODO: This should probably be a call to downloadSkylink, not
+		// a call to the registry.
+		readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-datakey")
+		.then(output => {
+			processUserPortalPreferences(output);
+			resolve();
+		})
+		.catch(err => {
+			log("lifecycle", "unable to load the users list of preferred portals", err);
+			resolve();
+		});
 	})
-	.catch(output => {
-		log("lifecycle", "unable to load the users list of preferred portals", err);
-		callback();
-	});
 }
 
 // processKernelDownload handles the result of attempting to download the
@@ -352,7 +351,8 @@ var loadSkynetKernel = function() {
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
 	// once the preferred portal has been established.
-	loadUserPortalPreferences(fetchAndEvalKernel);
+	loadUserPortalPreferences()
+	.then(nil => fetchAndEvalKernel());
 }
 
 // handleMessage is called by the message event listener when a new message

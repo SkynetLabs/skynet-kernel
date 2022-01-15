@@ -27,7 +27,6 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 				response,
 				remainingPortals,
 			})
-			return;
 		})
 		.catch((err) => {
 			// This portal failed, try again with the next portal.
@@ -35,7 +34,6 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 			progressiveFetch(endpoint, fetchOpts, remainingPortals)
 			.then(output => resolve(output))
 			.catch(err => reject(err));
-			return;
 		})
 	})
 }

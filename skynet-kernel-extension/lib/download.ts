@@ -1,10 +1,10 @@
 // parseSkylinkBitfield is a helper function to downloadSkylink which pulls
 // the fetchSize out of the bitfield. parseSkylink will return an error if the
 // offset is not zero.
-var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, number, string] {
+var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, number, Error] {
 	// Validate the input.
 	if (skylink.length !== 34) {
-		return [0, 0, 0, "provided skylink has incorrect length"];
+		return [0, 0, 0, new Error("provided skylink has incorrect length")];
 	}
 
 	// Extract the bitfield.
@@ -14,13 +14,13 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	let version = (bitfield & 3) + 1
 	// Only versions 1 and 2 are recognized.
 	if (version !== 1 && version !== 2) {
-		return [0, 0, 0, "provided skylink has unrecognized version"];
+		return [0, 0, 0, new Error("provided skylink has unrecognized version")];
 	}
 
 	// Verify that the mode is valid, then fetch the mode.
 	bitfield = bitfield >> 2;
 	if ((bitfield&255) === 255) {
-		return [0, 0, 0, "provided skylink has an unrecognized version"];
+		return [0, 0, 0, new Error("provided skylink has an unrecognized version")];
 	}
 	let mode = 0;
 	for (let i = 0; i < 8; i++) {
@@ -33,7 +33,7 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	}
 	// If the mode is greater than 7, this is not a valid v1 skylink.
 	if (mode > 7) {
-		return [0, 0, 0, "provided skylink has an invalid v1 bitfield"];
+		return [0, 0, 0, new Error("provided skylink has an invalid v1 bitfield")];
 	}
 
 	// Determine the offset and fetchSize increment.
@@ -51,7 +51,7 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	// The remaining bits determine the fetchSize.
 	let offset = bitfield * offsetIncrement;
 	if (offset + fetchSize > 1 << 22) {
-		return [0, 0, 0, "provided skylink has an invalid v1 bitfield"];
+		return [0, 0, 0, new Error("provided skylink has an invalid v1 bitfield")];
 	}
 
 	// Return what we learned.
@@ -60,13 +60,13 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 
 // deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
 // datakey.
-var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, string] {
+var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, Error] {
 	// Check the lengths of the inputs.
 	if (pubkey.length !== 32) {
-		return [null, "pubkey is invalid, length is wrong"];
+		return [null, new Error("pubkey is invalid, length is wrong")];
 	}
 	if (datakey.length !== 32) {
-		return [null, "datakey is not a valid hash, length is wrong"];
+		return [null, new Error("datakey is not a valid hash, length is wrong")];
 	}
 
 	// Establish the encoding. First 16 bytes is a specifier, second 8
@@ -108,45 +108,45 @@ var validSkylink = function(skylink: Uint8Array): boolean {
 // verifyResolverLinkProof will check that the given resolver proof matches the
 // provided skylink. If the proof is correct and the signature matches, the
 // data will be returned. The returned link will be a verified skylink.
-var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): [Uint8Array, string] {
+var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): [Uint8Array, Error] {
 	// Verify the presented skylink is formatted correctly.
 	if (skylink.length !== 34) {
-		return [null, "skylink is malformed, expecting 34 bytes"];
+		return [null, new Error("skylink is malformed, expecting 34 bytes")];
 	}
 
 	// Verify that all of the required fields are present in the proof.
 	if (!("data" in proof) || !("datakey" in proof) || !("publickey" in proof) || !("signature" in proof) || !("type" in proof) || !("revision" in proof)) {
-		return [null, "proof is malformed, fields are missing"];
+		return [null, new Error("proof is malformed, fields are missing")];
 	}
 	if (!("algorithm" in proof.publickey) || !("key" in proof.publickey)) {
-		return [null, "pubkey is malformed"];
+		return [null, new Error("pubkey is malformed")];
 	}
 
 	// Verify the typing of the fields.
 	if (typeof proof.data !== "string") {
-		return [null, "data is malformed"];
+		return [null, new Error("data is malformed")];
 	}
 	let dataStr = <string>proof.data;
 	if (typeof proof.datakey !== "string") {
-		return [null, "datakey is malformed"];
+		return [null, new Error("datakey is malformed")];
 	}
 	let datakeyStr = <string>proof.datakey;
 	if (proof.publickey.algorithm !== "ed25519") {
-		return [null, "pubkey has unrecognized algorithm"];
+		return [null, new Error("pubkey has unrecognized algorithm")];
 	}
 	if (typeof proof.publickey.key !== "string") {
-		return [null, "pubkey key is malformed"];
+		return [null, new Error("pubkey key is malformed")];
 	}
 	let pubkeyStr = <string>proof.publickey.key;
 	if (typeof proof.signature !== "string") {
-		return [null, "signature is malformed"];
+		return [null, new Error("signature is malformed")];
 	}
 	if (proof.type !== 1) {
-		return [null, "registry entry has unrecognized type"];
+		return [null, new Error("registry entry has unrecognized type")];
 	}
 	let sigStr = <string>proof.signature;
 	if (typeof proof.revision !== "number") {
-		return [null, "revision is malformed"];
+		return [null, new Error("revision is malformed")];
 	}
 	let revision = <number>proof.revision;
 
@@ -154,43 +154,43 @@ var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): [Uint8A
 	// encodings.
 	let [data, errD] = hex2buf(dataStr);
 	if (errD !== null) {
-		return [null, "data is invalid hex: " + errD];
+		return [null, addContextToErr(errD, "data is invalid hex")];
 	}
 	let [datakey, errDK] = hex2buf(datakeyStr);
 	if (errDK !== null) {
-		return [null, "datakey is invalid hex: " + errDK];
+		return [null, addContextToErr(errDK, "datakey is invalid hex")];
 	}
 	let [pubkey, errPK] = b64ToBuf(pubkeyStr);
 	if (errPK !== null) {
-		return [null, "pubkey key is invalid base64: " + errPK];
+		return [null, addContextToErr(errPK, "pubkey key is invalid base64")];
 	}
 	let [sig, errS] = hex2buf(sigStr);
 	if (errS !== null) {
-		return [null, "signature is invalid hex: " + errS];
+		return [null, addContextToErr(errS, "signature is invalid hex")];
 	}
 
 	// Verify that the data is a skylink - this is a proof for a resolver,
 	// which means the proof is pointing to a specific skylink.
 	if (!validSkylink(data)) {
-		return [null, "this skylink does not resolve to another skylink"];
+		return [null, new Error("this skylink does not resolve to another skylink")];
 	}
 
 	// Verify that the combination of the datakey and the public key match
 	// the skylink.
 	let [entryID, err] = deriveRegistryEntryID(pubkey, datakey)
 	if (err !== null) {
-		return [null, "proof pubkey is malformed: " + err];
+		return [null, addContextToErr(err, "proof pubkey is malformed")];
 	}
 	let linkID = skylink.slice(2, 34);
 	for (let i = 0; i < entryID.length; i++) {
 		if (entryID[i] !== linkID[i]) {
-			return [null, "proof pubkey and datakey do not match the skylink root"];
+			return [null, new Error("proof pubkey and datakey do not match the skylink root")];
 		}
 	}
 
 	// Verify the signature.
 	if (!verifyRegistrySignature(pubkey, datakey, data, revision, sig)) {
-		return [null, "signature does not match"];
+		return [null, new Error("signature does not match")];
 	}
 	return [data, null];
 }

@@ -8,22 +8,22 @@ var buf2hex = function(buffer: ArrayBuffer) {
 
 // hex2buf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
-var hex2buf = function(hex: string): [Uint8Array, string] {
+var hex2buf = function(hex: string): [Uint8Array, Error] {
 	// Check that the length makes sense.
 	if (hex.length%2 != 0) {
-		return [null, "input has incorrect length"];
+		return [null, new Error("input has incorrect length")];
 	}
 
 	// Check that all of the characters are legal.
 	let match = /[0-9A-Fa-f]*/g;
 	if (!match.test(hex)) {
-		return [null, "input has invalid character"];
+		return [null, new Error("input has invalid character")];
 	}
 
 	// Create the buffer and fill it.
 	let matches = hex.match(/.{1,2}/g);
 	if (matches === null) {
-		return [null, "input is incomplete"];
+		return [null, new Error("input is incomplete")];
 	}
 	let u8 = new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
 	return [u8, null];
@@ -31,12 +31,12 @@ var hex2buf = function(hex: string): [Uint8Array, string] {
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
-var b64ToBuf = function(b64: string): [Uint8Array, string] {
+var b64ToBuf = function(b64: string): [Uint8Array, Error] {
 	// Check that the final string is valid base64.
 	let b64regex = /^[0-9a-zA-Z-_/+=]*$/;
 	if (!b64regex.test(b64)) {
 		log("lifecycle", "not valid b64", b64);
-		return [null, "provided string is not valid base64"];
+		return [null, new Error("provided string is not valid base64")];
 	}
 
 	// Swap any '-' characters for '+', and swap any '_' characters for '/'
