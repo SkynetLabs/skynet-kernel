@@ -192,17 +192,16 @@ var authUser = function() {
 		return;
 	}
 	// Take the seed and store it in localStorage.
-	let seedString = new TextDecoder().decode(seed);
-	window.localStorage.setItem("v1-seed", seedString);
+	let seedStr = String.fromCharCode(...seed)
+	window.localStorage.setItem("v1-seed", seedStr);
 
 	// Send a postmessage back to the caller that auth was successful.
 	try {
 		window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
+		window.close();
 	} catch(err) {
 		setErrorText("Unable to report that authentication suceeded: " + err);
-		return;
 	}
-	window.close();
 }
 
 // Create the auth form and perform authentication.

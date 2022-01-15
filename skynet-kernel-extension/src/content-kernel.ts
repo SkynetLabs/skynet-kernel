@@ -84,18 +84,16 @@ interface Ed25519KeyPair {
 // first function that gets called when the kernel iframe is openend. The
 // kernel will not be loaded if no seed is present, as it means that the user
 // is not logged in.
-var getUserSeed = function(): [Uint8Array, string] {
+var getUserSeed = function(): [Uint8Array, Error] {
+	// Pull the string version of the seed from localstorage.
 	let userSeedString = window.localStorage.getItem("v1-seed");
 	if (userSeedString === null) {
-		return [null, "no user seed in local storage"];
+		return [null, new Error("no user seed in local storage")];
 	}
-	let userSeed: Uint8Array;
-	try {
-		userSeed = new TextEncoder().encode(userSeedString);
-	} catch (err) {
-		return [null, "user seed is not valid"];
-	}
-	return [userSeed, ""];
+
+	// Parse the string into a Uint8Array and return the result.
+	let userSeed = Uint8Array.from([...userSeedString].map(ch => ch.charCodeAt(0)))
+	return [userSeed, null];
 }
 
 // logOut will erase the localStorage, which means the seed will no longer be
@@ -286,7 +284,11 @@ var fetchAndEvalDefaultKernel = function() {
 // complete setup, we want a consistent user experience.
 var fetchAndEvalKernel = function() {
 	// Determine the resolver link for the user's kernel.
-	let [keyPair, datakey] = ownRegistryEntryKeys("v1-skynet-kernel", "v1-skynet-kernel-datakey");
+	let [keyPair, datakey, err] = ownRegistryEntryKeys("v1-skynet-kernel", "v1-skynet-kernel-datakey");
+	if (err !== null) {
+		kernelDiscoveryFailed("unable to get user's registry entry keys");
+		return;
+	}
 	let [entryID, errID] = deriveRegistryEntryID(keyPair.publicKey, datakey)
 	if (errID !== null) {
 		kernelDiscoveryFailed("unable to determine entryID of user's kernel registry entry: " + errID);
@@ -381,7 +383,7 @@ window.addEventListener("message", (event: any) => {
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
 	let [userSeed, err] = getUserSeed();
-	if (err !== "") {
+	if (err !== null) {
 		log("message", "auth has failed, sending an authFailed message", err);
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
@@ -437,8 +439,7 @@ var downloadV1Skylink = function(skylink: string) {
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
 let [userSeed, err] = getUserSeed()
-log("lifecycle", "USER SEED", userSeed); // TODO: Remove this after inspecting the entropy issue.
-if (err !== "") {
+if (err !== null) {
 	log("lifecycle", "auth failed, sending message");
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 } else {

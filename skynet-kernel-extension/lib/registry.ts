@@ -14,9 +14,14 @@ interface readOwnRegistryEntryResult {
 
 // ownRegistryEntryKeys will use the user's seed to derive a keypair and a
 // datakey using the provided tags.
-var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [Ed25519KeyPair, Uint8Array] {
+var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [Ed25519KeyPair, Uint8Array, Error] {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
+	let [userSeed, err] = getUserSeed();
+	if (err !== null) {
+		return [null, null, addContextToErr(err, "unable to get the user seed")];
+	}
+
 	let keyPairEntropy = new Uint8Array(HASH_SIZE);
 	let keyPairTag = new TextEncoder().encode(keyPairTagStr);
 	let entropyInput = new Uint8Array(keyPairTag.length+userSeed.length);
@@ -36,7 +41,7 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string
 	// Create the private key for the registry entry.
 	let keyPair = keyPairFromSeed(keyPairEntropy.slice(0, 32));
 	let datakey = datakeyEntropy.slice(0, 32);
-	return [keyPair, datakey];
+	return [keyPair, datakey, null];
 }
 
 // verifyRegistrySignature will verify the signature of a registry entry.
@@ -196,7 +201,10 @@ var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, e
 var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string): Promise<readOwnRegistryEntryResult> {
 	return new Promise((resolve, reject) => {
 		// Fetch the keys and encode them to hex, then build the desired endpoint.
-		let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		let [keyPair, datakey, err] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		if (err !== null) {
+			reject(addContextToErr(err, "unable to get user's registry keys"))
+		}
 		let pubkeyHex = buf2hex(keyPair.publicKey);
 		let datakeyHex = buf2hex(datakey);
 		let endpoint = "/skynet/registry?publickey=ed25519%3A"+pubkeyHex+"&datakey="+datakeyHex;
@@ -251,7 +259,10 @@ var writeNewOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResul
 var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, data: Uint8Array): Promise<Response> {
 	return new Promise((resolve, reject) => {
 		// Fetch the keys.
-		let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		let [keyPair, datakey, err] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		if (err !== null) {
+			reject(addContextToErr(err, "unable to get user's registry keys"))
+		}
 		let pubkeyHex = buf2hex(keyPair.publicKey);
 		let datakeyHex = buf2hex(datakey);
 
