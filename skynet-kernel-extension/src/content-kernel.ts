@@ -53,6 +53,8 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/encoding.ts
 
+// import:::skynet-kernel-extension/lib/preferredportals.ts
+
 // import:::skynet-kernel-extension/lib/progressivefetch.ts
 
 // import:::skynet-kernel-extension/lib/registry.ts

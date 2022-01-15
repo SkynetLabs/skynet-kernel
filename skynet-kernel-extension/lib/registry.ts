@@ -273,8 +273,4 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 	}
 	progressiveFetchLegacy(endpoint, fetchOpts, portalList, adjustedResolveCallback, rejectCallback);
 	return;
-			// TODO: Verify the fields here of the registry entry. Maybe? Actually aren't they already verified somewhere 
-
-			// TODO: Verify the fields here of the registry entry. Maybe? Actually aren't they already verified somewhere 
-
 }
