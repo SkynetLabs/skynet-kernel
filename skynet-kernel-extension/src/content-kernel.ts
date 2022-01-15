@@ -5,9 +5,6 @@ export {};
 // have the kernel operate entirely from shared workers. Still need to explore
 // that.
 
-// TODO: Visual inspection of the user seed suggests that it low entropy, there
-// seems to be an encoding issue.
-
 // TODO: I don't think we are verifying all of the untrusted inputs we are
 // receiving.
 
@@ -25,8 +22,6 @@ export {};
 
 // TODO: We can make more liberal use in general of the typing system in
 // typescript to get more robust code, especially around error handling.
-
-// TODO: Looks like the login flow is broken.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
