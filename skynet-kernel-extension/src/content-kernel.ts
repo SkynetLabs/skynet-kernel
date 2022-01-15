@@ -211,7 +211,7 @@ var processKernelDownload = function(output) {
 		// user's kernel.
 		writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
 		.then(response => {
-			log("lifecycle", "succesfully set the user's kernel to the default kernel\n", response);
+			log("lifecycle", "succesfully set the user's kernel to the default kernel");
 		})
 		.catch(err => {
 			log("lifecycle", "unable to set the user's kernel\n", err)
