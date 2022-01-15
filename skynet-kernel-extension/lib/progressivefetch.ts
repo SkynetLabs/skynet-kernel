@@ -1,32 +1,3 @@
-// progressiveFetchLegacy will query multiple portals until one returns with
-// the correct response. If there is a success, it will call the success
-// callback. If all of the portals fail, it will call the failure callback.
-//
-// TODO: Remove this function entirely once all of the users have been updated
-// to use the new progressiveFetch.
-var progressiveFetchLegacy = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
-	if (portals.length === 0) {
-		log("progressiveFetch", "progressiveFetch failed because all portals have been tried", endpoint, fetchOpts);
-		rejectCallback("no more portals available");
-		return;
-	}
-
-	// Try the next portal in the array.
-	let portal = portals.shift();
-	let query = "https://" + portal + endpoint;
-	fetch(query, fetchOpts)
-	.then(response => {
-		// Success! Handle the response.
-		log("allFetch", "fetch returned successfully", query, "::", response);
-		resolveCallback(response, portals);
-	})
-	.catch((error) => {
-		// Try the next portal.
-		log("portal", query, "::", error);
-		progressiveFetchLegacy(endpoint, fetchOpts, portals, resolveCallback, rejectCallback)
-	})
-}
-
 // ProgressiveFetchResult defines the type returned by progressiveFetch.
 interface ProgressiveFetchResult {
 	portal: string;
@@ -66,5 +37,34 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 			.catch(err => reject(err));
 			return;
 		})
+	})
+}
+
+// progressiveFetchLegacy will query multiple portals until one returns with
+// the correct response. If there is a success, it will call the success
+// callback. If all of the portals fail, it will call the failure callback.
+//
+// TODO: Remove this function entirely once all of the users have been updated
+// to use the new progressiveFetch.
+var progressiveFetchLegacy = function(endpoint: string, fetchOpts: any, portals: string[], resolveCallback: any, rejectCallback: any) {
+	if (portals.length === 0) {
+		log("progressiveFetch", "progressiveFetch failed because all portals have been tried", endpoint, fetchOpts);
+		rejectCallback("no more portals available");
+		return;
+	}
+
+	// Try the next portal in the array.
+	let portal = portals.shift();
+	let query = "https://" + portal + endpoint;
+	fetch(query, fetchOpts)
+	.then(response => {
+		// Success! Handle the response.
+		log("allFetch", "fetch returned successfully", query, "::", response);
+		resolveCallback(response, portals);
+	})
+	.catch((error) => {
+		// Try the next portal.
+		log("portal", query, "::", error);
+		progressiveFetchLegacy(endpoint, fetchOpts, portals, resolveCallback, rejectCallback)
 	})
 }

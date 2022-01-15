@@ -211,19 +211,13 @@ var processKernelDownload = function(output) {
 		// registry entry. The callbacks here are sparse because we
 		// don't need to know the result of the write to load the
 		// user's kernel.
-		writeNewOwnRegistryEntry(
-			"v1-skynet-kernel",
-			"v1-skynet-kernel-datakey",
-			defaultKernelSkylink,
-			// Success callback.
-			function(response) {
-				log("lifecycle", "set the user's kernel to the extension default", response);
-			},
-			// Failure callback.
-			function(err) {
-				log("lifecycle", "unable to set the user's kernel", err);
-			}
-		);
+		writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
+		.then(response => {
+			log("lifecycle", "succesfully set the user's kernel to the default kernel\n", response);
+		})
+		.catch(err => {
+			log("lifecycle", "unable to set the user's kernel\n", err)
+		})
 
 		// Need to download and eval the default kernel.
 		fetchAndEvalDefaultKernel();

@@ -1,3 +1,17 @@
+// RegistryEntry defines fields that are important to processing a registry
+// entry.
+interface RegistryEntry {
+	data: Uint8Array;
+	revision: number;
+}
+
+// readOwnRegistryEntryResult defines the fields that get returned when making
+// a call to readOwnRegistryEntryResult.
+interface readOwnRegistryEntryResult {
+	response: Response;
+	result: RegistryEntry;
+}
+
 // ownRegistryEntryKeys will use the user's seed to derive a keypair and a
 // datakey using the provided tags.
 var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [Ed25519KeyPair, Uint8Array] {
@@ -43,7 +57,10 @@ var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, 
 // registry entry. If the problem is with the portal, the caller should try the
 // next portal. If the problem is with the underyling registry entry, the
 // caller should handle the error and not try any more portals.
-var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, Error] {
+//
+// The result has type 'any' because it the object was built from an untrusted
+// blob of json.
+var verifyRegReadResp = function(response: Response, result: any, pubkey: Uint8Array, datakey: Uint8Array): [boolean, Error] {
 	// If the portal reports that it's having trouble filling the request,
 	// try the next portal. The portals are set up so that a 5XX error
 	// indicates that other portals may have better luck.
@@ -63,15 +80,6 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, E
 	// Perform basic verification. If the portal returns the response as
 	// successful, check the signature.
 	if (response.status === 200) {
-		// Check that the result has type '1', this code hasn't been
-		// programmed to verify registry entries with any other type.
-		//
-		// TODO: We need to verify the signature _first_ then determine
-		// that the type is invalid.
-		if (result.type !== 1) {
-			return [false, new Error("registry entry is not of type 1")];
-		}
-
 		// Verify the reponse has all required fields.
 		if (!("data" in result) || !("revision" in result) || !("signature" in result)) {
 			return [true, new Error("response is missing fields")];
@@ -97,6 +105,12 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, E
 			return [true, new Error("portal response has a signature mismatch")];
 		}
 
+		// TODO: If the registry entry has type 2, the signature here
+		// will fail even if the portal is being honest, and we will
+		// mistakenly assume that the portal is malicious. We need to
+		// add a check that verifies the signature of a type 2 registry
+		// entry correctly.
+
 		// Verfifcation is complete!
 		return [false, null];
 	}
@@ -116,19 +130,9 @@ var verifyRegReadResp = function(response, result, pubkey, datakey): [boolean, E
 	return [true, new Error("portal response not recognized")];
 }
 
-interface RegistryEntry {
-	data: Uint8Array;
-	revision: number;
-}
-
-interface ReadOwnRegistryEntryResult {
-	response: Response;
-	result: RegistryEntry;
-}
-
 // readOwnRegistryEntryHandleFetch will handle a resolved call to
 // progressiveFetch.
-var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, pubkey: Uint8Array, datakey: Uint8Array): Promise<ReadOwnRegistryEntryResult> {
+var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, pubkey: Uint8Array, datakey: Uint8Array): Promise<readOwnRegistryEntryResult> {
 	return new Promise((resolve, reject) => {
 		// Build a helper function that will continue attempting the
 		// fetch call on other portals.
@@ -189,7 +193,7 @@ var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, e
 // readOwnRegistryEntry will read and verify a registry entry that is owned by
 // the user. The tag strings will be hashed with the user's seed to produce the
 // correct entropy.
-var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string): Promise<ReadOwnRegistryEntryResult> {
+var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string): Promise<readOwnRegistryEntryResult> {
 	return new Promise((resolve, reject) => {
 		// Fetch the keys and encode them to hex, then build the desired endpoint.
 		let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
@@ -205,8 +209,8 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string
 			.then(output => {
 				resolve(output);
 			})
-			.catch(output => {
-				reject(output);
+			.catch(err => {
+				reject(addContextToErr(err, "unable to read registry entry"));
 			})
 		})
 		.catch(err => {
@@ -215,62 +219,83 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string
 	})
 }
 
-// writeNewOwnRegistryEntry will write the provided data to a new registry
-// entry. A revision number of 0 will be used, because this function is
-// assuming that no data yet exists at that registry entry location.
-var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, data: Uint8Array, resolveCallback: any, rejectCallback: any) {
-	// Fetch the keys.
-	let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
-	let pubkeyHex = buf2hex(keyPair.publicKey);
-	let datakeyHex = buf2hex(datakey);
-
-	// Compute the signature of the new registry entry.
-	let encodedData = encodePrefixedBytes(data);
-	let encodedRevision = encodeNumber(0);
-	let dataToSign = new Uint8Array(32 + 8 + data.length + 8);
-	dataToSign.set(datakey, 0);
-	dataToSign.set(encodedData, 32);
-	dataToSign.set(encodedRevision, 32+8+data.length);
-	let sigHash = blake2b(dataToSign);
-	let sig = sign(sigHash, keyPair.secretKey);
-
-	// Compose the registry entry query.
-	let postBody = {
-		publickey: {
-			algorithm: "ed25519",
-			key: Array.from(keyPair.publicKey),
-		},
-		datakey: datakeyHex,
-		revision: 0,
-		data: Array.from(data),
-		signature: Array.from(sig),
-	}
-	let fetchOpts = {
-		method: 'post',
-		body: JSON.stringify(postBody)
-	};
-	let portalList = preferredPortals();
-	let endpoint = "/skynet/registry";
-
-	// Write an adjusted success callback which checks the status of the
-	// registry write.
-	let adjustedResolveCallback = function(response, remainingPortalList) {
+var writeNewOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, fetchOpts: any): Promise<Response> {
+	return new Promise((resolve, reject) => {
+		let response = output.response;
 		if ("status" in response && response.status === 204) {
 			// TODO: We probably want some way to verify that the
 			// write was actually committed, rather than just
 			// trusting the portal that they relayed the messages
 			// to hosts. Perhaps have the portal supply a list of
 			// signatures from hosts?
-			log("wrtieNewOwnRegistryEntry", "successful regwrite", response);
-			resolveCallback({
-				err: "none",
-				response: response,
-			});
+			log("writeRegistryAll", "successful registry write", response);
+			resolve(response);
 		} else {
-			log("error", "unexpected response from server upon regwrite", "status" in response, response.status, response)
-			progressiveFetchLegacy(endpoint, fetchOpts, remainingPortalList, adjustedResolveCallback, rejectCallback);
+			log("error", "unexpected response from server upon regwrite\n", response)
+			progressiveFetch(endpoint, fetchOpts, output.remainingPortals)
+			.then(fetchOutput => {
+				writeNewOwnRegistryEntryHandleFetch(output, endpoint, fetchOpts)
+				.then(writeOutput => resolve(writeOutput))
+				.catch(err => reject(addContextToErr(err, "unable to perform registry write")))
+			})
+			.catch(err => {
+				reject(addContextToErr(err, "unable to perform registry write"))
+			})
 		}
-	}
-	progressiveFetchLegacy(endpoint, fetchOpts, portalList, adjustedResolveCallback, rejectCallback);
-	return;
+	})
+}
+
+// writeNewOwnRegistryEntry will write the provided data to a new registry
+// entry. A revision number of 0 will be used, because this function is
+// assuming that no data yet exists at that registry entry location.
+var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, data: Uint8Array): Promise<Response> {
+	return new Promise((resolve, reject) => {
+		// Fetch the keys.
+		let [keyPair, datakey] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		let pubkeyHex = buf2hex(keyPair.publicKey);
+		let datakeyHex = buf2hex(datakey);
+
+		// Compute the signature of the new registry entry.
+		let encodedData = encodePrefixedBytes(data);
+		let encodedRevision = encodeNumber(0);
+		let dataToSign = new Uint8Array(32 + 8 + data.length + 8);
+		dataToSign.set(datakey, 0);
+		dataToSign.set(encodedData, 32);
+		dataToSign.set(encodedRevision, 32+8+data.length);
+		let sigHash = blake2b(dataToSign);
+		let sig = sign(sigHash, keyPair.secretKey);
+
+		// Compose the registry entry query.
+		let postBody = {
+			publickey: {
+				algorithm: "ed25519",
+				key: Array.from(keyPair.publicKey),
+			},
+			datakey: datakeyHex,
+			revision: 0,
+			data: Array.from(data),
+			signature: Array.from(sig),
+		}
+		let fetchOpts = {
+			method: 'post',
+			body: JSON.stringify(postBody)
+		};
+		let endpoint = "/skynet/registry";
+
+		// Perform the fetch call.
+		let portalList = preferredPortals();
+		progressiveFetch(endpoint, fetchOpts, portalList)
+		.then(output => {
+			writeNewOwnRegistryEntryHandleFetch(output, endpoint, fetchOpts)
+			.then(output => {
+				resolve(output);
+			})
+			.catch(err => {
+				reject(addContextToErr(err, "unable to create new registry entry"));
+			})
+		})
+		.catch(err => {
+			reject(addContextToErr(err, "unable to create new registry entry"));
+		})
+	})
 }
