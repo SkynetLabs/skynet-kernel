@@ -1,3 +1,8 @@
+interface downloadSkylinkResult {
+	response: Response;
+	text: string;
+}
+
 // parseSkylinkBitfield is a helper function to downloadSkylink which pulls
 // the fetchSize out of the bitfield. parseSkylink will return an error if the
 // offset is not zero.
@@ -235,11 +240,6 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 	}
 
 	return [skylink, null];
-}
-
-interface downloadSkylinkResult {
-	response: Response;
-	text: string;
 }
 
 var downloadSkylinkHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, u8Link: Uint8Array): Promise<downloadSkylinkResult> {

@@ -159,127 +159,113 @@ var loadUserPortalPreferences = function(): Promise<void> {
 	})
 }
 
-// processKernelDownload handles the result of attempting to download the
+// downloadDefaultKernel will download the default kernel.
+var downloadDefaultKernel = function(): Promise<string> {
+	return new Promise((resolve, reject) => {
+		downloadSkylink(defaultKernelResolverLink)
+		.then(output => {
+			// Handle the success case.
+			if (output.response.status === 200) {
+				resolve(output.text);
+				return;
+			}
+
+			// Handle every other response status.
+			log("lifecycle", "portal response not recognized", output.response);
+			reject("response not recognized when reading default kernel");
+			return;
+		})
+		.catch(err => {
+			reject(addContextToErr(err, "unable to download default portal"));
+		});
+	})
+}
+
+// processUserKernelDownload handles the result of attempting to download the
 // kernel stored at the user's seed. This is a 'success' response, meaning that
 // the network query succeeded without any malice from the portals. That is
 // still not the same as the download completing, the result of the query may
 // have been a 404, for example.
-var processKernelDownload = function(output: downloadSkylinkResult) {
-	// Handle the success case.
-	let response = output.response;
-	if (response.status === 200) {
-		log("lifecycle", "user kernel was successfully downloaded");
-		eval(output.text);
-		log("lifecycle", "user kernel loaded and eval'd");
-		kernelLoaded = true;
-
-		// Tell the parent that the kernel has finished
-		// loading.
-		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
-		return;
-	}
-
-	// Handle the 404 case.
-	if (response.status === 404) {
-		log("lifecycle", "user has no established kernel, trying to set the default");
-		// Create the data field, which contains the default kernel.
-		let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
-		if (err64 !== null) {
-			log("lifecycle", "could not convert defaultKernelSkylink to a uin8array");
+var processUserKernelDownload = function(output: downloadSkylinkResult): Promise<string> {
+	return new Promise((resolve, reject) => {
+		// Handle the success case.
+		let response = output.response;
+		if (response.status === 200) {
+			resolve(output.text);
 			return;
 		}
 
-		// Make a call to write the default kernel to the user's kernel
-		// registry entry. The callbacks here are sparse because we
-		// don't need to know the result of the write to load the
-		// user's kernel.
-		writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
-		.then(response => {
-			log("lifecycle", "succesfully set the user's kernel to the default kernel");
+		// Handle the 404 case, which invovles writing the default
+		// kernel to the user's kernel registry entry and then
+		// downloading the default kernel and returning it. We write
+		// the default kernel as the user's kernel because we want the
+		// user to have a consistent experience between browsers. If
+		// the first kernel they ever used was of a particular
+		// distribution, we want the next time they log in (even if on
+		// a different device with a different extension) to use the
+		// same kernel.
+		if (response.status === 404) {
+			log("lifecycle", "user has no established kernel, trying to set the default");
+
+			// Perform the registry write.
+			let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
+			if (err64 !== null) {
+				log("lifecycle", "could not convert defaultKernelSkylink to a uin8array");
+				return;
+			}
+			writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
+			.then(response => {
+				log("lifecycle", "succesfully set the user's kernel to the default kernel");
+			})
+			.catch(err => {
+				log("lifecycle", "unable to set the user's kernel\n", err)
+			})
+
+			// Need to download and eval the default kernel.
+			// fetchAndEvalDefaultKernel();
+			return downloadDefaultKernel();
+		}
+
+		// Handle every other response status.
+		log("lifecycle", "response not recognized when reading user kernel\n", response);
+		reject("response not recognized when reading user's kernel");
+		return;
+	})
+}
+
+// downloadUserKernel will download the user's kernel, falling back to the
+// default if necessary.
+var downloadUserKernel = function(): Promise<string> {
+	return new Promise((resolve, reject) => {
+		// Determine the resolver link for the user's kernel.
+		let [keyPair, datakey, err] = ownRegistryEntryKeys("v1-skynet-kernel", "v1-skynet-kernel-datakey");
+		if (err !== null) {
+			reject("unable to get user's registry entry keys");
+			return;
+		}
+		let [entryID, errID] = deriveRegistryEntryID(keyPair.publicKey, datakey)
+		if (errID !== null) {
+			reject(addContextToErr(errID, "unable to determine entryID of user's kernel"));
+			return;
+		}
+
+		// Build the v2 skylink from the entryID.
+		let v2Skylink = new Uint8Array(34);
+		v2Skylink.set(entryID, 2);
+		v2Skylink[0] = 1;
+		let skylink = bufToB64(v2Skylink);
+
+		// Attempt the download.
+		downloadSkylink(skylink)
+		.then(output => {
+			processUserKernelDownload(output)
+			.then(kernel => resolve(kernel))
+			.catch(err => reject(addContextToErr(err, "unable to download kernel for the user")))
 		})
 		.catch(err => {
-			log("lifecycle", "unable to set the user's kernel\n", err)
+			reject(addContextToErr(err, "unable to download user's kernel"));
 		})
-
-		// Need to download and eval the default kernel.
-		fetchAndEvalDefaultKernel();
-		return;
-	}
-
-	// Handle everything else.
-	log("lifecycle", "portal response not recognized", response);
-	kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
-	return;
-}
-
-// fetchAndEvalDefaultKernel will download the default kernel and load it for
-// the user, this should only happen if the user doesn't already have a default
-// kernel set.
-var fetchAndEvalDefaultKernel = function() {
-	downloadSkylink(defaultKernelResolverLink)
-	.then(output => {
-		// Handle the success case.
-		if (output.response.status === 200) {
-			log("lifecycle", "default kernel was successfully downloaded");
-			eval(output.text);
-			log("lifecycle", "default kernel loaded and eval'd");
-			kernelLoaded = true;
-
-			// Tell the parent that the kernel has finished
-			// loading.
-			window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
-			return;
-		}
-
-		// Handle everything else.
-		log("lifecycle", "portal response not recognized", output.response);
-		kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
-		return;
-	})
-	.catch(err => {
-		kernelDiscoveryFailed(err);
 	});
-}
-
-// kernelDiscoveryComplete defines the callback that is called in
-// readRegistryAndLoadKernel after reading the registry entry containing the
-// kernel successfully. Note that success can imply a 404 or some other
-// non-result, but it does mean that we successfully reached Skynet.
-//
-// We're going to check what the kernel is supposed to be and then download it.
-// If there is kernel, we'll set the user's kernel to the default kernel
-// hardcoded into the extension and download that. We set the user's kernel on
-// 404 because this is going to be the user's first kernel, and we want to make
-// sure that the next time they log in (even if from another device) they get
-// the same kernel again. We don't want the user jumping between kernels as
-// they change web browsers simply because they never got far enough to
-// complete setup, we want a consistent user experience.
-var fetchAndEvalKernel = function() {
-	// Determine the resolver link for the user's kernel.
-	let [keyPair, datakey, err] = ownRegistryEntryKeys("v1-skynet-kernel", "v1-skynet-kernel-datakey");
-	if (err !== null) {
-		kernelDiscoveryFailed("unable to get user's registry entry keys");
-		return;
-	}
-	let [entryID, errID] = deriveRegistryEntryID(keyPair.publicKey, datakey)
-	if (errID !== null) {
-		kernelDiscoveryFailed("unable to determine entryID of user's kernel registry entry: " + errID);
-		return;
-	}
-	// Build the v2 skylink from the entryID.
-	let v2Skylink = new Uint8Array(34);
-	v2Skylink.set(entryID, 2);
-	v2Skylink[0] = 1;
-
-	// Convert the v2Skylink to base64 for the download call.
-	let skylink = bufToB64(v2Skylink);
-	downloadSkylink(skylink)
-	.then(output => {
-		processKernelDownload(output)
-	})
-	.catch(err => {
-		kernelDiscoveryFailed(err);
-	})
 }
 
 // kernelDiscoveryFailed defines the callback that is called in
@@ -294,10 +280,23 @@ var fetchAndEvalKernel = function() {
 //
 // TODO: I believe we need to set 'kernelLoading' to false in here somewhere.
 var kernelDiscoveryFailed = function(err) {
-	log("lifecycle", "unable to determine user's preferred kernel", err);
+	err = addContextToErr(err, "unable to load the user's kernel")
+	log("lifecycle", err)
 	// TODO: Need to update the homescreen auth to be able to receive such
 	// a message.
-	window.parent.postMessage({kernelMethod: "skynetKernelLoadFailed"}, "*");
+	window.parent.postMessage({
+		kernelMethod: "skynetKernelLoadFailed",
+		err: err,
+	}, "*");
+}
+
+// evalKernel will call 'eval' on the provided kernel code.
+var evalKernel = function(kernel: string) {
+	log("lifecycle", "user kernel was successfully downloaded");
+	eval(kernel);
+	log("lifecycle", "user kernel loaded and eval'd");
+	kernelLoaded = true;
+	window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 }
 
 // loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
@@ -336,7 +335,15 @@ var loadSkynetKernel = function() {
 	// callback which will load the user's preferred kernel from Skynet
 	// once the preferred portal has been established.
 	loadUserPortalPreferences()
-	.then(nil => fetchAndEvalKernel());
+	.then(nil => {
+		return downloadUserKernel()
+	})
+	.then(kernel => {
+		evalKernel(kernel)
+	})
+	.catch(err => {
+		kernelDiscoveryFailed(err);
+	});
 }
 
 // handleMessage is called by the message event listener when a new message
