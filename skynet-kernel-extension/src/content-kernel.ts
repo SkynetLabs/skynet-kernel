@@ -164,22 +164,12 @@ var loadUserPortalPreferences = function(): Promise<void> {
 // the network query succeeded without any malice from the portals. That is
 // still not the same as the download completing, the result of the query may
 // have been a 404, for example.
-var processKernelDownload = function(output) {
-	// Create helper variables around the output.
-	let err = output.err;
-	let response = output.response;
-	let result = output.result;
-
-	// Check the error.
-	if (err !== "none") {
-		kernelDiscoveryFailed("unable to download the user kernel: " + err);
-		return;
-	}
-
+var processKernelDownload = function(output: downloadSkylinkResult) {
 	// Handle the success case.
+	let response = output.response;
 	if (response.status === 200) {
 		log("lifecycle", "user kernel was successfully downloaded");
-		eval(output.result);
+		eval(output.text);
 		log("lifecycle", "user kernel loaded and eval'd");
 		kernelLoaded = true;
 
@@ -226,23 +216,12 @@ var processKernelDownload = function(output) {
 // the user, this should only happen if the user doesn't already have a default
 // kernel set.
 var fetchAndEvalDefaultKernel = function() {
-	downloadSkylink(defaultKernelResolverLink,
-	// Success callback.
-	function(output) {
-		// Create helper variables around the output.
-		let err = output.err;
-		let response = output.response;
-		let result = output.result;
-		// Check the error.
-		if (err !== "none") {
-			kernelDiscoveryFailed("unable to download the user kernel: " + err);
-			return;
-		}
-
+	downloadSkylink(defaultKernelResolverLink)
+	.then(output => {
 		// Handle the success case.
-		if (response.status === 200) {
+		if (output.response.status === 200) {
 			log("lifecycle", "default kernel was successfully downloaded");
-			eval(output.result);
+			eval(output.text);
 			log("lifecycle", "default kernel loaded and eval'd");
 			kernelLoaded = true;
 
@@ -253,12 +232,11 @@ var fetchAndEvalDefaultKernel = function() {
 		}
 
 		// Handle everything else.
-		log("lifecycle", "portal response not recognized", response);
+		log("lifecycle", "portal response not recognized", output.response);
 		kernelDiscoveryFailed("portal response not recognized when reading user's kernel");
 		return;
-	},
-	// Reject callback.
-	function(err) {
+	})
+	.catch(err => {
 		kernelDiscoveryFailed(err);
 	});
 }
@@ -295,7 +273,13 @@ var fetchAndEvalKernel = function() {
 
 	// Convert the v2Skylink to base64 for the download call.
 	let skylink = bufToB64(v2Skylink);
-	downloadSkylink(skylink, processKernelDownload, kernelDiscoveryFailed);
+	downloadSkylink(skylink)
+	.then(output => {
+		processKernelDownload(output)
+	})
+	.catch(err => {
+		kernelDiscoveryFailed(err);
+	})
 }
 
 // kernelDiscoveryFailed defines the callback that is called in

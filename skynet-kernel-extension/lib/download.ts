@@ -202,13 +202,13 @@ var verifyResolverLinkProof = function(skylink: Uint8Array, proof: any): [Uint8A
 //
 // This function treats the proof as untrusted data and will verify all of the
 // fields that are provided.
-var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8Array, string] {
+var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8Array, Error] {
 	// Check that the proof is an array.
 	if (!Array.isArray(proof)) {
-		return [null, "provided proof is not an array"];
+		return [null, new Error("provided proof is not an array")];
 	}
 	if (proof.length === 0) {
-		return [null, "proof array is empty"];
+		return [null, new Error("proof array is empty")];
 	}
 
 	// Check each proof in the chain, returning the final skylink.
@@ -216,7 +216,7 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 		let err;
 		[skylink, err] = verifyResolverLinkProof(skylink, proof[i]);
 		if (err !== null) {
-			return [null, "one of the resolution proofs is invalid: " + err];
+			return [null, addContextToErr(err, "one of the resolution proofs is invalid")];
 		}
 	}
 
@@ -224,118 +224,121 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 	// whatever the registry data is. We need to check that the final value
 	// is a V1 skylink.
 	if (skylink.length !== 34) {
-		return [null, "final value returned by the resolver link is not a skylink"];
+		return [null, new Error("final value returned by the resolver link is not a skylink")];
 	}
 	let [version, x, xx, err] = parseSkylinkBitfield(skylink);
 	if (err !== null) {
-		return [null, "final value returned by resolver link is not a valid skylink: " + err];
+		return [null, addContextToErr(err, "final value returned by resolver link is not a valid skylink")];
 	}
 	if (version !== 1) {
-		return [null, "final value returned by resolver link is not a v1 skylink"];
+		return [null, new Error("final value returned by resolver link is not a v1 skylink")];
 	}
 
 	return [skylink, null];
 }
 
-// downloadSkylink will perform a download on the provided skylink, verifying
-// that the link is valid. If the link is a content link, the data returned by
-// the portal will be verified against the hash. If the link is a resolver
-// link, the registry entry proofs returned by the portal will be verified and
-// then the resulting content will also be verified.
-var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCallback: any) {
-	// Verify that the provided skylink is a valid skylink.
-	let [u8Link, err64] = b64ToBuf(skylink);
-	if (err64 !== null) {
-		rejectCallback("unable to decode skylink: " + err64);
-		return;
-	}
-	if (u8Link.length !== 34) {
-		rejectCallback("input skylink is not the correct length");
-		return;
-	}
+interface downloadSkylinkResult {
+	response: Response;
+	text: string;
+}
 
-	let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
-	if (errBF !== null) {
-		rejectCallback("skylink bitfield is invalid: ", errBF);
-		return;
-	}
+var downloadSkylinkHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, u8Link: Uint8Array): Promise<downloadSkylinkResult> {
+	return new Promise((resolve, reject) => {
+		let response = output.response
+		// Check for 404s.
+		if (response.status === 404) {
+			resolve({
+				response,
+				text: null,
+			})
+			return;
+		}
 
-	// Establish the endpoint that we want to call on the portal and the
-	// list of portals we want to use.
-	let endpoint = "/" + skylink + "/";
-	let portalList = preferredPortals();
+		// The only other response code we know how to handle
+		// here is a 200, anything else should result in an
+		// error.
+		if (response.status !== 200) {
+			reject(new Error("unrecognized response status"));
+			return;
+		}
 
-	// Establish the modified resolve callback which will cryptographically
-	// verify the responses from the portals.
-	let adjustedResolveCallback = function(response, remainingPortalList) {
+		// TODO: We should probably have some logic to handle a 429
+		// (ratelimiting).
+
+		// Get the link variables, we need these. Recomputing them is
+		// cleaner than passing them in again.
+		let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
+		if (errBF !== null) {
+			reject(addContextToErr(errBF, "skylink bitfield is invalid"))
+			return;
+		}
+
+		// Helper function for readability.
+		let continueFetch = function() {
+			progressiveFetch(endpoint, null, output.remainingPortals)
+			.then(output => {
+				downloadSkylinkHandleFetch(output, endpoint, u8Link)
+				.then(output => {
+					resolve(output)
+				})
+				.catch(err => {
+					reject(err)
+				})
+			})
+			.catch(err => {
+				reject(addContextToErr(err, "downloadSkylink failed"))
+			})
+		}
+
+		// If the skylink was a resolver link (meaning the
+		// version is 2), check the 'skynet-proof' header to
+		// verify that the registry entry is being resolved
+		// correctly.
+		if (version === 2) {
+			// Grab the proof header.
+			let proofJSON = response.headers.get("skynet-proof");
+			if (proofJSON === null) {
+				log("lifecycle", "response did not include resolver proofs", response.status);
+				continueFetch()
+				return;
+			}
+			let [proof, errPH] = parseJSON(proofJSON);
+			if (errPH !== null) {
+				log("lifecycle", "error validating the resolver link proof", errPH)
+				continueFetch()
+				return;
+			}
+
+			// Verify the proof.
+			let errVRLP;
+			[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
+			if (errVRLP !== null) {
+				log("lifecycle", "received corrupt resolver proofs", errVRLP)
+				continueFetch()
+				return;
+			}
+
+			// Update the version/offset/fetchsize.
+			[version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
+			if (errBF !== null) {
+				log("lifecycle", "received invalid final skylink\n", u8Link, "\n", errBF)
+				continueFetch()
+				return;
+			}
+			// Verify the final link is a v1 link.
+			if (version !== 1) {
+				log("lifecycle", "received final skylink that is not V1")
+				continueFetch()
+				return;
+			}
+		}
+
+		// At this point we've confirmed that the headers and resolver
+		// proofs are valid. We've also got an updated u8Link and
+		// version/offset/fetchsize to match our download, so we can
+		// use those values to read the text.
 		response.text()
-		.then(result => {
-			// Check for 404s.
-			if (response.status === 404) {
-				resolveCallback({
-					err: "none",
-					response: response,
-					result: result,
-				});
-				return;
-			}
-
-			// The only other response code we know how to handle
-			// here is a 200, anything else should result in an
-			// error.
-			if (response.status !== 200) {
-				resolveCallback({
-					err: "unrecognized response status",
-					response: response,
-					result: result,
-				});
-				return;
-			}
-
-			// TODO: We should probably have some logic to handle a
-			// 429 (ratelimiting).
-
-			// If the skylink was a resolver link (meaning the
-			// version is 2), check the 'skynet-proof' header to
-			// verify that the registry entry is being resolved
-			// correctly.
-			if (version === 2) {
-				// Grab the proof header.
-				let proofJSON = response.headers.get("skynet-proof");
-				if (proofJSON === null) {
-					log("lifecycle", "downloadSkylink response did not include resolver proofs on resolver link", response.status);
-					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-					return;
-				}
-				let [proof, errPH] = parseJSON(proofJSON);
-				if (errPH !== null) {
-					log("lifecycle", "error validating the resolver link proof from the portal", errPH)
-					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-					return;
-				}
-
-				// Verify the proof.
-				let errVRLP;
-				[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
-				if (errVRLP !== null) {
-					log("lifecycle", "downloadSkylink response received corrupt resolver link proofs", errVRLP)
-					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-					return;
-				}
-
-				[version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
-				if (errBF !== null) {
-					log("lifecycle", "downloadSkylink response received bad final skylink", errBF)
-					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-					return;
-				}
-				if (version !== 1) {
-					log("lifecycle", "downloadSkylink response received bad final skylink, it's not V1")
-					progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
-					return;
-				}
-			}
-
+		.then(text => {
 			// TODO: We need to update the portal API so that we
 			// can get a range proof on the data that we
 			// downloaded. Currently we have no way to verify that
@@ -345,17 +348,58 @@ var downloadSkylink = function(skylink: string, resolveCallback: any, rejectCall
 			// treat anything that reaches this point as a v1
 			// skylink with all the corect data already set.
 
-			resolveCallback({
-				err: "none",
+			resolve({
 				response: response,
-				result: result,
+				text: text,
 			});
 		})
 		.catch(err => {
-			log("lifecycle", "downloadSkylink response parsed unsuccessfully", response, err, remainingPortalList)
-			progressiveFetchLegacy(endpoint, null, remainingPortalList, adjustedResolveCallback, rejectCallback);
+			log("portal", "downloadSkylink response parsed unsuccessfully\n", response, "\n", err)
+			continueFetch()
 		})
 
-	}
-	progressiveFetchLegacy(endpoint, null, portalList, adjustedResolveCallback, rejectCallback);
+	})
+}
+
+// downloadSkylink will perform a download on the provided skylink, verifying
+// that the link is valid. If the link is a content link, the data returned by
+// the portal will be verified against the hash. If the link is a resolver
+// link, the registry entry proofs returned by the portal will be verified and
+// then the resulting content will also be verified.
+var downloadSkylink = function(skylink: string): Promise<downloadSkylinkResult> {
+	return new Promise((resolve, reject) => {
+		// Verify that the provided skylink is a valid skylink.
+		let [u8Link, err64] = b64ToBuf(skylink);
+		if (err64 !== null) {
+			reject(addContextToErr(err64, "unable to decode skylink"))
+			return;
+		}
+		if (u8Link.length !== 34) {
+			reject(new Error("input skylink is not the correct length"));
+			return;
+		}
+		let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link);
+		if (errBF !== null) {
+			reject(addContextToErr(errBF, "skylink bitfield is invalid: "));
+			return;
+		}
+
+		// Establish the endpoint that we want to call on the portal and the
+		// list of portals we want to use.
+		let endpoint = "/" + skylink + "/";
+		let portalList = preferredPortals();
+		progressiveFetch(endpoint, null, portalList)
+		.then(output => {
+			downloadSkylinkHandleFetch(output, endpoint, u8Link)
+			.then(output => {
+				resolve(output);
+			})
+			.catch(err => {
+				reject(addContextToErr(err, "unable to download skylink"))
+			})
+		})
+		.catch(err => {
+			reject(addContextToErr(err, "unable to download skylink"))
+		})
+	})
 }

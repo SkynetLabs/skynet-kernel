@@ -149,8 +149,11 @@ var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, e
 					resolve(output);
 				})
 				.catch(err => {
-					reject(err);
+					reject(addContextToErr(err, "registry read failed"));
 				})
+			})
+			.catch(err => {
+				reject(addContextToErr(err, "registry read failed"));
 			})
 		}
 
