@@ -390,8 +390,7 @@ window.addEventListener("message", (event: any) => {
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
-		log("lifecycle", "sending receiveTest message to source");
-		log("lifecycle", event.source);
+		log("lifecycle", "sending receiveTest message to source\n", event.source);
 		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
 		return;
 	}
