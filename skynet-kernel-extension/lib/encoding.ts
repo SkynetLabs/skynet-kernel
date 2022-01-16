@@ -76,15 +76,15 @@ var encodeNumber = function(num: number): Uint8Array {
 // that has the length prefixed as an 8 byte prefix. Inside the function we use
 // 'setUint32', which means that the input needs to be less than 4 GiB. For all
 // known use cases, this is fine.
-//
-// TODO: I'm not completely sure why the implementation of encodeNumber and
-// encodePrefixBytes is so different.
-var encodePrefixedBytes = function(bytes: Uint8Array): Uint8Array {
+var encodePrefixedBytes = function(bytes: Uint8Array): [Uint8Array, Error] {
 	let len = bytes.length;
+	if (len > 4294968295) {
+		return [null, new Error("input is too large to be encoded")]
+	}
 	let buf = new ArrayBuffer(8 + len);
 	let view = new DataView(buf);
 	view.setUint32(0, len, true);
 	let uint8Bytes = new Uint8Array(buf);
 	uint8Bytes.set(bytes, 8);
-	return uint8Bytes;
+	return [uint8Bytes, null];
 }

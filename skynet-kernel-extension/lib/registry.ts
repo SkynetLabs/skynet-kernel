@@ -46,14 +46,17 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string
 
 // verifyRegistrySignature will verify the signature of a registry entry.
 var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, data: Uint8Array, revision: number, sig: Uint8Array): boolean {
-	let encodedData = encodePrefixedBytes(data);
+	let [encodedData, err] = encodePrefixedBytes(data);
+	if (err !== null) {
+		return false;
+	}
 	let encodedRevision = encodeNumber(revision);
 	let dataToVerify = new Uint8Array(32 + 8 + data.length + 8);
 	dataToVerify.set(datakey, 0);
 	dataToVerify.set(encodedData, 32);
 	dataToVerify.set(encodedRevision, 32+8+data.length);
 	let sigHash = blake2b(dataToVerify);
-	return verify(sigHash, sig, pubkey)
+	return verify(sigHash, sig, pubkey);
 }
 
 // verifyRegReadResp will check the response body of a registry read on a
@@ -261,6 +264,15 @@ var writeNewOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResul
 // assuming that no data yet exists at that registry entry location.
 var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, data: Uint8Array): Promise<Response> {
 	return new Promise((resolve, reject) => {
+		// Check that the data is small enough to fit in a registry
+		// entry.
+		//
+		// TODO: I'm not exactly sure what the real limit is, but it's
+		// around this.
+		if (data.length > 73) {
+			reject("provided data is too large to fit in a registry entry");
+		}
+
 		// Fetch the keys.
 		let [keyPair, datakey, err] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
 		if (err !== null) {
@@ -270,7 +282,10 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 		let datakeyHex = buf2hex(datakey);
 
 		// Compute the signature of the new registry entry.
-		let encodedData = encodePrefixedBytes(data);
+		let [encodedData, errEPB] = encodePrefixedBytes(data);
+		if (errEPB !== null) {
+			reject(addContextToErr(err, "unable to encode the registry data"));
+		}
 		let encodedRevision = encodeNumber(0);
 		let dataToSign = new Uint8Array(32 + 8 + data.length + 8);
 		dataToSign.set(datakey, 0);

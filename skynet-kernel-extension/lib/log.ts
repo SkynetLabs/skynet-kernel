@@ -28,8 +28,7 @@ var log = function(logType: string, ...inputs: any) {
 
 	let [logSettings, errJSON] = parseJSON(logSettingsStr);
 	if (errJSON !== null) {
-		console.log("ERROR: logSettings item in localstorage is corrupt:", err);
-		console.log(logSettingsStr);
+		console.log("ERROR: logSettings item in localstorage is corrupt:", err, "\n", logSettingsStr);
 		return;
 	}
 	if (logSettings[logType] !== true && logSettings.allLogsEnabled !== true) {
