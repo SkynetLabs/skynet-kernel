@@ -43,6 +43,9 @@ and even alternatives to infrasturcture like Github.
   own, but we should still have the extension capable of detecting and decrypting
   an encrypted kernel.
 
++ In the extension, check localStorage for the user's kernel to avoid having to
+  download it.
+
 + Create all of the overwrites in the kernel to replace the default functions
   loaded by the extension. We want to make sure that the user gets a consistent
   experience, and we don't trust all browser extensions to use exactly the same

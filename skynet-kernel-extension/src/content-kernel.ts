@@ -237,9 +237,6 @@ var loadSkynetKernel = function() {
 	kernelLoading = true;
 	log("lifecycle", "kernel has lock on loading process, proceeding");
 
-	// TODO: Check localstorage for the kernel to see if it is already
-	// loaded.
-
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
 	// once the preferred portal has been established.
