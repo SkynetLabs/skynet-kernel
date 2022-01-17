@@ -726,48 +726,93 @@ function crypto_sign(sm, m, n, sk) {
 	return smlen;
 }
 
-function checkArrayTypes(...args: any[]) {
+// ed25519Keypair defines a keypair that can be used for signing messages.
+interface ed25519Keypair {
+	publicKey: Uint8Array;
+	secretKey: Uint8Array;
+}
+
+// checkAllUint8Array is a helper function to perform input checking on the
+// crypto API functions. Because the kernel is often hot-loading untrusted
+// code, we cannot depend on typescript to provide type safety.
+var checkAllUint8Array = function(...args: any[]): Error {
 	for (var i = 0; i < arguments.length; i++) {
-	if (!(arguments[i] instanceof Uint8Array))
-		throw new TypeError('unexpected type, use Uint8Array');
+		if (!(arguments[i] instanceof Uint8Array)) {
+			return new TypeError("unexpected type, use Uint8Array")
+		}
 	}
+	return null
 }
 
 // keyPairFromSeed is a function that generates an ed25519 keypair from a
 // provided seed. The seed will be hashed before being used as entropy.
-function keyPairFromSeed(seed) {
-	checkArrayTypes(seed);
-	if (seed.length !== crypto_sign_SEEDBYTES)
-	throw new Error('bad seed size');
+var keyPairFromSeed = function(seed: Uint8Array): [ed25519Keypair, Error] {
+	// Input checking.
+	let err = checkAllUint8Array(seed);
+	if (err !== null) {
+		return [null, addContextToErr(err, "seed is invalid")];
+	}
+	if (seed.length !== crypto_sign_SEEDBYTES) {
+		return [null, new Error("bad seed size")];
+	}
+
+	// Build the keypair.
 	var pk = new Uint8Array(crypto_sign_PUBLICKEYBYTES);
 	var sk = new Uint8Array(crypto_sign_SECRETKEYBYTES);
-	for (var i = 0; i < 32; i++) sk[i] = seed[i];
+	for (var i = 0; i < 32; i++) {
+		sk[i] = seed[i];
+	}
 	crypto_sign_keypair(pk, sk);
-	return {publicKey: pk, secretKey: sk};
+
+	return [{
+		publicKey: pk,
+		secretKey: sk
+	}, null];
 };
 
 // sign will produce an ed25519 signature of a given input.
-function sign(msg, secretKey) {
-	checkArrayTypes(msg, secretKey);
-	if (secretKey.length !== crypto_sign_SECRETKEYBYTES)
-	throw new Error('bad secret key size');
+var sign = function(msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, Error] {
+	// Input checking.
+	let err = checkAllUint8Array(msg, secretKey);
+	if (err !== null) {
+		return [null, addContextToErr(err, "inputs are invalid")];
+	}
+	if (secretKey.length !== crypto_sign_SECRETKEYBYTES) {
+		return [null, new Error("bad secret key size")];
+	}
+
+	// Build the signature.
 	var signedMsg = new Uint8Array(crypto_sign_BYTES+msg.length);
 	crypto_sign(signedMsg, msg, msg.length, secretKey);
 	var sig = new Uint8Array(crypto_sign_BYTES);
-	for (var i = 0; i < sig.length; i++) sig[i] = signedMsg[i];
-	return sig;
+	for (var i = 0; i < sig.length; i++) {
+		sig[i] = signedMsg[i];
+	}
+	return [sig, null];
 };
 
-function verify(msg, sig, publicKey) {
-	checkArrayTypes(msg, sig, publicKey);
-	if (sig.length !== crypto_sign_BYTES)
-	throw new Error('bad signature size');
-	if (publicKey.length !== crypto_sign_PUBLICKEYBYTES)
-	throw new Error('bad public key size');
+// verify will check whether a signature is valid against the given publicKey
+// and message.
+var verify = function(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array): boolean {
+	let err = checkAllUint8Array(msg, sig, publicKey);
+	if (err !== null) {
+		return false
+	}
+	if (sig.length !== crypto_sign_BYTES) {
+		return false
+	}
+	if (publicKey.length !== crypto_sign_PUBLICKEYBYTES) {
+		return false
+	}
+
 	var sm = new Uint8Array(crypto_sign_BYTES + msg.length);
 	var m = new Uint8Array(crypto_sign_BYTES + msg.length);
 	var i;
-	for (i = 0; i < crypto_sign_BYTES; i++) sm[i] = sig[i];
-	for (i = 0; i < msg.length; i++) sm[i+crypto_sign_BYTES] = msg[i];
+	for (i = 0; i < crypto_sign_BYTES; i++) {
+		sm[i] = sig[i];
+	}
+	for (i = 0; i < msg.length; i++) {
+		sm[i+crypto_sign_BYTES] = msg[i];
+	}
 	return (crypto_sign_open(m, sm, sm.length, publicKey) >= 0);
 };

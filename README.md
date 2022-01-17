@@ -27,6 +27,10 @@ and even alternatives to infrasturcture like Github.
 
 + Update all of the crypto functions so that they can be overwritten by the
   kernel, and namespace them so they don't get in the way of future cryptos.
+  The annoying thing here is that the crypto libraries use 'var' everywhere
+  instead of 'let', and I'm not completely sure if there are any performance
+  hacks which make use of the general scoping of 'var', so I'm not confident we
+  can blindly transition them all to 'let' declarations.
 
 + Split the actual kernel and module files into separate repos. Once that is
   complete, the build process should get simpler.

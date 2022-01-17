@@ -1,6 +1,6 @@
-// RegistryEntry defines fields that are important to processing a registry
+// registryEntry defines fields that are important to processing a registry
 // entry.
-interface RegistryEntry {
+interface registryEntry {
 	data: Uint8Array;
 	revision: number;
 }
@@ -9,17 +9,17 @@ interface RegistryEntry {
 // a call to readOwnRegistryEntryResult.
 interface readOwnRegistryEntryResult {
 	response: Response;
-	result: RegistryEntry;
+	result: registryEntry;
 }
 
 // ownRegistryEntryKeys will use the user's seed to derive a keypair and a
 // datakey using the provided tags.
-var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [Ed25519KeyPair, Uint8Array, Error] {
+var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string): [ed25519Keypair, Uint8Array, Error] {
 	// Use the user's seed to derive the registry entry that is going to contain
 	// the user's portal list.
-	let [userSeed, err] = getUserSeed();
-	if (err !== null) {
-		return [null, null, addContextToErr(err, "unable to get the user seed")];
+	let [userSeed, errGUS] = getUserSeed();
+	if (errGUS !== null) {
+		return [null, null, addContextToErr(errGUS, "unable to get the user seed")];
 	}
 
 	let keyPairTag = new TextEncoder().encode(keyPairTagStr);
@@ -37,7 +37,10 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string
 	let datakeyEntropy = sha512(datakeyInput);
 
 	// Create the private key for the registry entry.
-	let keyPair = keyPairFromSeed(keyPairEntropy.slice(0, 32));
+	let [keyPair, errKPFS] = keyPairFromSeed(keyPairEntropy.slice(0, 32));
+	if (errKPFS !== null) {
+		return [null, null, addContextToErr(errKPFS, "unable to derive keypair")];
+	}
 	let datakey = datakeyEntropy.slice(0, 32);
 	return [keyPair, datakey, null];
 }
@@ -183,7 +186,7 @@ var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, e
 				return;
 			}
 			// Create a result with the correct typing.
-			let result = <RegistryEntry>untrustedResult;
+			let result = <registryEntry>untrustedResult;
 
 			// The err is null, call the resolve callback.
 			resolve({

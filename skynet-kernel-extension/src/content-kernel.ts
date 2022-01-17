@@ -69,13 +69,6 @@ log("lifecycle", "kernel has loaded");
 
 var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net"];
 
-// Define an Ed25519KeyPair so that it can be returned as part of an array and
-// still pass the Typescript type checks.
-interface Ed25519KeyPair {
-	publicKey: Uint8Array;
-	secretKey: Uint8Array;
-}
-
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
 // kernel will not be loaded if no seed is present, as it means that the user
@@ -261,7 +254,9 @@ var downloadUserKernel = function(): Promise<string> {
 		.then(output => {
 			processUserKernelDownload(output)
 			.then(kernel => resolve(kernel))
-			.catch(err => reject(addContextToErr(err, "unable to download kernel for the user")))
+			.catch(err => {
+				reject(addContextToErr(err, "unable to download kernel for the user"))
+			})
 		})
 		.catch(err => {
 			reject(addContextToErr(err, "unable to download user's kernel"));
