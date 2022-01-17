@@ -239,7 +239,7 @@ var writeNewOwnRegistryEntryHandleFetch = function(output: progressiveFetchResul
 			log("writeRegistryAll", "successful registry write", response);
 			resolve(response);
 		} else {
-			log("error", "unexpected response from server upon regwrite\n", response)
+			log("error", "unexpected response from server upon regwrite\n", response, "\n", fetchOpts)
 			progressiveFetch(endpoint, fetchOpts, output.remainingPortals)
 			.then(fetchOutput => {
 				writeNewOwnRegistryEntryHandleFetch(output, endpoint, fetchOpts)
@@ -259,18 +259,19 @@ var writeNewOwnRegistryEntryHandleFetch = function(output: progressiveFetchResul
 var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string, data: Uint8Array): Promise<Response> {
 	return new Promise((resolve, reject) => {
 		// Check that the data is small enough to fit in a registry
-		// entry.
-		//
-		// TODO: I'm not exactly sure what the real limit is, but it's
-		// around this.
-		if (data.length > 73) {
+		// entry. The actual limit for a type 2 entry is 90 bytes, but
+		// we are leaving 4 bytes of room for potential extensions
+		// later.
+		if (data.length > 86) {
 			reject("provided data is too large to fit in a registry entry");
+			return;
 		}
 
 		// Fetch the keys.
 		let [keyPair, datakey, err] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
 		if (err !== null) {
 			reject(addContextToErr(err, "unable to get user's registry keys"))
+			return;
 		}
 		let pubkeyHex = buf2hex(keyPair.publicKey);
 		let datakeyHex = buf2hex(datakey);
@@ -279,6 +280,7 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 		let [encodedData, errEPB] = encodePrefixedBytes(data);
 		if (errEPB !== null) {
 			reject(addContextToErr(err, "unable to encode the registry data"));
+			return;
 		}
 		let encodedRevision = encodeNumber(0);
 		let dataToSign = new Uint8Array(32 + 8 + data.length + 8);
@@ -286,7 +288,11 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 		dataToSign.set(encodedData, 32);
 		dataToSign.set(encodedRevision, 32+8+data.length);
 		let sigHash = blake2b(dataToSign);
-		let sig = sign(sigHash, keyPair.secretKey);
+		let [sig, errS] = sign(sigHash, keyPair.secretKey);
+		if (errS !== null) {
+			reject(addContextToErr(err, "unable to produce signature"));
+			return;
+		}
 
 		// Compose the registry entry query.
 		let postBody = {

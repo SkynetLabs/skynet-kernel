@@ -14,7 +14,9 @@ var preferredPortals = function(): string[] {
 	// list, just use the list hardcoded by the extension.
 	let portalListStr = window.localStorage.getItem("v1-portalList");
 	if (portalListStr === null) {
-		return defaultPortalList;
+		// We can't return the default list directly because it may be
+		// modified by the caller. Instead we return a copy.
+		return Object.assign([], defaultPortalList);
 	}
 	let [portalList, errJSON] = parseJSON(portalListStr);
 	if (errJSON !== null) {
@@ -24,7 +26,7 @@ var preferredPortals = function(): string[] {
 		// relevant or useful once the full kernel has finished
 		// loading.
 		log("error", err, portalListStr);
-		return defaultPortalList;
+		return Object.assign([], defaultPortalList);
 	}
 
 	// Append the list of default portals to the set of portals. In

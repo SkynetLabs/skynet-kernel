@@ -10,7 +10,7 @@ interface progressiveFetchResult {
 var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPortals: string[]): Promise<progressiveFetchResult> {
 	return new Promise((resolve, reject) => {
 		if (!remainingPortals.length) {
-			log("progressiveFetch", "progressiveFetch failed because all portals have been tried\n", endpoint, "\n", fetchOpts);
+			log("lifecycle", "progressiveFetch failed because all portals have been tried\n", endpoint, "\n", fetchOpts, "\n", remainingPortals);
 			reject(new Error("no portals remaining"));
 			return;
 		}
