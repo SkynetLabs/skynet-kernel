@@ -45,6 +45,62 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string
 	return [keyPair, datakey, null];
 }
 
+// deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
+// datakey.
+var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, Error] {
+	// Check the lengths of the inputs.
+	if (pubkey.length !== 32) {
+		return [null, new Error("pubkey is invalid, length is wrong")];
+	}
+	if (datakey.length !== 32) {
+		return [null, new Error("datakey is not a valid hash, length is wrong")];
+	}
+
+	// Establish the encoding. First 16 bytes is a specifier, second 8
+	// bytes declares the length of the pubkey, the next 32 bytes is the
+	// pubkey and the final 32 bytes is the datakey. This encoding is
+	// determined by the Sia protocol.
+	let encoding = new Uint8Array(16 + 8 + 32 + 32)
+	// Set the specifier.
+	encoding[0] = "e".charCodeAt(0);
+	encoding[1] = "d".charCodeAt(0);
+	encoding[2] = "2".charCodeAt(0);
+	encoding[3] = "5".charCodeAt(0);
+	encoding[4] = "5".charCodeAt(0);
+	encoding[5] = "1".charCodeAt(0);
+	encoding[6] = "9".charCodeAt(0);
+	// Set the pubkey.
+	let encodedLen = encodeNumber(32);
+	encoding.set(encodedLen, 16);
+	encoding.set(pubkey, 16+8);
+	encoding.set(datakey, 16+8+32);
+
+	// Get the final ID by hashing the encoded data.
+	let id = blake2b(encoding);
+	return [id, null];
+}
+
+// deriveResolverLink will derive the resolver link from the tags that
+// determine the pubkey and datakey.
+var deriveResolverLink = function(keypairTagStr: string, datakeyTagStr: string): [string, Error] {
+	// Compute the ID of the registry entry for the user's
+	// preferences.
+	let [keypair, datakey, errOREK] = ownRegistryEntryKeys(keypairTagStr, datakeyTagStr)
+	if (errOREK !== null) {
+		return [null, addContextToErr(errOREK, "unable to derive portal pref registry entry")]
+	}
+	let [entryID, errDREI] = deriveRegistryEntryID(keypair.publicKey, datakey)
+	if (errDREI !== null) {
+		return [null, addContextToErr(errDREI, "unable to derive portal entry id")]
+	}
+	// Build a v2 skylink from the entryID.
+	let v2Skylink = new Uint8Array(34)
+	v2Skylink.set(entryID, 2)
+	v2Skylink[0] = 1
+	let skylink = bufToB64(v2Skylink)
+	return [skylink, null]
+}
+
 // verifyRegistrySignature will verify the signature of a registry entry.
 var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, data: Uint8Array, revision: number, sig: Uint8Array): boolean {
 	let [encodedData, err] = encodePrefixedBytes(data);
@@ -227,6 +283,9 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string
 	})
 }
 
+// writeNewOwnRegistryEntryHandleFetch is a recursive helper for
+// writeNewOwnRegistryEntry that will repeat the call on successive portals if
+// there are failures.
 var writeNewOwnRegistryEntryHandleFetch = function(output: progressiveFetchResult, endpoint: string, fetchOpts: any): Promise<Response> {
 	return new Promise((resolve, reject) => {
 		let response = output.response;

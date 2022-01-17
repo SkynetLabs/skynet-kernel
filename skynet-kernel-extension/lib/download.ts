@@ -65,41 +65,6 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	return [version, offset, fetchSize, null];
 }
 
-// deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
-// datakey.
-var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, Error] {
-	// Check the lengths of the inputs.
-	if (pubkey.length !== 32) {
-		return [null, new Error("pubkey is invalid, length is wrong")];
-	}
-	if (datakey.length !== 32) {
-		return [null, new Error("datakey is not a valid hash, length is wrong")];
-	}
-
-	// Establish the encoding. First 16 bytes is a specifier, second 8
-	// bytes declares the length of the pubkey, the next 32 bytes is the
-	// pubkey and the final 32 bytes is the datakey. This encoding is
-	// determined by the Sia protocol.
-	let encoding = new Uint8Array(16 + 8 + 32 + 32)
-	// Set the specifier.
-	encoding[0] = "e".charCodeAt(0);
-	encoding[1] = "d".charCodeAt(0);
-	encoding[2] = "2".charCodeAt(0);
-	encoding[3] = "5".charCodeAt(0);
-	encoding[4] = "5".charCodeAt(0);
-	encoding[5] = "1".charCodeAt(0);
-	encoding[6] = "9".charCodeAt(0);
-	// Set the pubkey.
-	let encodedLen = encodeNumber(32);
-	encoding.set(encodedLen, 16);
-	encoding.set(pubkey, 16+8);
-	encoding.set(datakey, 16+8+32);
-
-	// Get the final ID by hashing the encoded data.
-	let id = blake2b(encoding);
-	return [id, null];
-}
-
 // validSkylink returns true if the provided Uint8Array is a valid skylink.
 // This is an alias for 'parseSkylinkBitfield', as both perform the same
 // validation.

@@ -55,3 +55,59 @@ var preferredPortals = function(): string[] {
 	}
 	return portalList;
 }
+
+// processUserPortalPreferences will process the result of a call to
+// downloadSkylink which fetches the user's portal preferences.
+var processUserPortalPreferences = function(output: downloadSkylinkResult) {
+	// In the event of a 404, we want to store the default list as the set
+	// of user's portals. We do this so that subsequent kernel iframes that
+	// the user opens don't need to go to the network as part of the
+	// startup process. The full kernel will set the localStorage item to
+	// another value when the user selects portals.
+	if (output.response.status === 404) {
+		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
+		log("lifecycle", "user portalList set to the default list after getting 404 on registry lookup");
+	} else {
+		// TODO: Need to parse the data and correctly set the user's
+		// portal list. Actually setting the user's portal preferences
+		// list should be done by the full kernel, so this won't be
+		// able to be updated until we have a full kernel.
+		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
+		log("error", "user portalList set to the default list after getting a response but not bothering to check it");
+	}
+}
+
+// loadUserPortalPreferences will block until the user's portal preferences
+// have been loaded. If a set of preferneces already exist in localStorage,
+// those get used. If not, we try to fetch the user's portal preferences from
+// the network.
+var loadUserPortalPreferences = function(): Promise<void> {
+	return new Promise((resolve, reject) => {
+		// Try to get the list of portals from localstorage. If the
+		// list already exists, we don't need to fetch the list from
+		// the network.
+		let portalListStr = window.localStorage.getItem("v1-portalList")
+		if (portalListStr !== null) {
+			resolve()
+			return
+		}
+
+		// Derive the resolver link where the user's portal preferences
+		// are expected to be stored.
+		let [skylink, errDRL] = deriveResolverLink("v1-skynet-portal-list", "v1-skynet-portal-list-datakey")
+		if (errDRL !== null) {
+			reject(addContextToErr(errDRL, "unable to get resolver link for users portal prefs"))
+			return
+		}
+		// Download the user's portal preferences from Skynet.
+		downloadSkylink(skylink)
+		.then(output => {
+			processUserPortalPreferences(output)
+			resolve()
+		})
+		.catch(err => {
+			log("lifecycle", "unable to load the users list of preferred portals", err)
+			resolve()
+		});
+	})
+}

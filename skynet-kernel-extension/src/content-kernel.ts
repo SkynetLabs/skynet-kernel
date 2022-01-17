@@ -1,27 +1,12 @@
 export {};
 
-// TODO: Right now every application that opens an iframe to the kernel is
-// going to load a separate instance of the kernel, it may make more sense to
-// have the kernel operate entirely from shared workers. Still need to explore
-// that.
-
-// TODO: I don't think we are verifying all of the untrusted inputs we are
-// receiving.
-
-// TODO: Need to switch the entire protocol over to using encryption.
-
-// TODO: Need to update the progressive fetch flow so that we can figure out
-// which portal is lying if it is discovered that a portal is lying. And within
-// the kernel we'll need to establish some system for tracking the reliability
-// of various portals over various endpoints, so we know whether or not to use
-// them.
+// loadUserPortalPreferencesRegReadSuccess is the callback that will be
+// performed by loadUserPortalPreferences after a successful call to the
+// registry entry that holds all of the user's preferred portals.
 
 // TODO: There are places here where we could transition our types to used
 // fixed length arrays, which would eliminate some of the length checking that
 // we have to do in some of our functions.
-
-// TODO: We can make more liberal use in general of the typing system in
-// typescript to get more robust code, especially around error handling.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -90,66 +75,6 @@ var getUserSeed = function(): [Uint8Array, Error] {
 var logOut = function() {
 	log("lifecycle", "clearing local storage after logging out");
 	localStorage.clear();
-}
-
-// loadUserPortalPreferencesRegReadSuccess is the callback that will be
-// performed by loadUserPortalPreferences after a successful call to the
-// registry entry that holds all of the user's preferred portals.
-var processUserPortalPreferences = function(output: readOwnRegistryEntryResult) {
-	// In the event of a 404, we want to store the default list as the set
-	// of user's portals. We do this so that subsequent kernel iframes that
-	// the user opens don't need to go to the network as part of the
-	// startup process. The full kernel will set the localStorage item to
-	// another value when the user selects portals.
-	if (output.response.status === 404) {
-		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
-		log("lifecycle", "user portalList set to the default list after getting 404 on registry lookup");
-	} else {
-		// TODO: Need to parse the data and correctly set the user's
-		// portal list. Actually setting the user's portal preferences
-		// list should be done by the full kernel, so this won't be
-		// able to be updated until we have a full kernel.
-		window.localStorage.setItem("v1-portalList", JSON.stringify(defaultPortalList));
-		log("error", "user portalList set to the default list after getting a response but not bothering to check it");
-	}
-}
-
-// loadUserPortalPreferences will block until the user's portal preferences
-// have been loaded. If a set of preferneces already exist in localStorage,
-// those get used. If not, we try to fetch the user's portal preferences from
-// the network.
-var loadUserPortalPreferences = function(): Promise<void> {
-	return new Promise(resolve => {
-		// Try to get the list of portals from localstorage. If the
-		// list already exists, we don't need to fetch the list from
-		// the network.
-		let portalListStr = window.localStorage.getItem("v1-portalList");
-		if (portalListStr !== null) {
-			resolve();
-			return;
-		}
-
-		// Attempt to fetch the user's list of portals from Skynet. This
-		// particular request will use the default set of portals established
-		// by the browser extension, as there is no information available yet
-		// about the user's preferred portal.
-		//
-		// If the user does not have any portals set on Skynet either, we will
-		// write the default list of portals to localstorage, which will
-		// eliminate the need to perform this call in the future.
-		//
-		// TODO: This should probably be a call to downloadSkylink, not
-		// a call to the registry.
-		readOwnRegistryEntry("v1-skynet-portal-list", "v1-skynet-portal-list-datakey")
-		.then(output => {
-			processUserPortalPreferences(output);
-			resolve();
-		})
-		.catch(err => {
-			log("lifecycle", "unable to load the users list of preferred portals", err);
-			resolve();
-		});
-	})
 }
 
 // downloadDefaultKernel will download the default kernel.
@@ -238,23 +163,12 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 // default if necessary.
 var downloadUserKernel = function(): Promise<string> {
 	return new Promise((resolve, reject) => {
-		// Determine the resolver link for the user's kernel.
-		let [keyPair, datakey, err] = ownRegistryEntryKeys("v1-skynet-kernel", "v1-skynet-kernel-datakey");
-		if (err !== null) {
-			reject("unable to get user's registry entry keys");
-			return;
+		// Get the resolver link for the user's kernel.
+		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
+		if (errDRL !== null) {
+			reject(addContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
+			return
 		}
-		let [entryID, errID] = deriveRegistryEntryID(keyPair.publicKey, datakey)
-		if (errID !== null) {
-			reject(addContextToErr(errID, "unable to determine entryID of user's kernel"));
-			return;
-		}
-
-		// Build the v2 skylink from the entryID.
-		let v2Skylink = new Uint8Array(34);
-		v2Skylink.set(entryID, 2);
-		v2Skylink[0] = 1;
-		let skylink = bufToB64(v2Skylink);
 
 		// Attempt the download.
 		downloadSkylink(skylink)

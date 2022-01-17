@@ -22,6 +22,27 @@ and even alternatives to infrasturcture like Github.
   Merkle proofs provided by the portal. This will include changing which
   endpoint it calls so that the proofs exist at all.
 
++ There is no spec for what the Skynet file should look like to instruct the
+  kernel of the user's portal prefernces, we need to build one. Might make
+  sense to wait to do this until we have support for setting the user's preferred
+  portals in the kernel proper. The design I'm leaning towards is to just use a
+  generic json object, so that the full kernel can insert more fields and
+  basically entirely ignore the bootstrap ones.
+
++ We need to update the progressiveFetch API so that in the event of a
+  malicious portal (or even a dysfuncitonal one), we can track that portal for
+  the given API endpoint. This includes changing the way we handle the catch for
+  5XX calls, because the caller needs to know that one of the portals failed...
+
++ The downloadSkylink call needs to be extended so that it can verify large
+  file downloads on top of small file downloads.
+
++ The registry reads and writes should be updated so that they use encryption.
+  This has complications when you are using a resolver link to load the kernel,
+  probably the user will not switch to an encrypted kernel until they pick their
+  own, but we should still have the extension capable of detecting and decrypting
+  an encrypted kernel.
+
 + Create all of the overwrites in the kernel to replace the default functions
   loaded by the extension. We want to make sure that the user gets a consistent
   experience, and we don't trust all browser extensions to use exactly the same
@@ -54,7 +75,13 @@ and even alternatives to infrasturcture like Github.
   delete it immediately after.
 
 + Either the progressiveFetch or the download+registry calls need to be updated
-  so that they correctly manage 429 responses.
+  so that they correctly manage 429 responses. Probably do it at the
+  download/registry level, as the best behavior might be different depending on
+  request type.
+
++ Explore possibilities of using shared workers to operate the kernel, we may
+  be able to reduce the overall loadof using Skynet that way, ensure only one
+  kernel is running per browser, instead of spinning up a whole kernel per tab.
 
 ## Building a Trustless Browser Experience
 
