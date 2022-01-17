@@ -18,6 +18,10 @@ and even alternatives to infrasturcture like Github.
 
 ## TODO: ROADMAP (remove this section once completed)
 
++ The downloadSkylink call needs to be updated so that it is checking the
+  Merkle proofs provided by the portal. This will include changing which
+  endpoint it calls so that the proofs exist at all.
+
 + Create all of the overwrites in the kernel to replace the default functions
   loaded by the extension. We want to make sure that the user gets a consistent
   experience, and we don't trust all browser extensions to use exactly the same
@@ -34,6 +38,23 @@ and even alternatives to infrasturcture like Github.
 
 + Split the actual kernel and module files into separate repos. Once that is
   complete, the build process should get simpler.
+
++ The registry lookup needs to change the method of signature verification if
+  the type is set to '2', we can't blindly assume the portal is malicious just
+  because a registry entry is type 2.
+
++ The Skynet protocol should be extended so that 404 responses on registry
+  lookups and downloads are accompanied by host signatures that confirm they
+  don't have the file, so that a portal cannot easily just lie about it.
+
++ The Skynet protocol should be extended so that after doing a write or an
+  upload, some signatures are sent by hosts confirming that they received the
+  data, put the data into a contract, and are now hosting the data. We may not be
+  able to get very far with this, as a portal could always upload a file and then
+  delete it immediately after.
+
++ Either the progressiveFetch or the download+registry calls need to be updated
+  so that they correctly manage 429 responses.
 
 ## Building a Trustless Browser Experience
 

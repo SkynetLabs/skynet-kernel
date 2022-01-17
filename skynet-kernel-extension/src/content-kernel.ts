@@ -52,7 +52,6 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/progressivefetch.ts
 
-// TODO: Resume audit here.
 // import:::skynet-kernel-extension/lib/registry.ts
 
 // import:::skynet-kernel-extension/lib/download.ts

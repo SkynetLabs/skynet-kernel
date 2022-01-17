@@ -1,3 +1,5 @@
+// downloadSkylinkResult is the object that gets returned if a call to
+// downloadSkylink resolves.
 interface downloadSkylinkResult {
 	response: Response;
 	text: string;
@@ -242,6 +244,10 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 	return [skylink, null];
 }
 
+// downloadSkylinkHandleFetch will process the response to a fetch call that
+// downloads a skylink. We need the helper so that the verification step can be
+// recursive and make additional calls to progressiveFetch if it is determined
+// that we need to try downloading from the next portal.
 var downloadSkylinkHandleFetch = function(output: progressiveFetchResult, endpoint: string, u8Link: Uint8Array): Promise<downloadSkylinkResult> {
 	return new Promise((resolve, reject) => {
 		let response = output.response
