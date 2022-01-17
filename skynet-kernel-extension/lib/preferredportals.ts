@@ -77,11 +77,11 @@ var processUserPortalPreferences = function(output: downloadSkylinkResult) {
 	}
 }
 
-// loadUserPortalPreferences will block until the user's portal preferences
+// initUserPortalPreferences will block until the user's portal preferences
 // have been loaded. If a set of preferneces already exist in localStorage,
 // those get used. If not, we try to fetch the user's portal preferences from
 // the network.
-var loadUserPortalPreferences = function(): Promise<void> {
+var initUserPortalPreferences = function(): Promise<void> {
 	return new Promise((resolve, reject) => {
 		// Try to get the list of portals from localstorage. If the
 		// list already exists, we don't need to fetch the list from

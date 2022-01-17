@@ -1,13 +1,5 @@
 export {};
 
-// loadUserPortalPreferencesRegReadSuccess is the callback that will be
-// performed by loadUserPortalPreferences after a successful call to the
-// registry entry that holds all of the user's preferred portals.
-
-// TODO: There are places here where we could transition our types to used
-// fixed length arrays, which would eliminate some of the length checking that
-// we have to do in some of our functions.
-
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.siasky.net"
@@ -251,7 +243,7 @@ var loadSkynetKernel = function() {
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
 	// once the preferred portal has been established.
-	loadUserPortalPreferences()
+	initUserPortalPreferences()
 	.then(nil => {
 		return downloadUserKernel()
 	})

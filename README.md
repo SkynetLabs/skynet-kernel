@@ -57,6 +57,10 @@ and even alternatives to infrasturcture like Github.
   hacks which make use of the general scoping of 'var', so I'm not confident we
   can blindly transition them all to 'let' declarations.
 
++ There are places where we could potentially switch the typescript types to be
+  using fixed size arrays, which would eliminate the need for some of the
+  functions to be doing length checking.
+
 + Split the actual kernel and module files into separate repos. Once that is
   complete, the build process should get simpler.
 
