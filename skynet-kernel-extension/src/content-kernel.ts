@@ -204,6 +204,7 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 			let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
 			if (err64 !== null) {
 				log("lifecycle", "could not convert defaultKernelSkylink to a uin8array");
+				reject(addContextToErr(err64, "could not convert defaultKernelSkylink"));
 				return;
 			}
 			writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
@@ -216,7 +217,14 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 
 			// Need to download and eval the default kernel.
 			// fetchAndEvalDefaultKernel();
-			return downloadDefaultKernel();
+			downloadDefaultKernel()
+			.then(text => {
+				resolve(text)
+			})
+			.catch(err => {
+				reject(addContextToErr(err, "unable to download default kernel"))
+			})
+			return;
 		}
 
 		// Handle every other response status.
