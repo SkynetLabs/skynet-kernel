@@ -7,9 +7,7 @@ var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
 
-// NOTE: The imports need to happen in a specific order, as many of them depend
-// on prior imports. There's no dependency resolution in the bundle script, so
-// the ordering must be handled manually.
+// NOTE: These imports are order-sensitive.
 
 // import:::skynet-kernel-extension/lib/parsejson.ts
 
@@ -32,6 +30,8 @@ document.body.appendChild(header);
 // import:::skynet-kernel-extension/lib/registry.ts
 
 // import:::skynet-kernel-extension/lib/download.ts
+
+// import:::skynet-kernel-extension/lib/handlemessage.ts
 
 // TODO: The transplant contains the V2 skylink of the full kernel that we have
 // developed in the other folder. This link should actually not be a
@@ -255,79 +255,15 @@ var loadSkynetKernel = function() {
 	});
 }
 
-// handleMessage is called by the message event listener when a new message
-// comes in. This function is intended to be overwritten by the kernel that we
-// fetch from the user's Skynet account.
-var handleMessage = function(event: any) {
-	log("lifecycle", "handleMessage is being called with unloaded kernel");
-	return;
-}
-
 // Establish the event listener for the kernel. There are several default
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
-//
-// TODO: The way this is written, the whole set of functions below can't
-// actually be overwritten by the main kernel. We should probably move these
-// items to handleMessage, which would require updating the overwrite that the
-// kernel does later on.
 window.addEventListener("message", (event: any) => {
-	log("message", "message received\n", event.data, "\n", event.origin);
-
-	// Check that the authentication suceeded. If authentication did not
-	// suceed, send a postMessage indicating that authentication failed.
-	let [userSeed, err] = getUserSeed();
-	if (err !== null) {
-		log("message", "auth has failed, sending an authFailed message", err);
-		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
-		return;
-	}
-	log("message", "user is authenticated");
-
-	// Establish a handler to handle a request which states that
-	// authentication has been completed. Because we have already called
-	// getUserSeed() earlier in the function, we know that the correct seed
-	// exists. We therefore just need to load the rest of the Skynet
-	// kernel.
-	if (event.data.kernelMethod === "authCompleted") {
-		loadSkynetKernel();
-		return;
-	}
-
-	// Establish a debugging handler that a developer can call to verify
-	// that round-trip communication has been correctly programmed between
-	// the kernel and the calling application.
-	if (event.data.kernelMethod === "requestTest") {
-		log("lifecycle", "sending receiveTest message to source\n", event.source);
-		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
-		return;
-	}
-
-	// Establish a means for the user to logout. Only logout requests
-	// provided by home are allowed.
-	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
-		logOut();
-		log("lifecycle", "sending logOutSuccess message to home");
-		try {
-			event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
-		} catch (err) {
-			log("lifecycle", "unable to inform source that logOut was competed", err);
-		}
-		return;
-	}
-
-	// handleMessage will be overwritten after the kernel is loaded and can
-	// add additional API calls.
-	handleMessage(event);
-}, false);
-
-// TODO: Remove this function. Currently we cannot remove it because the kernel
-// itself uses the function to download and serve the user's homescreen. Once
-// the kernel is cleaned up to use the secure functions, we can remove this.
-var downloadV1Skylink = function(skylink: string) {
-	return fetch(skylink).then(response => response.text())
-}
+	// handleMessage will be overwritten after the kernel is loaded to add
+	// additional API calls.
+	handleMessage(event)
+}, false)
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform

@@ -50,6 +50,10 @@ and even alternatives to infrasturcture like Github.
 
 + Create an API in the kernel for changing the logging settings.
 
++ Remove the downloadV1Skylink function in the extension. Currently it is used
+  by several of the modules, so we can't delete it until the modules are
+  updated.
+
 + Update all of the crypto functions so that they can be overwritten by the
   kernel, and namespace them so they don't get in the way of future cryptos.
   The annoying thing here is that the crypto libraries use 'var' everywhere

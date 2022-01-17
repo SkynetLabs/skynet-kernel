@@ -42,7 +42,11 @@
 // and inconsistency if they aren't coordinating around the upgrade together
 // effectively.
 
+// TODO: Don't declare these, actually overwrite them. We don't want to be
+// dependent on a particular extension having the same implementation as all of
+// the others.
 declare var downloadV1Skylink
+declare var getUserSeed
 
 // Set up a logging method that can be enabled and disabled.
 //
@@ -410,6 +414,51 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
+	// Check that the authentication suceeded. If authentication did not
+	// suceed, send a postMessage indicating that authentication failed.
+	let [userSeed, err] = getUserSeed();
+	if (err !== null) {
+		log("message", "auth has failed, sending an authFailed message", err);
+		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
+		return;
+	}
+	log("message", "user is authenticated");
+
+	// If we are receiving an authCompleted message, it means the calling
+	// app thinks the kernel hasn't loaded yet. Send a message indicating
+	// that the load was successful. We use a slight variation on the
+	// message that gets sent the first time that the kernel completes
+	// loading to avoid sending the parent multiple messages and triggering
+	// potential unwanted behavior (the parent may not be coded to
+	// correctly handle repeat 'skynetKernelLoaded' messages).
+	if (event.data.kernelMethod === "authCompleted") {
+		log("lifecycle", "received authCompleted message, though kernel is already loaded\n", event)
+		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, "*")
+		return;
+	}
+
+	// Establish a debugging handler that a developer can call to verify
+	// that round-trip communication has been correctly programmed between
+	// the kernel and the calling application.
+	if (event.data.kernelMethod === "requestTest") {
+		log("lifecycle", "sending receiveTest message to source\n", event.source);
+		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
+		return;
+	}
+
+	// Establish a means for the user to logout. Only logout requests
+	// provided by home are allowed.
+	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
+		logOut();
+		log("lifecycle", "sending logOutSuccess message to home");
+		try {
+			event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
+		} catch (err) {
+			log("lifecycle", "unable to inform source that logOut was competed", err);
+		}
+		return;
+	}
+
 	// Establish a handler that will manage a v1 module api call.
 	if (event.data.kernelMethod === "moduleCallV1") {
 		handleModuleCallV1(event, event.source, false);
