@@ -35,6 +35,10 @@ document.body.appendChild(header);
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
+var log = function(logType: string, ...inputs: any) {
+	sourceLog("Kernel", logType, ...inputs)
+}
+
 log("lifecycle", "kernel has loaded");
 
 var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net"];
@@ -249,8 +253,6 @@ var loadSkynetKernel = function() {
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
 window.addEventListener("message", (event: any) => {
-	// handleMessage will be overwritten after the kernel is loaded to add
-	// additional API calls.
 	handleMessage(event)
 }, false)
 

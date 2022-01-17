@@ -1,10 +1,9 @@
-// log provides syntactic sugar for the logging functions. The first arugment
-// passed into 'log' checks whether the logSettings have explicitly enabled
-// that type of logging. The remaining args will be printed as they would if
-// 'console.log' was called directly.
-// 
-// This is a minimal logging function that can be overwritten by the kernel.
-var log = function(logType: string, ...inputs: any) {
+// sourceLog provides syntactic sugar for the logging functions. This function
+// is intended to be wrapped by whatever page imports it so that the logSource
+// is different for each page. The first argument is the name of the page, the
+// second argument is the message type, and the remaining arguments are the
+// same as any inputs you would pass to console.log.
+var sourceLog = function(logSource: string, logType: string, ...inputs: any) {
 	// Fetch the log settings as a string.
 	let logSettingsStr = localStorage.getItem("v1-logSettings");
 
@@ -19,7 +18,7 @@ var log = function(logType: string, ...inputs: any) {
 	// Parse the logSettingsStr.
 	let [logSettings, errJSON] = parseJSON(logSettingsStr);
 	if (errJSON !== null) {
-		console.log("ERROR: logSettings item in localstorage is corrupt:", err, "\n", logSettingsStr);
+		console.log("ERROR: logSettings item in localstorage is corrupt:", errJSON, "\n", logSettingsStr);
 		return;
 	}
 	// Ignore logtypes that aren't explicitly enabled.
@@ -29,7 +28,7 @@ var log = function(logType: string, ...inputs: any) {
 
 	// Print the log.
 	let args = Array.prototype.slice.call(arguments);
-	args[0] = `[${logType}] Kernel (${performance.now()} ms): `;
+	args[0] = `[${logType}] ${logSource} (${performance.now()} ms): `;
 	console.log.apply(console, args);
 	return;
 };
