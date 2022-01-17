@@ -648,7 +648,7 @@ function crypto_sign_keypair(pk, sk) {
 	var p = [gf(), gf(), gf(), gf()];
 	var i;
 
-	sha512(d, sk, 32);
+	sha512internal(d, sk, 32);
 	d[0] &= 248;
 	d[31] &= 127;
 	d[31] |= 64;
@@ -672,7 +672,7 @@ function crypto_sign_open(m, sm, n, pk) {
 
 	for (i = 0; i < n; i++) m[i] = sm[i];
 	for (i = 0; i < 32; i++) m[i+32] = pk[i];
-	sha512(h, m, n);
+	sha512internal(h, m, n);
 	reduce(h);
 	scalarmult(p, q, h);
 
@@ -696,7 +696,7 @@ function crypto_sign(sm, m, n, sk) {
 	var i, j, x = new Float64Array(64);
 	var p = [gf(), gf(), gf(), gf()];
 
-	sha512(d, sk, 32);
+	sha512internal(d, sk, 32);
 	d[0] &= 248;
 	d[31] &= 127;
 	d[31] |= 64;
@@ -705,13 +705,13 @@ function crypto_sign(sm, m, n, sk) {
 	for (i = 0; i < n; i++) sm[64 + i] = m[i];
 	for (i = 0; i < 32; i++) sm[32 + i] = d[32 + i];
 
-	sha512(r, sm.subarray(32), n+32);
+	sha512internal(r, sm.subarray(32), n+32);
 	reduce(r);
 	scalarbase(p, r);
 	pack(sm, p);
 
 	for (i = 32; i < 64; i++) sm[i] = sk[i];
-	sha512(h, sm, n + 64);
+	sha512internal(h, sm, n + 64);
 	reduce(h);
 
 	for (i = 0; i < 64; i++) x[i] = 0;
@@ -733,6 +733,8 @@ function checkArrayTypes(...args: any[]) {
 	}
 }
 
+// keyPairFromSeed is a function that generates an ed25519 keypair from a
+// provided seed. The seed will be hashed before being used as entropy.
 function keyPairFromSeed(seed) {
 	checkArrayTypes(seed);
 	if (seed.length !== crypto_sign_SEEDBYTES)
@@ -744,6 +746,7 @@ function keyPairFromSeed(seed) {
 	return {publicKey: pk, secretKey: sk};
 };
 
+// sign will produce an ed25519 signature of a given input.
 function sign(msg, secretKey) {
 	checkArrayTypes(msg, secretKey);
 	if (secretKey.length !== crypto_sign_SECRETKEYBYTES)

@@ -415,7 +415,7 @@ function crypto_hashblocks_hl(hh, hl, m, n) {
 	return n;
 }
 
-function sha512(out, m, n) {
+var sha512internal = function(out, m, n) {
 	var hh = new Int32Array(8),
 			hl = new Int32Array(8),
 			x = new Uint8Array(256),
@@ -453,4 +453,13 @@ function sha512(out, m, n) {
 	for (i = 0; i < 8; i++) ts64(out, 8*i, hh[i], hl[i]);
 
 	return 0;
+}
+
+// sha512 is the standard sha512 cryptographic hash function. This is the
+// default choice for Skynet operations, though many of the Sia protocol
+// standards use blake2b instead, so you will see both.
+var sha512 = function(m: Uint8Array): Uint8Array {
+	let out = new Uint8Array(64);
+	sha512internal(out, m, m.length);
+	return out;
 }

@@ -18,6 +18,13 @@ and even alternatives to infrasturcture like Github.
 
 ## TODO: ROADMAP (remove this section once completed)
 
++ Create all of the overwrites in the kernel to replace the default functions
+  loaded by the extension. We want to make sure that the user gets a consistent
+  experience, and we don't trust all browser extensions to use exactly the same
+  default functions.
+
++ Create an API in the kernel for changing the logging settings.
+
 The kernel is in an early development phase where both the browser extension
 itself and the kernel code are in the same repository. This is complicating the
 build script and making the repository much more difficult to follow, including

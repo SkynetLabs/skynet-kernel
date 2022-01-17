@@ -28,8 +28,7 @@ var seedToChecksumWords = function(seed: Uint8Array): [string, string, string] {
 	}
 
 	// Get the hash.
-	let h = new Uint8Array(HASH_SIZE);
-	sha512(h, seed, seed.length);
+	let h = sha512(seed);
 
 	// Turn the hash into two words.
 	let word1 = h[0] << 8;

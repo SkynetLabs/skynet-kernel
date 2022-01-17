@@ -22,21 +22,19 @@ var ownRegistryEntryKeys = function(keyPairTagStr: string, datakeyTagStr: string
 		return [null, null, addContextToErr(err, "unable to get the user seed")];
 	}
 
-	let keyPairEntropy = new Uint8Array(HASH_SIZE);
 	let keyPairTag = new TextEncoder().encode(keyPairTagStr);
 	let entropyInput = new Uint8Array(keyPairTag.length+userSeed.length);
 	entropyInput.set(keyPairTag);
 	entropyInput.set(userSeed, keyPairTag.length);
-	sha512(keyPairEntropy, entropyInput, entropyInput.length);
+	let keyPairEntropy = sha512(entropyInput);
 	// Use the user's seed to dervie the datakey for the registry entry. We use
 	// a different tag to ensure that the datakey is independently random, such
 	// that the registry entry looks like it could be any other registry entry.
-	let datakeyEntropy = new Uint8Array(HASH_SIZE);
 	let datakeyTag = new TextEncoder().encode(datakeyTagStr);
 	let datakeyInput = new Uint8Array(datakeyTag.length+userSeed.length);
 	datakeyInput.set(datakeyTag);
 	datakeyInput.set(userSeed, datakeyTag.length);
-	sha512(datakeyEntropy, datakeyInput, datakeyInput.length);
+	let datakeyEntropy = sha512(datakeyInput);
 
 	// Create the private key for the registry entry.
 	let keyPair = keyPairFromSeed(keyPairEntropy.slice(0, 32));
