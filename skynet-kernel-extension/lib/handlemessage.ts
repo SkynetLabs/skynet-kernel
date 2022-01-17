@@ -10,13 +10,9 @@ var handleMessage = function(event: any) {
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}
-	log("message", "user is authenticated");
 
-	// Establish a handler to handle a request which states that
-	// authentication has been completed. Because we have already called
-	// getUserSeed() earlier in the function, we know that the correct seed
-	// exists. We therefore just need to load the rest of the Skynet
-	// kernel.
+	// If the parent is informing us that the user has completed
+	// authentication, we'll go ahead and load the full kernel.
 	if (event.data.kernelMethod === "authCompleted") {
 		loadSkynetKernel();
 		return;
@@ -44,13 +40,7 @@ var handleMessage = function(event: any) {
 		return;
 	}
 
-	// If the kernel hasn't loaded yet, ignore the message and wait until
-	// the kernel is loaded. The above messages are all processed even if
-	// the kernel hasn't loaded.
-	if (!kernelLoaded) {
-		log("lifecycle", "handleMessage is being called with unloaded kernel\n", event)
-		return
-	}
-	log("message", "message received\n", event)
+	// The bootloader doesn't recognize any other message types.
+	log("message", "unrecognized message received by bootloader\n", event)
 	return;
 }

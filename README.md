@@ -29,6 +29,9 @@ and even alternatives to infrasturcture like Github.
   generic json object, so that the full kernel can insert more fields and
   basically entirely ignore the bootstrap ones.
 
++ Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
+  message.
+
 + We need to update the progressiveFetch API so that in the event of a
   malicious portal (or even a dysfuncitonal one), we can track that portal for
   the given API endpoint. This includes changing the way we handle the catch for
@@ -69,7 +72,9 @@ and even alternatives to infrasturcture like Github.
   functions to be doing length checking.
 
 + Split the actual kernel and module files into separate repos. Once that is
-  complete, the build process should get simpler.
+  complete, the build process should get simpler. Then hardcode the default
+  kernel so that you don't need to transplant it in the build process and in the
+  extension.
 
 + The registry lookup needs to change the method of signature verification if
   the type is set to '2', we can't blindly assume the portal is malicious just

@@ -33,12 +33,6 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/handlemessage.ts
 
-// TODO: The transplant contains the V2 skylink of the full kernel that we have
-// developed in the other folder. This link should actually not be a
-// transplant, it should be hardcoded! During this early phase of development -
-// before the core kernel and the bootloader have been split into separate
-// repos - we are keeping the transplant to make development easier.
-
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
 log("lifecycle", "kernel has loaded");
@@ -186,13 +180,15 @@ var downloadUserKernel = function(): Promise<string> {
 // abort and send an error message to the parent, because we don't want the UX
 // of loading the default kernel for the user if there's a different kernel
 // that they are already used to.
-//
-// TODO: I believe we need to set 'kernelLoading' to false in here somewhere.
 var kernelDiscoveryFailed = function(err) {
+	// Set kernelLoading to false. This needs to happen before the call to
+	// postMessage so that when the parent initiates a new kernel load, the
+	// attempt will not be blocked.
+	kernelLoading = false
+
+	// Log the error and send a failure notification to the parent.
 	err = addContextToErr(err, "unable to load the user's kernel")
 	log("lifecycle", err)
-	// TODO: Need to update the homescreen auth to be able to receive such
-	// a message.
 	window.parent.postMessage({
 		kernelMethod: "skynetKernelLoadFailed",
 		err: err,
@@ -201,41 +197,37 @@ var kernelDiscoveryFailed = function(err) {
 
 // evalKernel will call 'eval' on the provided kernel code.
 var evalKernel = function(kernel: string) {
-	log("lifecycle", "user kernel was successfully downloaded");
 	eval(kernel);
-	log("lifecycle", "user kernel loaded and eval'd");
-	kernelLoaded = true;
+	log("lifecycle", "user kernel successfully loaded")
 	window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
 }
 
-// loadSkynetKernel handles loading the rest of the skynet-kernel from the user's
-// skynet storage. This will include loading all installed modules. A global
-// variable is used to ensure that the loading process only happens once.
+// loadSkynetKernel handles loading the the skynet-kernel from the user's
+// skynet storage. We use 'kernelLoading' to ensure this only happens once. If
+// loading fails, 'kernelLoading' will be set to false, and an error will be
+// sent to the parent, allowing the parent a chance to fix whatever is wrong
+// and try again. Usually a failure means the user is not logged in.
 //
-// We have the variables kernelLoaded and kernelLoading to prevent race
-// conditions if multiple threads attempt to trigger a kernel load
-// simultaneously. kernelLoading is set initially to indicate that we are
-// attempting to load the kernel. It may fail, which will cause the value to be
-// un-set.
-//
-// TODO: Need to switch the kernelLoaded and kernelLoading variables to use
-// atomics.
-var kernelLoaded = false;
+// TODO: My current understanding is that the 'kernelLoading' varible does not
+// need to be atomic, and that the js runtime will guarantee only one thread is
+// operating on it at a time, because no webworkers are involved. I need to
+// confirm this with someone who has more javascript experience. The
+// 'loadSkynetKernel' function does get called by postmessage calls though,
+// which means there is some degree of parallelism happening.
 var kernelLoading = false;
 var loadSkynetKernel = function() {
-	log("lifecycle", "attempting to load kernel");
-
 	// Check the loading status of the kernel. If the kernel is loading,
 	// block until the loading is complete and then send a message to the
 	// caller indicating a successful load.
-	//
-	// TODO: I'm not sure this flow is correct.
-	if (kernelLoaded || kernelLoading) {
-		log("lifecycle", "aborting attempted kernel load, another attempt is already in progress");
+	if (kernelLoading) {
+		log("lifecycle", "loadSkynetKernel called when kernel is already loading");
 		return;
 	}
 	kernelLoading = true;
-	log("lifecycle", "kernel has lock on loading process, proceeding");
+	log("lifecycle", "attempting to load the kernel");
+
+	// TODO: Check localstorage for the kernel to see if it is already
+	// loaded.
 
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
