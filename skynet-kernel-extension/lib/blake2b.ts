@@ -354,25 +354,21 @@ function blake2bCompress (ctx, last) {
 
 // Creates a BLAKE2b hashing context
 // Requires an output length between 1 and 64 bytes
-function blake2bInit (outlen) {
-	if (outlen === 0 || outlen > 64) {
-		throw new Error('Illegal output length, expected 0 < length <= 64')
-	}
-
+function blake2bInit () {
 	// state, 'param block'
 	const ctx = {
 		b: new Uint8Array(128),
 		h: new Uint32Array(16),
 		t: 0, // input count
 		c: 0, // pointer within buffer
-		outlen: outlen // output length in bytes
+		outlen: 32 // output length in bytes
 	}
 
 	// initialize hash state
 	for (let i = 0; i < 16; i++) {
 		ctx.h[i] = BLAKE2B_IV32[i]
 	}
-	ctx.h[0] ^= 0x01010000 ^ outlen
+	ctx.h[0] ^= 0x01010000 ^ 32
 	return ctx
 }
 
@@ -409,9 +405,9 @@ function blake2bFinal (ctx) {
 	return out
 }
 
-// Computes the BLAKE2B hash of a Uint8Array, and returns a 32 byte Uint8Array.
-function blake2b (input: Uint8Array) {
-	const ctx = blake2bInit(32)
+// Computes the blake2b hash of the input. Returns 32 bytes.
+var blake2b = function(input: Uint8Array): Uint8Array {
+	const ctx = blake2bInit()
 	blake2bUpdate(ctx, input)
 	return blake2bFinal(ctx)
 }
