@@ -70,14 +70,7 @@ var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, 
 // The result has type 'any' because it the object was built from an untrusted
 // blob of json.
 var verifyRegReadResp = function(response: Response, result: any, pubkey: Uint8Array, datakey: Uint8Array): [boolean, Error] {
-	// If the portal reports that it's having trouble filling the request,
-	// try the next portal. The portals are set up so that a 5XX error
-	// indicates that other portals may have better luck.
-	if (response.status >= 500 && response.status < 600) {
-		return [true, new Error("received 5XX from portal")];
-	}
-
-	// A 404 is considered a successful response.
+	// A 404 is accepted as a non-malicious response and not an error.
 	//
 	// TODO: We should verify the 404 by having the portal provide some
 	// host signatures where the hosts are asserting that they did not have
