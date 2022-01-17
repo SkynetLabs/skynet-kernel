@@ -242,7 +242,7 @@ var verifyResolverLinkProofs = function(skylink: Uint8Array, proof: any): [Uint8
 	return [skylink, null];
 }
 
-var downloadSkylinkHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, u8Link: Uint8Array): Promise<downloadSkylinkResult> {
+var downloadSkylinkHandleFetch = function(output: progressiveFetchResult, endpoint: string, u8Link: Uint8Array): Promise<downloadSkylinkResult> {
 	return new Promise((resolve, reject) => {
 		let response = output.response
 		// Check for 404s.

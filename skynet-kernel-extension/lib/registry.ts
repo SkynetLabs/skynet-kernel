@@ -141,7 +141,7 @@ var verifyRegReadResp = function(response: Response, result: any, pubkey: Uint8A
 
 // readOwnRegistryEntryHandleFetch will handle a resolved call to
 // progressiveFetch.
-var readOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, pubkey: Uint8Array, datakey: Uint8Array): Promise<readOwnRegistryEntryResult> {
+var readOwnRegistryEntryHandleFetch = function(output: progressiveFetchResult, endpoint: string, pubkey: Uint8Array, datakey: Uint8Array): Promise<readOwnRegistryEntryResult> {
 	return new Promise((resolve, reject) => {
 		// Build a helper function that will continue attempting the
 		// fetch call on other portals.
@@ -234,7 +234,7 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string
 	})
 }
 
-var writeNewOwnRegistryEntryHandleFetch = function(output: ProgressiveFetchResult, endpoint: string, fetchOpts: any): Promise<Response> {
+var writeNewOwnRegistryEntryHandleFetch = function(output: progressiveFetchResult, endpoint: string, fetchOpts: any): Promise<Response> {
 	return new Promise((resolve, reject) => {
 		let response = output.response;
 		if ("status" in response && response.status === 204) {

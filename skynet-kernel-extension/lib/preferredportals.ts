@@ -16,7 +16,6 @@ var preferredPortals = function(): string[] {
 	if (portalListStr === null) {
 		return defaultPortalList;
 	}
-
 	let [portalList, errJSON] = parseJSON(portalListStr);
 	if (errJSON !== null) {
 		// We log an error but we don't change anything because the

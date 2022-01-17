@@ -1,7 +1,7 @@
-// buf2hex takes a Uint8Array as input (or any ArrayBuffer) and returns the hex
-// encoding of those bytes. The return value is a string.
-var buf2hex = function(buffer: ArrayBuffer) {
-	return [...new Uint8Array(buffer)]
+// buf2hex takes a Uint8Array as input and returns the hex encoding of those
+// bytes as a string.
+var buf2hex = function(buf: Uint8Array): string {
+	return [...buf]
 		.map(x => x.toString(16).padStart(2, '0'))
 		.join('');
 }
@@ -73,9 +73,8 @@ var encodeNumber = function(num: number): Uint8Array {
 }
 
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
-// that has the length prefixed as an 8 byte prefix. Inside the function we use
-// 'setUint32', which means that the input needs to be less than 4 GiB. For all
-// known use cases, this is fine.
+// that has the length prefixed as an 8 byte prefix. The input can be at most 4
+// GiB.
 var encodePrefixedBytes = function(bytes: Uint8Array): [Uint8Array, Error] {
 	let len = bytes.length;
 	if (len > 4294968295) {
