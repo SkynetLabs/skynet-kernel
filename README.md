@@ -25,18 +25,11 @@ and even alternatives to infrasturcture like Github.
 
 + Create an API in the kernel for changing the logging settings.
 
-The kernel is in an early development phase where both the browser extension
-itself and the kernel code are in the same repository. This is complicating the
-build script and making the repository much more difficult to follow, including
-causing a more opaque README. Once the browser extension is more mature, we'll
-be migrating the browser extension to its own repository entirely.
++ Update all of the crypto functions so that they can be overwritten by the
+  kernel, and namespace them so they don't get in the way of future cryptos.
 
-We will also likely be migrating some of the kernel modules to their own repos,
-though we may keep some core modules in the same repo as the kernel just to
-make sure that we can perform all the testing we need without depending on
-external code.
-
-Once all of the migrations are complete, the build process should get simpler.
++ Split the actual kernel and module files into separate repos. Once that is
+  complete, the build process should get simpler.
 
 ## Building a Trustless Browser Experience
 
