@@ -60,6 +60,17 @@ var bufToB64 = function(buf: Uint8Array): string {
 	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "");
 }
 
+// bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
+// will check for invalid characters.
+var bufToStr = function(buf: ArrayBuffer): [string, Error] {
+	try {
+		let text = new TextDecoder("utf-8", {fatal: true}).decode(buf)
+		return [text, null]
+	} catch(err) {
+		return [null, addContextToErr(err, "unable to decode ArrayBuffer to string")]
+	}
+}
+
 // encodeNumber will take a number as input and return a corresponding
 // Uint8Array.
 var encodeNumber = function(num: number): Uint8Array {

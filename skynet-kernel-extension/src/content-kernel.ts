@@ -35,6 +35,8 @@ document.body.appendChild(header);
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
+// log is a wrapper to call sourceLog that ensures every log is prefixed with
+// 'Kernel'.
 var log = function(logType: string, ...inputs: any) {
 	sourceLog("Kernel", logType, ...inputs)
 }
@@ -74,7 +76,12 @@ var downloadDefaultKernel = function(): Promise<string> {
 		.then(output => {
 			// Handle the success case.
 			if (output.response.status === 200) {
-				resolve(output.text);
+				let [text, errBTS] = bufToStr(output.fileData)
+				if (errBTS !== null) {
+					reject(addContextToErr(errBTS, "kernel data is invalid"))
+					return
+				}
+				resolve(text);
 				return;
 			}
 
@@ -99,7 +106,12 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 		// Handle the success case.
 		let response = output.response;
 		if (response.status === 200) {
-			resolve(output.text);
+			let [text, errBTS] = bufToStr(output.fileData)
+			if (errBTS !== null) {
+				reject(addContextToErr(errBTS, "kernel data is invalid"))
+				return
+			}
+			resolve(text);
 			return;
 		}
 
@@ -259,9 +271,9 @@ window.addEventListener("message", (event: any) => {
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
-let [userSeed, err] = getUserSeed()
-if (err !== null) {
-	log("lifecycle", "auth failed, sending message");
+let [userSeed, errGSU] = getUserSeed()
+if (errGSU !== null) {
+	log("lifecycle", "auth failed, sending message\n", errGSU);
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 } else {
 	log("lifecycle", "auth succeeded, loading kernel");

@@ -416,9 +416,9 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 handleMessage = function(event) {
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
-	let [userSeed, err] = getUserSeed();
-	if (err !== null) {
-		log("message", "auth has failed, sending an authFailed message", err);
+	let [userSeed, errGSU] = getUserSeed();
+	if (errGSU !== null) {
+		log("message", "auth has failed, sending an authFailed message", errGSU);
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 		return;
 	}

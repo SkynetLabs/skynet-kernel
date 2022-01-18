@@ -103,8 +103,8 @@ var deriveResolverLink = function(keypairTagStr: string, datakeyTagStr: string):
 
 // verifyRegistrySignature will verify the signature of a registry entry.
 var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, data: Uint8Array, revision: number, sig: Uint8Array): boolean {
-	let [encodedData, err] = encodePrefixedBytes(data);
-	if (err !== null) {
+	let [encodedData, errEPB] = encodePrefixedBytes(data);
+	if (errEPB !== null) {
 		return false;
 	}
 	let encodedRevision = encodeNumber(revision);
@@ -221,17 +221,17 @@ var readOwnRegistryEntryHandleFetch = function(output: progressiveFetchResult, e
 			// invalid in a way that indicates a more fundamental
 			// error (portal is honest but the entry itself is
 			// corrupt), and we can't make progress.
-			let [portalIssue, err] = verifyRegReadResp(response, untrustedResult, pubkey, datakey);
-			if (err !== null && portalIssue === true) {
+			let [portalIssue, errVRRR] = verifyRegReadResp(response, untrustedResult, pubkey, datakey);
+			if (errVRRR !== null && portalIssue === true) {
 				// The error is with the portal, so we want to keep
 				// trying more portals.
-				log("portal", "portal returned an invalid regread response\n", output.portal, "\n", err, "\n", response, "\n", untrustedResult);
+				log("portal", "portal returned an invalid regread response\n", output.portal, "\n", errVRRR, "\n", response, "\n", untrustedResult);
 				continueFetch();
 				return;
 			}
-			if (err !== null && portalIssue === false) {
-				log("lifecycle", "registry entry is corrupt or browser extension is out of date\n", err, "\n", response, "\n", untrustedResult);
-				reject(addContextToErr(err, "registry entry appears corrupt"));
+			if (errVRRR !== null && portalIssue === false) {
+				log("lifecycle", "registry entry is corrupt or browser extension is out of date\n", errVRRR, "\n", response, "\n", untrustedResult);
+				reject(addContextToErr(errVRRR, "registry entry appears corrupt"));
 				return;
 			}
 			// Create a result with the correct typing.
@@ -257,9 +257,9 @@ var readOwnRegistryEntryHandleFetch = function(output: progressiveFetchResult, e
 var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string): Promise<readOwnRegistryEntryResult> {
 	return new Promise((resolve, reject) => {
 		// Fetch the keys and encode them to hex, then build the desired endpoint.
-		let [keyPair, datakey, err] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
-		if (err !== null) {
-			reject(addContextToErr(err, "unable to get user's registry keys"))
+		let [keyPair, datakey, errREK] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		if (errREK !== null) {
+			reject(addContextToErr(errREK, "unable to get user's registry keys"))
 		}
 		let pubkeyHex = buf2hex(keyPair.publicKey);
 		let datakeyHex = buf2hex(datakey);
@@ -327,9 +327,9 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 		}
 
 		// Fetch the keys.
-		let [keyPair, datakey, err] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
-		if (err !== null) {
-			reject(addContextToErr(err, "unable to get user's registry keys"))
+		let [keyPair, datakey, errREK] = ownRegistryEntryKeys(keyPairTagStr, datakeyTagStr);
+		if (errREK !== null) {
+			reject(addContextToErr(errREK, "unable to get user's registry keys"))
 			return;
 		}
 		let pubkeyHex = buf2hex(keyPair.publicKey);
@@ -338,7 +338,7 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 		// Compute the signature of the new registry entry.
 		let [encodedData, errEPB] = encodePrefixedBytes(data);
 		if (errEPB !== null) {
-			reject(addContextToErr(err, "unable to encode the registry data"));
+			reject(addContextToErr(errEPB, "unable to encode the registry data"));
 			return;
 		}
 		let encodedRevision = encodeNumber(0);
@@ -349,7 +349,7 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 		let sigHash = blake2b(dataToSign);
 		let [sig, errS] = sign(sigHash, keyPair.secretKey);
 		if (errS !== null) {
-			reject(addContextToErr(err, "unable to produce signature"));
+			reject(addContextToErr(errS, "unable to produce signature"));
 			return;
 		}
 
@@ -378,12 +378,12 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 			.then(output => {
 				resolve(output);
 			})
-			.catch(err => {
-				reject(addContextToErr(err, "unable to create new registry entry"));
+			.catch(errC => {
+				reject(addContextToErr(errC, "unable to create new registry entry"));
 			})
 		})
-		.catch(err => {
-			reject(addContextToErr(err, "unable to create new registry entry"));
+		.catch(errC => {
+			reject(addContextToErr(errC, "unable to create new registry entry"));
 		})
 	})
 }

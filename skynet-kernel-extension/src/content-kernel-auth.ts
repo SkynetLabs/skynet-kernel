@@ -70,9 +70,9 @@ var authUser = function() {
 	}
 
 	// Validate the seed.
-	let [seed, err] = validSeedPhrase(userSeed.value);
-	if (err !== null) {
-		setErrorText("Seed is not valid: " + err);
+	let [seed, errVSP] = validSeedPhrase(userSeed.value);
+	if (errVSP !== null) {
+		setErrorText("Seed is not valid: " + errVSP);
 		return;
 	}
 	// Take the seed and store it in localStorage.
@@ -83,8 +83,8 @@ var authUser = function() {
 	try {
 		window.opener.postMessage({kernelMethod: "authCompleted"}, "*");
 		window.close();
-	} catch(err) {
-		setErrorText("Unable to report that authentication suceeded: " + err);
+	} catch(errC) {
+		setErrorText("Unable to report that authentication suceeded: " + errC);
 	}
 }
 

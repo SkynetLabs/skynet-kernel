@@ -748,54 +748,54 @@ var checkAllUint8Array = function(...args: any[]): Error {
 // provided seed. The seed will be hashed before being used as entropy.
 var keyPairFromSeed = function(seed: Uint8Array): [ed25519Keypair, Error] {
 	// Input checking.
-	let err = checkAllUint8Array(seed);
-	if (err !== null) {
-		return [null, addContextToErr(err, "seed is invalid")];
+	let errU8 = checkAllUint8Array(seed)
+	if (errU8 !== null) {
+		return [null, addContextToErr(errU8, "seed is invalid")]
 	}
 	if (seed.length !== crypto_sign_SEEDBYTES) {
-		return [null, new Error("bad seed size")];
+		return [null, new Error("bad seed size")]
 	}
 
 	// Build the keypair.
-	var pk = new Uint8Array(crypto_sign_PUBLICKEYBYTES);
-	var sk = new Uint8Array(crypto_sign_SECRETKEYBYTES);
+	var pk = new Uint8Array(crypto_sign_PUBLICKEYBYTES)
+	var sk = new Uint8Array(crypto_sign_SECRETKEYBYTES)
 	for (var i = 0; i < 32; i++) {
-		sk[i] = seed[i];
+		sk[i] = seed[i]
 	}
-	crypto_sign_keypair(pk, sk);
+	crypto_sign_keypair(pk, sk)
 
 	return [{
 		publicKey: pk,
-		secretKey: sk
-	}, null];
-};
+		secretKey: sk,
+	}, null]
+}
 
 // sign will produce an ed25519 signature of a given input.
 var sign = function(msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, Error] {
 	// Input checking.
-	let err = checkAllUint8Array(msg, secretKey);
-	if (err !== null) {
-		return [null, addContextToErr(err, "inputs are invalid")];
+	let errU8 = checkAllUint8Array(msg, secretKey)
+	if (errU8 !== null) {
+		return [null, addContextToErr(errU8, "inputs are invalid")]
 	}
 	if (secretKey.length !== crypto_sign_SECRETKEYBYTES) {
-		return [null, new Error("bad secret key size")];
+		return [null, new Error("bad secret key size")]
 	}
 
 	// Build the signature.
-	var signedMsg = new Uint8Array(crypto_sign_BYTES+msg.length);
-	crypto_sign(signedMsg, msg, msg.length, secretKey);
-	var sig = new Uint8Array(crypto_sign_BYTES);
+	var signedMsg = new Uint8Array(crypto_sign_BYTES+msg.length)
+	crypto_sign(signedMsg, msg, msg.length, secretKey)
+	var sig = new Uint8Array(crypto_sign_BYTES)
 	for (var i = 0; i < sig.length; i++) {
-		sig[i] = signedMsg[i];
+		sig[i] = signedMsg[i]
 	}
-	return [sig, null];
-};
+	return [sig, null]
+}
 
 // verify will check whether a signature is valid against the given publicKey
 // and message.
 var verify = function(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array): boolean {
-	let err = checkAllUint8Array(msg, sig, publicKey);
-	if (err !== null) {
+	let errU8 = checkAllUint8Array(msg, sig, publicKey)
+	if (errU8 !== null) {
 		return false
 	}
 	if (sig.length !== crypto_sign_BYTES) {
@@ -805,14 +805,14 @@ var verify = function(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array): 
 		return false
 	}
 
-	var sm = new Uint8Array(crypto_sign_BYTES + msg.length);
-	var m = new Uint8Array(crypto_sign_BYTES + msg.length);
-	var i;
+	var sm = new Uint8Array(crypto_sign_BYTES + msg.length)
+	var m = new Uint8Array(crypto_sign_BYTES + msg.length)
+	var i
 	for (i = 0; i < crypto_sign_BYTES; i++) {
-		sm[i] = sig[i];
+		sm[i] = sig[i]
 	}
 	for (i = 0; i < msg.length; i++) {
-		sm[i+crypto_sign_BYTES] = msg[i];
+		sm[i+crypto_sign_BYTES] = msg[i]
 	}
-	return (crypto_sign_open(m, sm, sm.length, publicKey) >= 0);
-};
+	return (crypto_sign_open(m, sm, sm.length, publicKey) >= 0)
+}

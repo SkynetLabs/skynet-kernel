@@ -25,7 +25,7 @@ var preferredPortals = function(): string[] {
 		// kernel and we don't want to clear anything that might be
 		// relevant or useful once the full kernel has finished
 		// loading.
-		log("error", err, portalListStr);
+		log("error", errJSON, portalListStr);
 		return Object.assign([], defaultPortalList);
 	}
 
