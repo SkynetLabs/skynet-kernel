@@ -71,13 +71,26 @@ var bufToStr = function(buf: ArrayBuffer): [string, Error] {
 	}
 }
 
+// decodeNumber will take an 8 byte Uint8Array and decode it as a number.
+var decodeNumber = function(buf: Uint8Array): [number, Error] {
+	if (buf.length !== 8) {
+		return [0, new Error("a number is expected to be 8 bytes")]
+	}
+	let num = 0
+	for (let i = 7; i >= 0; i--) {
+		num *= 256
+		num += buf[i]
+	}
+	return [num, null]
+}
+
 // encodeNumber will take a number as input and return a corresponding
 // Uint8Array.
 var encodeNumber = function(num: number): Uint8Array {
 	let encoded = new Uint8Array(8);
-	for (let index = 0; index < encoded.length; index++) {
+	for (let i = 0; i < encoded.length; i++) {
 		let byte = num & 0xff;
-		encoded[index] = byte
+		encoded[i] = byte
 		num = num >> 8;
 	}
 	return encoded

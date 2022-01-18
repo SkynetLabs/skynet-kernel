@@ -41,9 +41,13 @@ var log = function(logType: string, ...inputs: any) {
 	sourceLog("Kernel", logType, ...inputs)
 }
 
-log("lifecycle", "kernel has loaded");
-
-var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net"];
+// defaultPortalList establishes a set of portals that will be used in the
+// event that the user either has not set any portals for themselves yet or in
+// case the user's portals can't be reached.
+//
+// TODO: Update these, I've been using them for development. dev1 currently is
+// the only one that can serve trustless downloads.
+var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"];
 
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
@@ -240,7 +244,6 @@ var loadSkynetKernel = function() {
 		return;
 	}
 	kernelLoading = true;
-	log("lifecycle", "attempting to load the kernel");
 
 	// TODO: Check localstorage for the kernel to see if it is already
 	// loaded.
@@ -264,6 +267,7 @@ var loadSkynetKernel = function() {
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
+log("lifecycle", "kernel bootloader has loaded");
 window.addEventListener("message", (event: any) => {
 	handleMessage(event)
 }, false)
@@ -273,9 +277,9 @@ window.addEventListener("message", (event: any) => {
 // authentication.
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
-	log("lifecycle", "auth failed, sending message\n", errGSU);
+	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU);
 	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
 } else {
-	log("lifecycle", "auth succeeded, loading kernel");
+	log("lifecycle", "user is logged in, loading kernel");
 	loadSkynetKernel();
 }

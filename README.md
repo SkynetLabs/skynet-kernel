@@ -32,6 +32,11 @@ and even alternatives to infrasturcture like Github.
 + Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
   message.
 
++ We need to update the progressiveFetch protocol to parse and display the
+  error in the event of a 400 response from the portal. We should probably
+  still assume malice in that case but at the very least we want to relay the
+  error back to the user in case it's a genuine problem with the applicaiton.
+
 + We need to update the progressiveFetch API so that in the event of a
   malicious portal (or even a dysfuncitonal one), we can track that portal for
   the given API endpoint. This includes changing the way we handle the catch for
