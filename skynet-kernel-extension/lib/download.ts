@@ -312,9 +312,6 @@ var downloadSkylinkHandleFetch = function(output: progressiveFetchResult, endpoi
 			return
 		}
 
-		// TODO: We should probably have some logic to handle a 429
-		// (ratelimiting).
-
 		// Get the link variables, we need these. Recomputing them is
 		// cleaner than passing them in again.
 		let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link)

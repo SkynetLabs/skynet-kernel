@@ -1,26 +1,28 @@
 # skynet-kernel
 
-skynet-kernel is a next generation platform for blockchain and dapp
-development. In the blockchain world today, users are forced to choose between
-convenience and security, because there is no convenient way to get trustless
-access to the blockchain space.
+skynet-kernel is a next generation platform for application development. The
+goal of Skynet kernel is to provide developers the convenience of building web
+applications that are available to users on any device with a web browser,
+while providing users with the security and stability of running locally
+installed applications.
 
-skynet-kernel is a framework for building fully trustless applications in the
-cloud, accessible by a web browser. With skynet-kernel, developers can build
-applications that have all of the convenience of Coinbase and all of the
-trustlessness of running a local full node. Because all of the state is stored
-in the cloud, the user's experience can follow them from device-to-device.
+Like with locally installed applications, users have full control over what
+code they are running. Even though they are using webapps, the webapps are
+being served through user controlled channels that allow the users to inject
+any previous version of an app, or any fork of an app in place of the original
+application.
 
-The kernel today is being used to build decentralized file sharing platforms
-(like alternatives to WeTransfer), decentralized streaming platforms (like
-alternatives to Twitch), in-browser blockchains (like alternatives to Bitcoin),
-and even alternatives to infrasturcture like Github.
+Like with traditional web applications, these apps are available to the user
+with the user's full set of preferences from any device with a web browser. The
+user does not need to re-install their applications on each device that they
+have, and they do not need to transfer information or databases between their
+devices. Everything is automatically synced to a decentralized cloud.
 
-## TODO: ROADMAP (remove this section once completed)
+## TODO: Bootloader Roadmap (Remove once completed)
 
-+ The downloadSkylink call needs to be updated so that it is checking the
-  Merkle proofs provided by the portal. This will include changing which
-  endpoint it calls so that the proofs exist at all.
++ Update progressiveFetch to treat 400 responses as malicious portals as well.
+  We don't want a malicious portal to be able to halt a user's progress simply
+  by returning the correct error code.
 
 + There is no spec for what the Skynet file should look like to instruct the
   kernel of the user's portal prefernces, we need to build one. Might make
@@ -29,41 +31,23 @@ and even alternatives to infrasturcture like Github.
   generic json object, so that the full kernel can insert more fields and
   basically entirely ignore the bootstrap ones.
 
-+ Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
-  message.
++ We should add encryption to the user's portal preferences.
 
-+ There are a bunch of places where we are using the 'number' type when we
-  probably should be using the BigInt type. Especially in the trustless pieces
-  of the download code, like with the merkle tree stuff.
++ We should consider adding encryption to the user's choice of kernel. The
+  downside of encrypting the user's choice of kernel is that the user won't
+  instantly get the latest updates from the developer, but perhaps this is okay
+  anyway, because we might want some sort of governance process around the idea
+  of shipping new updates.
 
-+ We need to update the progressiveFetch protocol to parse and display the
-  error in the event of a 400 response from the portal. We should probably
-  still assume malice in that case but at the very least we want to relay the
-  error back to the user in case it's a genuine problem with the applicaiton.
++ The registry lookup needs to change the method of signature verification if
+  the type is set to '2', we can't blindly assume the portal is malicious just
+  because a registry entry is type 2.
 
-+ We need to update the progressiveFetch API so that in the event of a
-  malicious portal (or even a dysfuncitonal one), we can track that portal for
-  the given API endpoint. This includes changing the way we handle the catch for
-  5XX calls, because the caller needs to know that one of the portals failed...
-
-+ The downloadSkylink call needs to be extended so that it can verify large
-  file downloads on top of small file downloads.
-
-+ The registry reads and writes should be updated so that they use encryption.
-  This has complications when you are using a resolver link to load the kernel,
-  probably the user will not switch to an encrypted kernel until they pick their
-  own, but we should still have the extension capable of detecting and decrypting
-  an encrypted kernel.
++ Modify the set of default portals.
 
 + In the extension, check localStorage for the user's kernel to avoid having to
-  download it.
-
-+ Create all of the overwrites in the kernel to replace the default functions
-  loaded by the extension. We want to make sure that the user gets a consistent
-  experience, and we don't trust all browser extensions to use exactly the same
-  default functions.
-
-+ Create an API in the kernel for changing the logging settings.
+  download it. We may want to include some sort of date alongside the kernel so
+  we know whether we should check for updates.
 
 + Remove the downloadV1Skylink function in the extension. Currently it is used
   by several of the modules, so we can't delete it until the modules are
@@ -85,28 +69,50 @@ and even alternatives to infrasturcture like Github.
   kernel so that you don't need to transplant it in the build process and in the
   extension.
 
-+ The registry lookup needs to change the method of signature verification if
-  the type is set to '2', we can't blindly assume the portal is malicious just
-  because a registry entry is type 2.
++ The way the bootloader currently handles 404's from a portal is trusty, we
+  should minimally verify with multiple portals (if possible) that everyone
+  agrees there's a 404.
 
-+ The Skynet protocol should be extended so that 404 responses on registry
-  lookups and downloads are accompanied by host signatures that confirm they
-  don't have the file, so that a portal cannot easily just lie about it.
++ Explore possibilities of using shared workers to operate the kernel, we may
+  be able to reduce the overall load of using Skynet that way, ensure only one
+  kernel is running per browser, instead of spinning up a whole kernel per tab.
 
-+ The Skynet protocol should be extended so that after doing a write or an
-  upload, some signatures are sent by hosts confirming that they received the
-  data, put the data into a contract, and are now hosting the data. We may not be
-  able to get very far with this, as a portal could always upload a file and then
-  delete it immediately after.
+## TODO: Full Kernel Roadmap
+
++ We need to update the progressiveFetch protocol to parse and display the
+  error in the event of a 400 response from the portal. We should probably
+  still assume malice in that case but at the very least we want to relay the
+  error back to the user in case it's a genuine problem with the applicaiton.
+
++ We need to update the progressiveFetch API so that in the event of a
+  malicious portal (or even a dysfuncitonal one), we can track that portal for
+  the given API endpoint. This includes changing the way we handle the catch for
+  5XX calls, because the caller needs to know that one of the portals failed...
+
++ Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
+  message.
+
++ There are a bunch of places where we are using the 'number' type when we
+  probably should be using the BigInt type. Especially in the trustless pieces
+  of the download code, like with the merkle tree stuff.
+
++ The downloadSkylink call needs to be extended so that it can verify large
+  file downloads on top of small file downloads. This should probably happen in
+  the full kernel, and we should probably avoid any situation where the full
+  kernel gets to be more than what can fit in a standard base sector. At roughly
+  4 MB in size, we should be able to avoid having the kernel get larger.
+
++ Create all of the overwrites in the kernel to replace the default functions
+  loaded by the extension. We want to make sure that the user gets a consistent
+  experience, and we don't trust all browser extensions to use exactly the same
+  default functions.
+
++ Create an API in the kernel for changing the logging settings.
 
 + Either the progressiveFetch or the download+registry calls need to be updated
   so that they correctly manage 429 responses. Probably do it at the
   download/registry level, as the best behavior might be different depending on
   request type.
-
-+ Explore possibilities of using shared workers to operate the kernel, we may
-  be able to reduce the overall loadof using Skynet that way, ensure only one
-  kernel is running per browser, instead of spinning up a whole kernel per tab.
 
 ## Building a Trustless Browser Experience
 

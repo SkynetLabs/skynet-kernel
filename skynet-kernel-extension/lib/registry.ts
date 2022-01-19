@@ -128,9 +128,9 @@ var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, 
 var verifyRegReadResp = function(response: Response, result: any, pubkey: Uint8Array, datakey: Uint8Array): [boolean, Error] {
 	// A 404 is accepted as a non-malicious response and not an error.
 	//
-	// TODO: We should verify the 404 by having the portal provide some
-	// host signatures where the hosts are asserting that they did not have
-	// the response.
+	// TODO: If we get a 404 we should keep checking with other portals
+	// just to be certain, but also be ready to return a response to the
+	// caller that says 404.
 	if (response.status == 404) {
 		return [false, null];
 	}
@@ -290,11 +290,6 @@ var writeNewOwnRegistryEntryHandleFetch = function(output: progressiveFetchResul
 	return new Promise((resolve, reject) => {
 		let response = output.response;
 		if ("status" in response && response.status === 204) {
-			// TODO: We probably want some way to verify that the
-			// write was actually committed, rather than just
-			// trusting the portal that they relayed the messages
-			// to hosts. Perhaps have the portal supply a list of
-			// signatures from hosts?
 			log("writeRegistryAll", "successful registry write", response);
 			resolve(response);
 		} else {
