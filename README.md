@@ -32,6 +32,10 @@ and even alternatives to infrasturcture like Github.
 + Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
   message.
 
++ There are a bunch of places where we are using the 'number' type when we
+  probably should be using the BigInt type. Especially in the trustless pieces
+  of the download code, like with the merkle tree stuff.
+
 + We need to update the progressiveFetch protocol to parse and display the
   error in the event of a 400 response from the portal. We should probably
   still assume malice in that case but at the very least we want to relay the
