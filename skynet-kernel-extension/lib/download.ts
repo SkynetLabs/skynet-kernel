@@ -54,6 +54,7 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	let fetchSizeBits = bitfield & 7
 	fetchSizeBits++ // semantic upstep, range should be [1,8] not [0,8).
 	let fetchSize = fetchSizeBits * fetchSizeIncrement
+	bitfield = bitfield >> 3
 
 	// The remaining bits determine the fetchSize.
 	let offset = bitfield * offsetIncrement
@@ -245,17 +246,15 @@ var verifyDownload = function(root: Uint8Array, offset: number, fetchSize: numbe
 		return [null, true, new Error("provided data is not large enough to contain a skyfile")]
 	}
 
-	// Grab the skylinkData and Merkle proof from the array.
+	// Grab the skylinkData and Merkle proof from the array, and then
+	// verify the Merkle proof.
 	let skylinkData = u8.slice(8, fetchSize+8)
 	let merkleProof = u8.slice(fetchSize+8, u8.length)
-	// Verify the merkle proof has a valid structure.
-	if (merkleProof.length % 32 !== 0) {
-		return [null, true, new Error("provided Merkle proof has invalid structure")]
+	let errVBSRP = verifyBlake2bSectorRangeProof(root, skylinkData, offset, fetchSize, merkleProof)
+	if (errVBSRP !== null) {
+		log("lifecycle", "merkle proof verification error", skylinkData.length, offset, fetchSize)
+		return [null, true, addContextToErr(errVBSRP, "provided Merkle proof is not valid")]
 	}
-
-	// TODO: Verify the Merkle proof here. Needs to be verified before the
-	// skyfile is processed, because we need to make sure that the server
-	// has provided the correct skyfile data.
 
 	// The organization of the skylinkData is always:
 	// 	layoutBytes || fanoutBytes || metadataBytes || fileBytes
@@ -392,9 +391,9 @@ var downloadSkylinkHandleFetch = function(output: progressiveFetchResult, endpoi
 		.then(buf => {
 			// Verify the data that we have downloaded from the
 			// server.
-			let [fileData, portalAtFault, errVD] = verifyDownload(u8Link, offset, fetchSize, buf)
+			let [fileData, portalAtFault, errVD] = verifyDownload(u8Link.slice(2, 34), offset, fetchSize, buf)
 			if (errVD !== null && portalAtFault) {
-				log("lifecycle", "received invalid download from portal")
+				log("lifecycle", "received invalid download from portal", errVD)
 				continueFetch()
 				return
 			}

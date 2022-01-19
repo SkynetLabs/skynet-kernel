@@ -21,6 +21,8 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/blake2b.ts
 
+// import:::skynet-kernel-extension/lib/merkle.ts
+
 // import:::skynet-kernel-extension/lib/encoding.ts
 
 // import:::skynet-kernel-extension/lib/preferredportals.ts
