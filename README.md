@@ -20,9 +20,9 @@ devices. Everything is automatically synced to a decentralized cloud.
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 
-+ Update progressiveFetch to treat 400 responses as malicious portals as well.
-  We don't want a malicious portal to be able to halt a user's progress simply
-  by returning the correct error code.
++ The registry lookup needs to change the method of signature verification if
+  the type is set to '2', we can't blindly assume the portal is malicious just
+  because a registry entry is type 2.
 
 + There is no spec for what the Skynet file should look like to instruct the
   kernel of the user's portal prefernces, we need to build one. Might make
@@ -37,11 +37,9 @@ devices. Everything is automatically synced to a decentralized cloud.
   downside of encrypting the user's choice of kernel is that the user won't
   instantly get the latest updates from the developer, but perhaps this is okay
   anyway, because we might want some sort of governance process around the idea
-  of shipping new updates.
-
-+ The registry lookup needs to change the method of signature verification if
-  the type is set to '2', we can't blindly assume the portal is malicious just
-  because a registry entry is type 2.
+  of shipping new updates. If we do this, we'll need to add the ability to
+  upload to the bootloader, because the bootloader will need to upload an
+  encrypted kernel for the user.
 
 + Modify the set of default portals.
 
@@ -68,10 +66,6 @@ devices. Everything is automatically synced to a decentralized cloud.
   complete, the build process should get simpler. Then hardcode the default
   kernel so that you don't need to transplant it in the build process and in the
   extension.
-
-+ The way the bootloader currently handles 404's from a portal is trusty, we
-  should minimally verify with multiple portals (if possible) that everyone
-  agrees there's a 404.
 
 + Explore possibilities of using shared workers to operate the kernel, we may
   be able to reduce the overall load of using Skynet that way, ensure only one

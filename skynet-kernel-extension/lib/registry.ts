@@ -195,7 +195,7 @@ var readOwnRegistryEntryHandleFetch = function(output: progressiveFetchResult, e
 		// Build a helper function that will continue attempting the
 		// fetch call on other portals.
 		let continueFetch = function() {
-			progressiveFetch(endpoint, null, output.remainingPortals)
+			progressiveFetch(endpoint, null, output.remainingPortals, output.first4XX)
 			.then(output => {
 				readOwnRegistryEntryHandleFetch(output, endpoint, pubkey, datakey)
 				.then(output => {
@@ -267,7 +267,7 @@ var readOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: string
 
 		// Fetch the list of portals and call progressiveFetch.
 		let portalList = preferredPortals();
-		progressiveFetch(endpoint, null, portalList)
+		progressiveFetch(endpoint, null, portalList, null)
 		.then(output => {
 			readOwnRegistryEntryHandleFetch(output, endpoint, keyPair.publicKey, datakey)
 			.then(output => {
@@ -294,7 +294,7 @@ var writeNewOwnRegistryEntryHandleFetch = function(output: progressiveFetchResul
 			resolve(response);
 		} else {
 			log("error", "unexpected response from server upon regwrite\n", response, "\n", fetchOpts)
-			progressiveFetch(endpoint, fetchOpts, output.remainingPortals)
+			progressiveFetch(endpoint, fetchOpts, output.remainingPortals, output.first4XX)
 			.then(fetchOutput => {
 				writeNewOwnRegistryEntryHandleFetch(output, endpoint, fetchOpts)
 				.then(writeOutput => resolve(writeOutput))
@@ -367,7 +367,7 @@ var writeNewOwnRegistryEntry = function(keyPairTagStr: string, datakeyTagStr: st
 
 		// Perform the fetch call.
 		let portalList = preferredPortals();
-		progressiveFetch(endpoint, fetchOpts, portalList)
+		progressiveFetch(endpoint, fetchOpts, portalList, null)
 		.then(output => {
 			writeNewOwnRegistryEntryHandleFetch(output, endpoint, fetchOpts)
 			.then(output => {

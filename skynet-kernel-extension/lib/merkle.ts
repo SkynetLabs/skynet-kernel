@@ -214,7 +214,6 @@ var verifyBlake2bSectorRangeProof = function(root: Uint8Array, data: Uint8Array,
 			return new Error("merkle proof has insufficient data")
 		}
 		let [height, size, errNST] = nextSubtreeHeight(currentOffset/64, sectorEnd/64)
-		log("lifecycle", "next height", height, size, currentOffset, sectorEnd)
 		if (errNST !== null) {
 			return addContextToErr(errNST, "error computing subtree height of trailing proof stack")
 		}

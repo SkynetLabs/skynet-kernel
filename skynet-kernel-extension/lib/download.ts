@@ -248,8 +248,8 @@ var verifyDownload = function(root: Uint8Array, offset: number, fetchSize: numbe
 
 	// Grab the skylinkData and Merkle proof from the array, and then
 	// verify the Merkle proof.
-	let skylinkData = u8.slice(8, fetchSize+8)
-	let merkleProof = u8.slice(fetchSize+8, u8.length)
+	let skylinkData = u8.slice(0, fetchSize)
+	let merkleProof = u8.slice(fetchSize, u8.length)
 	let errVBSRP = verifyBlake2bSectorRangeProof(root, skylinkData, offset, fetchSize, merkleProof)
 	if (errVBSRP !== null) {
 		log("lifecycle", "merkle proof verification error", skylinkData.length, offset, fetchSize)
@@ -322,7 +322,7 @@ var downloadSkylinkHandleFetch = function(output: progressiveFetchResult, endpoi
 
 		// Helper function for readability.
 		let continueFetch = function() {
-			progressiveFetch(endpoint, null, output.remainingPortals)
+			progressiveFetch(endpoint, null, output.remainingPortals, output.first4XX)
 			.then(output => {
 				downloadSkylinkHandleFetch(output, endpoint, u8Link)
 				.then(output => {
@@ -439,9 +439,9 @@ var downloadSkylink = function(skylink: string): Promise<downloadSkylinkResult> 
 
 		// Establish the endpoint that we want to call on the portal and the
 		// list of portals we want to use.
-		let endpoint = "/skynet/raw/basesector/" + skylink // + "/"
+		let endpoint = "/skynet/trustless/basesector/" + skylink // + "/"
 		let portalList = preferredPortals()
-		progressiveFetch(endpoint, null, portalList)
+		progressiveFetch(endpoint, null, portalList, null)
 		.then(output => {
 			downloadSkylinkHandleFetch(output, endpoint, u8Link)
 			.then(output => {
