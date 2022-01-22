@@ -25,13 +25,16 @@ devices. Everything is automatically synced to a decentralized cloud.
   because a registry entry is type 2.
 
 + There is no spec for what the Skynet file should look like to instruct the
-  kernel of the user's portal prefernces, we need to build one. Might make
+  kernel of the user's portal preferences, we need to build one. Might make
   sense to wait to do this until we have support for setting the user's preferred
   portals in the kernel proper. The design I'm leaning towards is to just use a
   generic json object, so that the full kernel can insert more fields and
   basically entirely ignore the bootstrap ones.
 
-+ We should add encryption to the user's portal preferences.
++ We should add encryption to the user's portal preferences. Default kernel
+  should not be encrypted but we should expect to have to try to decrypt
+  whatever kernel the user actually has in place, we'll let the kernel worry
+  about encrypting it.
 
 + We should consider adding encryption to the user's choice of kernel. The
   downside of encrypting the user's choice of kernel is that the user won't
