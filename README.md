@@ -81,6 +81,9 @@ devices. Everything is automatically synced to a decentralized cloud.
   still assume malice in that case but at the very least we want to relay the
   error back to the user in case it's a genuine problem with the applicaiton.
 
++ Default kernel needs to reject URLs that it doesn't recognize to siasky.net
+  so that no untrusted code gets through.
+
 + We need to update the progressiveFetch API so that in the event of a
   malicious portal (or even a dysfuncitonal one), we can track that portal for
   the given API endpoint. This includes changing the way we handle the catch for

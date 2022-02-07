@@ -385,6 +385,8 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 // "requestURL". The primary purpose of this method is to simulate a GET call
 // to a portal endpoint, but fill the response with trusted data rather than
 // accepting whatever the portal serves.
+//
+// TODO: Need to reject unrecognized URLs.
 var handleSkynetKernelRequestURL = function(event) {
 	let enc = new TextEncoder()
 	let buf = enc.encode("yo")

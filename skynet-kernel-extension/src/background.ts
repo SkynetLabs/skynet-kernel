@@ -5,52 +5,52 @@ declare var browser
 // blockUntilKernelLoaded returns a promise that will not resolve until a
 // message is received from the kernel saying that the kernel has loaded.
 var kernelLoaded = false
-function blockUntilKernelLoaded() {
+function blockUntilKernelLoaded(): Promise<void> {
 	return new Promise(resolve => {
+		// Check if the kernel is loaded already.
 		if (kernelLoaded) {
-			console.log("kernel is loaded")
-			resolve(true)
-		} else {
-			setTimeout(function() {
-				blockUntilKernelLoaded()
-				.then(x => {
-				      resolve(x)
-				})
-			}, 100)
+			resolve()
+			return
 		}
+
+		// Wait 20 milliseconds and try again.
+		setTimeout(function() {
+			blockUntilKernelLoaded()
+			.then(() => {
+			      resolve()
+			})
+		}, 20)
 	})
 }
 
-// Create a listener that will listen for messages from the kernel.
-//
-// TODO: We may need to add safety mechanisms here, I'm not exactly sure who
-// all is allowed to send messages to the background script.
+// Create a listener that will listen for messages from the kernel. The
+// responses are keyed by a nonce, the caller passes the nonce to the kernel,
+// and the kernel passes the nonce back. Responses are stored in the
+// 'responses' object, and are expected to be deleted by the caller once
+// consumed. The cpu and memory overheads associated with using an object to
+// store responses are unknown.
 var responses = new Object()
 window.addEventListener("message", (event) => {
-	console.log("message received")
-	console.log(event)
-	console.log(event.data)
+	// Ignore all messages that aren't coming from the kernel.
+	if (event.origin !== "https://kernel.siasky.net") {
+		console.log("received unwanted message from: ", event.origin)
+		return
+	}
+
+	// Listen for the kernel successfully loading.
 	if (event.data.kernelMethod === "skynetKernelLoaded") {
 		kernelLoaded = true
-		kernelFrame.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://kernel.siasky.net")
+		return
 	}
-	if (event.data.kernelMethod === "receiveTest") {
-		console.log("test received")
-	}
+
+	// Listen for a response from the kernel to a requestURL message and
+	// store the response in the 'responses' object, keyed by the nonce of
+	// the request.
 	if (event.data.kernelMethod === "requestURLResponse") {
 		responses[event.data.nonce] = event.data.response
-		console.log("response received")
+		return
 	}
 }, false)
-
-// Open an iframe containing the kernel.
-let kernelFrame = document.createElement("iframe")
-kernelFrame.src = "https://kernel.siasky.net"
-kernelFrame.style.width = "0"
-kernelFrame.style.height = "0"
-kernelFrame.style.border = "none"
-kernelFrame.style.position = "absolute"
-document.body.appendChild(kernelFrame)
 
 // blockForKernelResponse will wait until the kernel has responded to a
 // particular nonce.
@@ -82,11 +82,8 @@ var messageNonce = 0
 function getURLFromKernel(url: string): Promise<Uint8Array> {
 	return new Promise(resolve => {
 		// All requests need to stall until the kernel has loaded.
-		console.log("blocking until the kernel is loaded")
 		blockUntilKernelLoaded()
 		.then(x => {
-			console.log("kernel is loaded")
-
 			// Send a mesasge to the kernel asking for the
 			// resource.
 			let nonce = messageNonce
@@ -96,6 +93,8 @@ function getURLFromKernel(url: string): Promise<Uint8Array> {
 				nonce: nonce,
 			}, "https://kernel.siasky.net")
 
+			// Wait for a response from the kernel, and then
+			// resolve with the response.
 			blockForKernelResponse(nonce)
 			.then(resp => {
 				resolve(resp)
@@ -114,7 +113,6 @@ function onBeforeRequestListener(details) {
 	// several pages in the extension, and we haven't migrated them out
 	// yet.
 	if (details.url !== "https://test.siasky.net/") {
-		console.log("it's not test")
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
@@ -122,8 +120,7 @@ function onBeforeRequestListener(details) {
 		return {}
 	}
 
-	// Block until the kernel is loaded.
-	console.log("trying test page")
+	// Ask the kernel what the appropriate response for this URL is.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.ondata = event => {
 		getURLFromKernel(details.url)
@@ -169,3 +166,12 @@ browser.webRequest.onHeadersReceived.addListener(
 	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*"]},
 	["blocking", "responseHeaders"]
 )
+
+// Open an iframe containing the kernel.
+var kernelFrame = document.createElement("iframe")
+kernelFrame.src = "https://kernel.siasky.net"
+kernelFrame.style.width = "0"
+kernelFrame.style.height = "0"
+kernelFrame.style.border = "none"
+kernelFrame.style.position = "absolute"
+document.body.appendChild(kernelFrame)
