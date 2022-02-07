@@ -381,6 +381,21 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	*/
 }
 
+// handleSkynetKernelRequestURL handles messages calling the kernelMethod
+// "requestURL". The primary purpose of this method is to simulate a GET call
+// to a portal endpoint, but fill the response with trusted data rather than
+// accepting whatever the portal serves.
+var handleSkynetKernelRequestURL = function(event) {
+	let enc = new TextEncoder()
+	let buf = enc.encode("yo")
+	let requestURLResponse = {
+		kernelMethod: "requestURLResponse",
+		response: buf,
+		nonce: event.data.nonce,
+	}
+	event.source.postMessage(requestURLResponse, "*")
+}
+
 // handleSkynetKernelRequestHomescreen will fetch the user's homescreen from
 // their Skynet account and serve it to the caller.
 //
@@ -465,10 +480,17 @@ handleMessage = function(event) {
 		return;
 	}
 
-	// Establish a handler that will serve user's homescreen to the caller.
+	// Establish a handler that will serve the user's homescreen to the
+	// caller.
 	if (event.data.kernelMethod === "requestHomescreen") {
 		handleSkynetKernelRequestHomescreen(event);
 		return;
+	}
+
+	// Establish a handler that will serve the user's custom response for a
+	// particular URL.
+	if (event.data.kernelMethod === "requestURL") {
+		handleSkynetKernelRequestURL(event);
 	}
 
 	kernelLog("Received unrecognized call: ", event.data.kernelMethod);

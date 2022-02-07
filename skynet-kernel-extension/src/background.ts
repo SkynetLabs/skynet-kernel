@@ -2,19 +2,48 @@ export {}
 
 declare var browser
 
+// blockUntilKernelLoaded returns a promise that will not resolve until a
+// message is received from the kernel saying that the kernel has loaded.
+var kernelLoaded = false
+function blockUntilKernelLoaded() {
+	return new Promise(resolve => {
+		if (kernelLoaded) {
+			console.log("kernel is loaded")
+			resolve(true)
+		} else {
+			setTimeout(function() {
+				blockUntilKernelLoaded()
+				.then(x => {
+				      resolve(x)
+				})
+			}, 100)
+		}
+	})
+}
+
+// Create a listener that will listen for messages from the kernel.
+//
+// TODO: We may need to add safety mechanisms here, I'm not exactly sure who
+// all is allowed to send messages to the background script.
+var responses = new Object()
 window.addEventListener("message", (event) => {
 	console.log("message received")
 	console.log(event)
 	console.log(event.data)
 	if (event.data.kernelMethod === "skynetKernelLoaded") {
+		kernelLoaded = true
 		kernelFrame.contentWindow.postMessage({kernelMethod: "requestTest"}, "https://kernel.siasky.net")
 	}
 	if (event.data.kernelMethod === "receiveTest") {
 		console.log("test received")
 	}
+	if (event.data.kernelMethod === "requestURLResponse") {
+		responses[event.data.nonce] = event.data.response
+		console.log("response received")
+	}
 }, false)
 
-// Try to create an iframe.
+// Open an iframe containing the kernel.
 let kernelFrame = document.createElement("iframe")
 kernelFrame.src = "https://kernel.siasky.net"
 kernelFrame.style.width = "0"
@@ -22,16 +51,68 @@ kernelFrame.style.height = "0"
 kernelFrame.style.border = "none"
 kernelFrame.style.position = "absolute"
 document.body.appendChild(kernelFrame)
-console.log("kernel should be appended")
 
-// Create a listener that completely swallows the page, returning nothing
-// instead.
-function listener(details) {
-	console.log("listener hit")
-	// TODO: We're going to eventually swap this out for only checking for
-	// the kernel, every other page will load directly from the kernel.
-	// This will mean that the default kernel is going to have so have some
-	// default responses loaded to do the homescreen and auth page.
+// blockForKernelResponse will wait until the kernel has responded to a
+// particular nonce.
+function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
+	return new Promise(resolve => {
+		if (responses.hasOwnProperty(nonce)) {
+			let resp = responses[nonce]
+			delete responses[nonce]
+			resolve(resp)
+		} else {
+			setTimeout(function() {
+				blockForKernelResponse(nonce)
+				.then(x => {
+				      resolve(x)
+				})
+			}, 100)
+		}
+	})
+}
+
+// getURLFromKernel will ask the kernel for the resource at a given URL,
+// block until the kernel responds, and then return the response provided by
+// the kernel.
+//
+// TODO: We need to make sure that the messageNonce is never used twice. I
+// believe that the javascript threading model will prevent this from being an
+// issue, but someone else should confirm.
+var messageNonce = 0
+function getURLFromKernel(url: string): Promise<Uint8Array> {
+	return new Promise(resolve => {
+		// All requests need to stall until the kernel has loaded.
+		console.log("blocking until the kernel is loaded")
+		blockUntilKernelLoaded()
+		.then(x => {
+			console.log("kernel is loaded")
+
+			// Send a mesasge to the kernel asking for the
+			// resource.
+			let nonce = messageNonce
+			messageNonce++
+			kernelFrame.contentWindow.postMessage({
+				kernelMethod: "requestURL",
+				nonce: nonce,
+			}, "https://kernel.siasky.net")
+
+			blockForKernelResponse(nonce)
+			.then(resp => {
+				resolve(resp)
+			})
+		})
+	})
+}
+
+// onBeforeRequestListener will handle calls from onBeforeRequest. Calls to the
+// kernel will be swallowed and replaced by a content script. Calls to pages
+// other than the kernel will be passed to the kernel, and the kernel will
+// decide what response is appropriate for the provided call.
+function onBeforeRequestListener(details) {
+	// TODO: This should eventually only check for the kernel, allowing all
+	// other calls to pass through. The current architecture hard-codes
+	// several pages in the extension, and we haven't migrated them out
+	// yet.
 	if (details.url !== "https://test.siasky.net/") {
 		console.log("it's not test")
 		let filter = browser.webRequest.filterResponseData(details.requestId)
@@ -41,15 +122,15 @@ function listener(details) {
 		return {}
 	}
 
-	// TODO: Injection for test.siasky.net. Need to open an iframe to the
-	// kernel and ask it what code is supposed to load.
+	// Block until the kernel is loaded.
 	console.log("trying test page")
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.ondata = event => {
-		let enc = new TextEncoder()
-		console.log(event.data)
-		filter.write(enc.encode(`{"message": "yo"}`))
-		filter.close()
+		getURLFromKernel(details.url)
+		.then(response => {
+			filter.write(response)
+			filter.close()
+		})
 	}
 }
 
@@ -74,7 +155,7 @@ function setResponse(details) {
 // TODO: I believe that we need to catch any http requests and either redirect
 // or cancel them.
 browser.webRequest.onBeforeRequest.addListener(
-	listener,
+	onBeforeRequestListener,
 	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*", "https://test.siasky.net/*"]},
 	["blocking"]
 )
