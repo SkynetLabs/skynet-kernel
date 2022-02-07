@@ -23,35 +23,6 @@ function blockUntilKernelLoaded(): Promise<void> {
 	})
 }
 
-// Create a listener that will listen for messages from the kernel. The
-// responses are keyed by a nonce, the caller passes the nonce to the kernel,
-// and the kernel passes the nonce back. Responses are stored in the
-// 'responses' object, and are expected to be deleted by the caller once
-// consumed. The cpu and memory overheads associated with using an object to
-// store responses are unknown.
-var responses = new Object()
-window.addEventListener("message", (event) => {
-	// Ignore all messages that aren't coming from the kernel.
-	if (event.origin !== "https://kernel.siasky.net") {
-		console.log("received unwanted message from: ", event.origin)
-		return
-	}
-
-	// Listen for the kernel successfully loading.
-	if (event.data.kernelMethod === "skynetKernelLoaded") {
-		kernelLoaded = true
-		return
-	}
-
-	// Listen for a response from the kernel to a requestURL message and
-	// store the response in the 'responses' object, keyed by the nonce of
-	// the request.
-	if (event.data.kernelMethod === "requestURLResponse") {
-		responses[event.data.nonce] = event.data.response
-		return
-	}
-}, false)
-
 // blockForKernelResponse will wait until the kernel has responded to a
 // particular nonce.
 function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
@@ -131,10 +102,10 @@ function onBeforeRequestListener(details) {
 	}
 }
 
-// Swallow the repsonse headers and set the content-type to text/html. If we
-// don't replace the response headers the portal can potentially introduce
-// malicious information.
-function setResponse(details) {
+// onHeadersReceivedListener will replace the headers provided by the portal
+// with trusted headers, preventing the portal from providing potentially
+// malicious information through the headers.
+function onHeadersReceivedListener(details) {
 	let newHeaders = [
 		{
 			name: "content-type",
@@ -162,10 +133,39 @@ browser.webRequest.onBeforeRequest.addListener(
 // Without this step, a portal can insert malicious headers that may alter how
 // the code at these URLs behaves.
 browser.webRequest.onHeadersReceived.addListener(
-	setResponse,
+	onHeadersReceivedListener,
 	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*"]},
 	["blocking", "responseHeaders"]
 )
+
+// Create a listener that will listen for messages from the kernel. The
+// responses are keyed by a nonce, the caller passes the nonce to the kernel,
+// and the kernel passes the nonce back. Responses are stored in the
+// 'responses' object, and are expected to be deleted by the caller once
+// consumed. The cpu and memory overheads associated with using an object to
+// store responses are unknown.
+var responses = new Object()
+window.addEventListener("message", (event) => {
+	// Ignore all messages that aren't coming from the kernel.
+	if (event.origin !== "https://kernel.siasky.net") {
+		console.log("received unwanted message from: ", event.origin)
+		return
+	}
+
+	// Listen for the kernel successfully loading.
+	if (event.data.kernelMethod === "skynetKernelLoaded") {
+		kernelLoaded = true
+		return
+	}
+
+	// Listen for a response from the kernel to a requestURL message and
+	// store the response in the 'responses' object, keyed by the nonce of
+	// the request.
+	if (event.data.kernelMethod === "requestURLResponse") {
+		responses[event.data.nonce] = event.data.response
+		return
+	}
+}, false)
 
 // Open an iframe containing the kernel.
 var kernelFrame = document.createElement("iframe")
