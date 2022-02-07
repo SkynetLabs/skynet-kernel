@@ -66,7 +66,7 @@ function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
 				.then(x => {
 				      resolve(x)
 				})
-			}, 100)
+			}, 20)
 		}
 	})
 }
