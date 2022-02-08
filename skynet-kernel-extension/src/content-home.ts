@@ -81,34 +81,8 @@ var handleMessage = function(event: any) {
 
 		// Load the script for home.
 		// 
-		// NOTE: Some of the experienced devs reading this line of code
-		// probably have their eyebrows raised to the ceiling. We've
-		// just loaded an arbitrary string from another webpage and
-		// called 'eval' on it, which under normal circumstances is
-		// highly, highly ill advised. I'm not 100% confident that it's
-		// the *best* way to accopmlish what we need, but ultimately we
-		// DO want to load arbitrary javascript from the skynet kernel
-		// and execute it with full webapp permissions, which
-		// specifically includes giving it access to the global 'kernel'
-		// variable that we've already created.
-		// 
-		// The other thing to remember about this incoming script is
-		// that it's a fully trusted script. If there is a malicious
-		// actor that somehow managed to get control of the script,
-		// they also have the ability to corrupt basically everything
-		// for the user. Safety mechanisms such as iframes and
-		// sandboxing won't help the user, because their core skynet
-		// kernel is already compromised.
-		// 
-		// This code is coming from kernel.siasky.net, which is verified
-		// by the Skynet kernel web extension, and loads a version of
-		// home from the user's storage. The process is fully
-		// decentralized, and there is no central intermediary that can
-		// tamper with the storage. The storage is cryptographically
-		// hashed, signed, and verified, which means any malicious code
-		// would need to be signed, and if you can get signed malicious
-		// code into the user's kernel storage, the user is already
-		// badly compromised.
+		// TODO: We can replace this eval in particular with loading
+		// the homepage from the kernel.
 		eval(event.data.script)
 		// Log time until js is loaded.
 		log("lifecycle", "js loaded")
