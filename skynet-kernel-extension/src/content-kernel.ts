@@ -35,6 +35,8 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/handlemessage.ts
 
+// import:::skynet-kernel-extension/lib/defaultportals.ts
+
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
 // log is a wrapper to call sourceLog that ensures every log is prefixed with
@@ -42,14 +44,6 @@ document.body.appendChild(header);
 var log = function(logType: string, ...inputs: any) {
 	sourceLog("Kernel", logType, ...inputs)
 }
-
-// defaultPortalList establishes a set of portals that will be used in the
-// event that the user either has not set any portals for themselves yet or in
-// case the user's portals can't be reached.
-//
-// TODO: Update these, I've been using them for development. dev1 currently is
-// the only one that can serve trustless downloads.
-var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"];
 
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The

@@ -20,35 +20,30 @@ devices. Everything is automatically synced to a decentralized cloud.
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 
++ Need a specification for the file that loads the user's portal preferences.
+  This file should be encrypted and padded.
+
++ We should add a version number for loading the user's kernel. v1 means the
+  kernel is not encrypted, v2 means the kernel is encrypted. Higher versions
+  can be used to indicate that the browser extension is not safe and needs to
+  be updated.
+
++ Modify the set of default portals. Since the user is creating a seed when
+  they first use the kernel, we should be able to support free signup-required
+  portals.
+
 + The registry lookup needs to change the method of signature verification if
   the type is set to '2', we can't blindly assume the portal is malicious just
   because a registry entry is type 2.
 
-+ There is no spec for what the Skynet file should look like to instruct the
-  kernel of the user's portal preferences, we need to build one. Might make
-  sense to wait to do this until we have support for setting the user's preferred
-  portals in the kernel proper. The design I'm leaning towards is to just use a
-  generic json object, so that the full kernel can insert more fields and
-  basically entirely ignore the bootstrap ones.
-
-+ We should add encryption to the user's portal preferences. Default kernel
-  should not be encrypted but we should expect to have to try to decrypt
-  whatever kernel the user actually has in place, we'll let the kernel worry
-  about encrypting it.
-
-+ We should consider adding encryption to the user's choice of kernel. The
-  downside of encrypting the user's choice of kernel is that the user won't
-  instantly get the latest updates from the developer, but perhaps this is okay
-  anyway, because we might want some sort of governance process around the idea
-  of shipping new updates. If we do this, we'll need to add the ability to
-  upload to the bootloader, because the bootloader will need to upload an
-  encrypted kernel for the user.
-
-+ Modify the set of default portals.
-
-+ In the extension, check localStorage for the user's kernel to avoid having to
-  download it. We may want to include some sort of date alongside the kernel so
-  we know whether we should check for updates.
++ Try to find some solution (perhaps using content scripts) to allow skynet
+  pages to talk to the kernel through the background script rather than needing
+  to open an iframe to the kernel themselves. This is a performance boost. At the
+  very worst, we could have the kernel be a shim that forwards messages to the
+  background script. Though... this may not be good for parallelism. Maybe the
+  way forward is to let the app choose between talking to a dedicated kernel
+  instance and the background script. Or maybe the dedicated kernel can make the
+  call.
 
 + Remove the downloadV1Skylink function in the extension. Currently it is used
   by several of the modules, so we can't delete it until the modules are
@@ -70,9 +65,8 @@ devices. Everything is automatically synced to a decentralized cloud.
   kernel so that you don't need to transplant it in the build process and in the
   extension.
 
-+ Explore possibilities of using shared workers to operate the kernel, we may
-  be able to reduce the overall load of using Skynet that way, ensure only one
-  kernel is running per browser, instead of spinning up a whole kernel per tab.
++ Add UI elements to the extension that allows a user to change the set of
+  hardcoded portals which get used to bootstrap the kernel.
 
 ## TODO: Full Kernel Roadmap
 
