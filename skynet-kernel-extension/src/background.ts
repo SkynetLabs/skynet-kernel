@@ -138,6 +138,13 @@ browser.webRequest.onHeadersReceived.addListener(
 	["blocking", "responseHeaders"]
 )
 
+function contentScriptListener(message) {
+	console.log("got message from content script:")
+	console.log(message)
+}
+
+browser.runtime.onMessage.addListener(contentScriptListener)
+
 // Create a listener that will listen for messages from the kernel. The
 // responses are keyed by a nonce, the caller passes the nonce to the kernel,
 // and the kernel passes the nonce back. Responses are stored in the

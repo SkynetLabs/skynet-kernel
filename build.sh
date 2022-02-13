@@ -111,8 +111,8 @@ cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
 # Strip the typescript declaration from all of the files in the browser
 # extension, as this breaks compatibility with the extensions system. The
 # declaration always appears at the second line of the file.
-ebDir="build/skynet-kernel-extension"
-for file in $ebDir/background.js $ebDir/content-home.js $ebDir/content-kernel-auth.js $ebDir/content-kernel.js
+files=$(find build/skynet-kernel-extension/*.js)
+for file in $files
 do
 	sed -i '2d' $file
 done

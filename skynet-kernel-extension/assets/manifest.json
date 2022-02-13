@@ -41,16 +41,25 @@
 	  {
 		  "matches": ["https://home.siasky.net/"],
 		  "js": ["content-home.js"],
+		  "run_at": "document_end",
 		  "all_frames": true
 	  },
 	  {
 		  "matches": ["https://kernel.siasky.net/"],
 		  "js": ["content-kernel.js"],
+		  "run_at": "document_end",
 		  "all_frames": true
 	  },
 	  {
 		  "matches": ["https://kernel.siasky.net/auth.html"],
 		  "js": ["content-kernel-auth.js"],
+		  "run_at": "document_end",
+		  "all_frames": true
+	  },
+	  {
+		  "matches": ["<all_urls>"],
+		  "js": ["content-bridge.js"],
+		  "run_at": "document_start",
 		  "all_frames": true
 	  }
   ]
