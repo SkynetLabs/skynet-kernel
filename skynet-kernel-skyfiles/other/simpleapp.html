@@ -6,9 +6,30 @@
 	<body style="background-color:#CCCCCC"></body>
 
 	<script>
+
+// Create a listener that will catch responses from the kernel and handle them.
+window.addEventListener("message", function(event) {
+	if (!event.data) {
+		return
+	}
+	if (!event.data.method) {
+		return
+	}
+	if (event.data.method !== "kernelResponse") {
+		return
+	}
+	console.log("page script got message:", event)
+});
+
+// Send a message to the kernel.
 window.postMessage({
-	bears: "bulls",
-}, "*")
+	method: "kernelMessage",
+	nonce: 1,
+	kernelData: {
+		bears: "bulls",
+	},
+}, window.location.origin);
+
 	</script>
 	</body>
 </html>

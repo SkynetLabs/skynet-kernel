@@ -24,7 +24,15 @@ function blockUntilKernelLoaded(): Promise<void> {
 }
 
 // blockForKernelResponse will wait until the kernel has responded to a
-// particular nonce.
+// particular nonce. The response will be stored in the object with the nonce
+// as the key.
+//
+// TODO: I'm not confident this is memory efficient. Responses can get large.
+// We delete the responses from the object, but if that doesn't actually clear
+// up the memory we have a substantial memory leak in the extension. It'd also
+// be nice to eliminate the timeout that sleeps 20 milliseconds at a time, but
+// I'm not sure how to accomplish that.
+var responses = new Object()
 function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
 	return new Promise(resolve => {
 		if (responses.hasOwnProperty(nonce)) {
@@ -39,6 +47,22 @@ function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
 				})
 			}, 20)
 		}
+	})
+}
+
+// contentScriptListener will receive and handle messages coming from content
+// scripts. This is largely a passthrough function which sends messages to the
+// kernel, and then relays the responses back to the content script.
+function contentScriptListener(message, sender, sendResponse) {
+	console.log("got message from content script:")
+	console.log(message)
+	console.log(sender)
+
+	// TODO: Talk to the kernel here, block until we have a response.
+
+	sendResponse({
+		messageSource: "kernel",
+		message: "hello from the kernel",
 	})
 }
 
@@ -138,11 +162,7 @@ browser.webRequest.onHeadersReceived.addListener(
 	["blocking", "responseHeaders"]
 )
 
-function contentScriptListener(message) {
-	console.log("got message from content script:")
-	console.log(message)
-}
-
+// Add a listener that will catch messages from content scripts.
 browser.runtime.onMessage.addListener(contentScriptListener)
 
 // Create a listener that will listen for messages from the kernel. The
@@ -151,11 +171,15 @@ browser.runtime.onMessage.addListener(contentScriptListener)
 // 'responses' object, and are expected to be deleted by the caller once
 // consumed. The cpu and memory overheads associated with using an object to
 // store responses are unknown.
-var responses = new Object()
+//
+// TODO: Need some way to distinguish between responses that need to be added
+// to the response object, and responses that can be directly forwarded to some
+// caller. And I guess we need to know what caller we are forwarding things to.
 window.addEventListener("message", (event) => {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "https://kernel.siasky.net") {
 		console.log("received unwanted message from: ", event.origin)
+		console.log(event)
 		return
 	}
 
