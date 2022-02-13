@@ -35,8 +35,6 @@ document.body.appendChild(header);
 
 // import:::skynet-kernel-extension/lib/handlemessage.ts
 
-// import:::skynet-kernel-extension/lib/defaultportals.ts
-
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
 // log is a wrapper to call sourceLog that ensures every log is prefixed with
@@ -164,6 +162,7 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 // downloadUserKernel will download the user's kernel, falling back to the
 // default if necessary.
 var downloadUserKernel = function(): Promise<string> {
+	/*
 	return new Promise((resolve, reject) => {
 		// Get the resolver link for the user's kernel.
 		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
@@ -185,6 +184,13 @@ var downloadUserKernel = function(): Promise<string> {
 			reject(addContextToErr(err, "unable to download user's kernel"));
 		})
 	});
+       */
+
+	// TODO: Swap this with the code above, this is just injected because the
+	// trustless endpoint isn't deployed anywhere at the moment, so we had
+	// no choice.
+	let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
+	return downloadV1Skylink("https://siasky.net/" + skylink + "/")
 }
 
 // kernelDiscoveryFailed defines the callback that is called in
@@ -228,8 +234,10 @@ var evalKernel = function(kernel: string) {
 // need to be atomic, and that the js runtime will guarantee only one thread is
 // operating on it at a time, because no webworkers are involved. I need to
 // confirm this with someone who has more javascript experience. The
-// 'loadSkynetKernel' function does get called by postmessage calls though,
-// which means there is some degree of parallelism happening.
+// 'loadSkynetKernel' function does get called by postmessage calls, which
+// means there is some degree of parallelism happening. I just don't know how
+// the thread design of javascript handles multiple parallel postmessage
+// events.
 var kernelLoading = false;
 var loadSkynetKernel = function() {
 	// Check the loading status of the kernel. If the kernel is loading,
@@ -240,9 +248,6 @@ var loadSkynetKernel = function() {
 		return;
 	}
 	kernelLoading = true;
-
-	// TODO: Check localstorage for the kernel to see if it is already
-	// loaded.
 
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet

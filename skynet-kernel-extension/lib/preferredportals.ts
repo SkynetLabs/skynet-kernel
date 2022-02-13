@@ -1,3 +1,5 @@
+var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"]
+
 // preferredPortals will determine the user's preferred portals by looking in
 // localStorage. If no local list of portals is found, the hardcoded default
 // list of portals will be set. This function does not check the network.

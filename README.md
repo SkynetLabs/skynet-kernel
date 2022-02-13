@@ -47,7 +47,7 @@ devices. Everything is automatically synced to a decentralized cloud.
 
 + Remove the downloadV1Skylink function in the extension. Currently it is used
   by several of the modules, so we can't delete it until the modules are
-  updated.
+  updated. Need to wait until the trustless endpoint is broadly deployed.
 
 + Update all of the crypto functions so that they can be overwritten by the
   kernel, and namespace them so they don't get in the way of future cryptos.
@@ -68,15 +68,16 @@ devices. Everything is automatically synced to a decentralized cloud.
 + Add UI elements to the extension that allows a user to change the set of
   hardcoded portals which get used to bootstrap the kernel.
 
++ There are a bunch of places where we are using the 'number' type when we
+  probably should be using the BigInt type. Especially in the trustless pieces
+  of the download code, like with the merkle tree stuff.
+
 ## TODO: Full Kernel Roadmap
 
 + We need to update the progressiveFetch protocol to parse and display the
   error in the event of a 400 response from the portal. We should probably
   still assume malice in that case but at the very least we want to relay the
   error back to the user in case it's a genuine problem with the applicaiton.
-
-+ Default kernel needs to reject URLs that it doesn't recognize to siasky.net
-  so that no untrusted code gets through.
 
 + We need to update the progressiveFetch API so that in the event of a
   malicious portal (or even a dysfuncitonal one), we can track that portal for
@@ -85,10 +86,6 @@ devices. Everything is automatically synced to a decentralized cloud.
 
 + Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
   message.
-
-+ There are a bunch of places where we are using the 'number' type when we
-  probably should be using the BigInt type. Especially in the trustless pieces
-  of the download code, like with the merkle tree stuff.
 
 + The downloadSkylink call needs to be extended so that it can verify large
   file downloads on top of small file downloads. This should probably happen in
