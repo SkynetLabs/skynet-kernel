@@ -20,11 +20,10 @@ function blockUntilKernelLoaded() {
 // particular nonce. The response will be stored in the object with the nonce
 // as the key.
 //
-// TODO: I'm not confident this is memory efficient. Responses can get large.
-// We delete the responses from the object, but if that doesn't actually clear
-// up the memory we have a substantial memory leak in the extension. It'd also
-// be nice to eliminate the timeout that sleeps 20 milliseconds at a time, but
-// I'm not sure how to accomplish that.
+// TODO: Switch from using setTimeout to using stored promises. Probably want
+// the responses object to contain the promises at the nonce offset, that way
+// you never need to store the full response in the object. I'm not even sure
+// if that's important, but it's clean.
 var responses = new Object()
 function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
 	return new Promise(resolve => {
