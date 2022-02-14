@@ -2,25 +2,18 @@ export {}
 
 declare var browser
 
+// TODO: The way that we are providing the kernel responses is insufficient. We
+// can strip the nonce, but everything else should stay. Right now it's more
+// ad-hoc.
+
 // blockUntilKernelLoaded returns a promise that will not resolve until a
 // message is received from the kernel saying that the kernel has loaded.
-var kernelLoaded = false
-function blockUntilKernelLoaded(): Promise<void> {
-	return new Promise(resolve => {
-		// Check if the kernel is loaded already.
-		if (kernelLoaded) {
-			resolve()
-			return
-		}
-
-		// Wait 20 milliseconds and try again.
-		setTimeout(function() {
-			blockUntilKernelLoaded()
-			.then(() => {
-			      resolve()
-			})
-		}, 20)
-	})
+var kernelLoadedResolve
+var kernelLoadedPromise = new Promise((resolve, reject) => {
+	kernelLoadedResolve = resolve
+})
+function blockUntilKernelLoaded() {
+	return kernelLoadedPromise
 }
 
 // blockForKernelResponse will wait until the kernel has responded to a
@@ -39,6 +32,7 @@ function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
 			let resp = responses[nonce]
 			delete responses[nonce]
 			resolve(resp)
+			console.log("resolved\n", nonce, "\n", resp)
 		} else {
 			setTimeout(function() {
 				blockForKernelResponse(nonce)
@@ -54,25 +48,27 @@ function blockForKernelResponse(nonce: number): Promise<Uint8Array> {
 // scripts. This is largely a passthrough function which sends messages to the
 // kernel, and then relays the responses back to the content script.
 function contentScriptListener(message, sender, sendResponse) {
-	console.log("got message from content script:")
-	console.log(message)
-	console.log(sender)
+	blockUntilKernelLoaded()
+	.then(x => {
+		let nonce = messageNonce
+		messageNonce++
+		message.nonce = nonce
+		kernelFrame.contentWindow.postMessage(message, "https://kernel.siasky.net")
 
-	// TODO: Talk to the kernel here, block until we have a response.
-
-	sendResponse({
-		messageSource: "kernel",
-		message: "hello from the kernel",
+		console.log("blocking for nonce", nonce)
+		blockForKernelResponse(nonce)
+		.then(resp => {
+			console.log("sending a response for nonce", nonce)
+			sendResponse(resp)
+		})
 	})
+	console.log("existing main thread")
+	return true
 }
 
 // getURLFromKernel will ask the kernel for the resource at a given URL,
 // block until the kernel responds, and then return the response provided by
 // the kernel.
-//
-// TODO: We need to make sure that the messageNonce is never used twice. I
-// believe that the javascript threading model will prevent this from being an
-// issue, but someone else should confirm.
 var messageNonce = 0
 function getURLFromKernel(url: string): Promise<Uint8Array> {
 	return new Promise(resolve => {
@@ -183,19 +179,28 @@ window.addEventListener("message", (event) => {
 		return
 	}
 
-	// Listen for the kernel successfully loading.
-	if (event.data.kernelMethod === "skynetKernelLoaded") {
-		kernelLoaded = true
+	if (!("kernelMethod" in event.data)) {
+		console.log("received message without a kernelMethod")
 		return
 	}
 
-	// Listen for a response from the kernel to a requestURL message and
-	// store the response in the 'responses' object, keyed by the nonce of
-	// the request.
-	if (event.data.kernelMethod === "requestURLResponse") {
-		responses[event.data.nonce] = event.data.response
+	// Listen for the kernel successfully loading.
+	if (event.data.kernelMethod === "skynetKernelLoaded") {
+		console.log("background script kernel has loaded")
+		kernelLoadedResolve()
 		return
 	}
+
+	// Check that the response has a nonce.
+	if (!("nonce" in event.data)) {
+		console.log("received a kernel message without a nonce")
+		return
+	}
+
+	// All other kernel requests are assumed to be associeted with a
+	// response.
+	console.log("setting nonce\n", event.data.nonce, "\n", event.data.response, "\n", event.data)
+	responses[event.data.nonce] = event.data.response
 }, false)
 
 // Open an iframe containing the kernel.

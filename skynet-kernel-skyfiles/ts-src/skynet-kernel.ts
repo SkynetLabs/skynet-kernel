@@ -459,7 +459,17 @@ handleMessage = function(event) {
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
 		log("lifecycle", "sending receiveTest message to source\n", event.source);
-		event.source.postMessage({kernelMethod: "receiveTest"}, "*");
+		if ("nonce" in event.data) {
+			console.log("kernel got requestTest with a nonce")
+			event.source.postMessage({
+				kernelMethod: "receiveTest",
+				nonce: event.data.nonce,
+				response: "receiveTest",
+			}, "*");
+		} else {
+			console.log("kernel got receiveTest without nonce\n", event.data)
+			event.source.postMessage({kernelMethod: "receiveTest"}, "*");
+		}
 		return;
 	}
 

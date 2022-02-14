@@ -9,15 +9,15 @@
 
 // Create a listener that will catch responses from the kernel and handle them.
 window.addEventListener("message", function(event) {
-	if (!event.data) {
-		return
-	}
-	if (!event.data.method) {
+	// Check that this is a kernel response.
+	if (!("data" in event) || !("method" in event.data)) {
 		return
 	}
 	if (event.data.method !== "kernelResponse") {
 		return
 	}
+
+	// Do something with the response.
 	console.log("page script got message:", event)
 });
 
@@ -25,8 +25,8 @@ window.addEventListener("message", function(event) {
 window.postMessage({
 	method: "kernelMessage",
 	nonce: 1,
-	kernelData: {
-		bears: "bulls",
+	kernelMessage: {
+		kernelMethod: "requestTest",
 	},
 }, window.location.origin);
 
