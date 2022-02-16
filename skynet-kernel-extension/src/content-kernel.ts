@@ -162,7 +162,6 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 // downloadUserKernel will download the user's kernel, falling back to the
 // default if necessary.
 var downloadUserKernel = function(): Promise<string> {
-	/*
 	return new Promise((resolve, reject) => {
 		// Get the resolver link for the user's kernel.
 		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
@@ -184,13 +183,6 @@ var downloadUserKernel = function(): Promise<string> {
 			reject(addContextToErr(err, "unable to download user's kernel"));
 		})
 	});
-       */
-
-	// TODO: Swap this with the code above, this is just injected because the
-	// trustless endpoint isn't deployed anywhere at the moment, so we had
-	// no choice.
-	let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
-	return downloadV1Skylink("https://siasky.net/" + skylink + "/")
 }
 
 // kernelDiscoveryFailed defines the callback that is called in
