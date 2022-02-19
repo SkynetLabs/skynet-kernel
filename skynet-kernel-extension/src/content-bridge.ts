@@ -59,11 +59,10 @@ function handleMethodKernelMessage(event) {
 // This is the listener for the content script, it will receive messages from
 // the page script that it can forward to the kernel.
 window.addEventListener("message", function(event) {
-	// Check that the message is coming from the page script.
+	// Authenticate the message as a message from the kernel.
 	if (event.source !== window) {
 		return
 	}
-	// Check that a method was supplied.
 	if (!("data" in event) || !("method" in event.data)) {
 		return
 	}
