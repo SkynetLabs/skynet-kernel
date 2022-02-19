@@ -1,0 +1,10 @@
+{
+  "name": "libkernel",
+  "version": "0.0.1",
+  "description": "helper library to interact with the skynet kernel",
+  "main": "dist/index.js",
+  "types": "dist/index.d.js",
+  "files": [
+    "/dist"
+  ]
+}
