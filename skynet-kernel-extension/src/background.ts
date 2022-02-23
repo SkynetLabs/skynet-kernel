@@ -15,7 +15,7 @@ function blockUntilKernelLoaded() {
 // responded to the query. The resolve function is stored in the kernelQueries
 // object using the nonce as the key. It will be called by the listener that
 // receives the kernel's response.
-var kernelQueriesNonce = 0
+var kernelQueriesNonce = 1
 var kernelQueries = new Object()
 function queryKernel(query) {
 	return new Promise(resolve => {

@@ -7,39 +7,42 @@ export {}
 
 declare var browser
 
+// handleBridgeTest will respond to a test method and let the caller know that
+// the bridge is running.
+function handleBridgeTest(event) {
+	window.postMessage({
+		method: "bridgeTest",
+		nonce: event.data.nonce,
+	}, event.source)
+}
+
 // handleKernelResp handles a successful response from the kernel.
-function handleKernelResp(resp, nonce) {
+function handleKernelResp(resp, nonce, target) {
 	window.postMessage({
 		method: "kernelResponse",
 		nonce,
 		resp: resp,
 		err: null,
-	}, "*")
+	}, target)
 }
 
 // handleKernelErr handles a failed response from the kernel.
-function handleKernelErr(err, nonce) {
-	console.log("kernel returned an error:\n", err)
+function handleKernelErr(err, nonce, target) {
 	window.postMessage({
 		method: "kernelResponse",
 		nonce,
 		resp: null,
 		err: err,
-	}, "*")
+	}, target)
 }
 
-// handleMethodKernelMessage handles messages sent using the method
-// 'kernelMessage'. A nonce is expected, and the message to the kernel itself
-// is expected. The kernel message does not need to contain a nonce.
-function handleMethodKernelMessage(event) {
-	// Check for a nonce.
-	if (!event.data.nonce) {
-		console.log("received a kernelMessage that does not have a nonce\n", event)
-		return
-	}
+// handleKernelMessage handles messages sent using the method 'kernelMessage'.
+// A nonce needs to be included in the request to the bridge, but not in the
+// request to the kernel.
+function handleKernelMessage(event) {
 	// Check for a kernel message.
 	if (!event.data.kernelMessage) {
-		console.log("received a kernelMessage that does not have kernel data\n", event)
+		console.log("[skynet bridge] received a kernelMessage that does not have kernel data\n", event)
 		return
 	}
 
@@ -48,10 +51,10 @@ function handleMethodKernelMessage(event) {
 	// we do need to pass the nonce to the handler so it knows what nonce
 	// to tell the 
 	let wrappedResp = function(resp) {
-		handleKernelResp(resp, event.data.nonce)
+		handleKernelResp(resp, event.data.nonce, event.source)
 	}
 	let wrappedErr = function(err) {
-		handleKernelErr(err, event.data.nonce)
+		handleKernelErr(err, event.data.nonce, event.source)
 	}
 	browser.runtime.sendMessage(event.data.kernelMessage).then(wrappedResp, wrappedErr)
 }
@@ -63,14 +66,21 @@ window.addEventListener("message", function(event) {
 	if (event.source !== window) {
 		return
 	}
-	if (!("data" in event) || !("method" in event.data)) {
+	if (!("data" in event) || !("method" in event.data)) || !("nonce" in event.data) {
 		return
 	}
 
-	// Check for the 'kernelMessage' method.
+	// Check for a bridge test.
+	if (event.data.method === "testBridge") {
+		handleBridgeTest(event)
+		return
+	}
+	// Check for messages aimed at the kernel.
 	if (event.data.method === "kernelMessage") {
-		handleMethodKernelMessage(event)
+		handleKernelMessage(event)
 		return
 	}
 	//  NOTE: More method types can be added here later.
 })
+
+console.log("[skynet bridge] bridge has loaded")
