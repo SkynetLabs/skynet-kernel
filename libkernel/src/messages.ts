@@ -104,7 +104,7 @@ export function init(): Promise<void> {
 	setTimeout(function() {
 		if (bridgeExists !== true) {
 			bridgeExists = false
-			bridgeAvailable.reject()
+			bridgeAvailable.reject("bridge did not respond after 100ms")
 			console.log("[libkernel] bridge not found")
 		}
 	}, 100)
