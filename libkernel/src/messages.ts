@@ -14,8 +14,7 @@ interface resolveReject {
 }
 var bridgeExists: boolean
 var bridgeAvailable: resolveReject
-var bridgePromise = new Promise((resolve, reject)  => {
-	console.log("[libkernel] bridge confirmed to be available")
+var bridgePromise: Promise<void> = new Promise((resolve, reject)  => {
 	bridgeAvailable = {resolve, reject}
 })
 function blockUntilBridgeLoaded() {
@@ -34,21 +33,27 @@ var queries: any = new Object()
 // bridge is working.
 function handleBridgeTest() {
 	if (bridgeExists !== false) {
+		console.log("[libkernel] bridge confirmed to be available")
 		bridgeExists = true
 		bridgeAvailable.resolve()
 	} else {
-		console.log("[libkernel] ERROR: received late signal from bridge")
+		console.error("[libkernel] received late signal from bridge")
 	}
 }
 
 // handleKernelResponse will parse the kernel's response from the bridge and
 // resolve/reject the promise associated with the nonce.
 function handleKernelResponse(event: MessageEvent) {
+	// Check that we have a promise for the provided nonce.
+	if (!("nonce" in event.data) || !(event.data.nonce in queries)) {
+		console.error("[libkernel] nonce of kernelResponse not found\n", event, "\n", queries)
+		return
+	}
 	// Check that the response includes a resp and an err.
 	let result = queries[event.data.nonce]
 	delete queries[event.data.nonce]
 	if (!("resp" in event.data) || !("err" in event.data)) {
-		console.log("[libkernel] missing resp or err\n", event)
+		console.error("[libkernel] malformed kernel response\n", event)
 		return
 	}
 
@@ -58,7 +63,7 @@ function handleKernelResponse(event: MessageEvent) {
 	} else if (event.data.err !== null) {
 		result.reject(event.data.err)
 	} else {
-		console.log("[libkernel] received malformed response from bridge\n", event)
+		console.error("[libkernel] received malformed response from bridge\n", event)
 	}
 }
 
@@ -70,7 +75,7 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	// Check that this message is a kernelResponse.
-	if (!("data" in event) || !("method" in event.data) || !("nonce" in event.data)) {
+	if (!("data" in event) || !("method" in event.data)) {
 		return
 	}
 
@@ -80,11 +85,6 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Check that we have a promise for the provided nonce.
-	if (!(event.data.nonce in queries)) {
-		console.log("[libkernel] missing nonce\n", event, "\n", queries)
-		return
-	}
 	if (event.data.method === "kernelResponse") {
 		handleKernelResponse(event)
 		return
@@ -93,30 +93,24 @@ function handleMessage(event: MessageEvent) {
 
 // init will add an event listener for messages from the kernel bridge.
 export function init(): Promise<void> {
+	// Create the listener that will check for messages from the bridge.
 	window.addEventListener("message", handleMessage)
 
-	// Return a promise that will resolve when the bridge responds that it
-	// is alive. A timeout is used to reject if the bridge does not respond
-	// within 100ms.
-	return new Promise((resolve, reject) => {
-		let nonce = nextNonce
-		nextNonce++
-		queries[nonce] = {resolve, reject}
-		window.postMessage({
-			method: "bridgeTest",
-			nonce,
-		})
-
-		// After 100ms, check whether the bridge has responded. If not,
-		// fail the bridge.
-		setTimeout(function() {
-			if (bridgeExists !== true) {
-				bridgeExists = false
-				bridgeAvailable.reject()
-				console.log("[libkernel] bridge not found")
-			}
-		}, 100)
+	// Send a message 
+	window.postMessage({
+		method: "bridgeTest",
 	})
+
+	// After 100ms, check whether the bridge has responded. If not,
+	// fail the bridge.
+	setTimeout(function() {
+		if (bridgeExists !== true) {
+			bridgeExists = false
+			bridgeAvailable.reject()
+			console.log("[libkernel] bridge not found")
+		}
+	}, 100)
+	return bridgePromise
 }
 
 // kernelRequestTest will send a message to the bridge asking for a kernel

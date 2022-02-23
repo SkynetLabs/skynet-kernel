@@ -12,26 +12,15 @@ declare var browser
 function handleBridgeTest(event) {
 	window.postMessage({
 		method: "bridgeTest",
-		nonce: event.data.nonce,
 	}, event.source)
 }
 
 // handleKernelResp handles a successful response from the kernel.
-function handleKernelResp(resp, nonce, target) {
+function handleKernelResp(resp, err, nonce, target) {
 	window.postMessage({
 		method: "kernelResponse",
 		nonce,
 		resp: resp,
-		err: null,
-	}, target)
-}
-
-// handleKernelErr handles a failed response from the kernel.
-function handleKernelErr(err, nonce, target) {
-	window.postMessage({
-		method: "kernelResponse",
-		nonce,
-		resp: null,
 		err: err,
 	}, target)
 }
@@ -41,8 +30,8 @@ function handleKernelErr(err, nonce, target) {
 // request to the kernel.
 function handleKernelMessage(event) {
 	// Check for a kernel message.
-	if (!event.data.kernelMessage) {
-		console.log("[skynet bridge] received a kernelMessage that does not have kernel data\n", event)
+	if (!("kernelMessage" in event.data) || !("nonce" in event.data)) {
+		console.error("[skynet bridge] method 'kernelMessage' requires both a nonce and a kernelMessage\n", event.data, "\n", event)
 		return
 	}
 
@@ -51,10 +40,10 @@ function handleKernelMessage(event) {
 	// we do need to pass the nonce to the handler so it knows what nonce
 	// to tell the 
 	let wrappedResp = function(resp) {
-		handleKernelResp(resp, event.data.nonce, event.source)
+		handleKernelResp(resp, null, event.data.nonce, event.source)
 	}
 	let wrappedErr = function(err) {
-		handleKernelErr(err, event.data.nonce, event.source)
+		handleKernelResp(null, err, event.data.nonce, event.source)
 	}
 	browser.runtime.sendMessage(event.data.kernelMessage).then(wrappedResp, wrappedErr)
 }
@@ -66,15 +55,16 @@ window.addEventListener("message", function(event) {
 	if (event.source !== window) {
 		return
 	}
-	if (!("data" in event) || !("method" in event.data)) || !("nonce" in event.data) {
+	if (!("data" in event) || !("method" in event.data)) {
 		return
 	}
 
-	// Check for a bridge test.
-	if (event.data.method === "testBridge") {
+	// Check for a bridge test, which does not require a nonce.
+	if (event.data.method === "bridgeTest") {
 		handleBridgeTest(event)
 		return
 	}
+
 	// Check for messages aimed at the kernel.
 	if (event.data.method === "kernelMessage") {
 		handleKernelMessage(event)
