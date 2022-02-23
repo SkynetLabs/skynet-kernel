@@ -5,9 +5,10 @@
 // if the bridge exists.
 //
 // The init() function will use a timeout to decide that the bridge does not
-// exist, the hanelMessage function will look for a method called "bridgeTest"
-// to determine that the bridge does exist. The init script needs to send the
-// bridge a "bridgeTest" message so the bridge knows to respond.
+// exist, the hanelMessage function will look for a method called
+// "bridgeTestResponse" to determine that the bridge does exist. The init
+// script needs to send the bridge a "bridgeTestQuery" message so the bridge
+// knows to respond.
 interface resolveReject {
 	resolve: Function;
 	reject: Function;
@@ -78,13 +79,10 @@ function handleMessage(event: MessageEvent) {
 	if (!("data" in event) || !("method" in event.data)) {
 		return
 	}
-
-	// Special case: bridgeTest doesn't need a nonce in 'queries'.
-	if (event.data.method === "bridgeTest") {
+	if (event.data.method === "bridgeTestResponse") {
 		handleBridgeTest()
 		return
 	}
-
 	if (event.data.method === "kernelResponse") {
 		handleKernelResponse(event)
 		return
@@ -98,7 +96,7 @@ export function init(): Promise<void> {
 
 	// Send a message 
 	window.postMessage({
-		method: "bridgeTest",
+		method: "bridgeTestQuery",
 	})
 
 	// After 100ms, check whether the bridge has responded. If not,

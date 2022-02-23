@@ -11,7 +11,7 @@ declare var browser
 // the bridge is running.
 function handleBridgeTest(event) {
 	window.postMessage({
-		method: "bridgeTest",
+		method: "bridgeTestResponse",
 	}, event.source)
 }
 
@@ -60,7 +60,7 @@ window.addEventListener("message", function(event) {
 	}
 
 	// Check for a bridge test, which does not require a nonce.
-	if (event.data.method === "bridgeTest") {
+	if (event.data.method === "bridgeTestQuery") {
 		handleBridgeTest(event)
 		return
 	}
