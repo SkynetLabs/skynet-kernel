@@ -2,14 +2,11 @@ export {}
 
 declare var browser
 
-// blockUntilKernelLoaded returns a promise that will resolve when the kernel
-// sends a message indicating it has loaded. We store the resolve function in a
+// blockUntilKernelLoaded is a promise that will resolve when the kernel sends
+// a message indicating it has loaded. We store the resolve function in a
 // global variable so the promise can be resolved by another frame.
 var kernelLoaded
-var kernelLoadedPromise = new Promise(x => { kernelLoaded = x })
-function blockUntilKernelLoaded() {
-	return kernelLoadedPromise
-}
+var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 
 // queryKernel returns a promise that will resolve when the kernel has
 // responded to the query. The resolve function is stored in the kernelQueries
@@ -19,7 +16,7 @@ var kernelQueriesNonce = 1
 var kernelQueries = new Object()
 function queryKernel(query) {
 	return new Promise(resolve => {
-		blockUntilKernelLoaded()
+		blockUntilKernelLoaded
 		.then(x => {
 			// Grab the next nonce and store a promise resolution in the
 			// kernelQueries object.

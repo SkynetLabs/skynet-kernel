@@ -1,1 +1,2 @@
-export {init, testMessage} from './messages'
+export {init} from './init'
+export {testMessage} from './messages'
