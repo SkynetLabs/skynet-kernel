@@ -39,6 +39,9 @@
 // and inconsistency if they aren't coordinating around the upgrade together
 // effectively.
 
+// TODO: All of the wildcard postmessage calls need to be updated to follow
+// better security practice.
+
 // TODO: Don't declare these, actually overwrite them. We don't want to be
 // dependent on a particular extension having the same implementation as all of
 // the others.
@@ -221,7 +224,7 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	// Perform input validation - anyone can send any message to the
 	// kernel, need to make sure any malicious messages result in an error.
-	if (event.data.domain === undefined) {
+	if (!("domain" in event.data)) {
 		let err = "bad moduleCallV1 request: domain is not specified";
 		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
@@ -233,7 +236,7 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
-	if (event.data.defaultHandler === undefined) {
+	if (!("defaultHandler" in event.data)) {
 		let err = "bad moduleCallV1 request: defaultHandler is not specified";
 		kernelLog("Skynet Kernel: "+err);
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
@@ -245,6 +248,7 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
 		return;
 	}
+
 	/*
 	// Check the encoding of the defaultHandler. The encoding is:
 	// + 2 bytes for the kernel version of the handler.
@@ -371,6 +375,8 @@ var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 // accepting whatever the portal serves.
 //
 // TODO: Need to reject unrecognized URLs.
+//
+// TODO: Need to return something real not just 'yo'.
 var handleSkynetKernelRequestURL = function(event) {
 	let enc = new TextEncoder()
 	let buf = enc.encode("yo")
