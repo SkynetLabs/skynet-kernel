@@ -26,11 +26,22 @@ var blockForBridge: Promise<void> = new Promise((resolve, reject)  => {
 // the {resolve, reject} of a promise that will be resolved/rejected when a
 // response to the corresponding message is provided.
 var nextNonce = 1
-export var queries: any = new Object()
-export function getNonce(): number {
+var queries: any = new Object()
+
+// postKernelMessage will send a postMessage to the kernel, handling details
+// like the nonce and the resolve/reject upon receiving a response. The inputs
+// are a resolve and reject function of a promise that should be resolved when
+// the response is received, and the message that is going to the kernel
+// itself.
+export function postKernelMessage(resolve: Function, reject: Function, message: any) {
 	let nonce = nextNonce
 	nextNonce++
-	return nonce
+	queries[nonce] = {resolve, reject}
+	window.postMessage({
+		method: "kernelMessage",
+		nonce,
+		kernelMessage: message,
+	}, window.location.origin)
 }
 
 // handleBridgeTest will handle a response from the bridge indicating that the
@@ -111,7 +122,7 @@ export function init(): Promise<void> {
 		method: "bridgeTestQuery",
 	})
 
-	// After 100ms, check whether the bridge has responded. If not,
+	// After 2 seconds, check whether the bridge has responded. If not,
 	// fail the bridge.
 	setTimeout(function() {
 		if (bridgeExists !== true) {
