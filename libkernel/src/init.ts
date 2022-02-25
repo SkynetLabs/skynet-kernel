@@ -128,7 +128,7 @@ export function init(): Promise<void> {
 		if (bridgeExists !== true) {
 			bridgeExists = false
 			bridgeAvailable.reject("bridge unavailable, need skynet extension")
-			console.error("[libkernel] bridge not found")
+			console.error("[libkernel] bridge did not respond after 2 seconds")
 		}
 	}, 2000)
 	return blockForBridge
