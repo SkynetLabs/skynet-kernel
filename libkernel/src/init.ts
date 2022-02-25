@@ -1,3 +1,14 @@
+// log provides a wrapper for console.log that prefixes 'libkernel'.
+var log = function(...inputs: any) {
+	console.log("[libkernel] ", ...inputs)
+}
+
+// logErr provides a wrapper for console.error that prefixes '[libkernel]' to
+// the output.
+var logErr = function(...inputs: any) {
+	console.error("[libkernel] ", ...inputs)
+}
+
 // Establish a system to test if the bridge script is running. bridgeExists is
 // a boolean which establishes whether or not we have already determinied if
 // the bridge eixsts, bridgeAvailable is the {resolve, reject} object for a
@@ -48,11 +59,11 @@ export function postKernelMessage(resolve: Function, reject: Function, message: 
 // bridge is working.
 function handleBridgeTest() {
 	if (bridgeExists !== false) {
-		console.log("[libkernel] bridge confirmed to be available")
+		log("bridge confirmed to be available")
 		bridgeExists = true
 		bridgeAvailable.resolve()
 	} else {
-		console.error("[libkernel] received late signal from bridge")
+		logErr("received late signal from bridge")
 	}
 }
 
@@ -61,14 +72,14 @@ function handleBridgeTest() {
 function handleKernelResponse(event: MessageEvent) {
 	// Check that we have a promise for the provided nonce.
 	if (!("nonce" in event.data) || !(event.data.nonce in queries)) {
-		console.error("[libkernel] nonce of kernelResponse not found\n", event, "\n", queries)
+		logErr("nonce of kernelResponse not found\n", event, "\n", queries)
 		return
 	}
 	// Check that the response includes a resp and an err.
 	let result = queries[event.data.nonce]
 	delete queries[event.data.nonce]
 	if (!("resp" in event.data) || !("err" in event.data)) {
-		console.error("[libkernel] malformed kernel response\n", event)
+		logErr("malformed kernel response\n", event)
 		return
 	}
 
@@ -78,11 +89,11 @@ function handleKernelResponse(event: MessageEvent) {
 	} else if (event.data.err !== null) {
 		result.reject(event.data.err)
 	} else {
-		console.error("[libkernel] received malformed response from bridge\n", event)
+		logErr("received malformed response from bridge\n", event)
 	}
 }
 
-// handleMessage will handle a message from the kernel, using the reponse to
+// handleMessage will handle a message from the kernel, using the response to
 // resolve the appropriate promise in the set of queries.
 function handleMessage(event: MessageEvent) {
 	// Check the message source.
@@ -128,7 +139,7 @@ export function init(): Promise<void> {
 		if (bridgeExists !== true) {
 			bridgeExists = false
 			bridgeAvailable.reject("bridge unavailable, need skynet extension")
-			console.error("[libkernel] bridge did not respond after 2 seconds")
+			logErr("bridge did not respond after 2 seconds")
 		}
 	}, 2000)
 	return blockForBridge

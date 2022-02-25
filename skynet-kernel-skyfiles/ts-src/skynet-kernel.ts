@@ -1,9 +1,3 @@
-// TODO: Load the remaining APIs from Skynet. There is going to be an
-// in-memory map that maps from an API function to a skylink of a
-// worker script that can handle that API function. Whenever one of the
-// apis is called, we'll create a new short lived web worker to handle
-// that request.
-
 // TODO: Load any long-running background processes in web workers. At
 // least initially, we're mainly going to save that for our internal
 // stealth blockchain. The main thing I'm worried about with long
@@ -29,7 +23,10 @@
 
 // TODO: Need to figure out some way to avoid race conditions when a module is
 // upgrading itself. The potential race is that an RPC gets called on the
-// module in the middle of a module upgrade.
+// module in the middle of a module upgrade. There might also be codependent
+// calls happening. Module A calls B, which calls A again. We don't want the
+// first call to have a different version than the second call. At least, I
+// don't think.
 
 // TODO: We need some sort of call we can make that will block until the kernel
 // has finished upgrading all modules. This call is particularly useful for
@@ -46,6 +43,7 @@
 // dependent on a particular extension having the same implementation as all of
 // the others.
 declare var downloadV1Skylink
+declare var downloadSkylink
 declare var getUserSeed
 
 // Set up a logging method that can be enabled and disabled.
@@ -220,20 +218,6 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 }
 
 // handleModuleCallV1 handles a call to a version 1 skynet kernel module.
-// 
-// TODO: Write documentation for using V1 skynet kernel module calls. Need to
-// specify the intention, limitations, and every parameter.
-//
-// TODO: What we really want is for the handlers to be versioned, and then we
-// can check for an explicit override at the user level to prefer a specific
-// version of a handler. I'm not completely sure how manage handler versioning
-// yet, if there is a newer version available we always want to use the newer
-// version, but at the same time we do not want handlers upgrading without user
-// consent. Probably the override map will specify whether upgrading is
-// allowed, and how to check for upgrades. Then we will need the handler string
-// to identify within the string the version of the handler so we can detect
-// whether a newer handler is being suggested. I guess the override entry also
-// needs to specify which pubkey is allowed to announce a new version.
 var handleModuleCallV1 = function(event, source, sourceIsWorker) {
 	// Perform input validation - anyone can send any message to the
 	// kernel, need to make sure any malicious messages result in an error.
@@ -433,13 +417,13 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 handleMessage = function(event) {
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
-	let [userSeed, errGSU] = getUserSeed();
+	let [userSeed, errGSU] = getUserSeed()
 	if (errGSU !== null) {
-		log("message", "auth has failed, sending an authFailed message", errGSU);
-		window.parent.postMessage({kernelMethod: "authFailed"}, "*");
-		return;
+		log("message", "auth has failed, sending an authFailed message", errGSU)
+		window.parent.postMessage({kernelMethod: "authFailed"}, "*")
+		return
 	}
-	log("message", "user is authenticated");
+	log("message", "user is authenticated")
 
 	// If we are receiving an authCompleted message, it means the calling
 	// app thinks the kernel hasn't loaded yet. Send a message indicating
@@ -450,7 +434,7 @@ handleMessage = function(event) {
 	// correctly handle repeat 'skynetKernelLoaded' messages).
 	if (event.data.kernelMethod === "authCompleted") {
 		log("lifecycle", "received authCompleted message, though kernel is already loaded\n", event)
-		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, "*")
+		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, event.source)
 		return;
 	}
 
@@ -479,7 +463,7 @@ handleMessage = function(event) {
 		logOut();
 		log("lifecycle", "sending logOutSuccess message to home");
 		try {
-			event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
+			event.source.postMessage({kernelMethod: "logOutSuccess"}, "*");
 		} catch (err) {
 			log("lifecycle", "unable to inform source that logOut was competed", err);
 		}

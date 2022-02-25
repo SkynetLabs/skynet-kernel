@@ -221,15 +221,6 @@ var evalKernel = function(kernel: string) {
 // loading fails, 'kernelLoading' will be set to false, and an error will be
 // sent to the parent, allowing the parent a chance to fix whatever is wrong
 // and try again. Usually a failure means the user is not logged in.
-//
-// TODO: My current understanding is that the 'kernelLoading' varible does not
-// need to be atomic, and that the js runtime will guarantee only one thread is
-// operating on it at a time, because no webworkers are involved. I need to
-// confirm this with someone who has more javascript experience. The
-// 'loadSkynetKernel' function does get called by postmessage calls, which
-// means there is some degree of parallelism happening. I just don't know how
-// the thread design of javascript handles multiple parallel postmessage
-// events.
 var kernelLoading = false;
 var loadSkynetKernel = function() {
 	// Check the loading status of the kernel. If the kernel is loading,
