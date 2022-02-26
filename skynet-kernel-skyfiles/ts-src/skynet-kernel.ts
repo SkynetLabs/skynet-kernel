@@ -157,35 +157,27 @@ var saveModuleMap = function() {
 //
 // TODO: provide the domain of the caller to the modules so they can implement
 // permissions.
-var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, workerCode) {
-	kernelLog("Skynet Kernel: creating worker to handle a moduleCallV1");
-	kernelLog(rwEvent.data);
-	kernelLog(rwSource);
-	kernelLog(rwSourceIsWorker);
+var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCode) {
 	let url = URL.createObjectURL(new Blob([workerCode]));
 	let worker = new Worker(url);
+	logToSource(rwEvent, "worker was created")
 	worker.onmessage = function(wEvent) {
-		kernelLog("Skynet Kernel: moduleCallV1 worker got a message");
-		kernelLog(rwEvent.data);
-		kernelLog(rwSource);
-		kernelLog(rwSourceIsWorker);
-		kernelLog(wEvent.data);
+		logToSource(rwEvent, "received a message from the worker")
 		// Check if the worker is trying to make a call to
 		// another module.
-		if (wEvent.data.kernelMethod === "moduleCallV1") {
-			kernelLog("Skynet Kernel: moduleCallV1 worker is calling moduleCallV1");
+		if (wEvent.data.kernelMethod === "moduleCall") {
+			logToSource(rwEvent, "worker is making a module call")
 			handleModuleCall(wEvent, worker, true);
 			return;
 		}
 
 		// Check if the worker is responding to the original
 		// caller.
-		if (wEvent.data.kernelMethod === "moduleResponseV1") {
-			kernelLog("Skynet Kernel: moduleCallV1 worker is sending a moduleResponseV1");
+		if (wEvent.data.kernelMethod === "moduleResponse") {
+			logToSource(rwEvent, "worker is making a moduleResponse, buildling message")
 			let message = {
-				domain: wEvent.data.domain,
-				kernelMethod: "moduleResponseV1",
-				requestNonce: rwEvent.data.requestNonce,
+				kernelMethod: "moduleResponse",
+				nonce: rwEvent.data.nonce,
 				moduleResponse: wEvent.data.moduleResponse
 			}
 
@@ -193,20 +185,35 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 			// needs to be constructed differently than if the
 			// source is a window.
 			if (rwSourceIsWorker) {
+				logToSource(rwEvent, "passing along response as though caller is a worker")
 				rwSource.postMessage(message);
 			} else {
+				logToSource(rwEvent, "passing along response as though caller is a page")
 				rwSource.postMessage(message, "*");
 			}
 			worker.terminate();
 			return;
 		}
 
+		// TODO: May want to change the spec here so that it's the same
+		// message as everything else - we only need a separate method
+		// if the kernel explicitly needs to know that the request
+		// failed for some reason.
+		if (wEvent.data.kernelMethod === "moduleResponseErr") {
+			// TODO: Need to check the err field.
+			logToSource(rwEvent, "worker returned an error")
+			logToSource(rwEvent, wEvent.data.err)
+			logToSource(rwEvent, JSON.stringify(rwEvent))
+			return
+		}
+
 		// TODO: Some sort of error framework here, we
 		// shouldn't be arriving to this code block unless the
 		// request was malformed.
-		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCallV1";
-		kernelLog("Skynet Kernel: " + err);
-		reportModuleCallV1KernelError(rwSource, true, rwEvent.data.requestNonce, err);
+		logToSource(rwEvent, "worker response seems to be malfomred")
+		logToSource(rwEvent, wEvent.data.kernelMethod)
+		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCall";
+		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, err);
 		worker.terminate();
 		return;
 	};
@@ -230,23 +237,30 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 	// needs to be able to communicate using the V1 protocol since
 	// that's the only thing the user's kernel understands.
 	//
-	// TODO: Need to add a source.
+	// TODO: Need to check that the sourceDomain is correct, we are using
+	// rwEvent.origin but that may not actually be the real source. This is
+	// also important when receiving calls from other workers, because we
+	// need to make sure the domain rights are switched over accordingly.
+	//
+	// TODO: Derive a proper seed for the module.
 	worker.postMessage({
-		domain: rwEvent.data.domain,
-		kernelMethod: "moduleCallV1",
+		seed: "TODO",
+		sourceDomain: rwEvent.origin,
+		kernelMethod: "moduleCall",
 		requestNonce: rwEvent.data.requestNonce,
 		moduleMethod: rwEvent.data.moduleMethod,
 		moduleInput: rwEvent.data.moduleInput
 	});
+	logToSource(rwEvent, "sent message to worker")
 };
 
-// reportModuleCallV1KernelError will repsond to the source with an error message,
+// reportModuleCallKernelError will repsond to the source with an error message,
 // indicating that the RPC failed.
 //
 // The kernel provides a guarantee that 'err' will always be a string.
-var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonce, err) {
+var reportModuleCallKernelError = function(source, sourceIsWorker, requestNonce, err) {
 	let message = {
-		kernelMethod: "moduleResponseV1",
+		kernelMethod: "moduleResponse",
 		requestNonce: requestNonce,
 		kernelErr: err,
 	}
@@ -271,18 +285,21 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 	// Check that the module exists, and that it has been formatted as a
 	// skylink.
 	if (!("module" in event.data)) {
-		let err = "bad moduleCallV1 request: defaultHandler is not specified"
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		let err = "bad moduleCall request: module is not specified"
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logToSource(event, "module not specified")
 		return
 	}
 	if (typeof event.data.module !== "string") {
-		let err = "bad moduleCallV1 request: defaultHandler is not a string"
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		let err = "bad moduleCall request: module is not a string"
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logToSource(event, "module not string")
 		return
 	}
 	if (event.data.module.length !== 46) {
-		let err = "bad moduleCallV1 request: defaultHandler is not a string"
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		let err = "bad moduleCall request: module is not 46 characters"
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logToSource(event, "module not 46 chars")
 		return
 	}
 
@@ -294,17 +311,20 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 	// version of anything rather than being out of date.
 
 	// Download the code for the worker.
+	logToSource(event, "performing download")
 	downloadSkylink(event.data.module)
 	.then(result => {
 		// TODO: Save the module into localStorage so we don't have to
 		// download it again. Also add it to the set of subscriptions
 		// so we get notified immediately if the code is updated.
 
-		runModuleCallV1Worker(event, source, sourceIsWorker, result.response)
+		logToSource(event, "got code, trying to run code")
+		logToSource(event, result.fileData)
+		runModuleCallWorker(event, source, sourceIsWorker, result.fileData)
 	})
 	.catch(err => {
 		err = addContextToErr(err, "unable to download module")
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
 	})
 }
 
@@ -330,7 +350,7 @@ var handleSkynetKernelRequestURL = function(event) {
 // handleSkynetKernelRequestHomescreen will fetch the user's homescreen from
 // their Skynet account and serve it to the caller.
 //
-// TODO: Turn this into a moduleCallV1. Maybe.
+// TODO: Turn this into a moduleCall. Maybe.
 var handleSkynetKernelRequestHomescreen = function(event) {
 	// TODO: Instead of using hardcoded skylinks, derive some
 	// registry locations from the user's seed, verify the
@@ -373,9 +393,26 @@ function handleRequestTest(event) {
 	}
 }
 
+// logToSource is a helper function to send a message to the source of an event
+// with a logging statement. For some reason, messages logged in the iframe of
+// a background extension (the generic construction of the kernel) don't output
+// by default and I couldn't figure out how to configure it to happen. Instead,
+// we send a message to the background script requesting that it do the log for
+// us.
+function logToSource(event, message) {
+	window.parent.postMessage({
+		kernelMethod: "log",
+		message,
+	}, "*")
+}
+
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
+	window.parent.postMessage({
+		kernelMethod: "log",
+		message: "received message",
+	}, "*")
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
 	let [userSeed, errGSU] = getUserSeed()
@@ -422,6 +459,7 @@ handleMessage = function(event) {
 
 	// Establish a handler that manages api calls to modules.
 	if (event.data.kernelMethod === "moduleCall") {
+		logToSource(event, "received module call")
 		handleModuleCall(event, event.source, false)
 		return
 	}

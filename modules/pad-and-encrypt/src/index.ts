@@ -14,7 +14,7 @@ onmessage = function(event) {
 	// Check that the general fields are recognized.
 	if (!("data" in event) || !("kernelMethod" in event.data) || event.data.kernelMethod !== "moduleCall") {
 		postMessage({
-			kernelMethod: "moduleResonseErr",
+			kernelMethod: "moduleResponseErr",
 			err: "unrecognized kernelMethod",
 		})
 		return
@@ -25,8 +25,8 @@ onmessage = function(event) {
 	if (!("seed" in event.data)) {
 		console.error("module received call without being provided a seed")
 		postMessage({
-			kernelMethod: "moduleResonseErr",
-			err: "unrecognized moduleMethod",
+			kernelMethod: "moduleResponseErr",
+			err: "no seed provided by kernel",
 		})
 		return
 	}
@@ -34,7 +34,7 @@ onmessage = function(event) {
 	// to derive an encryption key from the seed.
 	if (!("sourceDomain" in event.data)) {
 		postMessage({
-			kernelMethod: "moduleResonseErr",
+			kernelMethod: "moduleResponseErr",
 			err: "no sourceDomain provided, cannot encrypt data",
 		})
 		return
@@ -42,7 +42,7 @@ onmessage = function(event) {
 	// Check that the caller has requested the right method.
 	if (!("moduleMethod" in event.data)) {
 		postMessage({
-			kernelMethod: "moduleResonseErr",
+			kernelMethod: "moduleResponseErr",
 			err: "moduleMethod not provided by kernel",
 		})
 		return
@@ -56,17 +56,17 @@ onmessage = function(event) {
 
 	// Call not recognized, send an error to the kernel.
 	postMessage({
-		kernelMethod: "moduleResonseErr",
+		kernelMethod: "moduleResponseErr",
 		err: "moduleMethod not provided by kernel",
 	})
 }
 
 // handlePadAndEncrypt will process calls to 'padAndEncrypt'.
-function handlePadAndEncrypt(event) {
+function handlePadAndEncrypt(event: MessageEvent) {
 	// Check for fields specific to padAndEncrypt.
 	if (!("moduleInput" in event.data) || !("filepath" in event.data.moduleInput) || !("fileData" in event.data.moduleInput)) {
 		postMessage({
-			kernelMethod: "moduleResonseErr",
+			kernelMethod: "moduleResponseErr",
 			err: "expecting moduleInput with filepath and fileData as fields.",
 		})
 		return
@@ -74,7 +74,7 @@ function handlePadAndEncrypt(event) {
 	// Check that the filepath is a string.
 	if (typeof event.data.moduleInput.filepath !== "string") {
 		postMessage({
-			kernelMethod: "moduleResonseErr",
+			kernelMethod: "moduleResponseErr",
 			err: "expecting moduleInput with filepath and fileData as fields.",
 		})
 		return
@@ -92,7 +92,7 @@ function handlePadAndEncrypt(event) {
 	// Return the encrypted data.
 	let encryptedData = event.data.moduleInput.fileData // TODO: use real encrypted data
 	postMessage({
-		kernelMethod: "moduleResonse",
+		kernelMethod: "moduleResponse",
 		moduleResponse: encryptedData,
 	})
 }

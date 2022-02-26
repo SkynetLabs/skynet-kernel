@@ -1,2 +1,2 @@
 export {init} from './init'
-export {testMessage} from './messages'
+export {testMessage, padAndEncrypt} from './messages'

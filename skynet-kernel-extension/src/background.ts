@@ -129,6 +129,11 @@ window.addEventListener("message", (event) => {
 		return
 	}
 
+	if (event.data.kernelMethod === "log") {
+		console.log(event.data.message)
+		return
+	}
+
 	// Listen for the kernel successfully loading.
 	if (event.data.kernelMethod === "skynetKernelLoaded") {
 		console.log("kernel has loaded")
