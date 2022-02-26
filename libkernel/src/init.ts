@@ -1,12 +1,12 @@
 // log provides a wrapper for console.log that prefixes 'libkernel'.
 var log = function(...inputs: any) {
-	console.log("[libkernel] ", ...inputs)
+	console.log("[libkernel]", ...inputs)
 }
 
 // logErr provides a wrapper for console.error that prefixes '[libkernel]' to
 // the output.
 var logErr = function(...inputs: any) {
-	console.error("[libkernel] ", ...inputs)
+	console.error("[libkernel]", ...inputs)
 }
 
 // Establish a system to test if the bridge script is running. bridgeExists is

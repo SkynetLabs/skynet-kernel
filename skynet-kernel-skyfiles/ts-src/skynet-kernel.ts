@@ -1,3 +1,40 @@
+// The main function of the Skynet kernel is to create a secure platform for
+// skynet modules to interact. A skynet module is a piece of code that gets its
+// own private domain, its own private seed, and the ability to keep persistent
+// data and execution code secret from other modules.
+//
+// The kernel provides ultimate control to the user. Though each module is
+// guaranteed safety from other modules, the user has root level access that
+// allows the user to access and modify any private data stored within any
+// particular module.
+//
+// As much as possible, the kernel has been built to be minimal, with the vast
+// majority of its functionality being derived from other modules. For the
+// purposes of bootstrapping, there are a few exceptions. Modules themselves
+// are fetched via downloading, which means there needs to be some native
+// download code that exists outside of modules to avoid a chicken-and-egg
+// problem for performing a download. A similar issue exists when identifying
+// which portals should be used for the initial downloads. Finally, the kernel
+// has an idea of 'overrides', which allows the user to forcibly replace one
+// module with another, giving the new module full access to the domain of the
+// original module. The override code also exists in the core of the kernel.
+
+// One of the key properties of the module system is that the caller determines
+// what domain they want to access, and then the kernel determines what code is
+// going to be run for accessing that domain. The caller will never have their
+// call routed or overwritten in a way that they end up in the wrong domain,
+// potentially siphoning up additional data. They may however have the API
+// managed differently, such that either access permissions are different,
+// optimizations are different, or other elements related to control over the
+// data are different.
+
+// The versioning is expected to happen inside of the module itself. If there's
+// an unrecognized call, the caller is going to have to realize that and return
+// an error. If a new feature in a module or skapp is dependent on a new
+// feature in another module that the user hasn't added yet (due to overrides
+// or other reasons) then that new feature will have to wait to activate for
+// the user until they've upgraded their module.
+
 // TODO: Load any long-running background processes in web workers. At
 // least initially, we're mainly going to save that for our internal
 // stealth blockchain. The main thing I'm worried about with long
@@ -28,6 +65,16 @@
 // first call to have a different version than the second call. At least, I
 // don't think.
 
+// TODO: We are going to need to implement an upgrade procedure for modules so
+// that they have some way to lock others out of accessing the data while a
+// transformation operation is being performed. This is a bit of a distributed
+// systems issue because we **will** have multiple modules from multiple
+// machines all getting the upgrade at once, and you probably only want one of
+// them performing any operations on the data. You need a way to tell that one
+// of the transformations has failed or only made partial progress, you need a
+// way to pause everyone else while the transformer is going, you need a way to
+// isolate the transformation so you can start over if it fails or corrupts.
+
 // TODO: We need some sort of call we can make that will block until the kernel
 // has finished upgrading all modules. This call is particularly useful for
 // development, devs can push a new update to their dev-module and then make
@@ -48,6 +95,9 @@
 declare var downloadV1Skylink
 declare var downloadSkylink
 declare var getUserSeed
+declare var defaultPortalList
+declare var preferredPortals
+declare var addContextToErr
 
 // Set up a logging method that can be enabled and disabled.
 //
@@ -61,30 +111,12 @@ var kernelLog = function(...msg) {
 	}
 }
 
-// Define an abstraction around localStorage that puts everything into a
-// namespace based on the user's seed, encrypts the contents, and authenticates
-// the contents. Then back the contents up to Skynet.
-//
-// TODO: namespace the localstorage, encrypt it, and authenticate it. Then back
-// the contents up to skynet.
-var secureSave = function(key, value) {
-	localStorage.setItem(key, value);
-}
-var secureLoad = function(key) {
-	// TODO: Check that the secureLoad matches checksums and auth and
-	// passes decryption. That's what can cause an error.
-	if (false) {
-		throw "unable to securely load the storage";
-	}
-	return localStorage.getItem(key);
-}
-
 // Load all of the modules that we have saved locally into memory.
 var moduleMap = {};
 var loadModuleMap = function() {
 	var modules = "";
 	try {
-		modules = secureLoad("moduleMap");
+		modules = localStorage.getItem("moduleMap");
 		moduleMap = JSON.parse(modules);
 	} catch {
 		kernelLog("Skynet Kernel ERROR: unable securely load the moduleMap");
@@ -99,7 +131,7 @@ var loadModuleMap = function() {
 
 // saveModuleMap will save the map of the user's modules.
 var saveModuleMap = function() {
-	secureSave("moduleMap", JSON.stringify(moduleMap));
+	localStorage.setItem("moduleMap", JSON.stringify(moduleMap));
 
 	// TODO: Communicate with the background thread that syncs local
 	// modules to skynet and make sure this new module is visible to the
@@ -194,6 +226,8 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 	// not upgrade their kernel to V2, which means that the module
 	// needs to be able to communicate using the V1 protocol since
 	// that's the only thing the user's kernel understands.
+	//
+	// TODO: Need to add a source.
 	worker.postMessage({
 		domain: rwEvent.data.domain,
 		kernelMethod: "moduleCallV1",
@@ -221,152 +255,54 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 }
 
 // handleModuleCallV1 handles a call to a version 1 skynet kernel module.
+//
+// The module name should be a skylink, either V1 or V2, which holds the code
+// that will run for the module. The domain of the module will be equal to the
+// skylink. For V1 skylinks, there is a fundamental marriage between the code
+// and the domain, any updates to the code will result in a new domain. For V2
+// skylinks, which is expected to be more commonly used, the code can be
+// updated by pushing new code with a higher revision number. This new code
+// will have access to the same domain, effecitviely giving it root privledges
+// to all data that was trusted to prior versions of the code.
 var handleModuleCallV1 = function(event, source, sourceIsWorker) {
-	// Perform input validation - anyone can send any message to the
-	// kernel, need to make sure any malicious messages result in an error.
-	if (!("domain" in event.data)) {
-		let err = "bad moduleCallV1 request: domain is not specified";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
+	// Check that the module exists, and that it has been formatted as a
+	// skylink.
+	if (!("module" in event.data)) {
+		let err = "bad moduleCallV1 request: defaultHandler is not specified"
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		return
 	}
-	if (typeof event.data.domain !== "string") {
-		let err = "bad moduleCallV1 request: domain is not a string";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
+	if (typeof event.data.module !== "string") {
+		let err = "bad moduleCallV1 request: defaultHandler is not a string"
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		return
 	}
-	if (!("defaultHandler" in event.data)) {
-		let err = "bad moduleCallV1 request: defaultHandler is not specified";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
-	}
-	if (typeof event.data.defaultHandler !== "string") {
-		let err = "bad moduleCallV1 request: defaultHandler is not a string";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
+	if (event.data.module.length !== 46) {
+		let err = "bad moduleCallV1 request: defaultHandler is not a string"
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+		return
 	}
 
-	/*
-	// Check the encoding of the defaultHandler. The encoding is:
-	// + 2 bytes for the kernel version of the handler.
-	// + 17 bytes for the revision number
-	// + 34 bytes for the skylinkV1
-	// + 64 bytes for the signature from the domain
-	//
-	// That's 117 bytes total which encodes to 156 bytes of base64.
-	//
-	// TODO: I wasn't sure how else to support the revision number, in
-	// theory it only needs to be 8 bytes but I couldn't figure out how to
-	// do this with uint8arrays or other convenient binary objects.
-	if (event.data.defaultHandler.length !== 156) {
-		let err = "bad moduleCallV1 request: defaultHandler should be 156 characters long";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
-	}
-	// Convert to binary. Be sure to catch any parsing errors.
-	let defaultHandlerBinary = ""
-	try {
-		let defaultHandlerBinary = atob(event.data.defaultHandler);
-	} catch {
-		let err = "bad moduleCallV1 request: defaultHandler is not valid base64";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
-	}
-	// Parse out the encoding version. The main reason this is two bytes
-	// instead of one is to allow the full base64 string to encode to an
-	// even number of bytes.
-	//
-	// NOTE: Version "01" tells us how the rest of the default handler is
-	// parsed, and also tells us that the hander speaks kernel version 01.
-	let version = defaultHandlerBinary.substring(0, 2);
-	if (version !== "01") {
-		let err = "bad moduleCallV1 request: unrecognized defaultHandler version";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
-	}
-	// Parse out the revision number.
-	let defaultHandlerRevisionNumber = 0h
-	try {
-		defaultHandlerRevisionNumber = BigInt(defaultHandlerBinary.substring(2,19);
-	} catch {
-		let err = "bad moduleCallV1 request: defaultHandler revision number could not be parsed";
-		kernelLog("Skynet Kernel: "+err);
-		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err);
-		return;
-	}
-	// Parse out the skylink.
-	let skylink = defaultHandlerBinary.substring(19, 53);
-	// TODO: Make sure it's a valid V1 skylink.
-	let skylinkB64 = btoa(skylink);
-	// TODO: Parse out the domain and make sure it's a fully valid pubkey.
-	//
-	// TODO: Parse out the signature and make sure the signature matches
-	// the domain.
-	*/
+	// TODO: Load any overrides.
 
-	// Define a helper function to fetch the workerCode from a skylink.
-	// This will be called if for some reason the worker code is not
-	// available locally.
-	var runModuleFromSkylink = function(skylink) {
-		downloadV1Skylink(skylink)
-			.then(response => {
-				// Kick off a worker to handle the request.
-				runModuleCallV1Worker(event, source, sourceIsWorker, response);
+	// TODO: Check if the module is stored locally at all. Registry
+	// subscriptions are going to be a really important part of this,
+	// because that's how we're going to know that we're using the latest
+	// version of anything rather than being out of date.
 
-				// TODO: This was only called if the worker
-				// code was not available in the local storage.
-				// Kick off a background thread to save the
-				// worker code to local storage, and then
-				// subsequently run an upgrade process. When
-				// implementing this, we'll want the handler as
-				// well.
-			});
-			// TODO: Error handling.
-	}
-	// TODO: This line is just here to help debugging.
-	runModuleFromSkylink(event.data.defaultHandler);
+	// Download the code for the worker.
+	downloadSkylink(event.data.module)
+	.then(result => {
+		// TODO: Save the module into localStorage so we don't have to
+		// download it again. Also add it to the set of subscriptions
+		// so we get notified immediately if the code is updated.
 
-	/*
-	// Check the moduleMap for the domain specified in this RPC.
-	var handler = moduleMap[event.data.domain];
-	if (handler === undefined) {
-		runModuleFromSkylink(event.data.defaultHandler);
-		return;
-	}
-	// Parse the version of the saved handler and make sure the version is
-	// greater than or equal to the version in the default handler.
-	let savedHandlerKernelVersion = handler.substring(0, 2);
-	if (savedHandlerKernelVersion !== "01") {
-		runModuleFromSkylink(event.data.defaultHandler);
-		return;
-	}
-	try {
-		let savedHandlerRevisionNumber = BigInt(handler.substring(2, 19));
-		if (savedHandlerRevisionNumber < defaultHandlerRevisionNumber) {
-			runModuleFromSkylink(event.data.defaultHandler);
-			return;
-		}
-	} catch {
-		runModuleFromSkylink(event.data.defaultHandler);
-		return;
-	}
-
-	// Try to load the worker code from local storage.
-	try {
-		let handlerStorageKey = "handlerWorkerCode" + handler;
-		let workerCode = secureLoad(handlerStorageKey);
-		runModuleCallV1Worker(event, source, sourceIsWorker, workerCode);
-	} catch {
-		// Try to fetch the worker code from Skynet.
-		runModuleFromSkylink(skylinkB64);
-	}
-	*/
+		runModuleCallV1Worker(event, source, sourceIsWorker, result.response)
+	})
+	.catch(err => {
+		err = addContextToErr(err, "unable to download module")
+		reportModuleCallV1KernelError(source, false, event.data.requestNonce, err)
+	})
 }
 
 // handleSkynetKernelRequestURL handles messages calling the kernelMethod
@@ -418,6 +354,22 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 	return;
 }
 
+// handleRequestTest will respond to a requestTest call by sending a
+// receiveTest message. If a nonce was provided, the receiveTest message will
+// have a matching nonce. If there was no nonce provided, the receiveTest
+// message will also have no nonce.
+function handleRequestTest(event) {
+	if ("nonce" in event.data) {
+		event.source.postMessage({
+			kernelMethod: "receiveTest",
+			nonce: event.data.nonce,
+			response: "receiveTest",
+		}, "*")
+	} else {
+		event.source.postMessage({kernelMethod: "receiveTest"}, "*")
+	}
+}
+
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
@@ -440,60 +392,49 @@ handleMessage = function(event) {
 	// correctly handle repeat 'skynetKernelLoaded' messages).
 	if (event.data.kernelMethod === "authCompleted") {
 		log("lifecycle", "received authCompleted message, though kernel is already loaded\n", event)
-		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, event.source)
-		return;
+		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, "*")
+		return
 	}
 
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
-		log("lifecycle", "sending receiveTest message to source\n", event.source);
-		if ("nonce" in event.data) {
-			console.log("kernel got requestTest with a nonce")
-			event.source.postMessage({
-				kernelMethod: "receiveTest",
-				nonce: event.data.nonce,
-				response: "receiveTest",
-			}, "*");
-		} else {
-			console.log("kernel got receiveTest without nonce\n", event.data)
-			event.source.postMessage({kernelMethod: "receiveTest"}, "*");
-		}
-		return;
+		handleRequestTest(event)
+		return
 	}
 
 	// Establish a means for the user to logout. Only logout requests
 	// provided by home are allowed.
 	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
-		logOut();
-		log("lifecycle", "sending logOutSuccess message to home");
+		logOut()
+		log("lifecycle", "sending logOutSuccess message to home")
 		try {
-			event.source.postMessage({kernelMethod: "logOutSuccess"}, "*");
+			event.source.postMessage({kernelMethod: "logOutSuccess"}, "*")
 		} catch (err) {
-			log("lifecycle", "unable to inform source that logOut was competed", err);
+			log("lifecycle", "unable to inform source that logOut was competed", err)
 		}
-		return;
+		return
 	}
 
 	// Establish a handler that will manage a v1 module api call.
 	if (event.data.kernelMethod === "moduleCallV1") {
-		handleModuleCallV1(event, event.source, false);
-		return;
+		handleModuleCallV1(event, event.source, false)
+		return
 	}
 
 	// Establish a handler that will serve the user's homescreen to the
 	// caller.
 	if (event.data.kernelMethod === "requestHomescreen") {
-		handleSkynetKernelRequestHomescreen(event);
-		return;
+		handleSkynetKernelRequestHomescreen(event)
+		return
 	}
 
 	// Establish a handler that will serve the user's custom response for a
 	// particular URL.
 	if (event.data.kernelMethod === "requestURL") {
-		handleSkynetKernelRequestURL(event);
+		handleSkynetKernelRequestURL(event)
 	}
 
-	kernelLog("Received unrecognized call: ", event.data.kernelMethod);
+	kernelLog("Received unrecognized call: ", event.data.kernelMethod)
 }
