@@ -1,0 +1,98 @@
+// pad-and-encrypt is a basic module that will take an input set of bytes, pad
+// them with zeros to an ideal length, and then encrypt the contents. A
+// derivation path will be created that uses the sourceDomain as a top level
+// derivation path, and then every folder in the filepath as the next level. By
+// doing derivations this way, we leave room in the future to create API
+// endpoints that allows a user to fetch and share the encryption keys to
+// entire folders.
+
+// TODO: There is probably a way to clean up a lot of this input validation, we
+// can probably make this step a lot nicer.
+
+// onmessage receives messages from the kernel.
+onmessage = function(event) {
+	// Check that the general fields are recognized.
+	if (!("data" in event) || !("kernelMethod" in event.data) || event.data.kernelMethod !== "moduleCall") {
+		postMessage({
+			kernelMethod: "moduleResonseErr",
+			err: "unrecognized kernelMethod",
+		})
+		return
+	}
+	// Check that the kernel has provided a seed.
+	//
+	// TODO: Also need to check the typing of the seed.
+	if (!("seed" in event.data)) {
+		console.error("module received call without being provided a seed")
+		postMessage({
+			kernelMethod: "moduleResonseErr",
+			err: "unrecognized moduleMethod",
+		})
+		return
+	}
+	// Check that a sourceDomain was provided. We will use the sourceDomain
+	// to derive an encryption key from the seed.
+	if (!("sourceDomain" in event.data)) {
+		postMessage({
+			kernelMethod: "moduleResonseErr",
+			err: "no sourceDomain provided, cannot encrypt data",
+		})
+		return
+	}
+	// Check that the caller has requested the right method.
+	if (!("moduleMethod" in event.data)) {
+		postMessage({
+			kernelMethod: "moduleResonseErr",
+			err: "moduleMethod not provided by kernel",
+		})
+		return
+	}
+
+	// Handle calls to 'padAndEncrypt'.
+	if (event.data.moduleMethod === "padAndEncrypt") {
+		handlePadAndEncrypt(event)
+		return
+	}
+
+	// Call not recognized, send an error to the kernel.
+	postMessage({
+		kernelMethod: "moduleResonseErr",
+		err: "moduleMethod not provided by kernel",
+	})
+}
+
+// handlePadAndEncrypt will process calls to 'padAndEncrypt'.
+function handlePadAndEncrypt(event) {
+	// Check for fields specific to padAndEncrypt.
+	if (!("moduleInput" in event.data) || !("filepath" in event.data.moduleInput) || !("fileData" in event.data.moduleInput)) {
+		postMessage({
+			kernelMethod: "moduleResonseErr",
+			err: "expecting moduleInput with filepath and fileData as fields.",
+		})
+		return
+	}
+	// Check that the filepath is a string.
+	if (typeof event.data.moduleInput.filepath !== "string") {
+		postMessage({
+			kernelMethod: "moduleResonseErr",
+			err: "expecting moduleInput with filepath and fileData as fields.",
+		})
+		return
+	}
+	// TODO: Check that the fileData is a Uint8Array.
+
+	// Perform the actual padding and encryption.
+	// + derive keys
+	// + determine padded length
+	// + prefix padded length
+	// + add padding
+	// + encrypt file
+	// + return result
+
+	// Return the encrypted data.
+	let encryptedData = event.data.moduleInput.fileData // TODO: use real encrypted data
+	postMessage({
+		kernelMethod: "moduleResonse",
+		moduleResponse: encryptedData,
+	})
+}

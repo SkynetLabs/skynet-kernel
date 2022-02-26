@@ -35,6 +35,9 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
+// TODO: Need to figure out how to pass a worker's particular seed in. Is that
+// something the kernel will always provide as an input?
+
 // TODO: Load any long-running background processes in web workers. At
 // least initially, we're mainly going to save that for our internal
 // stealth blockchain. The main thing I'm worried about with long
@@ -171,7 +174,7 @@ var runModuleCallV1Worker = function(rwEvent, rwSource, rwSourceIsWorker, worker
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCallV1") {
 			kernelLog("Skynet Kernel: moduleCallV1 worker is calling moduleCallV1");
-			handleModuleCallV1(wEvent, worker, true);
+			handleModuleCall(wEvent, worker, true);
 			return;
 		}
 
@@ -254,7 +257,7 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 	}
 }
 
-// handleModuleCallV1 handles a call to a version 1 skynet kernel module.
+// handleModuleCall handles a call to a version 1 skynet kernel module.
 //
 // The module name should be a skylink, either V1 or V2, which holds the code
 // that will run for the module. The domain of the module will be equal to the
@@ -264,7 +267,7 @@ var reportModuleCallV1KernelError = function(source, sourceIsWorker, requestNonc
 // updated by pushing new code with a higher revision number. This new code
 // will have access to the same domain, effecitviely giving it root privledges
 // to all data that was trusted to prior versions of the code.
-var handleModuleCallV1 = function(event, source, sourceIsWorker) {
+var handleModuleCall = function(event, source, sourceIsWorker) {
 	// Check that the module exists, and that it has been formatted as a
 	// skylink.
 	if (!("module" in event.data)) {
@@ -417,9 +420,9 @@ handleMessage = function(event) {
 		return
 	}
 
-	// Establish a handler that will manage a v1 module api call.
-	if (event.data.kernelMethod === "moduleCallV1") {
-		handleModuleCallV1(event, event.source, false)
+	// Establish a handler that manages api calls to modules.
+	if (event.data.kernelMethod === "moduleCall") {
+		handleModuleCall(event, event.source, false)
 		return
 	}
 
