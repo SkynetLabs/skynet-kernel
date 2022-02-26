@@ -51,9 +51,24 @@ function TestSendTestMessage() {
 	})
 }
 
-// TestMessageSpeedSequential10k will send ten thousand messages to the kernel
+// TestPadAndEncrypt will use the padAndEncrypt function, which has the dual
+// purpose of testing encryption and seeing whether or not kernel
+// communications are working.
+function TestPadAndEncrypt() {
+	return new Promise((resolve, reject) => {
+		kernel.padAndEncrypt()
+		.then(x => {
+			resolve(x)
+		})
+		.catch(x => {
+			reject(x)
+		})
+	})
+}
+
+// TestMessageSpeedSequential1k will send ten thousand messages to the kernel
 // sequentially.
-function TestMessageSpeedSequential10k() {
+function TestMessageSpeedSequential1k() {
 	// sendSequentialMessages is a helper function that will send a
 	// message, wait for the message to resolve, then call itself again
 	// with a lower 'remaining' value, exiting out when 'remaining' hits
@@ -73,16 +88,16 @@ function TestMessageSpeedSequential10k() {
 		})
 	}
 	return new Promise((resolve, reject) => {
-		sendSequentialMessages(10 * 1000, resolve, reject)
+		sendSequentialMessages(1000, resolve, reject)
 	})
 }
 
-// TestMessageSpeedParallel10k will send ten thousand messages to the kernel in
+// TestMessageSpeedParallel1k will send ten thousand messages to the kernel in
 // parallel.
-function TestMessageSpeedParallel10k() {
+function TestMessageSpeedParallel1k() {
 	return new Promise((resolve, reject) => {
 		let promises = []
-		for (let i = 0; i < 10 * 1000; i++) {
+		for (let i = 0; i < 1000; i++) {
 			promises.push(kernel.testMessage())
 		}
 		Promise.all(promises)
@@ -92,6 +107,29 @@ function TestMessageSpeedParallel10k() {
 		.catch(x => {
 			reject(x)
 		})
+	})
+}
+
+// TestPadAndEncryptSequential1k will use the padAndEncrypt function, which has the dual
+// purpose of testing encryption and seeing whether or not kernel
+// communications are working.
+function TestPadAndEncryptSequential1k() {
+	let sequentialPadAndEncrypt = function(remaining, resolve, reject) {
+		if (remaining === 0) {
+			resolve("all messages resolved")
+			return
+		}
+
+		kernel.padAndEncrypt()
+		.then(x => {
+			sequentialPadAndEncrypt(remaining-1, resolve, reject)
+		})
+		.catch(x => {
+			reject(x)
+		})
+	}
+	return new Promise((resolve, reject) => {
+		sequentialPadAndEncrypt(1000, resolve, reject)
 	})
 }
 
@@ -141,8 +179,10 @@ const IndexPage = () => {
 			<h1>Running Tests</h1>
 			<TestCard name="TestKernelInit" test={TestKernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
-			<TestCard name="TestMessageSpeedSequential10k" test={TestMessageSpeedSequential10k} turn={getTurn()} />
-			<TestCard name="TestMessageSpeedParallel10k" test={TestMessageSpeedParallel10k} turn={getTurn()} />
+			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
+			<TestCard name="TestMessageSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
+			<TestCard name="TestMessageSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />
+			<TestCard name="TestPadAndEncryptSequential1k" test={TestPadAndEncryptSequential1k} turn={getTurn()} />
 		</main>
 	)
 }
