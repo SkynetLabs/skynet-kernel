@@ -92,6 +92,9 @@
 // TODO: All of the wildcard postmessage calls need to be updated to follow
 // better security practice.
 
+// TODO: Need to set up a system that watches for updates to our worker code
+// and then injects the new code into the workers object.
+
 // TODO: Don't declare these, actually overwrite them. We don't want to be
 // dependent on a particular extension having the same implementation as all of
 // the others.
@@ -101,6 +104,10 @@ declare var getUserSeed
 declare var defaultPortalList
 declare var preferredPortals
 declare var addContextToErr
+
+// workers is an object which holds all of the workers in the kernel. There is
+// one worker per module.
+var workers = new Object()
 
 // Set up a logging method that can be enabled and disabled.
 //
@@ -141,6 +148,13 @@ var saveModuleMap = function() {
 	// user's other devices.
 }
 
+// createWorker will create a worker for the provided code.
+function createWorker(workerCode) {
+	let url = URL.createObjectURL(new Blob([workerCode]));
+	let worker = new Worker(url);
+	return worker
+}
+
 // Define the function that will create a blob from the handler code for the
 // worker. We need to define this as a separate function because any code we
 // fetch from Skynet needs to be run in a promise.
@@ -157,12 +171,8 @@ var saveModuleMap = function() {
 //
 // TODO: provide the domain of the caller to the modules so they can implement
 // permissions.
-var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCode) {
-	let url = URL.createObjectURL(new Blob([workerCode]));
-	let worker = new Worker(url);
-	logToSource(rwEvent, "worker was created")
+var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 	worker.onmessage = function(wEvent) {
-		logToSource(rwEvent, "received a message from the worker")
 		// Check if the worker is trying to make a call to
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCall") {
@@ -174,7 +184,6 @@ var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCo
 		// Check if the worker is responding to the original
 		// caller.
 		if (wEvent.data.kernelMethod === "moduleResponse") {
-			logToSource(rwEvent, "worker is making a moduleResponse, buildling message")
 			let message = {
 				kernelMethod: "moduleResponse",
 				nonce: rwEvent.data.nonce,
@@ -185,13 +194,10 @@ var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCo
 			// needs to be constructed differently than if the
 			// source is a window.
 			if (rwSourceIsWorker) {
-				logToSource(rwEvent, "passing along response as though caller is a worker")
 				rwSource.postMessage(message);
 			} else {
-				logToSource(rwEvent, "passing along response as though caller is a page")
 				rwSource.postMessage(message, "*");
 			}
-			worker.terminate();
 			return;
 		}
 
@@ -200,10 +206,8 @@ var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCo
 		// if the kernel explicitly needs to know that the request
 		// failed for some reason.
 		if (wEvent.data.kernelMethod === "moduleResponseErr") {
-			// TODO: Need to check the err field.
 			logToSource(rwEvent, "worker returned an error")
 			logToSource(rwEvent, wEvent.data.err)
-			logToSource(rwEvent, JSON.stringify(rwEvent))
 			return
 		}
 
@@ -214,7 +218,6 @@ var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCo
 		logToSource(rwEvent, wEvent.data.kernelMethod)
 		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCall";
 		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, err);
-		worker.terminate();
 		return;
 	};
 
@@ -251,7 +254,6 @@ var runModuleCallWorker = function(rwEvent, rwSource, rwSourceIsWorker, workerCo
 		moduleMethod: rwEvent.data.moduleMethod,
 		moduleInput: rwEvent.data.moduleInput
 	});
-	logToSource(rwEvent, "sent message to worker")
 };
 
 // reportModuleCallKernelError will repsond to the source with an error message,
@@ -305,22 +307,25 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 
 	// TODO: Load any overrides.
 
-	// TODO: Check if the module is stored locally at all. Registry
-	// subscriptions are going to be a really important part of this,
-	// because that's how we're going to know that we're using the latest
-	// version of anything rather than being out of date.
+	// Check the local cache to see if the worker already exists.
+	if (event.data.module in workers) {
+		let worker = workers[event.data.module]
+		runModuleCall(event, source, sourceIsWorker, worker)
+		return
+	}
+
+	// TODO: Check localStorage for the module.
 
 	// Download the code for the worker.
 	logToSource(event, "performing download")
 	downloadSkylink(event.data.module)
 	.then(result => {
-		// TODO: Save the module into localStorage so we don't have to
-		// download it again. Also add it to the set of subscriptions
-		// so we get notified immediately if the code is updated.
+		// TODO: Save the result to localStorage.
 
-		logToSource(event, "got code, trying to run code")
+		let worker = createWorker(result.fileData)
+		workers[event.data.module] = worker
 		logToSource(event, result.fileData)
-		runModuleCallWorker(event, source, sourceIsWorker, result.fileData)
+		runModuleCall(event, source, sourceIsWorker, worker)
 	})
 	.catch(err => {
 		err = addContextToErr(err, "unable to download module")
@@ -387,9 +392,9 @@ function handleRequestTest(event) {
 			kernelMethod: "receiveTest",
 			nonce: event.data.nonce,
 			response: "receiveTest",
-		}, "*")
+		}, event.source.origin)
 	} else {
-		event.source.postMessage({kernelMethod: "receiveTest"}, "*")
+		event.source.postMessage({kernelMethod: "receiveTest"}, event.source.origin)
 	}
 }
 
@@ -403,16 +408,12 @@ function logToSource(event, message) {
 	window.parent.postMessage({
 		kernelMethod: "log",
 		message,
-	}, "*")
+	}, event.source.origin)
 }
 
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
-	window.parent.postMessage({
-		kernelMethod: "log",
-		message: "received message",
-	}, "*")
 	// Check that the authentication suceeded. If authentication did not
 	// suceed, send a postMessage indicating that authentication failed.
 	let [userSeed, errGSU] = getUserSeed()
@@ -459,7 +460,6 @@ handleMessage = function(event) {
 
 	// Establish a handler that manages api calls to modules.
 	if (event.data.kernelMethod === "moduleCall") {
-		logToSource(event, "received module call")
 		handleModuleCall(event, event.source, false)
 		return
 	}
@@ -473,6 +473,8 @@ handleMessage = function(event) {
 
 	// Establish a handler that will serve the user's custom response for a
 	// particular URL.
+	//
+	// TODO: This is not the best way to do URL injection.
 	if (event.data.kernelMethod === "requestURL") {
 		handleSkynetKernelRequestURL(event)
 	}

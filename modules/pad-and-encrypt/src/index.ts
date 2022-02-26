@@ -1,10 +1,8 @@
 // pad-and-encrypt is a basic module that will take an input set of bytes, pad
-// them with zeros to an ideal length, and then encrypt the contents. A
-// derivation path will be created that uses the sourceDomain as a top level
-// derivation path, and then every folder in the filepath as the next level. By
-// doing derivations this way, we leave room in the future to create API
-// endpoints that allows a user to fetch and share the encryption keys to
-// entire folders.
+// them with zeros to an ideal length, and then encrypt the contents.
+//
+// The encryption key is a combination of the domainSeed and the filename of
+// the file. The domainSeed is provided by the kernel as an input.
 
 // TODO: There is probably a way to clean up a lot of this input validation, we
 // can probably make this step a lot nicer.
@@ -23,7 +21,6 @@ onmessage = function(event) {
 	//
 	// TODO: Also need to check the typing of the seed.
 	if (!("seed" in event.data)) {
-		console.error("module received call without being provided a seed")
 		postMessage({
 			kernelMethod: "moduleResponseErr",
 			err: "no seed provided by kernel",
