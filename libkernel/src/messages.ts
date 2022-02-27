@@ -3,6 +3,9 @@ import { log, logErr, init, postKernelQuery } from './init'
 // testMessage will send a test message to the kernel, ensuring that basic
 // kernel communications are working. The promise will resolve to the version
 // of the kernel.
+//
+// NOTE: This is good reference code for people who are looking to extend
+// libkernel.
 export function testMessage(): Promise<string> {
 	// Retrun a promise that will resolve when a response is received from
 	// the kernel.
@@ -18,6 +21,9 @@ export function testMessage(): Promise<string> {
 			postKernelQuery({
 				kernelMethod: "requestTest",
 			})
+			// We use nested promises instead of promise chaining
+			// because promise chaining didn't provide enough
+			// control over handling the error.
 			.then(response => {
 				if (!("version" in response)) {
 					resolve("kernel did not report a version")
@@ -57,7 +63,7 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 	return new Promise((resolve, reject) => {
 		init()
 		.then(x => {
-			postKernelQuery({
+			return postKernelQuery({
 				kernelMethod: "moduleCall",
 				module: "AQCS3RHbDlk00IdICFEI1rKZp-VNsnsKWC0n7K-taoAuog",
 				moduleMethod: "secureUpload",
