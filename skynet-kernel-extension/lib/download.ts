@@ -56,7 +56,7 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	let fetchSize = fetchSizeBits * fetchSizeIncrement
 	bitfield = bitfield >> 3
 
-	// The remaining bits determine the fetchSize.
+	// The remaining bits determine the offset.
 	let offset = bitfield * offsetIncrement
 	if (offset + fetchSize > 1 << 22) {
 		return [0, 0, 0, new Error("provided skylink has an invalid v1 bitfield")]

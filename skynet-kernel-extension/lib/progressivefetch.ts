@@ -88,7 +88,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 				.catch(err => reject(err))
 			}
 
-			// Success! Resolve the resonse.
+			// Success! Resolve the response.
 			log("allFetch", "fetch returned successfully\n", query, "\n", response)
 			resolve({
 				portal,
