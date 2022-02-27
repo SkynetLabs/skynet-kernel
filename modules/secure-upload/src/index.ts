@@ -277,7 +277,7 @@ function handleSecureUpload(event: MessageEvent) {
 		// instead inject the skylink.
 		postMessage({
 			kernelMethod: "moduleResponse",
-			moduleResponse: output,
+			moduleResponse: skylink,
 		})
 	})
 	.catch(err => {
@@ -779,9 +779,11 @@ var blake2b = function(input: Uint8Array): Uint8Array {
 	return blake2bFinal(ctx)
 }
 // progressiveFetchResult defines the type returned by progressiveFetch.
+//
+// TODO: Do something more intelligent with the repsonse
 interface progressiveFetchResult {
 	portal: string;
-	response: Response;
+	response: string; // TODO: Should be 'Response' but thats not cloneable.
 	remainingPortals: string[];
 	first4XX: progressiveFetchResult;
 }
@@ -807,7 +809,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 		// If we run out of portals and there's no 4XX response, return
 		// an error.
 		if (!remainingPortals.length && first4XX == null) {
-			reject(new Error("no portals remaining"))
+			reject("no portals remaining")
 			return
 		}
 		// If we run out of portals but there is a first 4XX response,
@@ -853,9 +855,10 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 
 				// Define 'new4XX' as our first4XX response can
 				// call progressiveFetch.
+				// 
 				let new4XX = {
 					portal,
-					response,
+					response: "4xx",
 					remainingPortals,
 					first4XX: null,
 				}
@@ -867,7 +870,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 			// Success! Resolve the response.
 			resolve({
 				portal,
-				response,
+				response: "success",
 				remainingPortals,
 				first4XX,
 			})
