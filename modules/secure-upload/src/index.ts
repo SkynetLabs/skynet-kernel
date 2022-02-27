@@ -69,7 +69,7 @@ function handleSecureUpload(event: MessageEvent) {
 	})
 	let u8 = new TextEncoder().encode(metadataString)
 
-	// Check that we got the encoding right.
+	// Check that we got the encoding right. (we did)
 	reportErr(JSON.stringify(u8))
 	return
 

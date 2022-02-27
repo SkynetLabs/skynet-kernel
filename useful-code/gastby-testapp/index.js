@@ -55,7 +55,7 @@ function TestSendTestMessage() {
 function TestSecureUpload() {
 	return new Promise((resolve, reject) => {
 		let u8 = new TextEncoder().encode("some test file data")
-		kernel.secureUpload("testUpload.txt", u8)
+		kernel.upload("testUpload.txt", u8)
 		.then(x => {
 			resolve(x)
 		})

@@ -32,6 +32,12 @@ function queryKernel(query) {
 // contentScriptListener will receive and handle messages coming from content
 // scripts. This is largely a passthrough function which sends messages to the
 // kernel, and then relays the responses back to the content script.
+//
+// Because we communicate to the content script through runtime.sendmessage, we
+// actaully cannot call 'reject' on the promise - if we do, the error will be
+// corrupted as it gets swallowed and replaced by another error related to the
+// background script being available. Instead, we call 'resolve' in both cases,
+// but send an object that indicates an error.
 function contentScriptListener(message, sender) {
 	return new Promise((resolve, reject) => {
 		queryKernel(message)
@@ -154,27 +160,25 @@ window.addEventListener("message", (event) => {
 		console.log("received a kernel message without a nonce\n", event.data)
 		return
 	}
-	let resolve = kernelQueries[event.data.nonce].resolve
-	let reject = kernelQueries[event.data.nonce].reject
+	let result = kernelQueries[event.data.nonce]
 	delete kernelQueries[event.data.nonce]
 
 	// receiveTest has different data types than the rest.
 	if (event.data.kernelMethod === "receiveTest") {
-		resolve(event.data.response)
+		result.resolve(event.data.response)
 		return
 	}
 
 	// Resolve for a moduleResponse, and reject for a moduleResponseErr.
 	if (event.data.kernelMethod === "moduleResponse") {
-		resolve(event.data.moduleResponse)
+		result.resolve(event.data.moduleResponse)
 		return
 	}
 	if (event.data.kernelMethod === "moduleResponseErr") {
-		reject(event.data.moduleErr)
+		result.reject(event.data.moduleErr)
 		return
 	}
-	reject("unrecognized kernelMethod: "+event.data.kernelMethod)
-	delete kernelQueries[event.data.nonce]
+	result.reject("unrecognized kernelMethod: "+event.data.kernelMethod)
 }, false)
 
 // Open an iframe containing the kernel.

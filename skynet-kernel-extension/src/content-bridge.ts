@@ -7,11 +7,11 @@ export {}
 
 declare var browser
 
-// handleBridgeTest will respond to a test method and let the caller know that
-// the bridge is running.
+// handleBridgeTest will send a response indicating the bridge is alive.
 function handleBridgeTest(event) {
 	window.postMessage({
 		method: "bridgeTestResponse",
+		nonce: event.data.nonce,
 	}, event.source)
 }
 
@@ -26,24 +26,31 @@ function handleKernelResp(resp, err, nonce, target) {
 }
 
 // handleKernelMessage handles messages sent using the method 'kernelMessage'.
-// A nonce needs to be included in the request to the bridge, but not in the
-// request to the kernel.
 function handleKernelMessage(event) {
 	// Check for a kernel message.
-	if (!("kernelMessage" in event.data) || !("nonce" in event.data)) {
-		console.error("[skynet bridge] method 'kernelMessage' requires both a nonce and a kernelMessage\n", event.data, "\n", event)
+	if (!("kernelMessage" in event.data)) {
+		console.error("[skynet bridge] method 'kernelMessage' requires a kernelMessage\n", event.data, "\n", event)
 		return
 	}
 
-	// Send the message to the background script. We don't need to use any
-	// nonce magic here because the events are directly correlated, however
-	// we do need to pass the nonce to the handler so it knows what nonce
-	// to tell the 
+	// browser.runtime.sendMessage is unique and a bit frustrating to work
+	// with. The receiving end must always call 'resolve' even if there was
+	// an error. This is because a 'reject' is supposed to mean that the
+	// browser couldn't connect to the extension for some reason. It
+	// hijacks the error output, preventing the receiver from returning an
+	// error if the receiver chooses to reject.
+	//
+	// To get around this, the background script will always resolve,
+	// adding 'resp.resp' as a field to indicate success, and 'resp.err' as
+	// a field to indicate a failure. We still need to listen for an error
+	// though, because those can happen if the extension is unavailable.
 	let wrappedResp = function(resp) {
 		if (resp.err !== null) {
 			handleKernelResp(null, resp.err, event.data.nonce, event.source)
-		} else {
+		} else if (resp.resp !== null) {
 			handleKernelResp(resp.resp, null, event.data.nonce, event.source)
+		} else {
+			handleKernelResp(null, "malformed response from background", event.data.nonce, event.source)
 		}
 	}
 	let wrappedErr = function(err) {
@@ -59,22 +66,20 @@ window.addEventListener("message", function(event) {
 	if (event.source !== window) {
 		return
 	}
-	if (!("data" in event) || !("method" in event.data)) {
+	// Check that a method and nonce were both provided.
+	if (!("method" in event.data) || !("nonce" in event.data)) {
 		return
 	}
 
-	// Check for a bridge test, which does not require a nonce.
+	// Switch on the method.
 	if (event.data.method === "bridgeTestQuery") {
 		handleBridgeTest(event)
 		return
 	}
-
-	// Check for messages aimed at the kernel.
 	if (event.data.method === "kernelMessage") {
 		handleKernelMessage(event)
 		return
 	}
-	//  NOTE: More method types can be added here later.
 })
 
 console.log("[skynet bridge] bridge has loaded")

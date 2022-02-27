@@ -57,9 +57,8 @@ export function postKernelMessage(resolve: Function, reject: Function, message: 
 
 // handleBridgeTest will handle a response from the bridge indicating that the
 // bridge is working.
-function handleBridgeTest() {
+function handleBridgeResponse() {
 	if (bridgeExists !== false) {
-		log("bridge confirmed to be available")
 		bridgeExists = true
 		bridgeAvailable.resolve()
 	} else {
@@ -71,7 +70,7 @@ function handleBridgeTest() {
 // resolve/reject the promise associated with the nonce.
 function handleKernelResponse(event: MessageEvent) {
 	// Check that we have a promise for the provided nonce.
-	if (!("nonce" in event.data) || !(event.data.nonce in queries)) {
+	if (!(event.data.nonce in queries)) {
 		logErr("nonce of kernelResponse not found\n", event, "\n", queries)
 		return
 	}
@@ -85,10 +84,8 @@ function handleKernelResponse(event: MessageEvent) {
 
 	// Either resolve or reject the promise associated with this response.
 	if (event.data.resp !== null) {
-		console.log("resolving:", event.data)
 		result.resolve(event.data.resp)
 	} else if (event.data.err !== null) {
-		console.log("rejecting:", event.data)
 		result.reject(event.data.err)
 	} else {
 		logErr("received malformed response from bridge\n", event)
@@ -107,7 +104,7 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	if (event.data.method === "bridgeTestResponse") {
-		handleBridgeTest()
+		handleBridgeResponse()
 		return
 	}
 	if (event.data.method === "kernelResponse") {
@@ -130,11 +127,13 @@ export function init(): Promise<void> {
 	// Create the listener that will check for messages from the bridge.
 	window.addEventListener("message", handleMessage)
 
-	// Send a message 
+	// Send a message checking if the bridge is alive and responding. We
+	// use a fake nonce because we don't care about the nonce for the
+	// bridge.
 	window.postMessage({
 		method: "bridgeTestQuery",
+		nonce: 0,
 	})
-
 	// After 2 seconds, check whether the bridge has responded. If not,
 	// fail the bridge.
 	setTimeout(function() {
