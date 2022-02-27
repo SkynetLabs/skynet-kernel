@@ -85,8 +85,10 @@ function handleKernelResponse(event: MessageEvent) {
 
 	// Either resolve or reject the promise associated with this response.
 	if (event.data.resp !== null) {
+		console.log("resolving:", event.data)
 		result.resolve(event.data.resp)
 	} else if (event.data.err !== null) {
+		console.log("rejecting:", event.data)
 		result.reject(event.data.err)
 	} else {
 		logErr("received malformed response from bridge\n", event)

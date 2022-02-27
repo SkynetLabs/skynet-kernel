@@ -15,7 +15,7 @@ var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 var kernelQueriesNonce = 1
 var kernelQueries = new Object()
 function queryKernel(query) {
-	return new Promise(resolve => {
+	return new Promise((resolve, reject) => {
 		blockUntilKernelLoaded
 		.then(x => {
 			// Grab the next nonce and store a promise resolution in the
@@ -23,7 +23,7 @@ function queryKernel(query) {
 			let nonce = kernelQueriesNonce
 			kernelQueriesNonce++
 			query.nonce = nonce
-			kernelQueries[nonce] = resolve
+			kernelQueries[nonce] = {resolve, reject}
 			kernelFrame.contentWindow.postMessage(query, "https://kernel.siasky.net")
 		})
 	})
@@ -32,12 +32,22 @@ function queryKernel(query) {
 // contentScriptListener will receive and handle messages coming from content
 // scripts. This is largely a passthrough function which sends messages to the
 // kernel, and then relays the responses back to the content script.
-function contentScriptListener(message, sender, sendResponse) {
-	queryKernel(message)
-	.then(resp => {
-		sendResponse(resp)
+function contentScriptListener(message, sender) {
+	return new Promise((resolve, reject) => {
+		queryKernel(message)
+		.then(resp => {
+			resolve({
+				resp,
+				err: null,
+			})
+		})
+		.catch(err => {
+			resolve({
+				resp: null,
+				err,
+			})
+		})
 	})
-	return true
 }
 
 // onBeforeRequestListener will handle calls from onBeforeRequest. Calls to the
@@ -123,12 +133,10 @@ window.addEventListener("message", (event) => {
 		console.log("received unwanted message from: ", event.origin, "\n", event)
 		return
 	}
-
 	if (!("kernelMethod" in event.data)) {
 		console.log("received message without a kernelMethod\n", event.data)
 		return
 	}
-
 	if (event.data.kernelMethod === "log") {
 		console.log(event.data.message)
 		return
@@ -141,15 +149,31 @@ window.addEventListener("message", (event) => {
 		return
 	}
 
-	// Check that the response has a nonce.
+	// Every type of message except skynetKernelLoaded should have a nonce.
 	if (!("nonce" in event.data)) {
 		console.log("received a kernel message without a nonce\n", event.data)
 		return
 	}
+	let resolve = kernelQueries[event.data.nonce].resolve
+	let reject = kernelQueries[event.data.nonce].reject
+	delete kernelQueries[event.data.nonce]
 
-	// All other kernel requests are assumed to be associeted with a
-	// response.
-	kernelQueries[event.data.nonce](event.data.response)
+	// receiveTest has different data types than the rest.
+	if (event.data.kernelMethod === "receiveTest") {
+		resolve(event.data.response)
+		return
+	}
+
+	// Resolve for a moduleResponse, and reject for a moduleResponseErr.
+	if (event.data.kernelMethod === "moduleResponse") {
+		resolve(event.data.moduleResponse)
+		return
+	}
+	if (event.data.kernelMethod === "moduleResponseErr") {
+		reject(event.data.moduleErr)
+		return
+	}
+	reject("unrecognized kernelMethod: "+event.data.kernelMethod)
 	delete kernelQueries[event.data.nonce]
 }, false)
 

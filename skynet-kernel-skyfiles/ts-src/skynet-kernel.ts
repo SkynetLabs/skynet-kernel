@@ -35,8 +35,9 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
-// TODO: Need to figure out how to pass a worker's particular seed in. Is that
-// something the kernel will always provide as an input?
+// TODO: The bootloader already has a bootstrap process for grabbing the user's
+// preferred portals. This process is independent of the full process, which we
+// need to marry to the bootstrap process.
 
 // TODO: Load any long-running background processes in web workers. At
 // least initially, we're mainly going to save that for our internal
@@ -177,8 +178,8 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// another module.
 		if (wEvent.data.kernelMethod === "moduleCall") {
 			logToSource(rwEvent, "worker is making a module call")
-			handleModuleCall(wEvent, worker, true);
-			return;
+			handleModuleCall(wEvent, worker, true)
+			return
 		}
 
 		// Check if the worker is responding to the original
@@ -187,27 +188,27 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 			let message = {
 				kernelMethod: "moduleResponse",
 				nonce: rwEvent.data.nonce,
-				moduleResponse: wEvent.data.moduleResponse
+				moduleResponse: wEvent.data.moduleResponse,
+				moduleErr: null,
 			}
 
 			// If the source is a worker, the postMessage call
 			// needs to be constructed differently than if the
 			// source is a window.
 			if (rwSourceIsWorker) {
-				rwSource.postMessage(message);
+				rwSource.postMessage(message)
 			} else {
-				rwSource.postMessage(message, "*");
+				rwSource.postMessage(message, rwEvent.source.origin)
 			}
-			return;
+			return
 		}
 
-		// TODO: May want to change the spec here so that it's the same
-		// message as everything else - we only need a separate method
-		// if the kernel explicitly needs to know that the request
-		// failed for some reason.
+		// Check whether the worker has reported an error.
+		//
+		// TODO: Need to do more input checking on that err.
 		if (wEvent.data.kernelMethod === "moduleResponseErr") {
-			logToSource(rwEvent, "worker returned an error")
-			logToSource(rwEvent, wEvent.data.err)
+			logToSource(rwEvent, "worker returned an error:\n"+wEvent.data.err)
+			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, wEvent.data.err)
 			return
 		}
 
@@ -216,10 +217,10 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// request was malformed.
 		logToSource(rwEvent, "worker response seems to be malfomred")
 		logToSource(rwEvent, wEvent.data.kernelMethod)
-		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCall";
-		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, err);
-		return;
-	};
+		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCall"
+		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, err)
+		return
+	}
 
 	// When sending a method to the worker, we need to clearly
 	// distinguish between a new request being sent to the worker
@@ -246,30 +247,33 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 	// need to make sure the domain rights are switched over accordingly.
 	//
 	// TODO: Derive a proper seed for the module.
+	//
+	// TODO: The worker is expecting that the inputs have already been
+	// checked and sanitized.
 	worker.postMessage({
 		seed: "TODO",
 		sourceDomain: rwEvent.origin,
 		kernelMethod: "moduleCall",
-		requestNonce: rwEvent.data.requestNonce,
 		moduleMethod: rwEvent.data.moduleMethod,
-		moduleInput: rwEvent.data.moduleInput
-	});
-};
+		moduleInput: rwEvent.data.moduleInput,
+	})
+}
 
 // reportModuleCallKernelError will repsond to the source with an error message,
 // indicating that the RPC failed.
 //
 // The kernel provides a guarantee that 'err' will always be a string.
-var reportModuleCallKernelError = function(source, sourceIsWorker, requestNonce, err) {
+var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 	let message = {
-		kernelMethod: "moduleResponse",
-		requestNonce: requestNonce,
-		kernelErr: err,
+		kernelMethod: "moduleResponseErr",
+		nonce,
+		moduleResponse: null,
+		moduleErr: err,
 	}
 	if (sourceIsWorker) {
-		source.postMessage(message);
+		source.postMessage(message)
 	} else {
-		source.postMessage(message, "*");
+		source.postMessage(message, "*")
 	}
 }
 
@@ -387,15 +391,20 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 // have a matching nonce. If there was no nonce provided, the receiveTest
 // message will also have no nonce.
 function handleRequestTest(event) {
-	if ("nonce" in event.data) {
-		event.source.postMessage({
-			kernelMethod: "receiveTest",
-			nonce: event.data.nonce,
-			response: "receiveTest",
-		}, event.source.origin)
-	} else {
+	// Special handling, if no nonce was provided just shoot a response.
+	//
+	// TODO: Eliminate this special handling, it's not needed.
+	if (!("nonce" in event.data)) {
 		event.source.postMessage({kernelMethod: "receiveTest"}, event.source.origin)
+		return
 	}
+
+	// Send a 'receiveTest' response.
+	event.source.postMessage({
+		kernelMethod: "receiveTest",
+		nonce: event.data.nonce,
+		response: "receiveTest",
+	}, event.source.origin)
 }
 
 // logToSource is a helper function to send a message to the source of an event
@@ -423,6 +432,10 @@ handleMessage = function(event) {
 		return
 	}
 	log("message", "user is authenticated")
+
+	// TODO: Need to perform input validation to see whether kernelMethod
+	// and nonce have been provided. Who knows what that will break in the
+	// meantime.
 
 	// If we are receiving an authCompleted message, it means the calling
 	// app thinks the kernel hasn't loaded yet. Send a message indicating

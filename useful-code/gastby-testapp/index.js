@@ -51,12 +51,27 @@ function TestSendTestMessage() {
 	})
 }
 
+// TestSecureUpload will upload a very basic file to Skynet using libkernel.
+function TestSecureUpload() {
+	return new Promise((resolve, reject) => {
+		let u8 = new TextEncoder().encode("some test file data")
+		kernel.secureUpload("testUpload.txt", u8)
+		.then(x => {
+			resolve(x)
+		})
+		.catch(x => {
+			reject(x)
+		})
+	})
+}
+
 // TestPadAndEncrypt will use the padAndEncrypt function, which has the dual
 // purpose of testing encryption and seeing whether or not kernel
 // communications are working.
 function TestPadAndEncrypt() {
 	return new Promise((resolve, reject) => {
-		kernel.padAndEncrypt()
+		let u8 = new TextEncoder().encode("some file data")
+		kernel.padAndEncrypt("test.txt", u8)
 		.then(x => {
 			resolve(x)
 		})
@@ -120,7 +135,8 @@ function TestPadAndEncryptSequential1k() {
 			return
 		}
 
-		kernel.padAndEncrypt()
+		let u8 = new TextEncoder().encode("some file data")
+		kernel.padAndEncrypt("test.txt", u8)
 		.then(x => {
 			sequentialPadAndEncrypt(remaining-1, resolve, reject)
 		})
@@ -179,6 +195,7 @@ const IndexPage = () => {
 			<h1>Running Tests</h1>
 			<TestCard name="TestKernelInit" test={TestKernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
+			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
 			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
 			<TestCard name="TestMessageSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
 			<TestCard name="TestMessageSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />

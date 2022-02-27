@@ -40,7 +40,11 @@ function handleKernelMessage(event) {
 	// we do need to pass the nonce to the handler so it knows what nonce
 	// to tell the 
 	let wrappedResp = function(resp) {
-		handleKernelResp(resp, null, event.data.nonce, event.source)
+		if (resp.err !== null) {
+			handleKernelResp(null, resp.err, event.data.nonce, event.source)
+		} else {
+			handleKernelResp(resp.resp, null, event.data.nonce, event.source)
+		}
 	}
 	let wrappedErr = function(err) {
 		handleKernelResp(null, err, event.data.nonce, event.source)

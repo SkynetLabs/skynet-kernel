@@ -4,43 +4,27 @@
 // The encryption key is a combination of the domainSeed and the filename of
 // the file. The domainSeed is provided by the kernel as an input.
 
-// TODO: There is probably a way to clean up a lot of this input validation, we
-// can probably make this step a lot nicer.
+// TODO: I'm not really sure where to take the padAndEncrypt thing from here.
+// The original idea was that it would automatically pad and encrypt anything
+// that you wanted it to. Maybe instead of taking a filename it can take a
+// generic salt? The value of a private filesystem is that...
+//
+// So, something like marstorage is going to have to track all of the data
+// regardless. Or skytransfer. So, how can I help them out by giving them a
+// filesystem that they can be happy with. They will want to be able to share
+// folders.
+//
+// Do we want to do the upload right in place? From the global attackers view,
+// what they see is a collection of files of various sizes. The files are all
+// going to be linked to the same pubkey.
 
 // onmessage receives messages from the kernel.
 onmessage = function(event) {
 	// Check that the general fields are recognized.
-	if (!("data" in event) || !("kernelMethod" in event.data) || event.data.kernelMethod !== "moduleCall") {
+	if (event.data.kernelMethod !== "moduleCall") {
 		postMessage({
 			kernelMethod: "moduleResponseErr",
 			err: "unrecognized kernelMethod",
-		})
-		return
-	}
-	// Check that the kernel has provided a seed.
-	//
-	// TODO: Also need to check the typing of the seed.
-	if (!("seed" in event.data)) {
-		postMessage({
-			kernelMethod: "moduleResponseErr",
-			err: "no seed provided by kernel",
-		})
-		return
-	}
-	// Check that a sourceDomain was provided. We will use the sourceDomain
-	// to derive an encryption key from the seed.
-	if (!("sourceDomain" in event.data)) {
-		postMessage({
-			kernelMethod: "moduleResponseErr",
-			err: "no sourceDomain provided, cannot encrypt data",
-		})
-		return
-	}
-	// Check that the caller has requested the right method.
-	if (!("moduleMethod" in event.data)) {
-		postMessage({
-			kernelMethod: "moduleResponseErr",
-			err: "moduleMethod not provided by kernel",
 		})
 		return
 	}
