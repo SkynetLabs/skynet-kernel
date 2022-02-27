@@ -112,18 +112,6 @@ declare var addContextToErr
 // one worker per module.
 var workers = new Object()
 
-// Set up a logging method that can be enabled and disabled.
-//
-// TODO: Add an RPC to enable and disable this at runtime.
-//
-// TODO: Make this more like the one for home.
-var debugging = true;
-var kernelLog = function(...msg) {
-	if (debugging) {
-		console.log(msg)
-	}
-}
-
 // createWorker will create a worker for the provided code.
 function createWorker(workerCode) {
 	let url = URL.createObjectURL(new Blob([workerCode]));
@@ -178,7 +166,8 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 	logToSource(event, "performing download")
 	downloadSkylink(event.data.module)
 	.then(result => {
-		// TODO: Save the result to localStorage.
+		// TODO: Save the result to localStorage. Can't do that until
+		// subscriptions are in place.
 
 		let worker = createWorker(result.fileData)
 		workers[event.data.module] = worker
@@ -206,17 +195,30 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 // kernel itself.
 var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 	worker.onmessage = function(wEvent) {
-		// Check if the worker is trying to make a call to
-		// another module.
+		// Check that the worker message contains a kernelMethod.
+		if (!("data" in wEvent) || !("kernelMethod" in wEvent.data)) {
+			let msg = "worker did not include a kernelMethod in its response"
+			logToSource(rwEvent, msg)
+			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
+			return
+		}
+
+		// Check if the worker is trying to make a call to another
+		// module.
 		if (wEvent.data.kernelMethod === "moduleCall") {
 			logToSource(rwEvent, "worker is making a module call")
 			handleModuleCall(wEvent, worker, true)
 			return
 		}
 
-		// Check if the worker is responding to the original
-		// caller.
+		// Check if the worker is responding to the original caller.
 		if (wEvent.data.kernelMethod === "moduleResponse") {
+			if (!("moduleResponse" in wEvent.data)) {
+				let msg = "worker did not include a moduleResponse field in its moduleResponse")
+				logToSource(rwEvent, msg)
+				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
+				return
+			}
 			let message = {
 				queryStatus: "resolve",
 				kernelMethod: "moduleResponse",
@@ -236,21 +238,21 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		}
 
 		// Check whether the worker has reported an error.
-		//
-		// TODO: Need to do more input checking on that err.
 		if (wEvent.data.kernelMethod === "moduleResponseErr") {
-			logToSource(rwEvent, "worker returned an error:\n"+wEvent.data.err)
+			if (!("err" in wEvent.data)) {
+				let msg = "worker did not include an err field in its moduleResponseErr")
+				logToSource(rwEvent, msg)
+				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
+				return
+			}
+			logToSource(rwEvent, "worker returned an error:\n"+JSON.stringify(wEvent.data.err))
 			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, wEvent.data.err)
 			return
 		}
 
-		// TODO: Some sort of error framework here, we
-		// shouldn't be arriving to this code block unless the
-		// request was malformed.
-		logToSource(rwEvent, "worker response seems to be malfomred")
-		logToSource(rwEvent, wEvent.data.kernelMethod)
-		var err = "worker responded with an unrecognized kernelMethod while handling a moduleCall"
-		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, err)
+		let msg = "unrecognized kernelMethod\n"+JSON.stringify(wEvent.data))
+		logToSource(rwEvent, msg)
+		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, msg)
 		return
 	}
 

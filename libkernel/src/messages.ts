@@ -50,6 +50,32 @@ export function testMessage(): Promise<string> {
 	})
 }
 
+// callModule is a generic function to call a module. It will send a message to
+// the kernel and respond with the kernel's response. All nonce magic is
+// handled for the user.
+export function callModule(module: string, moduleMethod: string, moduleInput: any): Promise<any> {
+	return new Promise((resolve, reject) => {
+		init()
+		.then(x => {
+			return postKernelQuery({
+				kernelMethod: "moduleCall",
+				module,
+				moduleMethod,
+				moduleInput,
+			})
+			.then(response => {
+				resolve(response)
+			})
+			.catch(response => {
+				reject(response)
+			})
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // upload will take a filename and some file data and perform a secure upload
 // to Skynet. Secure in this case means that all data is verified before being
 // uploaded - the portal cannot lie about the skylink that it returns after

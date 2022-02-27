@@ -51,6 +51,29 @@ function TestSendTestMessage() {
 	})
 }
 
+// TestGenericModuleCall will upload a very basic file to Skynet using libkernel.
+//
+// TODO: Probably want to use something besides padAndEncrypt as the test for a
+// generic module.
+let padAndEncryptModule = "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ"
+function TestGenericModuleCall() {
+	return new Promise((resolve, reject) => {
+		let u8 = new TextEncoder().encode("some test file data")
+		kernel.callModule(padAndEncryptModule, "padAndEncrypt", {
+			filepath: "aFilename",
+			fileData: new TextEncoder().encode("a bit of file data")
+		})
+		.then(x => {
+			console.log("resolved", x)
+			resolve("yay")
+		})
+		.catch(x => {
+			console.log("rejected", x)
+			reject("boo")
+		})
+	})
+}
+
 // TestSecureUpload will upload a very basic file to Skynet using libkernel.
 function TestSecureUpload() {
 	return new Promise((resolve, reject) => {
@@ -117,7 +140,7 @@ function TestMessageSpeedParallel1k() {
 		}
 		Promise.all(promises)
 		.then(x => {
-			resolve(x)
+			resolve("all messages reseolved")
 		})
 		.catch(x => {
 			reject(x)
@@ -163,7 +186,7 @@ function TestCard(props) {
 			let start = performance.now()
 			props.test()
 			.then(x => {
-				setTestStatus("test success")
+				setTestStatus("test success: " + x)
 				setStatusColor("rgba(0, 80, 0, 0.6)")
 				setDuration(performance.now()-start)
 				nextTest()
@@ -195,11 +218,12 @@ const IndexPage = () => {
 			<h1>Running Tests</h1>
 			<TestCard name="TestKernelInit" test={TestKernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
+			<TestCard name="TestGenericModuleCall" test={TestGenericModuleCall} turn={getTurn()} />
 			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
 			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
-			<TestCard name="TestMessageSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
-			<TestCard name="TestMessageSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />
-			<TestCard name="TestPadAndEncryptSequential1k" test={TestPadAndEncryptSequential1k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />
+			<TestCard name="TestPadAndEncryptSeq1k" test={TestPadAndEncryptSequential1k} turn={getTurn()} />
 		</main>
 	)
 }

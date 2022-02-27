@@ -1,2 +1,2 @@
 export {init} from './init'
-export {testMessage, upload, padAndEncrypt} from './messages'
+export {testMessage, callModule, upload, padAndEncrypt} from './messages'
