@@ -1,11 +1,11 @@
 // log provides a wrapper for console.log that prefixes 'libkernel'.
-var log = function(...inputs: any) {
+export function log(...inputs: any) {
 	console.log("[libkernel]", ...inputs)
 }
 
 // logErr provides a wrapper for console.error that prefixes '[libkernel]' to
 // the output.
-var logErr = function(...inputs: any) {
+export function logErr(...inputs: any) {
 	console.error("[libkernel]", ...inputs)
 }
 

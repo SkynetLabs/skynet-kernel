@@ -1,7 +1,8 @@
-import { init, postKernelQuery } from './init'
+import { log, logErr, init, postKernelQuery } from './init'
 
 // testMessage will send a test message to the kernel, ensuring that basic
-// kernel communications are working.
+// kernel communications are working. The promise will resolve to the version
+// of the kernel.
 export function testMessage(): Promise<string> {
 	// Retrun a promise that will resolve when a response is received from
 	// the kernel.
@@ -18,17 +19,27 @@ export function testMessage(): Promise<string> {
 				kernelMethod: "requestTest",
 			})
 			.then(response => {
+				if (!("version" in response)) {
+					resolve("kernel did not report a version")
+					return
+				}
 				resolve(response.version)
 			})
 			.catch(response => {
+				if (!("err" in response) || typeof response.err !== "string") {
+					logErr("unrecognized response in postKernelQuery catch", response)
+					reject("unrecognized repsonse")
+					return
+				}
 				reject(response.err)
 			})
 		})
-		.catch(x => {
+		.catch(err => {
 			// For some reason, the bridge is not available.
 			// Likely, this means that the user has not installed
 			// the browser extension.
-			reject(x)
+			logErr("bridge is not initialized:", err)
+			reject(err)
 		})
 	})
 }
@@ -38,7 +49,10 @@ export function testMessage(): Promise<string> {
 // uploaded - the portal cannot lie about the skylink that it returns after
 // uploading the data.
 //
-// TODO: The secure upload caps at about 4 MB of data right now.
+// NOTE: The largest allowed file is currently slightly less than 4 MiB
+// (roughly 500 bytes less)
+//
+// TODO: Clean this function up (the response should be a bit more helpful)
 export function upload(filename: string, fileData: Uint8Array): Promise<string> {
 	return new Promise((resolve, reject) => {
 		init()
