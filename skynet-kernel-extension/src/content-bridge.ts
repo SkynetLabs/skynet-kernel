@@ -12,24 +12,16 @@ function handleBridgeTest(event) {
 	window.postMessage({
 		method: "bridgeTestResponse",
 		nonce: event.data.nonce,
+		version: "v0.0.1",
 	}, event.source)
 }
 
-// handleKernelResp handles a successful response from the kernel.
-function handleKernelResp(resp, err, nonce, target) {
-	window.postMessage({
-		method: "kernelResponse",
-		nonce,
-		resp: resp,
-		err: err,
-	}, target)
-}
-
-// handleKernelMessage handles messages sent using the method 'kernelMessage'.
-function handleKernelMessage(event) {
-	// Check for a kernel message.
-	if (!("kernelMessage" in event.data)) {
-		console.error("[skynet bridge] method 'kernelMessage' requires a kernelMessage\n", event.data, "\n", event)
+// handleKernelQuery handles messages sent by the page that are intended to
+// eventually reach the kernel.
+function handleKernelQuery(event) {
+	// Check for a kernel query.
+	if (!("kernelQuery" in event.data)) {
+		console.error("[skynet bridge] method 'kernelQuery' requires a kernelQuery\n", event.data, "\n", event)
 		return
 	}
 
@@ -44,19 +36,26 @@ function handleKernelMessage(event) {
 	// adding 'resp.resp' as a field to indicate success, and 'resp.err' as
 	// a field to indicate a failure. We still need to listen for an error
 	// though, because those can happen if the extension is unavailable.
-	let wrappedResp = function(resp) {
-		if (resp.err !== null) {
-			handleKernelResp(null, resp.err, event.data.nonce, event.source)
-		} else if (resp.resp !== null) {
-			handleKernelResp(resp.resp, null, event.data.nonce, event.source)
-		} else {
-			handleKernelResp(null, "malformed response from background", event.data.nonce, event.source)
-		}
+	let wrappedResp = function(response) {
+		// Pass the message from the kernel to the page script. Note
+		// that the response may itself be a failure, which will be
+		// indicated by the 'queryStatus' field of the data.
+		window.postMessage({
+			method: "kernelResponse",
+			nonce: event.data.nonce,
+			response,
+		}, event.source)
 	}
 	let wrappedErr = function(err) {
-		handleKernelResp(null, err, event.data.nonce, event.source)
+		// A kernelResponseErr actually indicates some issue with
+		// 'sendMessage', and is expected to be uncommon.
+		window.postMessage({
+			method: "kernelResponseErr",
+			nonce: event.data.nonce,
+			err,
+		}, event.source)
 	}
-	browser.runtime.sendMessage(event.data.kernelMessage).then(wrappedResp, wrappedErr)
+	browser.runtime.sendMessage(event.data.kernelQuery).then(wrappedResp, wrappedErr)
 }
 
 // This is the listener for the content script, it will receive messages from
@@ -76,8 +75,8 @@ window.addEventListener("message", function(event) {
 		handleBridgeTest(event)
 		return
 	}
-	if (event.data.method === "kernelMessage") {
-		handleKernelMessage(event)
+	if (event.data.method === "kernelQuery") {
+		handleKernelQuery(event)
 		return
 	}
 })

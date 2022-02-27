@@ -38,23 +38,76 @@ function queryKernel(query) {
 // corrupted as it gets swallowed and replaced by another error related to the
 // background script being available. Instead, we call 'resolve' in both cases,
 // but send an object that indicates an error.
+//
+// TODO: This might actually be a bug with Firefox, intuitively it seems like
+// (including from reading the spec) we should be able to call 'reject' in the
+// .catch and have the error pass through correctly. But it's not, we get a
+// clone error even for simple objects like strings.
 function contentScriptListener(message, sender) {
 	return new Promise((resolve, reject) => {
+		// The kernel data already includes a 'queryStatus' which
+		// indicates whether the content script should resolve or
+		// reject. The content script is going to need to know to check
+		// that status when picking a result for the corresponding
+		// promise.
 		queryKernel(message)
 		.then(resp => {
-			resolve({
-				resp,
-				err: null,
-			})
+			resolve(resp)
 		})
 		.catch(err => {
-			resolve({
-				resp: null,
-				err,
-			})
+			resolve(err)
 		})
 	})
 }
+
+// Add a listener that will catch messages from content scripts.
+browser.runtime.onMessage.addListener(contentScriptListener)
+
+// Create a listener that will listen for messages from the kernel. The
+// responses are keyed by a nonce, the caller passes the nonce to the kernel,
+// and the kernel passes the nonce back. Responses are stored in the
+// 'responses' object, and are expected to be deleted by the caller once
+// consumed. The cpu and memory overheads associated with using an object to
+// store responses are unknown.
+window.addEventListener("message", (event) => {
+	// Ignore all messages that aren't coming from the kernel.
+	if (event.origin !== "https://kernel.siasky.net") {
+		console.log("received unwanted message from: ", event.origin, "\n", event)
+		return
+	}
+	if (!("kernelMethod" in event.data) || typeof event.data.kernelMethod !== "string") {
+		console.log("received message without a kernelMethod\n", event.data)
+		return
+	}
+	if (event.data.kernelMethod === "log") {
+		console.log(event.data.message)
+		return
+	}
+
+	// Listen for the kernel successfully loading.
+	if (event.data.kernelMethod === "skynetKernelLoaded") {
+		console.log("kernel has loaded")
+		kernelLoaded() // This is resolving a promise
+		return
+	}
+
+	// Grab the nonce, determine the status of the response, and then
+	// resolve or reject accordingly.
+	if (!("nonce" in event.data) || typeof event.data.nonce !== "number") {
+		console.log("received a kernel message without a nonce\n", event.data)
+		return
+	}
+	let result = kernelQueries[event.data.nonce]
+	delete kernelQueries[event.data.nonce]
+	if (event.data.queryStatus === "resolve") {
+		result.resolve(event.data)
+		return
+	}
+	if (event.data.queryStatus === "reject") {
+		result.reject(event.data)
+		return
+	}
+}, false)
 
 // onBeforeRequestListener will handle calls from onBeforeRequest. Calls to the
 // kernel will be swallowed and replaced by a content script. Calls to pages
@@ -123,63 +176,6 @@ browser.webRequest.onHeadersReceived.addListener(
 	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*"]},
 	["blocking", "responseHeaders"]
 )
-
-// Add a listener that will catch messages from content scripts.
-browser.runtime.onMessage.addListener(contentScriptListener)
-
-// Create a listener that will listen for messages from the kernel. The
-// responses are keyed by a nonce, the caller passes the nonce to the kernel,
-// and the kernel passes the nonce back. Responses are stored in the
-// 'responses' object, and are expected to be deleted by the caller once
-// consumed. The cpu and memory overheads associated with using an object to
-// store responses are unknown.
-window.addEventListener("message", (event) => {
-	// Ignore all messages that aren't coming from the kernel.
-	if (event.origin !== "https://kernel.siasky.net") {
-		console.log("received unwanted message from: ", event.origin, "\n", event)
-		return
-	}
-	if (!("kernelMethod" in event.data)) {
-		console.log("received message without a kernelMethod\n", event.data)
-		return
-	}
-	if (event.data.kernelMethod === "log") {
-		console.log(event.data.message)
-		return
-	}
-
-	// Listen for the kernel successfully loading.
-	if (event.data.kernelMethod === "skynetKernelLoaded") {
-		console.log("kernel has loaded")
-		kernelLoaded()
-		return
-	}
-
-	// Every type of message except skynetKernelLoaded should have a nonce.
-	if (!("nonce" in event.data)) {
-		console.log("received a kernel message without a nonce\n", event.data)
-		return
-	}
-	let result = kernelQueries[event.data.nonce]
-	delete kernelQueries[event.data.nonce]
-
-	// receiveTest has different data types than the rest.
-	if (event.data.kernelMethod === "receiveTest") {
-		result.resolve(event.data.response)
-		return
-	}
-
-	// Resolve for a moduleResponse, and reject for a moduleResponseErr.
-	if (event.data.kernelMethod === "moduleResponse") {
-		result.resolve(event.data.moduleResponse)
-		return
-	}
-	if (event.data.kernelMethod === "moduleResponseErr") {
-		result.reject(event.data.moduleErr)
-		return
-	}
-	result.reject("unrecognized kernelMethod: "+event.data.kernelMethod)
-}, false)
 
 // Open an iframe containing the kernel.
 var kernelFrame = document.createElement("iframe")

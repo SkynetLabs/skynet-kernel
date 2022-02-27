@@ -1,4 +1,4 @@
-import { init, postKernelMessage } from './init'
+import { init, postKernelQuery } from './init'
 
 // testMessage will send a test message to the kernel, ensuring that basic
 // kernel communications are working.
@@ -14,8 +14,14 @@ export function testMessage(): Promise<string> {
 			// Send a 'requestTest' message to the kernel. The
 			// request test message uniquely doesn't have any other
 			// parameters.
-			postKernelMessage(resolve, reject, {
+			postKernelQuery({
 				kernelMethod: "requestTest",
+			})
+			.then(response => {
+				resolve(response.version)
+			})
+			.catch(response => {
+				reject(response.err)
 			})
 		})
 		.catch(x => {
@@ -37,7 +43,7 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 	return new Promise((resolve, reject) => {
 		init()
 		.then(x => {
-			postKernelMessage(resolve, reject, {
+			postKernelQuery({
 				kernelMethod: "moduleCall",
 				module: "AQCS3RHbDlk00IdICFEI1rKZp-VNsnsKWC0n7K-taoAuog",
 				moduleMethod: "secureUpload",
@@ -45,6 +51,12 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 					filename,
 					fileData,
 				},
+			})
+			.then(response => {
+				resolve(response.output)
+			})
+			.catch(response => {
+				reject(response.err)
 			})
 		})
 		.catch(x => {
@@ -64,7 +76,7 @@ export function padAndEncrypt(filepath: string, fileData: Uint8Array): Promise<s
 	return new Promise((resolve, reject) => {
 		init()
 		.then(x => {
-			postKernelMessage(resolve, reject, {
+			postKernelQuery({
 				kernelMethod: "moduleCall",
 				module: "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ",
 				moduleMethod: "padAndEncrypt",
@@ -72,6 +84,12 @@ export function padAndEncrypt(filepath: string, fileData: Uint8Array): Promise<s
 					filepath,
 					fileData,
 				},
+			})
+			.then(response => {
+				resolve(response.output)
+			})
+			.catch(response => {
+				reject(response.err)
 			})
 		})
 		.catch(x => {

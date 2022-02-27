@@ -27,7 +27,7 @@ interface resolveReject {
 var initialized: boolean
 var bridgeExists: boolean
 var bridgeAvailable: resolveReject
-var blockForBridge: Promise<void> = new Promise((resolve, reject)  => {
+var blockForBridge: Promise<string> = new Promise((resolve, reject)  => {
 	bridgeAvailable = {resolve, reject}
 })
 
@@ -39,30 +39,39 @@ var blockForBridge: Promise<void> = new Promise((resolve, reject)  => {
 var nextNonce = 1
 var queries: any = new Object()
 
-// postKernelMessage will send a postMessage to the kernel, handling details
-// like the nonce and the resolve/reject upon receiving a response. The inputs
-// are a resolve and reject function of a promise that should be resolved when
-// the response is received, and the message that is going to the kernel
-// itself.
-export function postKernelMessage(resolve: Function, reject: Function, message: any) {
-	let nonce = nextNonce
-	nextNonce++
-	queries[nonce] = {resolve, reject}
-	window.postMessage({
-		method: "kernelMessage",
-		nonce,
-		kernelMessage: message,
-	}, window.location.origin)
+// postKernelQuery will send a postMessage to the kernel, handling details like
+// the nonce and the resolve/reject upon receiving a response. The inputs are a
+// resolve and reject function of a promise that should be resolved when the
+// response is received, and the message that is going to the kernel itself.
+export function postKernelQuery(kernelQuery: any): Promise<any> {
+	return new Promise((resolve, reject) => {
+		let nonce = nextNonce
+		nextNonce++
+		queries[nonce] = {resolve, reject}
+		window.postMessage({
+			method: "kernelQuery",
+			nonce,
+			kernelQuery,
+		}, window.location.origin)
+	})
 }
 
-// handleBridgeTest will handle a response from the bridge indicating that the
-// bridge is working.
-function handleBridgeResponse() {
-	if (bridgeExists !== false) {
-		bridgeExists = true
-		bridgeAvailable.resolve()
-	} else {
+// handleBridgeResponse will handle a response from the bridge indicating that
+// the bridge is working.
+function handleBridgeResponse(data: any) {
+	// Check whether the timeout for the bridge has already fired. If so,
+	// log that the bridge is available but late.
+	if (bridgeExists === false) {
 		logErr("received late signal from bridge")
+		return
+	}
+	bridgeExists = true
+
+	// Check whether the version is available in the data.
+	if (!("version" in data)) {
+		bridgeAvailable.resolve("bridge did not report a version")
+	} else {
+		bridgeAvailable.resolve(data.version)
 	}
 }
 
@@ -74,23 +83,36 @@ function handleKernelResponse(event: MessageEvent) {
 		logErr("nonce of kernelResponse not found\n", event, "\n", queries)
 		return
 	}
-	// Check that the response includes a resp and an err.
 	let result = queries[event.data.nonce]
 	delete queries[event.data.nonce]
-	if (!("resp" in event.data) || !("err" in event.data)) {
+
+	// Check the status and then resolve or reject accordingly.
+	if (!("response" in event.data) || !("queryStatus" in event.data.response)) {
 		logErr("malformed kernel response\n", event)
 		return
 	}
-
-	// Either resolve or reject the promise associated with this response.
-	if (event.data.resp !== null) {
-		result.resolve(event.data.resp)
-	} else if (event.data.err !== null) {
-		result.reject(event.data.err)
+	if (event.data.response.queryStatus === "resolve") {
+		result.resolve(event.data.response)
+	} else if (event.data.response.queryStatus === "reject") {
+		result.reject(event.data.response)
 	} else {
-		logErr("received malformed response from bridge\n", event)
+		logErr("malformed queryStatus")
 	}
 }
+
+// handleKernelResponseErr is a special handler for situations where the
+// content script was unable to communicate with the background script.
+function handleKernelResponseErr(event: MessageEvent) {
+	let reject = queries[event.data.nonce]
+	delete queries[event.data.nonce]
+	if (!("err" in event.data) || typeof event.data.err !== "string") {
+		logErr("malformed error received from bridge")
+		return
+	}
+	logErr(event.data.err)
+	reject(event.data.err)
+}
+
 
 // handleMessage will handle a message from the kernel, using the response to
 // resolve the appropriate promise in the set of queries.
@@ -104,11 +126,15 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	if (event.data.method === "bridgeTestResponse") {
-		handleBridgeResponse()
+		handleBridgeResponse(event.data)
 		return
 	}
 	if (event.data.method === "kernelResponse") {
 		handleKernelResponse(event)
+		return
+	}
+	if (event.data.method === "kernelResponseErr") {
+		handleKernelResponseErr(event)
 		return
 	}
 }
@@ -117,7 +143,7 @@ function handleMessage(event: MessageEvent) {
 // safe to call init many times, and libkernel will call init before every
 // function call to ensure that everything works even if the user did not
 // explicitly call init.
-export function init(): Promise<void> {
+export function init(): Promise<string> {
 	// Check if init has already happened.
 	if (initialized === true) {
 		return blockForBridge
@@ -139,7 +165,7 @@ export function init(): Promise<void> {
 	setTimeout(function() {
 		if (bridgeExists !== true) {
 			bridgeExists = false
-			bridgeAvailable.reject("bridge unavailable, need skynet extension")
+			bridgeAvailable.reject(new Error("bridge unavailable, need skynet extension"))
 			logErr("bridge did not respond after 2 seconds")
 		}
 	}, 2000)

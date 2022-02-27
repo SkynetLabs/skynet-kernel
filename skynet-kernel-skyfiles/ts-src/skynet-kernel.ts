@@ -35,6 +35,8 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
+// TODO: We need a better logging framework in the kernel.
+
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
 // preferred portals. This process is independent of the full process, which we
 // need to marry to the bootstrap process.
@@ -122,38 +124,71 @@ var kernelLog = function(...msg) {
 	}
 }
 
-// Load all of the modules that we have saved locally into memory.
-var moduleMap = {};
-var loadModuleMap = function() {
-	var modules = "";
-	try {
-		modules = localStorage.getItem("moduleMap");
-		moduleMap = JSON.parse(modules);
-	} catch {
-		kernelLog("Skynet Kernel ERROR: unable securely load the moduleMap");
-		moduleMap = {};
-	}
-
-	// TODO: Kick off a background worker that will talk to Skynet, compare
-	// against the latest set of modules, grab any that are missing, post
-	// any that skynet doesn't seem to have, and then begin updating the
-	// modules to their latest versions.
-}
-
-// saveModuleMap will save the map of the user's modules.
-var saveModuleMap = function() {
-	localStorage.setItem("moduleMap", JSON.stringify(moduleMap));
-
-	// TODO: Communicate with the background thread that syncs local
-	// modules to skynet and make sure this new module is visible to the
-	// user's other devices.
-}
-
 // createWorker will create a worker for the provided code.
 function createWorker(workerCode) {
 	let url = URL.createObjectURL(new Blob([workerCode]));
 	let worker = new Worker(url);
 	return worker
+}
+
+// handleModuleCall handles a call to a version 1 skynet kernel module.
+//
+// The module name should be a skylink, either V1 or V2, which holds the code
+// that will run for the module. The domain of the module will be equal to the
+// skylink. For V1 skylinks, there is a fundamental marriage between the code
+// and the domain, any updates to the code will result in a new domain. For V2
+// skylinks, which is expected to be more commonly used, the code can be
+// updated by pushing new code with a higher revision number. This new code
+// will have access to the same domain, effecitviely giving it root privledges
+// to all data that was trusted to prior versions of the code.
+var handleModuleCall = function(event, source, sourceIsWorker) {
+	// Check that the module exists, and that it has been formatted as a
+	// skylink.
+	if (!("module" in event.data)) {
+		let err = "bad moduleCall request: module is not specified"
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logToSource(event, "module not specified")
+		return
+	}
+	if (typeof event.data.module !== "string") {
+		let err = "bad moduleCall request: module is not a string"
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logToSource(event, "module not string")
+		return
+	}
+	if (event.data.module.length !== 46) {
+		let err = "bad moduleCall request: module is not 46 characters"
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logToSource(event, "module not 46 chars")
+		return
+	}
+
+	// TODO: Load any overrides.
+
+	// Check the local cache to see if the worker already exists.
+	if (event.data.module in workers) {
+		let worker = workers[event.data.module]
+		runModuleCall(event, source, sourceIsWorker, worker)
+		return
+	}
+
+	// TODO: Check localStorage for the module.
+
+	// Download the code for the worker.
+	logToSource(event, "performing download")
+	downloadSkylink(event.data.module)
+	.then(result => {
+		// TODO: Save the result to localStorage.
+
+		let worker = createWorker(result.fileData)
+		workers[event.data.module] = worker
+		logToSource(event, result.fileData)
+		runModuleCall(event, source, sourceIsWorker, worker)
+	})
+	.catch(err => {
+		err = addContextToErr(err, "unable to download module")
+		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+	})
 }
 
 // Define the function that will create a blob from the handler code for the
@@ -169,9 +204,6 @@ function createWorker(workerCode) {
 // bits of untrusted code running inside of this worker, and those bits of code
 // may intentionally be trying to mess with each other as well as mess with the
 // kernel itself.
-//
-// TODO: provide the domain of the caller to the modules so they can implement
-// permissions.
 var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 	worker.onmessage = function(wEvent) {
 		// Check if the worker is trying to make a call to
@@ -186,10 +218,10 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// caller.
 		if (wEvent.data.kernelMethod === "moduleResponse") {
 			let message = {
+				queryStatus: "resolve",
 				kernelMethod: "moduleResponse",
 				nonce: rwEvent.data.nonce,
-				moduleResponse: wEvent.data.moduleResponse,
-				moduleErr: null,
+				output: wEvent.data.moduleResponse,
 			}
 
 			// If the source is a worker, the postMessage call
@@ -265,76 +297,16 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 // The kernel provides a guarantee that 'err' will always be a string.
 var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 	let message = {
+		queryStatus: "reject",
 		kernelMethod: "moduleResponseErr",
 		nonce,
-		moduleResponse: null,
-		moduleErr: err,
+		err,
 	}
 	if (sourceIsWorker) {
 		source.postMessage(message)
 	} else {
 		source.postMessage(message, "*")
 	}
-}
-
-// handleModuleCall handles a call to a version 1 skynet kernel module.
-//
-// The module name should be a skylink, either V1 or V2, which holds the code
-// that will run for the module. The domain of the module will be equal to the
-// skylink. For V1 skylinks, there is a fundamental marriage between the code
-// and the domain, any updates to the code will result in a new domain. For V2
-// skylinks, which is expected to be more commonly used, the code can be
-// updated by pushing new code with a higher revision number. This new code
-// will have access to the same domain, effecitviely giving it root privledges
-// to all data that was trusted to prior versions of the code.
-var handleModuleCall = function(event, source, sourceIsWorker) {
-	// Check that the module exists, and that it has been formatted as a
-	// skylink.
-	if (!("module" in event.data)) {
-		let err = "bad moduleCall request: module is not specified"
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logToSource(event, "module not specified")
-		return
-	}
-	if (typeof event.data.module !== "string") {
-		let err = "bad moduleCall request: module is not a string"
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logToSource(event, "module not string")
-		return
-	}
-	if (event.data.module.length !== 46) {
-		let err = "bad moduleCall request: module is not 46 characters"
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logToSource(event, "module not 46 chars")
-		return
-	}
-
-	// TODO: Load any overrides.
-
-	// Check the local cache to see if the worker already exists.
-	if (event.data.module in workers) {
-		let worker = workers[event.data.module]
-		runModuleCall(event, source, sourceIsWorker, worker)
-		return
-	}
-
-	// TODO: Check localStorage for the module.
-
-	// Download the code for the worker.
-	logToSource(event, "performing download")
-	downloadSkylink(event.data.module)
-	.then(result => {
-		// TODO: Save the result to localStorage.
-
-		let worker = createWorker(result.fileData)
-		workers[event.data.module] = worker
-		logToSource(event, result.fileData)
-		runModuleCall(event, source, sourceIsWorker, worker)
-	})
-	.catch(err => {
-		err = addContextToErr(err, "unable to download module")
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-	})
 }
 
 // handleSkynetKernelRequestURL handles messages calling the kernelMethod
@@ -391,19 +363,12 @@ var handleSkynetKernelRequestHomescreen = function(event) {
 // have a matching nonce. If there was no nonce provided, the receiveTest
 // message will also have no nonce.
 function handleRequestTest(event) {
-	// Special handling, if no nonce was provided just shoot a response.
-	//
-	// TODO: Eliminate this special handling, it's not needed.
-	if (!("nonce" in event.data)) {
-		event.source.postMessage({kernelMethod: "receiveTest"}, event.source.origin)
-		return
-	}
-
 	// Send a 'receiveTest' response.
 	event.source.postMessage({
+		queryStatus: "resolve",
 		kernelMethod: "receiveTest",
 		nonce: event.data.nonce,
-		response: "receiveTest",
+		version: "v0.0.1",
 	}, event.source.origin)
 }
 
@@ -424,7 +389,7 @@ function logToSource(event, message) {
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
 	// Check that the authentication suceeded. If authentication did not
-	// suceed, send a postMessage indicating that authentication failed.
+	// succeed, send a postMessage indicating that authentication failed.
 	let [userSeed, errGSU] = getUserSeed()
 	if (errGSU !== null) {
 		log("message", "auth has failed, sending an authFailed message", errGSU)
@@ -492,5 +457,5 @@ handleMessage = function(event) {
 		handleSkynetKernelRequestURL(event)
 	}
 
-	kernelLog("Received unrecognized call: ", event.data.kernelMethod)
+	logToSource(event, "unrecognized kernel method: "+event.data.kernelMethod)
 }
