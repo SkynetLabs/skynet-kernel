@@ -459,14 +459,3 @@ handleMessage = function(event) {
 	// Log if there's a kernelMethod that we do not recognize.
 	logToSource(event, "unrecognized kernel method: "+event.data.kernelMethod)
 }
-
-// Listen for changes to localStorage so we know when to emit a logOut signal.
-//
-// TODO: This is probably not the best approach for knowing when a user has
-// logged out.
-window.addEventListener("storage", event => {
-	if (event.key === null) {
-		window.parent.postMessage({kernelMessage: "log", message: "storage event received"}, "*")
-		window.parent.postMessage({kernelMessage: "logOutSuccess"}, "*")
-	}
-})
