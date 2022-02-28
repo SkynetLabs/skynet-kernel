@@ -1,11 +1,6 @@
 export {};
 
-console.log("kernel iframe loaded")
-
 // TODO: Need to redo the logging system.
-
-// TODO: Need to add handlers to the extension for requestGET that will serve
-// the home page and the auth page.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -17,29 +12,17 @@ document.body.appendChild(header);
 // NOTE: These imports are order-sensitive.
 
 // import:::skynet-kernel-extension/lib/parsejson.ts
-
 // import:::skynet-kernel-extension/lib/err.ts
-
 // import:::skynet-kernel-extension/lib/log.ts
-
 // import:::skynet-kernel-extension/lib/sha512.ts
-
 // import:::skynet-kernel-extension/lib/ed25519.ts
-
 // import:::skynet-kernel-extension/lib/blake2b.ts
-
 // import:::skynet-kernel-extension/lib/merkle.ts
-
 // import:::skynet-kernel-extension/lib/encoding.ts
-
 // import:::skynet-kernel-extension/lib/preferredportals.ts
-
 // import:::skynet-kernel-extension/lib/progressivefetch.ts
-
 // import:::skynet-kernel-extension/lib/registry.ts
-
 // import:::skynet-kernel-extension/lib/download.ts
-
 // import:::skynet-kernel-extension/lib/handlemessage.ts
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
@@ -258,19 +241,7 @@ var loadSkynetKernel = function() {
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
-log("lifecycle", "kernel bootloader has loaded");
-window.addEventListener("message", (event: any) => {
-	handleMessage(event)
-}, false)
-
-// Listen for a successful login, and emit an auth signal.
-//
-// TODO: This is probably not the best way to approach this.
-window.addEventListener("storage", event => {
-	if (event.key === "seed") {
-		window.parent.postMessage({kernelMessage: "authCompleted"}, "*")
-	}
-})
+window.addEventListener("message", event => {handleMessage(event)}, false)
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform

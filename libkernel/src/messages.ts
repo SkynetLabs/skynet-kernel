@@ -143,5 +143,3 @@ export function padAndEncrypt(filepath: string, fileData: Uint8Array): Promise<s
 		})
 	})
 }
-
-
