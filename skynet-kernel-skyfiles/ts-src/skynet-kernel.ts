@@ -357,7 +357,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	// TODO: Change the homepage to a v2link so that we can update the
 	// homepage without having to modify the file.
 	if (event.data.url === "https://home.siasky.net/") {
-		downloadSkylink("AABM9pN070ult5zbBGnLvLkPe1_YOBDIqg55cY8NOiQaHw")
+		downloadSkylink("AAA_2XjSiLvtZVSVivU4bcOPxyC9lwn7MdgW4gXFIKu64w")
 		.then(result => {
 			respondBody(result.fileData)
 		})

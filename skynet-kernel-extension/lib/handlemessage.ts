@@ -33,7 +33,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	// homepage without having to modify the file.
 	if (event.data.url === "https://home.siasky.net/") {
 		logToSource(event, "requestGET received for home")
-		downloadSkylink("CADGJ1-h3kwziSDn7xKz4BcrPeXzxSyJI5Jy6Z70TKgDvw")
+		downloadSkylink("CAA3n9iPs9RqBnOsosOUb7bKhgPDHwX3vqU0jxJsFJfpzg")
 		.then(result => {
 			respondBody(result.fileData)
 		})

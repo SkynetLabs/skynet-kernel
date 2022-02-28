@@ -70,6 +70,7 @@ browser.runtime.onMessage.addListener(contentScriptListener)
 // Create a handler for all kernel responses. The responses are all keyed by a
 // nonce, which gets matched to a promise that's been stored in
 // 'kernelQueries'.
+var reloading = false
 function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "https://kernel.siasky.net") {
@@ -89,17 +90,26 @@ function handleKernelResponse(event) {
 	// status, reload the extension.
 	if (event.data.kernelMethod === "authFailedAfterLoad") {
 		console.log("background is reloading because the auth failed after load")
-		browser.runtime.reload()
+		if (reloading === false) {
+			setTimeout(browser.runtime.reload(), 100)
+			reloading = true
+		}
 		return
 	}
 	if (event.data.kernelMethod === "authCompleted") {
 		console.log("background is reloading because the auth has completed")
-		browser.runtime.reload()
+		if (reloading === false) {
+			setTimeout(browser.runtime.reload(), 100)
+			reloading = true
+		}
 		return
 	}
 	if (event.data.kernelMethod === "logOutSuccess") {
 		console.log("background is reloading because the user has logged out")
-		browser.runtime.reload()
+		if (reloading === false) {
+			setTimeout(browser.runtime.reload(), 100)
+			reloading = true
+		}
 		return
 	}
 

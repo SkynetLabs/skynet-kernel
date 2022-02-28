@@ -59,6 +59,7 @@ var log = function (logType, ...inputs) {
 // handleMessage is a function which handles the intial handshake with the
 // skynet kernel. It is intended to be overwritten by home when the js file is
 // loaded.
+var reloading = false
 var handleMessage = function (event) {
     // Restrict the listener to only https://kernel.siasky.net messages.
     // If home itself wants to be able to hear from other listeners, it can
@@ -97,6 +98,10 @@ var handleMessage = function (event) {
     // has completed. This message is coming from the auth page, not the
     // kernel, we need to forward it to the kernel.
     if (event.data.kernelMethod === "authCompleted") {
+	if (reloading === true) {
+		return
+	}
+	reloading = true
         kernel.contentWindow.postMessage({ kernelMethod: "authCompleted" }, "https://kernel.siasky.net");
 	window.postMessage({
 		method: "kernelQuery",
@@ -106,7 +111,7 @@ var handleMessage = function (event) {
 		}
 	})
 	console.log("calling reload")
-	setTimeout(location.reload, 1000)
+	setTimeout(function() { window.location.reload() }, 250)
         return;
     }
 };

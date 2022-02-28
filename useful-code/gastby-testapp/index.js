@@ -58,18 +58,15 @@ function TestSendTestMessage() {
 let padAndEncryptModule = "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ"
 function TestGenericModuleCall() {
 	return new Promise((resolve, reject) => {
-		let u8 = new TextEncoder().encode("some test file data")
 		kernel.callModule(padAndEncryptModule, "padAndEncrypt", {
 			filepath: "aFilename",
 			fileData: new TextEncoder().encode("a bit of file data")
 		})
 		.then(x => {
-			console.log("resolved", x)
-			resolve("yay")
+			resolve(x.output)
 		})
 		.catch(x => {
-			console.log("rejected", x)
-			reject("boo")
+			reject(x.err)
 		})
 	})
 }
