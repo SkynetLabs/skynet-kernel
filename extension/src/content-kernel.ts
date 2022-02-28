@@ -25,7 +25,7 @@ document.body.appendChild(header);
 // import:::extension/lib/download.ts
 // import:::extension/lib/handlemessage.ts
 
-// transplant:::skynet-kernel-skyfiles/skynet-kernel.js
+// transplant:::kernel/kernel.js
 
 // log is a wrapper to call sourceLog that ensures every log is prefixed with
 // 'Kernel'.

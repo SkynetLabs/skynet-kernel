@@ -83,8 +83,8 @@ done
 # of the kernel it made more sense to load it in dynamically. We will remove
 # this code around the same time that we pull the full kernel into its own git
 # repo.
-kernelV2skylink=$(skynet-utils generate-v2skylink skynet-kernel-skyfiles/skynet-kernel.js $seed)
-fileD="skynet-kernel-skyfiles/skynet-kernel.js"
+kernelV2skylink=$(skynet-utils generate-v2skylink kernel/skynet-kernel.js $seed)
+fileD="kernel/kernel.js"
 fileO="extension/bundle/content-kernel.ts"
 importLine=$(grep -n "// transplant:::$fileD" $fileO | cut -f1 -d:)
 upTo=$((importLine-1))
@@ -100,12 +100,12 @@ cat <<< $authFileSuffix >> $fileO
 # Recreate the build directory and copy the source files over.
 rm -rf build
 mkdir -p build/extension
-mkdir -p build/skynet-kernel-skyfiles
+mkdir -p build/kernel
 cp -r extension/assets/* build/extension
 
 # Perform the typescript compilations.
 ( cd extension && tsc ) || exit 1
-( cd skynet-kernel-skyfiles && tsc ) || exit 1
+( cd kernel && tsc ) || exit 1
 
 # Strip the typescript declaration from all of the files in the browser
 # extension, as this breaks compatibility with the extensions system. The

@@ -2,10 +2,10 @@
   "compilerOptions": {
     "target": "es6",
     "module": "commonjs",
-    "outDir": "../build/skynet-kernel-skyfiles",
+    "outDir": "../build/kernel",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["./ts-src"],
+  "include": ["./src"],
   "exclude": []
 }

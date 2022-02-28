@@ -19,8 +19,7 @@ extension will see a 404 page that explains what Skynet is and how to get the
 extension. Users that do have the extension will be able to trustlessly load
 any application which is hosted on Skynet.
 
-###### NOTE: skt.us has not been fully set up yet, in the meantime the kernel
-is actually using siasky.net as the primary domain.This will change shortly.
+###### NOTE: skt.us has not been fully set up yet, in the meantime the kernel is actually using siasky.net as the primary domain. This is expected to change in the next few weeks.
 
 The kernel supports static web pages, decentralized storage endpoints
 (including uploads, downloads, and SkyDB), and also supports long running
