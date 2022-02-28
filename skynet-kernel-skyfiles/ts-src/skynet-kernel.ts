@@ -35,6 +35,8 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
+// TODO: Do we have to wrap postMessage in try-catch blocks?
+
 // TODO: We need a better logging framework in the kernel.
 
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
@@ -107,6 +109,10 @@ declare var getUserSeed
 declare var defaultPortalList
 declare var preferredPortals
 declare var addContextToErr
+declare var handleMessage
+declare var log
+declare var logOut
+declare var logToSource
 
 // workers is an object which holds all of the workers in the kernel. There is
 // one worker per module.
@@ -114,8 +120,8 @@ var workers = new Object()
 
 // createWorker will create a worker for the provided code.
 function createWorker(workerCode) {
-	let url = URL.createObjectURL(new Blob([workerCode]));
-	let worker = new Worker(url);
+	let url = URL.createObjectURL(new Blob([workerCode]))
+	let worker = new Worker(url)
 	return worker
 }
 
@@ -214,7 +220,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// Check if the worker is responding to the original caller.
 		if (wEvent.data.kernelMethod === "moduleResponse") {
 			if (!("moduleResponse" in wEvent.data)) {
-				let msg = "worker did not include a moduleResponse field in its moduleResponse")
+				let msg = "worker did not include a moduleResponse field in its moduleResponse"
 				logToSource(rwEvent, msg)
 				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
 				return
@@ -240,7 +246,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// Check whether the worker has reported an error.
 		if (wEvent.data.kernelMethod === "moduleResponseErr") {
 			if (!("err" in wEvent.data)) {
-				let msg = "worker did not include an err field in its moduleResponseErr")
+				let msg = "worker did not include an err field in its moduleResponseErr"
 				logToSource(rwEvent, msg)
 				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
 				return
@@ -250,7 +256,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 			return
 		}
 
-		let msg = "unrecognized kernelMethod\n"+JSON.stringify(wEvent.data))
+		let msg = "unrecognized kernelMethod\n"+JSON.stringify(wEvent.data)
 		logToSource(rwEvent, msg)
 		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, msg)
 		return
@@ -307,11 +313,11 @@ var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 	if (sourceIsWorker) {
 		source.postMessage(message)
 	} else {
-		source.postMessage(message, "*")
+		source.postMessage(message, source.origin)
 	}
 }
 
-// handleSkynetKernelRequestURL handles messages calling the kernelMethod
+// handleSkynetKernelRequestGET handles messages calling the kernelMethod
 // "requestURL". The primary purpose of this method is to simulate a GET call
 // to a portal endpoint, but fill the response with trusted data rather than
 // accepting whatever the portal serves.
@@ -319,45 +325,51 @@ var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 // TODO: Need to reject unrecognized URLs.
 //
 // TODO: Need to return something real not just 'yo'.
-var handleSkynetKernelRequestURL = function(event) {
-	let enc = new TextEncoder()
-	let buf = enc.encode("yo")
-	let requestURLResponse = {
-		kernelMethod: "requestURLResponse",
-		response: buf,
-		nonce: event.data.nonce,
+var handleSkynetKernelRequestGET = function(event) {
+	// Define a helper function for returning an error.
+	let respondErr = function(err: string) {
+		let requestURLResponse = {
+			queryStatus: "reject",
+			nonce: event.data.nonce,
+			kernelMethod: "requestURLResponseErr",
+			err,
+		}
+		event.source.postMessage(requestURLResponse, event.origin)
 	}
-	event.source.postMessage(requestURLResponse, "*")
-}
+	let respondBody = function(body) {
+		let requestURLResponse = {
+			queryStatus: "resolve",
+			nonce: event.data.nonce,
+			kernelMethod: "requestURLResponse",
+			response: body,
+		}
+		event.source.postMessage(requestURLResponse, event.origin)
+	}
 
-// handleSkynetKernelRequestHomescreen will fetch the user's homescreen from
-// their Skynet account and serve it to the caller.
-//
-// TODO: Turn this into a moduleCall. Maybe.
-var handleSkynetKernelRequestHomescreen = function(event) {
-	// TODO: Instead of using hardcoded skylinks, derive some
-	// registry locations from the user's seed, verify the
-	// downloads, and then use those.
+	// Input checking.
+	if (!("data" in event) || !("url" in event.data) || typeof event.data.url !== "string") {
+		respondErr("no url provided")
+		return
+	}
+
+	// Handle the homepage.
 	//
-	// TODO: We can/should probably start fetching these as soon as
-	// the kernel starts up, instead of waiting until the first
-	// request.
-	//
-	// TODO: We should save the user's homescreen files to local
-	// storage and load them from local storage for a performance
-	// boost. After loading them locally and serving them to the
-	// caller, we can check if there was an update.
-	var jsResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.js/");
-	var htmlResp = downloadV1Skylink("https://siasky.net/branch-file:::skynet-kernel-skyfiles/homescreen.html/");
-	Promise.all([jsResp, htmlResp]).then((values) => {
-		var homescreenResponse = {
-			kernelMethod: "receiveHomescreen",
-			script: values[0],
-			html: values[1]
-		};
-		event.source.postMessage(homescreenResponse, "*");
-	});
-	return;
+	// TODO: Change the homepage to a v2link so that we can update the
+	// homepage without having to modify the file.
+	if (event.data.url === "https://home.siasky.net/") {
+		downloadSkylink("AAALqpL5IdJ0PzBmEKdvSe51CIIVZcg_oByrrvrfBOTiMg")
+		.then(result => {
+			respondBody(result.fileData)
+		})
+		.catch(err => {
+			respondErr("unable to fetch skylink for home.siasky.net: "+err)
+		})
+		return
+	}
+
+	// Default, return a page indicating an error.
+	let buf = new TextEncoder().encode("unrecognized URL: "+event.data.url)
+	respondBody(buf)
 }
 
 // handleRequestTest will respond to a requestTest call by sending a
@@ -368,23 +380,10 @@ function handleRequestTest(event) {
 	// Send a 'receiveTest' response.
 	event.source.postMessage({
 		queryStatus: "resolve",
-		kernelMethod: "receiveTest",
 		nonce: event.data.nonce,
+		kernelMethod: "receiveTest",
 		version: "v0.0.1",
-	}, event.source.origin)
-}
-
-// logToSource is a helper function to send a message to the source of an event
-// with a logging statement. For some reason, messages logged in the iframe of
-// a background extension (the generic construction of the kernel) don't output
-// by default and I couldn't figure out how to configure it to happen. Instead,
-// we send a message to the background script requesting that it do the log for
-// us.
-function logToSource(event, message) {
-	window.parent.postMessage({
-		kernelMethod: "log",
-		message,
-	}, event.source.origin)
+	}, event.origin)
 }
 
 // Overwrite the handleMessage function that gets called at the end of the
@@ -398,11 +397,12 @@ handleMessage = function(event) {
 		window.parent.postMessage({kernelMethod: "authFailed"}, "*")
 		return
 	}
-	log("message", "user is authenticated")
 
-	// TODO: Need to perform input validation to see whether kernelMethod
-	// and nonce have been provided. Who knows what that will break in the
-	// meantime.
+	// Input validation.
+	if (!("kernelMethod" in event.data)) {
+		logToSource(event, "kernel request is missing 'kernelMethod' field")
+		return
+	}
 
 	// If we are receiving an authCompleted message, it means the calling
 	// app thinks the kernel hasn't loaded yet. Send a message indicating
@@ -414,6 +414,12 @@ handleMessage = function(event) {
 	if (event.data.kernelMethod === "authCompleted") {
 		log("lifecycle", "received authCompleted message, though kernel is already loaded\n", event)
 		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, "*")
+		return
+	}
+
+	// Check that there's a nonce.
+	if (!("nonce" in event.data)) {
+		logToSource(event, "message sent to kernel with no nonce field")
 		return
 	}
 
@@ -429,35 +435,38 @@ handleMessage = function(event) {
 	// provided by home are allowed.
 	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
 		logOut()
-		log("lifecycle", "sending logOutSuccess message to home")
+		window.postMessage({kernelMessage: "logOutSuccess"}, "*")
 		try {
 			event.source.postMessage({kernelMethod: "logOutSuccess"}, "*")
 		} catch (err) {
 			log("lifecycle", "unable to inform source that logOut was competed", err)
 		}
 		return
+	} else if (event.data.kernelMethod === "logOut") {
+		logToSource(event, "logOut attempt by non-home origin: "+event.origin)
+		return
 	}
 
-	// Establish a handler that manages api calls to modules.
+	// Establish handlers for the major kernel methods.
 	if (event.data.kernelMethod === "moduleCall") {
 		handleModuleCall(event, event.source, false)
 		return
 	}
-
-	// Establish a handler that will serve the user's homescreen to the
-	// caller.
-	if (event.data.kernelMethod === "requestHomescreen") {
-		handleSkynetKernelRequestHomescreen(event)
+	if (event.data.kernelMethod === "requestGET") {
+		handleSkynetKernelRequestGET(event)
 		return
 	}
-
-	// Establish a handler that will serve the user's custom response for a
-	// particular URL.
-	//
-	// TODO: This is not the best way to do URL injection.
-	if (event.data.kernelMethod === "requestURL") {
-		handleSkynetKernelRequestURL(event)
-	}
-
+	// Log if there's a kernelMethod that we do not recognize.
 	logToSource(event, "unrecognized kernel method: "+event.data.kernelMethod)
 }
+
+// Listen for changes to localStorage so we know when to emit a logOut signal.
+//
+// TODO: This is probably not the best approach for knowing when a user has
+// logged out.
+window.addEventListener("storage", event => {
+	if (event.key === null) {
+		window.parent.postMessage({kernelMessage: "log", message: "storage event received"}, "*")
+		window.postMessage({kernelMessage: "logOutSuccess"}, "*")
+	}
+})

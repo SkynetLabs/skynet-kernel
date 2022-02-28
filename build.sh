@@ -102,7 +102,6 @@ rm -rf build
 mkdir -p build/skynet-kernel-extension
 mkdir -p build/skynet-kernel-skyfiles
 cp -r skynet-kernel-extension/assets/* build/skynet-kernel-extension
-cp -r skynet-kernel-skyfiles/other/* build/skynet-kernel-skyfiles
 
 # Perform the typescript compilations.
 ( cd skynet-kernel-extension && tsc ) || exit 1
@@ -189,9 +188,6 @@ do
 	echo $v1skylink > build-cache/${file#*/}
 done
 
-# Get the skylink of the tester file.
-tester_skylink=$(skynet-utils upload-file-dry build/skynet-kernel-skyfiles/tester.html)
-
 # Only instruct the user to refersh their browser extension if something
 # changed.
 if [ "$uploadedFile" == "true" ];
@@ -201,7 +197,3 @@ then
 	echo
 	echo refresh the extension in your browser and then test with the test file
 fi
-# Instruct the user on how to test the updated kernel. Use siasky.net
-# regardless of what portal is set locally so that the kernel extension works.
-echo you can open the test file with the following command
-echo xdg-open https://siasky.net/$tester_skylink

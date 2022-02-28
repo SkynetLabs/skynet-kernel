@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<body>
+<h1>This is the Kernel Homepage for Logged in Users</h1>
+
+<button onclick="myFunction()">Log Out</button>
+
+<script>
+function myFunction() {
+	kernelFrame.contentWindow.postMessage({
+		kernelMethod: "logOut",
+		nonce: 1,
+	}, "https://kernel.siasky.net")
+}
+
+// Add a quick handler to receive logging messages from the kernel.
+window.addEventListener("message", (event) => {
+	console.log("received message\n", event.data)
+	if (event.origin !== "https://kernel.siasky.net") {
+		console.log("bad message received")
+		return
+	}
+	// Handle a logout message.
+	if (event.data.kernelMethod === "logOutSuccess") {
+		console.log("calling reload")
+		location.reload()
+	} else {
+		console.log(event.data)
+	}
+}, false)
+
+// Open the kernel in an invisible iframe. This is the only way to gain
+// priviledged access to the kernel - any priviliedged pages must have a direct
+// connection to the kernel so that the kernel can review their origin.
+var kernelFrame = document.createElement("iframe")
+kernelFrame.src = "https://kernel.siasky.net"
+kernelFrame.style.width = "0"
+kernelFrame.style.height = "0"
+kernelFrame.style.border = "none"
+kernelFrame.style.position = "absolute"
+document.body.appendChild(kernelFrame)
+</script>
+
+</body>
+</html>
+

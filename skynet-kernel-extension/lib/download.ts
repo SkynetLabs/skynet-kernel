@@ -456,10 +456,3 @@ var downloadSkylink = function(skylink: string): Promise<downloadSkylinkResult> 
 		})
 	})
 }
-
-// TODO: Remove this function. Currently we cannot remove it because the kernel
-// itself uses the function to download and serve the user's homescreen. Once
-// the kernel is cleaned up to use the secure functions, we can remove this.
-var downloadV1Skylink = function(skylink: string) {
-	return fetch(skylink).then(response => response.text())
-}

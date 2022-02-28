@@ -1,5 +1,12 @@
 export {};
 
+console.log("kernel iframe loaded")
+
+// TODO: Need to redo the logging system.
+
+// TODO: Need to add handlers to the extension for requestGET that will serve
+// the home page and the auth page.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.siasky.net"
@@ -255,6 +262,15 @@ log("lifecycle", "kernel bootloader has loaded");
 window.addEventListener("message", (event: any) => {
 	handleMessage(event)
 }, false)
+
+// Listen for a successful login, and emit an auth signal.
+//
+// TODO: This is probably not the best way to approach this.
+window.addEventListener("storage", event => {
+	if (event.key === "seed") {
+		window.parent.postMessage({kernelMEssage: "authCompleted"}, "*")
+	}
+})
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform

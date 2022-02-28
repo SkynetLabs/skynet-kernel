@@ -1,11 +1,15 @@
 export {}
 
+// TODO: Need to refresh the background script upon login. Need to make sure
+// all other pages also refresh.
+
 declare var browser
 
 // blockUntilKernelLoaded is a promise that will resolve when the kernel sends
 // a message indicating it has loaded. We store the resolve function in a
 // global variable so the promise can be resolved by another frame.
 var kernelLoaded
+var kernelLoadedResolved = false
 var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 
 // queryKernel returns a promise that will resolve when the kernel has
@@ -63,13 +67,10 @@ function contentScriptListener(message, sender) {
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onMessage.addListener(contentScriptListener)
 
-// Create a listener that will listen for messages from the kernel. The
-// responses are keyed by a nonce, the caller passes the nonce to the kernel,
-// and the kernel passes the nonce back. Responses are stored in the
-// 'responses' object, and are expected to be deleted by the caller once
-// consumed. The cpu and memory overheads associated with using an object to
-// store responses are unknown.
-window.addEventListener("message", (event) => {
+// Create a handler for all kernel responses. The responses are all keyed by a
+// nonce, which gets matched to a promise that's been stored in
+// 'kernelQueries'.
+function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "https://kernel.siasky.net") {
 		console.log("received unwanted message from: ", event.origin, "\n", event)
@@ -84,10 +85,26 @@ window.addEventListener("message", (event) => {
 		return
 	}
 
+	// If the kernel is reporting that it has now logged in, reload the
+	// page.
+	if (event.data.kernelMethod === "authCompleted") {
+		console.log("background is reloading because the auth has completed")
+		browser.runtime.reload()
+		return
+	}
+	if (event.data.kernelMethod === "logOutSuccess") {
+		console.log("background is reloading because the user has logged out")
+		browser.runtime.reload()
+		return
+	}
+
 	// Listen for the kernel successfully loading.
-	if (event.data.kernelMethod === "skynetKernelLoaded") {
+	if (event.data.kernelMethod === "skynetKernelLoaded" || event.data.kernelMethod === "authFailed") {
 		console.log("kernel has loaded")
-		kernelLoaded() // This is resolving a promise
+		if (kernelLoadedResolved !== true) {
+			kernelLoaded() // This is resolving a promise
+			kernelLoadedResolved = true
+		}
 		return
 	}
 
@@ -99,6 +116,12 @@ window.addEventListener("message", (event) => {
 	}
 	let result = kernelQueries[event.data.nonce]
 	delete kernelQueries[event.data.nonce]
+
+	// Resolve or reject the request based on the query status.
+	if (!("queryStatus" in event.data)) {
+		console.log("received a kernel message with no query status")
+		return
+	}
 	if (event.data.queryStatus === "resolve") {
 		result.resolve(event.data)
 		return
@@ -107,19 +130,20 @@ window.addEventListener("message", (event) => {
 		result.reject(event.data)
 		return
 	}
-}, false)
+	console.log("received an invalid query status:", event.data.queryStatus)
+}
+
+// Create a listener to handle responses coming from the kernel.
+window.addEventListener("message", handleKernelResponse)
 
 // onBeforeRequestListener will handle calls from onBeforeRequest. Calls to the
 // kernel will be swallowed and replaced by a content script. Calls to pages
 // other than the kernel will be passed to the kernel, and the kernel will
 // decide what response is appropriate for the provided call.
-//
-// TODO: Needs work. Only kernel.siasky.net should be excluded, plus maybe an
-// auth page. Need to be able to process all types of requests, not just GET
-// requests.
 function onBeforeRequestListener(details) {
-	// TODO: Switch to checking === kernel.siasky.net
-	if (details.url !== "https://test.siasky.net/") {
+	// If the request is specifically for the kernel iframe, we need to
+	// swallow the request and let the content script do all of the work.
+	if (details.url === "https://kernel.siasky.net/") {
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
@@ -127,17 +151,38 @@ function onBeforeRequestListener(details) {
 		return {}
 	}
 
+	// Ignore all requests that are not GET requests - we let these
+	// requests complete like normal.
+	//
+	// NOTE: We intend to intercept all other types of requests as well in
+	// the future, but for now we're only worrying about GET requests to
+	// keep things simpler.
+	if (details.method !== "GET") {
+		return
+	}
+
 	// Ask the kernel what the appropriate response for this URL is.
+	//
+	// TODO: Need to conform this to the new messaging style.
+	console.log("doing an injection\n", details.originUrl, "\n", details.url)
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.ondata = event => {
+		console.log("filtering for request")
 		queryKernel({
-			kernelMethod: "requestURL",
+			kernelMethod: "requestGET",
 			url: details.url,
 		})
 		.then(response => {
-			filter.write(response)
+			console.log("got a response for homepage")
+			console.log(response)
+			let resp = <any>response // TypeScript was being dumb.
+			filter.write(resp.response)
 			filter.close()
 		})
+		.catch(err => {
+			console.log("requestGET query to kernel failed:", err)
+		})
+		console.log("queryKernel has been called")
 	}
 }
 
@@ -173,15 +218,11 @@ browser.webRequest.onBeforeRequest.addListener(
 // the code at these URLs behaves.
 browser.webRequest.onHeadersReceived.addListener(
 	onHeadersReceivedListener,
-	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*"]},
+	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*", "https://test.siasky.net/*"]},
 	["blocking", "responseHeaders"]
 )
 
 // Open an iframe containing the kernel.
 var kernelFrame = document.createElement("iframe")
 kernelFrame.src = "https://kernel.siasky.net"
-kernelFrame.style.width = "0"
-kernelFrame.style.height = "0"
-kernelFrame.style.border = "none"
-kernelFrame.style.position = "absolute"
 document.body.appendChild(kernelFrame)
