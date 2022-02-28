@@ -268,7 +268,7 @@ window.addEventListener("message", (event: any) => {
 // TODO: This is probably not the best way to approach this.
 window.addEventListener("storage", event => {
 	if (event.key === "seed") {
-		window.parent.postMessage({kernelMEssage: "authCompleted"}, "*")
+		window.parent.postMessage({kernelMessage: "authCompleted"}, "*")
 	}
 })
 

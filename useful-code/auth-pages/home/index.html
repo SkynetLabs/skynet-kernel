@@ -3,10 +3,11 @@
 <body>
 <h1>This is the Kernel Homepage for Logged in Users</h1>
 
-<button onclick="myFunction()">Log Out</button>
+<button onclick="requestLogOut()">Log Out</button>
 
 <script>
-function myFunction() {
+// Build the function that will cause a logOut call.
+function requestLogOut() {
 	kernelFrame.contentWindow.postMessage({
 		kernelMethod: "logOut",
 		nonce: 1,
@@ -15,15 +16,26 @@ function myFunction() {
 
 // Add a quick handler to receive logging messages from the kernel.
 window.addEventListener("message", (event) => {
+	// Log about which message was received.
 	console.log("received message\n", event.data)
 	if (event.origin !== "https://kernel.siasky.net") {
 		console.log("bad message received")
 		return
 	}
-	// Handle a logout message.
+
+	// Handle a logout message. We ask the background script to do a
+	// kernelTest because that will give the background script a chance to see
+	// that the kernel is logged out.
 	if (event.data.kernelMethod === "logOutSuccess") {
 		console.log("calling reload")
-		location.reload()
+		window.postMessage({
+			method: "kernelQuery",
+			nonce: 1,
+			kernelQuery: {
+				kernelMethod: "requestTest",
+			}
+		})
+		setTimeout(location.reload, 1000)
 	} else {
 		console.log(event.data)
 	}

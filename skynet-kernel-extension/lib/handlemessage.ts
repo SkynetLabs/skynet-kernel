@@ -33,7 +33,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	// homepage without having to modify the file.
 	if (event.data.url === "https://home.siasky.net/") {
 		logToSource(event, "requestGET received for home")
-		downloadSkylink("CACJ7F4rr9DsyVt534T2YglPCwczVDjz-PIuCNmY12HVGQ")
+		downloadSkylink("CADGJ1-h3kwziSDn7xKz4BcrPeXzxSyJI5Jy6Z70TKgDvw")
 		.then(result => {
 			respondBody(result.fileData)
 		})
@@ -68,6 +68,15 @@ var handleSkynetKernelRequestGET = function(event) {
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
 var handleMessage = function(event: any) {
+	// Check if the user has been authed. If so, send an authCompleted
+	// message.
+	let [userSeed, errGSU] = getUserSeed()
+	if (errGSU === null) {
+		log("lifecycle", "user is not logged in, sending message to parent\n", errGSU);
+		window.parent.postMessage({kernelMethod: "authCompleted"}, "*");
+		return
+	}
+
 	// If the parent is informing us that the user has completed
 	// authentication, we'll go ahead and reload the kernel so that the
 	// user's full kernel can be pulled in.

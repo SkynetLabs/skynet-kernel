@@ -357,7 +357,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	// TODO: Change the homepage to a v2link so that we can update the
 	// homepage without having to modify the file.
 	if (event.data.url === "https://home.siasky.net/") {
-		downloadSkylink("AAALqpL5IdJ0PzBmEKdvSe51CIIVZcg_oByrrvrfBOTiMg")
+		downloadSkylink("AABM9pN070ult5zbBGnLvLkPe1_YOBDIqg55cY8NOiQaHw")
 		.then(result => {
 			respondBody(result.fileData)
 		})
@@ -394,7 +394,7 @@ handleMessage = function(event) {
 	let [userSeed, errGSU] = getUserSeed()
 	if (errGSU !== null) {
 		log("message", "auth has failed, sending an authFailed message", errGSU)
-		window.parent.postMessage({kernelMethod: "authFailed"}, "*")
+		window.parent.postMessage({kernelMethod: "authFailedAfterLoad"}, "*")
 		return
 	}
 
@@ -435,7 +435,7 @@ handleMessage = function(event) {
 	// provided by home are allowed.
 	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
 		logOut()
-		window.postMessage({kernelMessage: "logOutSuccess"}, "*")
+		window.parent.postMessage({kernelMessage: "logOutSuccess"}, "*")
 		try {
 			event.source.postMessage({kernelMethod: "logOutSuccess"}, "*")
 		} catch (err) {
@@ -467,6 +467,6 @@ handleMessage = function(event) {
 window.addEventListener("storage", event => {
 	if (event.key === null) {
 		window.parent.postMessage({kernelMessage: "log", message: "storage event received"}, "*")
-		window.postMessage({kernelMessage: "logOutSuccess"}, "*")
+		window.parent.postMessage({kernelMessage: "logOutSuccess"}, "*")
 	}
 })

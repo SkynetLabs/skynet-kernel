@@ -98,7 +98,15 @@ var handleMessage = function (event) {
     // kernel, we need to forward it to the kernel.
     if (event.data.kernelMethod === "authCompleted") {
         kernel.contentWindow.postMessage({ kernelMethod: "authCompleted" }, "https://kernel.siasky.net");
-	location.reload();
+	window.postMessage({
+		method: "kernelQuery",
+		nonce: 1,
+		kernelQuery: {
+			kernelMethod: "requestTest",
+		}
+	})
+	console.log("calling reload")
+	setTimeout(location.reload, 1000)
         return;
     }
 };

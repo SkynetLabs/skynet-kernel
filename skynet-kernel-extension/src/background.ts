@@ -85,8 +85,13 @@ function handleKernelResponse(event) {
 		return
 	}
 
-	// If the kernel is reporting that it has now logged in, reload the
-	// page.
+	// If the kernel is reporting anything to indicate a change in auth
+	// status, reload the extension.
+	if (event.data.kernelMethod === "authFailedAfterLoad") {
+		console.log("background is reloading because the auth failed after load")
+		browser.runtime.reload()
+		return
+	}
 	if (event.data.kernelMethod === "authCompleted") {
 		console.log("background is reloading because the auth has completed")
 		browser.runtime.reload()
