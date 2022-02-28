@@ -31,11 +31,11 @@ else
 fi
 
 # Copy the source folder so we can perform preprocessing.
-mkdir -p skynet-kernel-extension/bundle
-cp skynet-kernel-extension/src/* skynet-kernel-extension/bundle/
+mkdir -p extension/bundle
+cp extension/src/* extension/bundle/
 
 # Iterate through the bundle files, looking for import statements.
-srcs=$(find skynet-kernel-extension/bundle)
+srcs=$(find extension/bundle)
 for src in $srcs
 do
 	# Skip any directories.
@@ -85,13 +85,13 @@ done
 # repo.
 kernelV2skylink=$(skynet-utils generate-v2skylink skynet-kernel-skyfiles/skynet-kernel.js $seed)
 fileD="skynet-kernel-skyfiles/skynet-kernel.js"
-fileO="skynet-kernel-extension/bundle/content-kernel.ts"
+fileO="extension/bundle/content-kernel.ts"
 importLine=$(grep -n "// transplant:::$fileD" $fileO | cut -f1 -d:)
 upTo=$((importLine-1))
 after=$((importLine+1))
-authFilePrefix=$(sed -n 1,${upTo}p skynet-kernel-extension/bundle/content-kernel.ts)
+authFilePrefix=$(sed -n 1,${upTo}p extension/bundle/content-kernel.ts)
 transplantCode="var defaultKernelResolverLink = \"$kernelV2skylink\";"
-authFileSuffix=$(sed -n ${after},'$p' skynet-kernel-extension/bundle/content-kernel.ts)
+authFileSuffix=$(sed -n ${after},'$p' extension/bundle/content-kernel.ts)
 rm $fileO
 cat <<< $authFilePrefix >> $fileO
 cat <<< $transplantCode >> $fileO
@@ -99,18 +99,18 @@ cat <<< $authFileSuffix >> $fileO
 
 # Recreate the build directory and copy the source files over.
 rm -rf build
-mkdir -p build/skynet-kernel-extension
+mkdir -p build/extension
 mkdir -p build/skynet-kernel-skyfiles
-cp -r skynet-kernel-extension/assets/* build/skynet-kernel-extension
+cp -r extension/assets/* build/extension
 
 # Perform the typescript compilations.
-( cd skynet-kernel-extension && tsc ) || exit 1
+( cd extension && tsc ) || exit 1
 ( cd skynet-kernel-skyfiles && tsc ) || exit 1
 
 # Strip the typescript declaration from all of the files in the browser
 # extension, as this breaks compatibility with the extensions system. The
 # declaration always appears at the second line of the file.
-files=$(find build/skynet-kernel-extension/*.js)
+files=$(find build/extension/*.js)
 for file in $files
 do
 	sed -i '2d' $file
@@ -156,7 +156,7 @@ do
 	then
 		continue
 	fi
-	if [[ "$file" == *"skynet-kernel-extension"* ]]
+	if [[ "$file" == *"extension"* ]]
 	then
 		continue
 	fi

@@ -1,30 +1,49 @@
 # skynet-kernel (EXPERIMENTAL)
 
 skynet-kernel is a web3 browser extension that creates a fully trustless
-client-side environment for the user. Web pages downloaded using the kenrel can
-be verified via hashes and signatures before being presented to the browser,
-ensuring that the user is running exactly the code that they are supposed to be
-running.
+client-side environment for the user. Every line of code that runs in this
+environment gets verified by the client before running, enabling users to run
+applications like Defi frontends, decentralized storage clients, and even
+entire blockchain full nodes from their web browser without needing to fear
+that a malicious server could serve them corrupt data.
 
-This trusted zone can be extended with 'kernel modules'. Any third party
-developer can write a kernel module and make it available to other developers.
-These modules also run in fully trustless zones, and leverage the robust
-sandboxing of the web browser to ensure that malicious modules are unable to
-cause any interference for the user.
+The kernel works as a browser extension that intercepts network requests sent
+by the browser. The kernel replaces the traditional network request (which
+trusts the server) with a verifiable network request, ensuring that when the
+user loads a webpage or application, the user is loading exactly the code that
+they are expecting to load.
 
-Modules can be simple, like libraries to download and verify files from
-friends, or modules can be sophisticated, even running entire blockchains.
-Modules are spun up as webworkers and then left alive for as long as the user
-has their web browser open.
+The kernel intercepts all network requests going to the domain 'skt.us', a
+domain owned by the Skynet Labs team. Users that don't have the Skynet
+extension will see a 404 page that explains what Skynet is and how to get the
+extension. Users that do have the extension will be able to trustlessly load
+any application which is hosted on Skynet.
 
-## General Structure
+###### NOTE: skt.us has not been fully set up yet, in the meantime the kernel
+is actually using siasky.net as the primary domain.This will change shortly.
 
-The repo is still early and being continuously refactored in large ways, and
-therefore this README should not be trusted to be accurate. The best way to
-learn is to explore.
+The kernel supports static web pages, decentralized storage endpoints
+(including uploads, downloads, and SkyDB), and also supports long running
+background applications will run so long as the user has their web browser
+open. A simple example of a useful background application is a chat service
+which listens for messages from other users. A more advanced example would be a
+crypto trading bot.
+
+## Repository Structure
+
+This repository is still early and is being continuously refactored. I have
+done my best to keep the README up-to-date, but use some common sense.
+
+The 'extension' folder contains the source code for the browser extension. It's
+a typescript project which uses a manual bundler (build.sh at the top level) to
+compile into the final browser extension.
 
 'libkernel' contains a node library that can help skapps interact with the
-kernel.
+kernel. The main goal of libkernel is to greatly simplify the process of
+communicating effectively with the kernel.
+
+The 'webapps' directory contains webapps that are a key part of the development
+process.
 
 'modules' contains a few kernel modules that are partially implemented. In
 general, the code there is clean enough that it could be used as a reference

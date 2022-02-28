@@ -11,19 +11,19 @@ document.body.appendChild(header);
 
 // NOTE: These imports are order-sensitive.
 
-// import:::skynet-kernel-extension/lib/parsejson.ts
-// import:::skynet-kernel-extension/lib/err.ts
-// import:::skynet-kernel-extension/lib/log.ts
-// import:::skynet-kernel-extension/lib/sha512.ts
-// import:::skynet-kernel-extension/lib/ed25519.ts
-// import:::skynet-kernel-extension/lib/blake2b.ts
-// import:::skynet-kernel-extension/lib/merkle.ts
-// import:::skynet-kernel-extension/lib/encoding.ts
-// import:::skynet-kernel-extension/lib/preferredportals.ts
-// import:::skynet-kernel-extension/lib/progressivefetch.ts
-// import:::skynet-kernel-extension/lib/registry.ts
-// import:::skynet-kernel-extension/lib/download.ts
-// import:::skynet-kernel-extension/lib/handlemessage.ts
+// import:::extension/lib/parsejson.ts
+// import:::extension/lib/err.ts
+// import:::extension/lib/log.ts
+// import:::extension/lib/sha512.ts
+// import:::extension/lib/ed25519.ts
+// import:::extension/lib/blake2b.ts
+// import:::extension/lib/merkle.ts
+// import:::extension/lib/encoding.ts
+// import:::extension/lib/preferredportals.ts
+// import:::extension/lib/progressivefetch.ts
+// import:::extension/lib/registry.ts
+// import:::extension/lib/download.ts
+// import:::extension/lib/handlemessage.ts
 
 // transplant:::skynet-kernel-skyfiles/skynet-kernel.js
 
