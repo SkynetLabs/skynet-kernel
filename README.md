@@ -28,6 +28,16 @@ open. A simple example of a useful background application is a chat service
 which listens for messages from other users. A more advanced example would be a
 crypto trading bot.
 
+The kernel also supports 'modules', which are hosted in private domains and can
+serve APIs to webapps and other modules. Modules enable web3 applications to
+securely share data, and enable users to export their information between
+applications. A simple example of a module would track a username and avatar
+for a user, so that all web3 applications may load the same profile information
+for the user. A more complex example might be a social graph which establishes
+all of a users friends and all of the content creators that they follow,
+allowing a user to automatically be subscribed to all of their favorite
+creators the moment they join a new application or platform.
+
 ## Repository Structure
 
 This repository is still early and is being continuously refactored. I have
@@ -35,26 +45,25 @@ done my best to keep the README up-to-date, but use some common sense.
 
 The 'extension' folder contains the source code for the browser extension. It's
 a typescript project which uses a manual bundler (build.sh at the top level) to
-compile into the final browser extension.
+compile into the final browser extension. The code in this folder is
+responsible for creating a trustless execution zone for the user.
 
-'libkernel' contains a node library that can help skapps interact with the
-kernel. The main goal of libkernel is to greatly simplify the process of
-communicating effectively with the kernel.
+The 'kernel' folder contains the default kernel that gets loaded for the user
+when the user first logs into Skynet. The majority of the interesting concepts
+are in this folder.
+
+The 'libkernel' folder contains a node library that can help skapps interact
+with the kernel. The main goal of libkernel is to greatly simplify the process
+of communicating effectively with the kernel.
+
+The 'modules' folder contains example kernel modules, including modules
+maintained by the core team that are intended to be broadly useful to
+developers.
 
 The 'webapps' directory contains webapps that are a key part of the development
-process.
-
-'modules' contains a few kernel modules that are partially implemented. In
-general, the code there is clean enough that it could be used as a reference
-for making your own modules.
-
-'sknyet-kernel-extension' contains the code for the browser extension that is
-necessary to make the kernel trustless.
-
-'skynet-kernel-skyfiles' contains the full kernel.
-
-'useful-code/auth-pages' contains some very jank and very basic HTML files that
-are used for login and authentication.
+process. The most important apps are the default home page, the default
+authenticated home page, the page that allows a user to log into Skynet, and a
+testapp which provides integration testing for the kernel.
 
 ## The Build Process
 

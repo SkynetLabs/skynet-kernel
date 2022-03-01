@@ -7,4 +7,8 @@ build
 build-cache
 bundle
 dist
-gatsby
+
+# gatsby related files
+.cache
+node_modules
+public
