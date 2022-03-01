@@ -67,13 +67,7 @@ testapp which provides integration testing for the kernel.
 
 ## The Build Process
 
-You need to build the utility in the 'go-skynet' repo from the 'david/env-var'
-branch. You also need to be running linux (support for Mac is coming). You will
-also need typescript. Once you have all those things, just run 'make'.
-
-In useful-code/gatsby-testapp/index.js you'll find some Gastby/React code that
-is capable of testing the project. The whole build and test process is
-currently pretty jank, it might be easier to wait a week or two.
+The build process is being updated.
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 
