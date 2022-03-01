@@ -1,6 +1,7 @@
 // handleSkynetKernelRequestGET is defined for two pages when the user hasn't
 // logged in: the home page, and the authentication page.
 var handleSkynetKernelRequestGET = function(event) {
+	logToSource(event, "help me")
 	// Define a helper function for returning an error.
 	let respondErr = function(err: string) {
 		let requestURLResponse = {
@@ -31,9 +32,10 @@ var handleSkynetKernelRequestGET = function(event) {
 	//
 	// TODO: Change the homepage to a v2link so that we can update the
 	// homepage without having to modify the file.
-	if (event.data.url === "https://home.siasky.net/") {
+	let url = event.data.url
+	if (url === "https://home.siasky.net/" || url === "http://home.skynet/") {
 		logToSource(event, "requestGET received for home")
-		downloadSkylink("CAA3n9iPs9RqBnOsosOUb7bKhgPDHwX3vqU0jxJsFJfpzg")
+		downloadSkylink("CACojVyaykfgzAXzZ81r6m_hIVvppUqMStE1K6PFri6lvA")
 		.then(result => {
 			respondBody(result.fileData)
 		})
@@ -46,7 +48,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	//
 	// TODO: Change the homepage to a v2link so that we can update the
 	// homepage without having to modify the file.
-	if (event.data.url === "https://kernel.siasky.net/auth.html") {
+	if (url === "https://kernel.siasky.net/auth.html" || url === "http://kernel.skynet/auth.html") {
 		logToSource(event, "requestGET received for auth")
 		downloadSkylink("OACcYscL6mYhWwp9S8gombapSGIUlj_D4eT2SdYuqFIhIw")
 		.then(result => {
@@ -60,7 +62,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	logToSource(event, "requestGET received for something else: "+event.data.url)
 
 	// Default, return a page indicating an error.
-	let buf = new TextEncoder().encode("unrecognized URL: "+event.data.url)
+	let buf = new TextEncoder().encode("err - unrecognized URL: "+event.data.url)
 	respondBody(buf)
 }
 

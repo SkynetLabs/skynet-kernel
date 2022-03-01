@@ -1,8 +1,5 @@
 export {}
 
-// TODO: Need to refresh the background script upon login. Need to make sure
-// all other pages also refresh.
-
 declare var browser
 
 // blockUntilKernelLoaded is a promise that will resolve when the kernel sends
@@ -159,11 +156,22 @@ function onBeforeRequestListener(details) {
 	// If the request is specifically for the kernel iframe, we need to
 	// swallow the request and let the content script do all of the work.
 	if (details.url === "https://kernel.siasky.net/") {
+		console.log("swallowing kernel", details.url)
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
 		}
 		return {}
+	}
+
+	// Ignore all requests that aren't pointed at the skynet TLD.
+	let isSkynetTLD = new URL(details.url).hostname.endsWith("skynet")
+	let isKernelAuth = details.url === "https://kernel.siasky.net/auth.html"
+	let isKernel = details.url === "https://kernel.siasky.net/"
+	let isHome = details.url === "https://home.siasky.net/"
+	if (!isSkynetTLD && !isKernelAuth && !isKernel && !isHome) {
+		console.log("ignoring", details.url)
+		return
 	}
 
 	// Ignore all requests that are not GET requests - we let these
@@ -173,31 +181,33 @@ function onBeforeRequestListener(details) {
 	// the future, but for now we're only worrying about GET requests to
 	// keep things simpler.
 	if (details.method !== "GET") {
+		console.log("ignoring non-GET at", details.url)
 		return
 	}
 
-	// Ask the kernel what the appropriate response for this URL is.
-	//
-	// TODO: Need to conform this to the new messaging style.
-	console.log("doing an injection\n", details.originUrl, "\n", details.url)
+	// Ask the kernel what data should be loaded before grabbing the
+	// response filter. The response filter can often take a while to
+	// become active, so we can start the process of fetching the trusted
+	// response from the kernel to keep things parallelized.
+	console.log("asking kernel for", details.url)
+	let query = queryKernel({
+		kernelMethod: "requestGET",
+		url: details.url,
+	})
+
+	// Grab the response data and replace it with the response from the
+	// kernel.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
-	filter.ondata = event => {
-		console.log("filtering for request")
-		queryKernel({
-			kernelMethod: "requestGET",
-			url: details.url,
-		})
-		.then(response => {
-			console.log("got a response for homepage")
-			console.log(response)
+	filter.onstart = event => {
+		query.then(response => {
 			let resp = <any>response // TypeScript was being dumb.
+			console.log("kernel gave us", resp.response)
 			filter.write(resp.response)
 			filter.close()
 		})
 		.catch(err => {
 			console.log("requestGET query to kernel failed:", err)
 		})
-		console.log("queryKernel has been called")
 	}
 }
 
@@ -205,6 +215,14 @@ function onBeforeRequestListener(details) {
 // with trusted headers, preventing the portal from providing potentially
 // malicious information through the headers.
 function onHeadersReceivedListener(details) {
+	// Ignore anything thats not from the target URLs.
+	if (!(new URL(details.url).hostname.endsWith("skynet")) && details.url !== "https://kernel.siasky.net/" && details.url !== "https://home.siasky.net/" && details.url !== "https://kernel.siasky.net/auth.html") {
+		console.log("no headers injection for", details.url)
+		return details.responseHeaders
+	}
+
+	// For everything else, replace the headers.
+	console.log("headers injection for", details.url)
 	let newHeaders = [
 		{
 			name: "content-type",
@@ -223,7 +241,7 @@ function onHeadersReceivedListener(details) {
 // or cancel them.
 browser.webRequest.onBeforeRequest.addListener(
 	onBeforeRequestListener,
-	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*", "https://test.siasky.net/*"]},
+	{urls: ["<all_urls>"]},
 	["blocking"]
 )
 
@@ -233,9 +251,18 @@ browser.webRequest.onBeforeRequest.addListener(
 // the code at these URLs behaves.
 browser.webRequest.onHeadersReceived.addListener(
 	onHeadersReceivedListener,
-	{urls: ["https://kernel.siasky.net/*", "https://home.siasky.net/*", "https://test.siasky.net/*"]},
+	{urls: ["<all_urls>"]},
 	["blocking", "responseHeaders"]
 )
+
+// TODO: To help protect the privacy of users, we may also want to make
+// something like an onBeforeSendHeaders listener that will swallow all headers
+// being sent from the browser. We want the proxy server receiving as little
+// information as possible.
+//
+// The ideal situation would be to swallow the request entirely and send no
+// data at all, but I haven't figured out how to do that in a way that still
+// allows the kernel to inject a response.
 
 // Open an iframe containing the kernel.
 var kernelFrame = document.createElement("iframe")

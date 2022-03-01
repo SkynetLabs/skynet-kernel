@@ -321,12 +321,8 @@ var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 // "requestURL". The primary purpose of this method is to simulate a GET call
 // to a portal endpoint, but fill the response with trusted data rather than
 // accepting whatever the portal serves.
-//
-// TODO: Need to reject unrecognized URLs.
-//
-// TODO: Need to return something real not just 'yo'.
 var handleSkynetKernelRequestGET = function(event) {
-	// Define a helper function for returning an error.
+	// Define helper functions for responding to the request.
 	let respondErr = function(err: string) {
 		let requestURLResponse = {
 			queryStatus: "reject",
@@ -353,10 +349,9 @@ var handleSkynetKernelRequestGET = function(event) {
 	}
 
 	// Handle the homepage.
-	//
-	// TODO: Change the homepage to a v2link so that we can update the
-	// homepage without having to modify the file.
-	if (event.data.url === "https://home.siasky.net/") {
+	if (event.data.url === "http://home.skynet/" || event.data.url === "https://home.siasky.net/") {
+		// TODO: Change the homepage to a v2link so that we can update
+		// the homepage without having to modify the file.
 		downloadSkylink("AAA_2XjSiLvtZVSVivU4bcOPxyC9lwn7MdgW4gXFIKu64w")
 		.then(result => {
 			respondBody(result.fileData)
@@ -368,7 +363,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	}
 
 	// Default, return a page indicating an error.
-	let buf = new TextEncoder().encode("unrecognized URL: "+event.data.url)
+	let buf = new TextEncoder().encode("err: an unrecognized URL: "+event.data.url)
 	respondBody(buf)
 }
 
@@ -389,6 +384,7 @@ function handleRequestTest(event) {
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
+	logToSource(event, "more helpe for me please")
 	// Check that the authentication suceeded. If authentication did not
 	// succeed, send a postMessage indicating that authentication failed.
 	let [userSeed, errGSU] = getUserSeed()

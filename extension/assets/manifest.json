@@ -10,28 +10,19 @@
   },
 
   // Any page can gain access to Skynet by opening an iframe to
-  // kernel.siasky.net, and we want the user to be confident that
-  // all applications which are using Skynet in the browser are
-  // trustlessly enabled, regardless of which url opened the
-  // iframe. Therefore, the <all_urls> option is needed.
+  // kernel.siasky.net, and we want the user to be confident that all
+  // applications which are using Skynet in the browser are trustlessly
+  // enabled, regardless of which url opened the iframe. Therefore, the
+  // <all_urls> option is needed.
   "permissions": [
     "webRequest", "webRequestBlocking", "<all_urls>"
   ],
 
-  // The background-verify script will block all requests to
-  // kernel.siasky.net and home.siasky.net, so that they can be
-  // replaced by the correct pages using the content scripts.
-  // This ensures that the user gets the javascript they are
-  // expecting, even if siasky.net has gone rogue and started
-  // serving malicious files.
+  // The background script intercepts all requests to skt.us and replaces them
+  // with trusted responses.
   "background": {
     "scripts": ["background.js"]
   },
-
-  // This is only here to try and get redirects working. I was not successful in
-  // getting redirects working, but I left this here so someone else could explore
-  // what went wrong.
-  "web_accessible_resources": ["homescreen.html"],
 
   // These content scripts perfectly match the pages
   // that are already being served by siasky.net,
@@ -39,20 +30,8 @@
   // protect the user against siasky.net going rogue.
   "content_scripts": [
 	  {
-		  "matches": ["https://home.siasky.net/"],
-		  "js": ["content-home.js"],
-		  "run_at": "document_end",
-		  "all_frames": true
-	  },
-	  {
 		  "matches": ["https://kernel.siasky.net/"],
 		  "js": ["content-kernel.js"],
-		  "run_at": "document_end",
-		  "all_frames": true
-	  },
-	  {
-		  "matches": ["https://kernel.siasky.net/auth.html"],
-		  "js": ["content-kernel-auth.js"],
 		  "run_at": "document_end",
 		  "all_frames": true
 	  },

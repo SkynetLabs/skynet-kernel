@@ -65,9 +65,15 @@ process. The most important apps are the default home page, the default
 authenticated home page, the page that allows a user to log into Skynet, and a
 testapp which provides integration testing for the kernel.
 
-## The Build Process
+## Building the Kernel
 
 The build process is being updated.
+
+## Sending Messages
+
+The Skynet kernel consists of three major elements. There's the kernel itself,
+which lives in an iframe at 'kernel.skt.us', there's the background script of
+the browser extension, and there's the content script of the browser extension.
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 

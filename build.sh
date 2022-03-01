@@ -83,7 +83,7 @@ done
 # of the kernel it made more sense to load it in dynamically. We will remove
 # this code around the same time that we pull the full kernel into its own git
 # repo.
-kernelV2skylink=$(skynet-utils generate-v2skylink kernel/skynet-kernel.js $seed)
+kernelV2skylink=$(skynet-utils generate-v2skylink kernel/kernel.js $seed)
 fileD="kernel/kernel.js"
 fileO="extension/bundle/content-kernel.ts"
 importLine=$(grep -n "// transplant:::$fileD" $fileO | cut -f1 -d:)
