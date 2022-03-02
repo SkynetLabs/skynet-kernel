@@ -111,7 +111,6 @@ declare var preferredPortals
 declare var addContextToErr
 declare var handleMessage
 declare var log
-declare var logOut
 declare var logToSource
 
 // workers is an object which holds all of the workers in the kernel. There is
@@ -385,36 +384,11 @@ function handleRequestTest(event) {
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
-	logToSource(event, "more helpe for me please")
-	// Check that the authentication suceeded. If authentication did not
-	// succeed, send a postMessage indicating that authentication failed.
-	let [userSeed, errGSU] = getUserSeed()
-	if (errGSU !== null) {
-		log("message", "auth has failed, sending an authFailed message", errGSU)
-		window.parent.postMessage({kernelMethod: "authFailedAfterLoad"}, "*")
-		return
-	}
-
 	// Input validation.
 	if (!("kernelMethod" in event.data)) {
 		logToSource(event, "kernel request is missing 'kernelMethod' field")
 		return
 	}
-
-	// If we are receiving an authCompleted message, it means the calling
-	// app thinks the kernel hasn't loaded yet. Send a message indicating
-	// that the load was successful. We use a slight variation on the
-	// message that gets sent the first time that the kernel completes
-	// loading to avoid sending the parent multiple messages and triggering
-	// potential unwanted behavior (the parent may not be coded to
-	// correctly handle repeat 'skynetKernelLoaded' messages).
-	if (event.data.kernelMethod === "authCompleted") {
-		log("lifecycle", "received authCompleted message, though kernel is already loaded\n", event)
-		event.source.postMessage({kernelMethod: "skynetKernelAlreadyLoaded"}, "*")
-		return
-	}
-
-	// Check that there's a nonce.
 	if (!("nonce" in event.data)) {
 		logToSource(event, "message sent to kernel with no nonce field")
 		return
@@ -425,22 +399,6 @@ handleMessage = function(event) {
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
 		handleRequestTest(event)
-		return
-	}
-
-	// Establish a means for the user to logout. Only logout requests
-	// provided by home are allowed.
-	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
-		logOut()
-		window.parent.postMessage({kernelMessage: "logOutSuccess"}, "*")
-		try {
-			event.source.postMessage({kernelMethod: "logOutSuccess"}, "*")
-		} catch (err) {
-			log("lifecycle", "unable to inform source that logOut was competed", err)
-		}
-		return
-	} else if (event.data.kernelMethod === "logOut") {
-		logToSource(event, "logOut attempt by non-home origin: "+event.origin)
 		return
 	}
 

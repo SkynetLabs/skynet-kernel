@@ -49,3 +49,9 @@ function logToSource(event, message) {
 		message,
 	}, event.origin)
 }
+function logToSourceW(message) {
+	window.parent.postMessage({
+		kernelMethod: "log",
+		message,
+	}, window.parent.origin)
+}

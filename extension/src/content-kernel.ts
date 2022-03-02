@@ -48,14 +48,6 @@ var getUserSeed = function(): [Uint8Array, Error] {
 	return [userSeed, null];
 }
 
-// logOut will erase the localStorage, which means the seed will no longer be
-// available, and any sensistive data that the kernel placed in localStorage
-// will also be cleared.
-var logOut = function() {
-	log("lifecycle", "clearing local storage after logging out");
-	localStorage.clear();
-}
-
 // downloadDefaultKernel will download the default kernel.
 var downloadDefaultKernel = function(): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -239,7 +231,6 @@ var loadSkynetKernel = function() {
 // handleSkynetKernelRequestGET is defined for two pages when the user hasn't
 // logged in: the home page, and the authentication page.
 var handleSkynetKernelRequestGET = function(event) {
-	logToSource(event, "help me")
 	// Define a helper function for returning an error.
 	let respondErr = function(err: string) {
 		let requestURLResponse = {
@@ -293,43 +284,12 @@ var handleSkynetKernelRequestGET = function(event) {
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
 var handleMessage = function(event: any) {
-	// Check if the user has been authed. If so, send an authCompleted
-	// message.
-	let [userSeed, errGSU] = getUserSeed()
-	if (errGSU === null) {
-		log("lifecycle", "user is not logged in, sending message to parent\n", errGSU);
-		window.parent.postMessage({kernelMethod: "authCompleted"}, "*");
-		return
-	}
-
-	// If the parent is informing us that the user has completed
-	// authentication, we'll go ahead and reload the kernel so that the
-	// user's full kernel can be pulled in.
-	if (event.data.kernelMethod === "authCompleted") {
-		event.source.postMessage({kernelMethod: "authCompleted"}, "*");
-		return;
-	}
-
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
 		log("lifecycle", "sending receiveTest message to source\n", event.source);
-		event.source.postMessage({kernelMethod: "receiveTest"}, event.source.origin);
-		return;
-	}
-
-	// Establish a means for the user to logout. Only logout requests
-	// provided by home are allowed.
-	if (event.data.kernelMethod === "logOut" && event.origin === "https://home.siasky.net") {
-		logOut();
-		log("lifecycle", "sending logOutSuccess message to home");
-		window.postMessage({kernelMethod: "logOutSuccess"}, "*")
-		try {
-			event.source.postMessage({kernelMethod: "logOutSuccess"}, "https://home.siasky.net");
-		} catch (err) {
-			log("lifecycle", "unable to inform source that logOut was competed", err);
-		}
+		event.source.postMessage({kernelMethod: "receiveTest"}, event.origin);
 		return;
 	}
 
@@ -353,7 +313,20 @@ var handleMessage = function(event: any) {
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
-window.addEventListener("message", event => {handleMessage(event)}, false)
+window.addEventListener("message", event => {handleMessage(event)})
+
+// Establish a storage listener for the kernel that listens for any changes to
+// the userSeed storage key. In the event of a change, we want to emit an
+// 'authStatusChanged' method to the parent so that the kernel can be
+// refreshed.
+var handleStorage = function(event: StorageEvent) {
+	// A null key indicates that storage has been cleared, which also means
+	// the auth status has changed.
+	if (event.key === "v1-seed" || event.key === null) {
+		window.parent.postMessage({kernelMethod: "authStatusChanged"}, window.parent.origin)
+	}
+}
+window.addEventListener("storage", event => (handleStorage(event)))
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
@@ -361,7 +334,7 @@ window.addEventListener("message", event => {handleMessage(event)}, false)
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
 	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU);
-	window.parent.postMessage({kernelMethod: "authFailed"}, "*");
+	window.parent.postMessage({kernelMethod: "skynetKernelLoadedAuthFailed"}, "*");
 } else {
 	log("lifecycle", "user is logged in, loading kernel");
 	loadSkynetKernel();

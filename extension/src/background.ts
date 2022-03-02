@@ -15,7 +15,7 @@ var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 // receives the kernel's response.
 var kernelQueriesNonce = 1
 var kernelQueries = new Object()
-function queryKernel(query) {
+function queryKernel(query, domain) {
 	return new Promise((resolve, reject) => {
 		blockUntilKernelLoaded
 		.then(x => {
@@ -24,6 +24,7 @@ function queryKernel(query) {
 			let nonce = kernelQueriesNonce
 			kernelQueriesNonce++
 			query.nonce = nonce
+			query.domain = domain
 			kernelQueries[nonce] = {resolve, reject}
 			kernelFrame.contentWindow.postMessage(query, "https://kernel.siasky.net")
 		})
@@ -45,13 +46,19 @@ function queryKernel(query) {
 // .catch and have the error pass through correctly. But it's not, we get a
 // clone error even for simple objects like strings.
 function contentScriptListener(message, sender) {
+	// Grab the domain and pass it to the query function. The domain is
+	// important to the kernel modules because they can selectively enable
+	// or disable API endpoints based on the original domain of the caller.
+	// The kernel itself will have to be responsible for checking that the
+	// message is coming from the right browser extension.
+	let domain = new URL(sender.url).hostname
 	return new Promise((resolve, reject) => {
 		// The kernel data already includes a 'queryStatus' which
 		// indicates whether the content script should resolve or
 		// reject. The content script is going to need to know to check
 		// that status when picking a result for the corresponding
 		// promise.
-		queryKernel(message)
+		queryKernel(message, domain)
 		.then(resp => {
 			resolve(resp)
 		})
@@ -63,10 +70,53 @@ function contentScriptListener(message, sender) {
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onMessage.addListener(contentScriptListener)
 
+// reloadKernel gets called if the kernel issues a signal indicating that it
+// should be reloaded. That will be the last message emitted by the kernel
+// until it is reloaded.
+var reloading = false
+function reloadKernel() {
+	// Reset the kernel loading variables. This will cause all new messages
+	// to block until the reload is complete.
+	kernelLoadedResolved = false
+	blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
+	kernelQueriesNonce = 1
+
+	// Reset the kernelQueries array. All open queries need to be rejected,
+	// as the kernel will no longer be processing them.
+	Object.keys(kernelQueries).forEach((key, i) => {
+		kernelQueries[key].reject("kernel was refreshed due to auth event")
+		delete kernelQueries[key]
+	})
+
+	// If we reset the kernel immediately, there is a race condition where
+	// the old kernel may have emitted a 'skynetKernelLoaded' message that
+	// hasn't been processed yet. If that message gets processed before the
+	// new kernel has loaded, we may start sending messages that will get
+	// lost.
+	//
+	// To mitigate this risk, we wait a full second before reloading the
+	// kernel. This gives the event loop a full second to reach any
+	// messages which may be from the old kernel indicating that the kernel
+	// finished loading. If a 'skynetKernelLoaded' message is received
+	// while 'reloading' is set to false, it will be ignored.
+	//
+	// For UX, waiting a full second is not ideal, but this should only
+	// happen in the rare event of a login or log out, something that a
+	// user is expected to do less than once a month. I could not find any
+	// other reliable way to ensure a 'skynetKernelLoaded' message would
+	// not be processed incorrectly, and even this method is not totally
+	// reliable.
+	reloading = true
+	setTimeout(function() {
+		reloading = false
+		// This is a neat trick to reload the iframe.
+		kernelFrame.src += ''
+	}, 1000)
+}
+
 // Create a handler for all kernel responses. The responses are all keyed by a
 // nonce, which gets matched to a promise that's been stored in
 // 'kernelQueries'.
-var reloading = false
 function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "https://kernel.siasky.net") {
@@ -77,40 +127,24 @@ function handleKernelResponse(event) {
 		console.log("received message without a kernelMethod\n", event.data)
 		return
 	}
-	if (event.data.kernelMethod === "log") {
+	let method = event.data.kernelMethod
+
+	// Check for the kernel requesting a log event.
+	if (method === "log") {
 		console.log(event.data.message)
 		return
 	}
 
 	// If the kernel is reporting anything to indicate a change in auth
 	// status, reload the extension.
-	if (event.data.kernelMethod === "authFailedAfterLoad") {
-		console.log("background is reloading because the auth failed after load")
-		if (reloading === false) {
-			setTimeout(browser.runtime.reload(), 100)
-			reloading = true
-		}
-		return
-	}
-	if (event.data.kernelMethod === "authCompleted") {
-		console.log("background is reloading because the auth has completed")
-		if (reloading === false) {
-			setTimeout(browser.runtime.reload(), 100)
-			reloading = true
-		}
-		return
-	}
-	if (event.data.kernelMethod === "logOutSuccess") {
-		console.log("background is reloading because the user has logged out")
-		if (reloading === false) {
-			setTimeout(browser.runtime.reload(), 100)
-			reloading = true
-		}
+	if (method === "authStatusChanged") {
+		console.log("received authStatusChanged signal, reloading the kernel")
+		reloadKernel()
 		return
 	}
 
 	// Listen for the kernel successfully loading.
-	if (event.data.kernelMethod === "skynetKernelLoaded" || event.data.kernelMethod === "authFailed") {
+	if ((method === "skynetKernelLoaded" || method === "skynetKernelLoadedAuthFailed") && reloading === false) {
 		console.log("kernel has loaded")
 		if (kernelLoadedResolved !== true) {
 			kernelLoaded() // This is resolving a promise
@@ -125,10 +159,12 @@ function handleKernelResponse(event) {
 		console.log("received a kernel message without a nonce\n", event.data)
 		return
 	}
+	if (!(event.data.nonce in kernelQueries)) {
+		console.log("received a kernel message without a corresponding query\n", event.data)
+		return
+	}
 	let result = kernelQueries[event.data.nonce]
 	delete kernelQueries[event.data.nonce]
-
-	// Resolve or reject the request based on the query status.
 	if (!("queryStatus" in event.data)) {
 		console.log("received a kernel message with no query status")
 		return
@@ -163,12 +199,12 @@ function onBeforeRequestListener(details) {
 	}
 
 	// Ignore all requests that aren't pointed at the skynet TLD.
-	let isSkynetTLD = new URL(details.url).hostname.endsWith("skynet")
+	let domain = new URL(details.url).hostname
+	let isSkynetTLD = domain.endsWith("skynet")
 	let isKernelAuth = details.url === "https://kernel.siasky.net/auth.html"
 	let isKernel = details.url === "https://kernel.siasky.net/"
 	let isHome = details.url === "https://home.siasky.net/"
 	if (!isSkynetTLD && !isKernelAuth && !isKernel && !isHome) {
-		console.log("ignoring", details.url)
 		return
 	}
 
@@ -179,7 +215,6 @@ function onBeforeRequestListener(details) {
 	// the future, but for now we're only worrying about GET requests to
 	// keep things simpler.
 	if (details.method !== "GET") {
-		console.log("ignoring non-GET at", details.url)
 		return
 	}
 
@@ -191,7 +226,7 @@ function onBeforeRequestListener(details) {
 	let query = queryKernel({
 		kernelMethod: "requestGET",
 		url: details.url,
-	})
+	}, domain)
 
 	// Grab the response data and replace it with the response from the
 	// kernel.
@@ -215,12 +250,10 @@ function onBeforeRequestListener(details) {
 function onHeadersReceivedListener(details) {
 	// Ignore anything thats not from the target URLs.
 	if (!(new URL(details.url).hostname.endsWith("skynet")) && details.url !== "https://kernel.siasky.net/" && details.url !== "https://home.siasky.net/" && details.url !== "https://kernel.siasky.net/auth.html") {
-		console.log("no headers injection for", details.url)
 		return details.responseHeaders
 	}
 
 	// For everything else, replace the headers.
-	console.log("headers injection for", details.url)
 	let newHeaders = [
 		{
 			name: "content-type",
