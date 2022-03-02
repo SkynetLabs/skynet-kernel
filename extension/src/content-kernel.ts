@@ -194,7 +194,12 @@ var kernelDiscoveryFailed = function(err) {
 var evalKernel = function(kernel: string) {
 	eval(kernel);
 	log("lifecycle", "user kernel successfully loaded")
-	window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
+
+	// Only send a message indicating that the kernel was successfully
+	// loaded if the auth status hasn't changed in the meantime.
+	if (authChangeMessageSent === false) {
+		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
+	}
 }
 
 // loadSkynetKernel handles loading the the skynet-kernel from the user's
@@ -319,10 +324,12 @@ window.addEventListener("message", event => {handleMessage(event)})
 // the userSeed storage key. In the event of a change, we want to emit an
 // 'authStatusChanged' method to the parent so that the kernel can be
 // refreshed.
+var authChangeMessageSent = false
 var handleStorage = function(event: StorageEvent) {
 	// A null key indicates that storage has been cleared, which also means
 	// the auth status has changed.
 	if (event.key === "v1-seed" || event.key === null) {
+		authChangeMessageSent = true
 		window.parent.postMessage({kernelMethod: "authStatusChanged"}, window.parent.origin)
 	}
 }
