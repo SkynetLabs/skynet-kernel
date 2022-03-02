@@ -4,7 +4,7 @@ export {};
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
-document.title = "kernel.siasky.net"
+document.title = "kernel.skynet"
 var header = document.createElement('h1');
 header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
 document.body.appendChild(header);
@@ -285,6 +285,18 @@ var handleSkynetKernelRequestGET = function(event) {
 	respondBody(buf)
 }
 
+// handleSkynetKernelRequestDNS responds to a DNS query. The default kernel
+// always responds that there should be no proxy for the given domain - the
+// background script already has special carveouts for all required domains.
+var handleSkynetKernelRequestDNS = function(event) {
+	event.source.postMessage({
+		queryStatus: "resolve",
+		nonce: event.data.nonce,
+		kernelMethod: "requestDNSResponse",
+		proxy: false,
+	}, event.origin)
+}
+
 // handleMessage is called by the message event listener when a new message
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
@@ -294,7 +306,12 @@ var handleMessage = function(event: any) {
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
 		log("lifecycle", "sending receiveTest message to source\n", event.source);
-		event.source.postMessage({kernelMethod: "receiveTest"}, event.origin);
+		event.source.postMessage({
+			queryStatus: "resolve",
+			nonce: event.data.nonce,
+			kernelMethod: "receiveTest",
+			version: "v0.0.1",
+		}, event.origin);
 		return;
 	}
 
@@ -305,6 +322,11 @@ var handleMessage = function(event: any) {
 	if (event.data.kernelMethod === "requestGET") {
 		logToSource(event, "requestGET received")
 		handleSkynetKernelRequestGET(event)
+		return
+	}
+
+	if (event.data.kernelMethod === "requestDNS") {
+		handleSkynetKernelRequestDNS(event)
 		return
 	}
 

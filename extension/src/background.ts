@@ -25,7 +25,7 @@ function queryKernel(query) {
 			kernelQueriesNonce++
 			query.nonce = nonce
 			kernelQueries[nonce] = {resolve, reject}
-			kernelFrame.contentWindow.postMessage(query, "https://kernel.siasky.net")
+			kernelFrame.contentWindow.postMessage(query, "http://kernel.skynet")
 		})
 	})
 }
@@ -119,7 +119,7 @@ function reloadKernel() {
 // 'kernelQueries'.
 function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
-	if (event.origin !== "https://kernel.siasky.net") {
+	if (event.origin !== "http://kernel.skynet") {
 		console.log("received unwanted message from: ", event.origin, "\n", event)
 		return
 	}
@@ -198,8 +198,8 @@ window.addEventListener("message", handleKernelResponse)
 function onBeforeRequestListener(details) {
 	// If the request is specifically for the kernel iframe, we need to
 	// swallow the request and let the content script do all of the work.
-	if (details.url === "https://kernel.siasky.net/") {
-		console.log("swallowing kernel", details.url)
+	if (details.url === "http://kernel.skynet/") {
+		console.log("emtpying things out")
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
@@ -273,6 +273,7 @@ function onHeadersReceivedListener(details) {
 	// TODO: We're going to need to modify this function to look at the
 	// skylink in the response so that we know what headers should be in
 	// place.
+	console.log("replacing headers for:", details.url)
 	let newHeaders = [
 		{
 			name: "content-type",
@@ -320,9 +321,11 @@ browser.webRequest.onHeadersReceived.addListener(
 // machine. We may be able to do that with kernel messages as well. For now,
 // there is no configurability.
 function handleProxyRequest(info) {
+	console.log("proxy request received:", info.url)
 	// Hardcode an exception for 'kernel.skynet'
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
+		console.log("redirecting to siasky.net")
 		return {type: "http", host: "siasky.net", port: 80}
 	}
 
@@ -336,8 +339,10 @@ function handleProxyRequest(info) {
 	query.then((response: any) => {
 		// TODO: Input sanitization.
 		if (response.proxy === true) {
+			console.log("proxy for:", info.url)
 			return {type: "http", host: "siasky.net", port: 80}
 		} else {
+			console.log("no proxy for:", info.url)
 			return {type: "direct"}
 		}
 	})
@@ -349,6 +354,7 @@ function handleProxyRequest(info) {
 browser.proxy.onRequest.addListener(handleProxyRequest, {urls: ["<all_urls>"]})
 
 // Open an iframe containing the kernel.
+console.log("appending iframe")
 var kernelFrame = document.createElement("iframe")
-kernelFrame.src = "https://kernel.siasky.net"
+kernelFrame.src = "http://kernel.skynet"
 document.body.appendChild(kernelFrame)

@@ -350,7 +350,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	// Handle the authpage.
 	let url = event.data.url
 	if (url === "http://kernel.skynet/auth.html") {
-		// TODO: Change the homepage to a v2link so that we can update
+		// TODO: Change the auth page to a v2link so that we can update
 		// the homepage without having to modify the file.
 		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
 		.then(result => {
@@ -408,6 +408,10 @@ handleMessage = function(event) {
 		return
 	}
 	if (event.data.kernelMethod === "requestGET") {
+		handleSkynetKernelRequestGET(event)
+		return
+	}
+	if (event.data.kernelMethod === "requestDNS") {
 		handleSkynetKernelRequestGET(event)
 		return
 	}
