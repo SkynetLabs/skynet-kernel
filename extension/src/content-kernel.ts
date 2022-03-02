@@ -266,29 +266,14 @@ var handleSkynetKernelRequestGET = function(event) {
 		return
 	}
 
-	// Handle the homepage.
-	//
-	// TODO: Change the homepage to a v2link so that we can update the
-	// homepage without having to modify the file.
-	let url = event.data.url
-	if (url === "https://home.siasky.net/" || url === "http://home.skynet/") {
-		logToSource(event, "requestGET received for home")
-		downloadSkylink("CACojVyaykfgzAXzZ81r6m_hIVvppUqMStE1K6PFri6lvA")
-		.then(result => {
-			respondBody(result.fileData)
-		})
-		.catch(err => {
-			respondErr("unable to fetch skylink for home.siasky.net: "+err)
-		})
-		return
-	}
 	// Handle the auth page.
 	//
-	// TODO: Change the homepage to a v2link so that we can update the
-	// homepage without having to modify the file.
+	// TODO: Change the authpage to a v2link so that we can update the
+	// without having to modify the file.
+	let url = event.data.url
 	if (url === "https://kernel.siasky.net/auth.html" || url === "http://kernel.skynet/auth.html") {
 		logToSource(event, "requestGET received for auth")
-		downloadSkylink("OACcYscL6mYhWwp9S8gombapSGIUlj_D4eT2SdYuqFIhIw")
+		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
 		.then(result => {
 			respondBody(result.fileData)
 		})

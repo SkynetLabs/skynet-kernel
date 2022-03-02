@@ -60,7 +60,6 @@ function contentScriptListener(message, sender) {
 		})
 	})
 }
-
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onMessage.addListener(contentScriptListener)
 
@@ -144,7 +143,6 @@ function handleKernelResponse(event) {
 	}
 	console.log("received an invalid query status:", event.data.queryStatus)
 }
-
 // Create a listener to handle responses coming from the kernel.
 window.addEventListener("message", handleKernelResponse)
 

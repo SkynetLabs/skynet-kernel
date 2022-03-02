@@ -348,11 +348,12 @@ var handleSkynetKernelRequestGET = function(event) {
 		return
 	}
 
-	// Handle the homepage.
-	if (event.data.url === "http://home.skynet/" || event.data.url === "https://home.siasky.net/") {
+	// Handle the authpage.
+	let url = event.data.url
+	if (url === "http://kernel.skynet/auth.html" || url === "https://kernel.siasky.net/auth.html") {
 		// TODO: Change the homepage to a v2link so that we can update
 		// the homepage without having to modify the file.
-		downloadSkylink("AAA_2XjSiLvtZVSVivU4bcOPxyC9lwn7MdgW4gXFIKu64w")
+		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
 		.then(result => {
 			respondBody(result.fileData)
 		})

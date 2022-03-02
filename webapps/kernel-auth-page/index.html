@@ -2,6 +2,7 @@
 <html>
 <body>
 <script>
+
 "use strict";
 // Set the header of the page.
 document.title = "skynet-kernel: login";
@@ -710,42 +711,93 @@ var authUser = function () {
 		// Take the seed and store it in localStorage.
 		let seedStr = String.fromCharCode(...seed);
 		window.localStorage.setItem("v1-seed", seedStr);
-		// Send a postmessage back to the caller that auth was successful. This
-		// is one of the few places where a wildcard can be used by the
-		// postMessage because we are comfortable declaring to all pages that
-		// the user has logged into the kernel.
-		try {
-				window.opener.postMessage({ kernelMethod: "authCompleted" }, "*");
-				window.close();
-		}
-		catch (errC) {
-				setErrorText("Unable to report that authentication suceeded: " + errC);
+		// If there was a window opener, we should send a message to
+		// the opener indicating that auth was successful, and then close
+		// this window. Otherwise, we should just refresh the page.
+		if (window.opener) {
+			// Send a postmessage back to the caller that auth was successful. This
+			// is one of the few places where a wildcard can be used by the
+			// postMessage because we are comfortable declaring to all pages that
+			// the user has logged into the kernel.
+			try {
+					window.opener.postMessage({ kernelMethod: "authCompleted" }, "*");
+					window.close();
+			}
+			catch (errC) {
+					setErrorText("Unable to report that authentication suceeded: " + errC);
+			}
+		} else {
+			location.reload();
 		}
 };
-// Create the auth form and perform authentication.
-var seedInput = document.createElement("input");
-seedInput.type = "text";
-seedInput.placeholder = "Enter seed phrase here";
-seedInput.id = "seedInput";
-var submitButton = document.createElement("input");
-submitButton.type = "button";
-submitButton.value = "Submit";
-submitButton.onclick = authUser;
-var errorText = document.createElement("p");
-errorText.id = "errorText";
-errorText.textContent = "";
-var generateSeedButton = document.createElement("input");
-generateSeedButton.type = "button";
-generateSeedButton.value = "Generate Seed";
-generateSeedButton.onclick = generateSeedPhrase;
-var seedText = document.createElement("p");
-seedText.id = "seedText";
-seedText.textContent = "";
-document.body.appendChild(seedInput);
-document.body.appendChild(submitButton);
-document.body.appendChild(errorText);
-document.body.appendChild(generateSeedButton);
-document.body.appendChild(seedText);
+var logOut = function() {
+		// Log out by clearing localstorage.
+		window.localStorage.clear()
+		// If there was a window opener, we should send a message to
+		// the opener indicating that auth was successful, and then close
+		// this window. Otherwise, we should just refresh the page.
+		if (window.opener) {
+			// Send a postmessage back to the caller that auth was successful. This
+			// is one of the few places where a wildcard can be used by the
+			// postMessage because we are comfortable declaring to all pages that
+			// the user has logged into the kernel.
+			try {
+					window.opener.postMessage({ kernelMethod: "logOutSucces" }, "*");
+					window.close();
+			}
+			catch (errC) {
+					setErrorText("Unable to report that authentication suceeded: " + errC);
+			}
+		} else {
+			location.reload();
+		}
+};
+
+// Check localStorage for the user seed.
+let userSeedStr = window.localStorage.getItem("v1-seed")
+if (userSeedStr === null) {
+	// Create the auth form and perform authentication.
+	var banner = document.createElement("h1");
+	banner.textContent = "Login to Skynet";
+	var seedInput = document.createElement("input");
+	seedInput.type = "text";
+	seedInput.placeholder = "Enter seed phrase here";
+	seedInput.id = "seedInput";
+	var submitButton = document.createElement("input");
+	submitButton.type = "button";
+	submitButton.value = "Submit";
+	submitButton.onclick = authUser;
+	var errorText = document.createElement("p");
+	errorText.id = "errorText";
+	errorText.textContent = "";
+	var generateSeedButton = document.createElement("input");
+	generateSeedButton.type = "button";
+	generateSeedButton.value = "Generate Seed";
+	generateSeedButton.onclick = generateSeedPhrase;
+	var seedText = document.createElement("p");
+	seedText.id = "seedText";
+	seedText.textContent = "";
+	document.body.appendChild(banner);
+	document.body.appendChild(seedInput);
+	document.body.appendChild(submitButton);
+	document.body.appendChild(errorText);
+	document.body.appendChild(generateSeedButton);
+	document.body.appendChild(seedText);
+} else {
+	// Create the logout button.
+	var banner = document.createElement("h1");
+	banner.textContent = "You are logged into Skynet";
+	var logOutButton = document.createElement("input");
+	logOutButton.type = "button";
+	logOutButton.value = "Log Out";
+	logOutButton.onclick = logOut;
+	var errorText = document.createElement("p");
+	errorText.id = "errorText";
+	errorText.textContent = "";
+	document.body.appendChild(banner);
+	document.body.appendChild(logOutButton);
+	document.body.appendChild(errorText);
+}
 
 </script>
 </body>
