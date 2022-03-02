@@ -349,7 +349,7 @@ var handleSkynetKernelRequestGET = function(event) {
 
 	// Handle the authpage.
 	let url = event.data.url
-	if (url === "http://kernel.skynet/auth.html" || url === "https://kernel.siasky.net/auth.html") {
+	if (url === "http://kernel.skynet/auth.html") {
 		// TODO: Change the homepage to a v2link so that we can update
 		// the homepage without having to modify the file.
 		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
@@ -357,7 +357,7 @@ var handleSkynetKernelRequestGET = function(event) {
 			respondBody(result.fileData)
 		})
 		.catch(err => {
-			respondErr("unable to fetch skylink for home.siasky.net: "+err)
+			respondErr("unable to fetch skylink for auth page: "+err)
 		})
 		return
 	}

@@ -267,14 +267,14 @@ var handleSkynetKernelRequestGET = function(event) {
 	// TODO: Change the authpage to a v2link so that we can update the
 	// without having to modify the file.
 	let url = event.data.url
-	if (url === "https://kernel.siasky.net/auth.html" || url === "http://kernel.skynet/auth.html") {
+	if (url === "http://kernel.skynet/auth.html") {
 		logToSource(event, "requestGET received for auth")
 		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
 		.then(result => {
 			respondBody(result.fileData)
 		})
 		.catch(err => {
-			respondErr("unable to fetch skylink for home.siasky.net: "+err)
+			respondErr("unable to fetch skylink for kernel page: "+err)
 		})
 		return
 	}
@@ -300,9 +300,8 @@ var handleMessage = function(event: any) {
 
 	// Create a handler to handle requestGET calls. If the user is not
 	// logged in, the main important calls that can be sent are calls for
-	// home.siasky.net (which is the home base for the user) and
-	// kernel.siasky.net/auth.html (which is how the user can log into
-	// their kernel).
+	// kernel.skynet/auth.html (which is how the user can log into their
+	// kernel).
 	if (event.data.kernelMethod === "requestGET") {
 		logToSource(event, "requestGET received")
 		handleSkynetKernelRequestGET(event)

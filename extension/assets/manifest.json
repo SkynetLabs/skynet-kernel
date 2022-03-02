@@ -15,7 +15,7 @@
   // enabled, regardless of which url opened the iframe. Therefore, the
   // <all_urls> option is needed.
   "permissions": [
-    "webRequest", "webRequestBlocking", "<all_urls>"
+    "proxy", "webRequest", "webRequestBlocking", "<all_urls>"
   ],
 
   // The background script intercepts all requests to skt.us and replaces them

@@ -15,7 +15,7 @@ var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 // receives the kernel's response.
 var kernelQueriesNonce = 1
 var kernelQueries = new Object()
-function queryKernel(query, domain) {
+function queryKernel(query) {
 	return new Promise((resolve, reject) => {
 		blockUntilKernelLoaded
 		.then(x => {
@@ -24,7 +24,6 @@ function queryKernel(query, domain) {
 			let nonce = kernelQueriesNonce
 			kernelQueriesNonce++
 			query.nonce = nonce
-			query.domain = domain
 			kernelQueries[nonce] = {resolve, reject}
 			kernelFrame.contentWindow.postMessage(query, "https://kernel.siasky.net")
 		})
@@ -46,19 +45,20 @@ function queryKernel(query, domain) {
 // .catch and have the error pass through correctly. But it's not, we get a
 // clone error even for simple objects like strings.
 function contentScriptListener(message, sender) {
-	// Grab the domain and pass it to the query function. The domain is
-	// important to the kernel modules because they can selectively enable
-	// or disable API endpoints based on the original domain of the caller.
-	// The kernel itself will have to be responsible for checking that the
+	// Grab the domain and add it to the message. The domain is important
+	// to the kernel modules because they can selectively enable or disable
+	// API endpoints based on the original domain of the caller. The
+	// kernel itself will have to be responsible for checking that the
 	// message is coming from the right browser extension.
 	let domain = new URL(sender.url).hostname
+	message.domain = domain
 	return new Promise((resolve, reject) => {
 		// The kernel data already includes a 'queryStatus' which
 		// indicates whether the content script should resolve or
 		// reject. The content script is going to need to know to check
 		// that status when picking a result for the corresponding
 		// promise.
-		queryKernel(message, domain)
+		queryKernel(message)
 		.then(resp => {
 			resolve(resp)
 		})
@@ -100,7 +100,7 @@ function reloadKernel() {
 	// finished loading. If a 'skynetKernelLoaded' message is received
 	// while 'reloading' is set to false, it will be ignored.
 	//
-	// For UX, waiting a full second is not ideal, but this should only
+	// For UX, waiting 300 milliseconds is not ideal, but this should only
 	// happen in the rare event of a login or log out, something that a
 	// user is expected to do less than once a month. I could not find any
 	// other reliable way to ensure a 'skynetKernelLoaded' message would
@@ -111,7 +111,7 @@ function reloadKernel() {
 		reloading = false
 		// This is a neat trick to reload the iframe.
 		kernelFrame.src += ''
-	}, 1000)
+	}, 300)
 }
 
 // Create a handler for all kernel responses. The responses are all keyed by a
@@ -129,7 +129,13 @@ function handleKernelResponse(event) {
 	}
 	let method = event.data.kernelMethod
 
-	// Check for the kernel requesting a log event.
+	// Check for the kernel requesting a log event. This infrastructure is
+	// in place because calling 'console.log' from the kernel itself does
+	// not seem to result in the log actually getting displayed in the
+	// console of the background page.
+	//
+	// TODO: Investigate this, there might be some way to get console.log
+	// calls from the kernel to work as expected.
 	if (method === "log") {
 		console.log(event.data.message)
 		return
@@ -143,7 +149,10 @@ function handleKernelResponse(event) {
 		return
 	}
 
-	// Listen for the kernel successfully loading.
+	// Listen for the kernel successfully loading. If we know that a
+	// reloading signal was received, we will ignore messages indicating
+	// that the kernel has loaded, because those messages are from the
+	// previous kernel, which we have already reset.
 	if ((method === "skynetKernelLoaded" || method === "skynetKernelLoadedAuthFailed") && reloading === false) {
 		console.log("kernel has loaded")
 		if (kernelLoadedResolved !== true) {
@@ -166,7 +175,7 @@ function handleKernelResponse(event) {
 	let result = kernelQueries[event.data.nonce]
 	delete kernelQueries[event.data.nonce]
 	if (!("queryStatus" in event.data)) {
-		console.log("received a kernel message with no query status")
+		console.log("received a kernel message with no query status", event.data)
 		return
 	}
 	if (event.data.queryStatus === "resolve") {
@@ -199,12 +208,11 @@ function onBeforeRequestListener(details) {
 	}
 
 	// Ignore all requests that aren't pointed at the skynet TLD.
-	let domain = new URL(details.url).hostname
-	let isSkynetTLD = domain.endsWith("skynet")
-	let isKernelAuth = details.url === "https://kernel.siasky.net/auth.html"
-	let isKernel = details.url === "https://kernel.siasky.net/"
-	let isHome = details.url === "https://home.siasky.net/"
-	if (!isSkynetTLD && !isKernelAuth && !isKernel && !isHome) {
+	//
+	// TODO: Adjust this so that instead the kernel can respond with a
+	// message indicating that it's an ignored TLD.
+	let isSkynetTLD = new URL(details.url).hostname.endsWith("skynet")
+	if (!isSkynetTLD) {
 		return
 	}
 
@@ -226,16 +234,14 @@ function onBeforeRequestListener(details) {
 	let query = queryKernel({
 		kernelMethod: "requestGET",
 		url: details.url,
-	}, domain)
+	})
 
 	// Grab the response data and replace it with the response from the
 	// kernel.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.onstart = event => {
-		query.then(response => {
-			let resp = <any>response // TypeScript was being dumb.
-			console.log("kernel gave us", resp.response)
-			filter.write(resp.response)
+		query.then((response: any) => {
+			filter.write(response.response)
 			filter.close()
 		})
 		.catch(err => {
@@ -243,17 +249,30 @@ function onBeforeRequestListener(details) {
 		})
 	}
 }
+browser.webRequest.onBeforeRequest.addListener(
+	onBeforeRequestListener,
+	{urls: ["<all_urls>"]},
+	["blocking"]
+)
 
 // onHeadersReceivedListener will replace the headers provided by the portal
 // with trusted headers, preventing the portal from providing potentially
 // malicious information through the headers.
+//
+// TODO: Adjust this function with calls to the kernel so that the kernel is
+// making the ultimate decisions on what headers are being injected and
+// replaced.
 function onHeadersReceivedListener(details) {
 	// Ignore anything thats not from the target URLs.
-	if (!(new URL(details.url).hostname.endsWith("skynet")) && details.url !== "https://kernel.siasky.net/" && details.url !== "https://home.siasky.net/" && details.url !== "https://kernel.siasky.net/auth.html") {
+	if (!(new URL(details.url).hostname.endsWith("skynet"))) {
 		return details.responseHeaders
 	}
 
-	// For everything else, replace the headers.
+	// Replace the headers.
+	//
+	// TODO: We're going to need to modify this function to look at the
+	// skylink in the response so that we know what headers should be in
+	// place.
 	let newHeaders = [
 		{
 			name: "content-type",
@@ -262,38 +281,72 @@ function onHeadersReceivedListener(details) {
 	]
 	return {responseHeaders: newHeaders}
 }
-
-// Intercept all requests to kernel.siasky.net and home.siasky.net so that they
-// can be replaced with trusted code. We need to be confident about the exact
-// code that is running at these URLs, as the user will be trusting their data
-// and crypto keys to these webpages.
-//
-// TODO: I believe that we need to catch any http requests and either redirect
-// or cancel them.
-browser.webRequest.onBeforeRequest.addListener(
-	onBeforeRequestListener,
-	{urls: ["<all_urls>"]},
-	["blocking"]
-)
-
-// Intercept the headers for all requests to kernel.siasky.net and
-// home.siasky.net so that they can be replaced with the correct headers.
-// Without this step, a portal can insert malicious headers that may alter how
-// the code at these URLs behaves.
 browser.webRequest.onHeadersReceived.addListener(
 	onHeadersReceivedListener,
 	{urls: ["<all_urls>"]},
 	["blocking", "responseHeaders"]
 )
 
-// TODO: To help protect the privacy of users, we may also want to make
-// something like an onBeforeSendHeaders listener that will swallow all headers
-// being sent from the browser. We want the proxy server receiving as little
-// information as possible.
+// Establish a proxy that enables the user to visit non-existent TLDs, such as
+// '.hns' and '.eth' and '.skynet'. The main idea behind this proxy is that we
+// proxy non-existant URLs to a URL that does exist, so that the page still
+// loads.
 //
-// The ideal situation would be to swallow the request entirely and send no
-// data at all, but I haven't figured out how to do that in a way that still
-// allows the kernel to inject a response.
+// We use proxies as a workaround for a fundamental limitation of
+// onBeforeRequest - you cannot replace or inject a webpage that does not
+// exist. We can't support imaginary domains like 'kernel.skynet' without a
+// proxy because they don't actually exist, which means any calls to
+// 'filter.write()' in an 'onBeforeRequest' response will fail. If we could
+// cancel a request in onBeforeRequest while also still being able to write a
+// response and injecting headers with 'onHeadersReceived', we could drop the
+// proxy requirement.
+//
+// Similary, we need to use 'type: "http"' instead of 'type: "https"' because
+// the proxy server does not have TLS certs for the imaginary domains. This
+// will result in the user getting an insecure icon in the corner of their
+// browser. Even though the browser thinks the communication is insecure, the
+// truth is that the whole page is being loaded from a secure context (the
+// kerenl) and is being authenticated and often (though not always) encrypted
+// over transport. So the user is safe from MitM attacks and some forms of
+// snooping despite the insecure warning.
+//
+// The proxy itself has a hard-coded carve-out for 'kernel.skynet' to allow the
+// kernel to load, and all other requests are routed to the kernel so that the
+// kernel can decide whether a proxy should be used for that page.
+//
+// TODO: We need a kernel level ability for the user to change which proxy they
+// use by default for all of their machines. We also need an extension level
+// override for this default so the user can make a change for just one
+// machine. We may be able to do that with kernel messages as well. For now,
+// there is no configurability.
+function handleProxyRequest(info) {
+	// Hardcode an exception for 'kernel.skynet'
+	let hostname = new URL(info.url).hostname
+	if (hostname === "kernel.skynet") {
+		return {type: "http", host: "siasky.net", port: 80}
+	}
+
+	// Ask the kernel whether there should be a proxy for this url. We use
+	// the empty string as the domain of the query because the kernel is
+	// going to ignore that value anyway.
+	let query = queryKernel({
+		kernelMethod: "requestDNS",
+		url: info.url,
+	})
+	query.then((response: any) => {
+		// TODO: Input sanitization.
+		if (response.proxy === true) {
+			return {type: "http", host: "siasky.net", port: 80}
+		} else {
+			return {type: "direct"}
+		}
+	})
+	.catch(errQK => {
+		console.log("error after sending requestDNS message:", errQK)
+		return {type: "direct"}
+	})
+}
+browser.proxy.onRequest.addListener(handleProxyRequest, {urls: ["<all_urls>"]})
 
 // Open an iframe containing the kernel.
 var kernelFrame = document.createElement("iframe")
