@@ -13,20 +13,16 @@ trusts the server) with a verifiable network request, ensuring that when the
 user loads a webpage or application, the user is loading exactly the code that
 they are expecting to load.
 
-The kernel intercepts all network requests going to the domain 'skt.us', a
-domain owned by the Skynet Labs team. Users that don't have the Skynet
-extension will see a 404 page that explains what Skynet is and how to get the
-extension. Users that do have the extension will be able to trustlessly load
-any application which is hosted on Skynet.
-
-###### NOTE: skt.us has not been fully set up yet, in the meantime the kernel is actually using siasky.net as the primary domain. This is expected to change in the next few weeks.
+The kernel introduces new TLDs such as '.skynet' and '.hns' which can host
+applications. Due to limitations of the browser extension API, users will have
+to visit these applications by going to 'http' URLs instead of 'https' URLs.
+For example, a user logs in using 'http://kernel.skynet/auth.html'
 
 The kernel supports static web pages, decentralized storage endpoints
 (including uploads, downloads, and SkyDB), and also supports long running
-background applications will run so long as the user has their web browser
-open. A simple example of a useful background application is a chat service
-which listens for messages from other users. A more advanced example would be a
-crypto trading bot.
+background applications. A simple example of a useful background application is
+a chat service which listens for messages from other users. A more advanced
+example would be a crypto trading bot.
 
 The kernel also supports 'modules', which are hosted in private domains and can
 serve APIs to webapps and other modules. Modules enable web3 applications to
@@ -39,9 +35,6 @@ allowing a user to automatically be subscribed to all of their favorite
 creators the moment they join a new application or platform.
 
 ## Repository Structure
-
-This repository is still early and is being continuously refactored. I have
-done my best to keep the README up-to-date, but use some common sense.
 
 The 'extension' folder contains the source code for the browser extension. It's
 a typescript project which uses a manual bundler (build.sh at the top level) to
@@ -67,13 +60,93 @@ testapp which provides integration testing for the kernel.
 
 ## Building the Kernel
 
-The build process is being updated.
+The build process is being updated. It only works on Linux at the moment. Right
+now you need to acquire the 'skynet-utils' binary from the 'env-var' branch of
+the 'go-skynet' github repo.  You can get it by running 'go build ./...' and
+then adding the binary to your PATH. Then you run 'make'. The test suite is a
+webapp in 'webapps/kernel-test-suite'. It's a simple gatsby app that you can
+deploy with 'gatsby deploy', and build with 'gatsby build'.
 
-## Sending Messages
+Once the extension is built you will see a 'build' folder and a 'build-cache'
+folder. The full extension is in 'build/extension/'. You can load the extension
+into firefox by going to 'about:debugging' -> 'This Firefox' and clicking on
+'Load Temporary Add-on'. Select the manifest.json file from the
+'build/extension' folder.
+
+## Sending Messages From a Webpage
 
 The Skynet kernel consists of three major elements. There's the kernel itself,
-which lives in an iframe at 'kernel.skt.us', there's the background script of
-the browser extension, and there's the content script of the browser extension.
+which lives in an iframe at 'kernel.skynet', there's the background script of
+the browser extension which hosts the kernel, and there's the content bridge of
+the browser extension which allows webpages to communicate with the kernel.
+
+The kernel lives in the background script inside of an iframe. Because the
+kernel is in an iframe at its own domain, the kernel is able to safely manage
+user secrets. The user's seed is kept inside of this iframe, where it is
+inaccessible to the background script, and also inaccessible to all webpages
+that use the kernel.
+
+The background script of the browser extension runs continuously throughout the
+life of the browser. It loads the kernel using an iframe at startup, and then
+keeps that iframe open until the browser is closed. The perforamnce penalty of
+creating a new iframe is only paid a single time. All webapps that wish to use
+the kernel can send messages to the bridge rather than needing to create their
+own iframe, which substantially improves page load times.
+
+The background script communicates with the kernel using postMessage. Webapps
+are not able to communicate to the kernel directly, nor are they able to
+communicate to the background page directly. Instead, webapps need to
+communicate with the bridge. Webapps will send a message to the bridge, the
+bridge will send a message to the background, the background will send a
+message to the kernel, and then the kernel will respond to the background,
+which will respond to the bridge, which will respond to the page.
+
+Visualized:
+
+```
+page -> bridge -> background -> kernel -> background -> bridge -> page
+```
+
+Though there are 6 messages total, the entire process typically takes under 2
+milliseconds to complete.
+
+All messaging in the kernel is asynchronous. If the user sends multiple
+messages at once, the user needs a way to map the messages that got sent to the
+responses that will be received. This is done by adding a nonce to every
+message. The response will contain a matching nonce.
+
+There is a javascript library available in npm called 'libkernel' which
+abstracts all of this away and provides a simple API that allows developers to
+interact with the kernel. A typical libkernel call looks something like:
+
+```js
+libkernel.upload("someFile.mp4", fileData)
+.then(callback)
+.catch(err => { console.log(err) })
+```
+
+## Sending Messages from a Module
+
+Modules exist as webworkers inside of the kernel iframe. Modules are allowed to
+send messages to the kernel, including making requests to call other modules.
+If moduleA is making a function call on moduleB, the message routing looks like
+this:
+
+```
+moduleA -> kernel -> moduleB -> kernel -> moduleA
+```
+
+From the perspective of moduleA, they are sending a single request to the
+kernel and receiving a single response from the kernel. This is true regardless
+of how many addition modules moduleB needs to invoke. In general, the messaging
+overhead here is around 0.2 milliseconds per message, which is fast enough to
+allow modules to call out to each other in cascades that have dozens of total
+dependencies. Even calls that invoke thousands of modules can finish in under a
+second.
+
+## Message Protocols
+
+###### TODO
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 
