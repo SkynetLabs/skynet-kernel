@@ -95,6 +95,10 @@ kernel.callModule(moduleEncryptFile, "encryptFile", {
 .then(resp => successCallback(resp))
 .catch(err => errCallback(err))
 ```
+If you are developer that is just looking to build cool webapps, you stop
+reading here and get started by using 'libkernel'. Check out the README in the
+libkernel folder for more examples of interesting code.
+
 ## Developing Kernel Modules
 
 See the README in the modules folder for an overview of how to develop kernel
