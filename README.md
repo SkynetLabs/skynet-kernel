@@ -73,6 +73,33 @@ into firefox by going to 'about:debugging' -> 'This Firefox' and clicking on
 'Load Temporary Add-on'. Select the manifest.json file from the
 'build/extension' folder.
 
+## Using the Kernel
+
+There is a javascript library available in npm called 'libkernel' which
+abstracts all of this away and provides a simple API that allows developers to
+interact with the kernel. A typical libkernel call looks something like:
+
+```js
+libkernel.upload("someFile.mp4", fileData)
+.then(resp => successCallback(resp))
+.catch(err => errCallback(err))
+```
+
+A generic moduleCall will typically look something like:
+
+```js
+kernel.callModule(moduleEncryptFile, "encryptFile", {
+	filepath: "someFile.mp4",
+	fileData,
+})
+.then(resp => successCallback(resp))
+.catch(err => errCallback(err))
+```
+## Developing Kernel Modules
+
+See the README in the modules folder for an overview of how to develop kernel
+modules.
+
 ## Sending Messages From a Webpage
 
 The Skynet kernel consists of three major elements. There's the kernel itself,
@@ -114,16 +141,6 @@ All messaging in the kernel is asynchronous. If the user sends multiple
 messages at once, the user needs a way to map the messages that got sent to the
 responses that will be received. This is done by adding a nonce to every
 message. The response will contain a matching nonce.
-
-There is a javascript library available in npm called 'libkernel' which
-abstracts all of this away and provides a simple API that allows developers to
-interact with the kernel. A typical libkernel call looks something like:
-
-```js
-libkernel.upload("someFile.mp4", fileData)
-.then(callback)
-.catch(err => { console.log(err) })
-```
 
 ## Sending Messages from a Module
 
