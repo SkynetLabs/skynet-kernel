@@ -199,7 +199,6 @@ function onBeforeRequestListener(details) {
 	// If the request is specifically for the kernel iframe, we need to
 	// swallow the request and let the content script do all of the work.
 	if (details.url === "http://kernel.skynet/") {
-		console.log("emtpying things out")
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
