@@ -64,6 +64,8 @@ The build process is being updated. Currently, the build process is linux-only.
 That will be fixed soon. The extension has only been tested on Firefox. That
 will also be fixed soon.
 
+### Dependencies
+
 To build the kernel today, first you need to build the 'skynet-utils' binary.
 To do this, clone the repo at 'github.com/SkynetLabs/go-skynet', check out the
 'env-var' branch, and run `go install ./...`. If you do not have go installed
@@ -76,6 +78,8 @@ You will also need 'tsc', which is the typescript compiler. You can install
 typescript by running `npm install -g typescript`. If you do not have npm, you
 will need to follow an online tutorial for getting it working.
 
+### Build the Extension
+
 Once you have 'skynet-utils' and 'tsc' in your PATH, you can build the kernel
 by running 'make'. This will create a 'build' folder and a 'build-cache' folder
 in the repo. The browser extension will be in 'build/extension' and the kernel
@@ -86,7 +90,7 @@ Firefox' and then clicking on 'Load Temporary Add-on'. Navigate to
 'build/extension' in the file picker and select the 'manifest.json' file. This
 will load the Skynet Kernel into Firefox as a temporary add-on.
 
-## Running the Kernel Test Suite
+### Run the Test Suite
 
 To run the kernel test suite, you will need 'gatsby', which you can get by
 running the command `npm install -g gatsby`. Then navigate to the
