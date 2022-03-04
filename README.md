@@ -197,6 +197,69 @@ second.
 
 ## Message Protocols
 
+The kernel requires a number of messaging protocols, which are all outlined
+below. The key relationships are:
+
++ Web page -> Bridge Script
++ Bridge Script -> Background Script
++ Background Script -> Kernel
++ Kernel -> Module
++ Module -> Kernel
+
+At all layers, parallel communications are supported. This means that at any
+given time, any of these layers could have many simultaneous messages open, and
+the responses might come back fully out of order. To overcome this, every
+message is expected to include a nonce to ensure that the responses can be
+properly paired with the queries.
+
+All messages also have a 'method' field, which indicates which type of message
+is being sent and what code will be used by the receiver to process the
+message. All of the remaining data will be dependent on the type of message
+that is being sent.
+
+### Web Page <-> Bridge Script
+
+Web pages are not allowed to talk to web browser extension background pages
+directly. Instead, they have to communicate through a content script which
+we've called 'the bridge script', and can be found in
+'extension/content-bridge.ts'
+
+The browser extension loads the bridge script into every single page. Any
+webpage, including centralized web pages, is able to contact the bridge and use
+it to communicate with the user's kernel. The vast majority of application
+calls will talk exclusively to the bridge.
+
+#### bridgeTestQuery
+
+bridgeTestQuery is a simple query that allows a webpage to check whether the
+bridge exists. The bridge will respond to the query with a message that
+confirms it exists. If there is no response, the bridge does not exist.
+Typically, a response happens in under 10 milliseconds.
+
+The query message should have the form:
+
+```ts
+// A nonce is required by the protocol, though in most situations the caller
+// will use a nonce of '0' because there will only be one receiver looking for
+// a bridgeTestResponse.
+window.postMessage({
+	method: "bridgeTestQuery",
+	nonce: 0,
+})
+```
+
+The response from the bridge will have the form:
+
+```ts
+window.postMessage({
+	method: "bridgeTestResponse",
+	nonce,
+	version: "v0.0.1",
+})
+```
+
+#### kernelQuery
+
 ###### TODO
 
 ## TODO: Bootloader Roadmap (Remove once completed)
