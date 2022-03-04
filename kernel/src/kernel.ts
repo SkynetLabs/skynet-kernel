@@ -112,6 +112,7 @@ declare var addContextToErr
 declare var handleMessage
 declare var log
 declare var logToSource
+declare var handleSkynetKernelRequestDNS
 
 // workers is an object which holds all of the workers in the kernel. There is
 // one worker per module.
@@ -168,7 +169,6 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 	// TODO: Check localStorage for the module.
 
 	// Download the code for the worker.
-	logToSource(event, "performing download")
 	downloadSkylink(event.data.module)
 	.then(result => {
 		// TODO: Save the result to localStorage. Can't do that until
@@ -176,7 +176,6 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 
 		let worker = createWorker(result.fileData)
 		workers[event.data.module] = worker
-		logToSource(event, result.fileData)
 		runModuleCall(event, source, sourceIsWorker, worker)
 	})
 	.catch(err => {
@@ -412,7 +411,7 @@ handleMessage = function(event) {
 		return
 	}
 	if (event.data.kernelMethod === "requestDNS") {
-		handleSkynetKernelRequestGET(event)
+		handleSkynetKernelRequestDNS(event)
 		return
 	}
 
