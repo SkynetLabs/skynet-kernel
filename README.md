@@ -98,8 +98,10 @@ running the command `npm install -g gatsby`. Then navigate to the
 
 You can then view the test suite by navigating to 'localhost:8000' in your
 browser. If you have not logged into the kernel before, many of the tests will
-fail. You can log in by going to 'kernel.skynet/auth.html' Refresh the test
-suite to re-run the tests.
+fail. You can log in by going to 'http://kernel.skynet/auth.html' Refresh the
+test suite to re-run the tests. You may need to include 'http://' when you type
+the URL, because your browser will not recognize 'kernel.skynet' as a valid
+domain and instead think you want to use a search engine.
 
 ## Using the Kernel
 
