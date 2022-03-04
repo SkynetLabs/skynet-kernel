@@ -120,7 +120,6 @@ function reloadKernel() {
 function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "http://kernel.skynet") {
-		console.log("received unwanted message from: ", event.origin, "\n", event)
 		return
 	}
 	if (!("kernelMethod" in event.data) || typeof event.data.kernelMethod !== "string") {
@@ -133,11 +132,12 @@ function handleKernelResponse(event) {
 	// in place because calling 'console.log' from the kernel itself does
 	// not seem to result in the log actually getting displayed in the
 	// console of the background page.
-	//
-	// TODO: Investigate this, there might be some way to get console.log
-	// calls from the kernel to work as expected.
 	if (method === "log") {
 		console.log(event.data.message)
+		return
+	}
+	if (method === "logErr") {
+		console.error(event.data.message)
 		return
 	}
 
@@ -321,11 +321,12 @@ browser.webRequest.onHeadersReceived.addListener(
 // machine. We may be able to do that with kernel messages as well. For now,
 // there is no configurability.
 function handleProxyRequest(info) {
-	console.log("proxy request received:", info.url)
-	// Hardcode an exception for 'kernel.skynet'
+	// Hardcode an exception for 'kernel.skynet'. We need this exception
+	// because that's where the kernel exists, and the kernel needs to be
+	// loaded before we can ask the kernel whether we should be proxying
+	// something.
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
-		console.log("redirecting to siasky.net")
 		return {type: "http", host: "siasky.net", port: 80}
 	}
 
@@ -337,24 +338,25 @@ function handleProxyRequest(info) {
 		url: info.url,
 	})
 	query.then((response: any) => {
-		// TODO: Input sanitization.
+		// Input sanitization.
+		if (!("proxy" in response)) {
+			console.error("kernel did not include a 'proxy' in the response")
+			return {type: "direct"}
+		}
 		if (response.proxy === true) {
-			console.log("proxy for:", info.url)
 			return {type: "http", host: "siasky.net", port: 80}
 		} else {
-			console.log("no proxy for:", info.url)
 			return {type: "direct"}
 		}
 	})
 	.catch(errQK => {
-		console.log("error after sending requestDNS message:", errQK)
+		console.error("error after sending requestDNS message:", errQK)
 		return {type: "direct"}
 	})
 }
 browser.proxy.onRequest.addListener(handleProxyRequest, {urls: ["<all_urls>"]})
 
 // Open an iframe containing the kernel.
-console.log("appending iframe")
 var kernelFrame = document.createElement("iframe")
 kernelFrame.src = "http://kernel.skynet"
 document.body.appendChild(kernelFrame)

@@ -1,13 +1,13 @@
-export {};
+export {}
 
 // TODO: Need to redo the logging system.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.skynet"
-var header = document.createElement('h1');
-header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe.";
-document.body.appendChild(header);
+var header = document.createElement('h1')
+header.textContent = "Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe."
+document.body.appendChild(header)
 
 // NOTE: These imports are order-sensitive.
 
@@ -38,14 +38,14 @@ var log = function(logType: string, ...inputs: any) {
 // is not logged in.
 var getUserSeed = function(): [Uint8Array, Error] {
 	// Pull the string version of the seed from localstorage.
-	let userSeedString = window.localStorage.getItem("v1-seed");
+	let userSeedString = window.localStorage.getItem("v1-seed")
 	if (userSeedString === null) {
-		return [null, new Error("no user seed in local storage")];
+		return [null, new Error("no user seed in local storage")]
 	}
 
 	// Parse the string into a Uint8Array and return the result.
 	let userSeed = Uint8Array.from([...userSeedString].map(ch => ch.charCodeAt(0)))
-	return [userSeed, null];
+	return [userSeed, null]
 }
 
 // downloadDefaultKernel will download the default kernel.
@@ -60,18 +60,18 @@ var downloadDefaultKernel = function(): Promise<string> {
 					reject(addContextToErr(errBTS, "kernel data is invalid"))
 					return
 				}
-				resolve(text);
-				return;
+				resolve(text)
+				return
 			}
 
 			// Handle every other response status.
-			log("lifecycle", "portal response not recognized", output.response);
-			reject("response not recognized when reading default kernel");
-			return;
+			log("lifecycle", "portal response not recognized", output.response)
+			reject("response not recognized when reading default kernel")
+			return
 		})
 		.catch(err => {
-			reject(addContextToErr(err, "unable to download default portal"));
-		});
+			reject(addContextToErr(err, "unable to download default portal"))
+		})
 	})
 }
 
@@ -83,15 +83,15 @@ var downloadDefaultKernel = function(): Promise<string> {
 var processUserKernelDownload = function(output: downloadSkylinkResult): Promise<string> {
 	return new Promise((resolve, reject) => {
 		// Handle the success case.
-		let response = output.response;
+		let response = output.response
 		if (response.status === 200) {
 			let [text, errBTS] = bufToStr(output.fileData)
 			if (errBTS !== null) {
 				reject(addContextToErr(errBTS, "kernel data is invalid"))
 				return
 			}
-			resolve(text);
-			return;
+			resolve(text)
+			return
 		}
 
 		// Handle the 404 case, which invovles writing the default
@@ -104,25 +104,25 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 		// a different device with a different extension) to use the
 		// same kernel.
 		if (response.status === 404) {
-			log("lifecycle", "user has no established kernel, trying to set the default");
+			log("lifecycle", "user has no established kernel, trying to set the default")
 
 			// Perform the registry write.
 			let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
 			if (err64 !== null) {
-				log("lifecycle", "could not convert defaultKernelSkylink to a uin8array");
-				reject(addContextToErr(err64, "could not convert defaultKernelSkylink"));
-				return;
+				log("lifecycle", "could not convert defaultKernelSkylink to a uin8array")
+				reject(addContextToErr(err64, "could not convert defaultKernelSkylink"))
+				return
 			}
 			writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
 			.then(response => {
-				log("lifecycle", "succesfully set the user's kernel to the default kernel");
+				log("lifecycle", "succesfully set the user's kernel to the default kernel")
 			})
 			.catch(err => {
 				log("lifecycle", "unable to set the user's kernel\n", err)
 			})
 
 			// Need to download and eval the default kernel.
-			// fetchAndEvalDefaultKernel();
+			// fetchAndEvalDefaultKernel()
 			downloadDefaultKernel()
 			.then(text => {
 				resolve(text)
@@ -130,13 +130,13 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 			.catch(err => {
 				reject(addContextToErr(err, "unable to download default kernel"))
 			})
-			return;
+			return
 		}
 
 		// Handle every other response status.
-		log("lifecycle", "response not recognized when reading user kernel\n", response);
-		reject("response not recognized when reading user's kernel");
-		return;
+		log("lifecycle", "response not recognized when reading user kernel\n", response)
+		reject("response not recognized when reading user's kernel")
+		return
 	})
 }
 
@@ -161,9 +161,9 @@ var downloadUserKernel = function(): Promise<string> {
 			})
 		})
 		.catch(err => {
-			reject(addContextToErr(err, "unable to download user's kernel"));
+			reject(addContextToErr(err, "unable to download user's kernel"))
 		})
-	});
+	})
 }
 
 // kernelDiscoveryFailed defines the callback that is called in
@@ -187,18 +187,18 @@ var kernelDiscoveryFailed = function(err) {
 	window.parent.postMessage({
 		kernelMethod: "skynetKernelLoadFailed",
 		err: err,
-	}, "*");
+	}, "*")
 }
 
 // evalKernel will call 'eval' on the provided kernel code.
 var evalKernel = function(kernel: string) {
-	eval(kernel);
+	eval(kernel)
 	log("lifecycle", "user kernel successfully loaded")
 
 	// Only send a message indicating that the kernel was successfully
 	// loaded if the auth status hasn't changed in the meantime.
 	if (authChangeMessageSent === false) {
-		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*");
+		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*")
 	}
 }
 
@@ -207,16 +207,16 @@ var evalKernel = function(kernel: string) {
 // loading fails, 'kernelLoading' will be set to false, and an error will be
 // sent to the parent, allowing the parent a chance to fix whatever is wrong
 // and try again. Usually a failure means the user is not logged in.
-var kernelLoading = false;
+var kernelLoading = false
 var loadSkynetKernel = function() {
 	// Check the loading status of the kernel. If the kernel is loading,
 	// block until the loading is complete and then send a message to the
 	// caller indicating a successful load.
 	if (kernelLoading) {
-		log("lifecycle", "loadSkynetKernel called when kernel is already loading");
-		return;
+		log("lifecycle", "loadSkynetKernel called when kernel is already loading")
+		return
 	}
-	kernelLoading = true;
+	kernelLoading = true
 
 	// Load the user's preferred portals from their skynet data. Add a
 	// callback which will load the user's preferred kernel from Skynet
@@ -229,8 +229,8 @@ var loadSkynetKernel = function() {
 		evalKernel(kernel)
 	})
 	.catch(err => {
-		kernelDiscoveryFailed(err);
-	});
+		kernelDiscoveryFailed(err)
+	})
 }
 
 // handleSkynetKernelRequestGET is defined for two pages when the user hasn't
@@ -301,38 +301,44 @@ var handleSkynetKernelRequestDNS = function(event) {
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
 var handleMessage = function(event: any) {
+	// Check that there's a nonce.
+	if (!("nonce" in event.data)) {
+		return
+	}
+
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
-		log("lifecycle", "sending receiveTest message to source\n", event.source);
+		log("lifecycle", "sending receiveTest message to source\n", event.source)
 		event.source.postMessage({
 			queryStatus: "resolve",
 			nonce: event.data.nonce,
 			kernelMethod: "receiveTest",
 			version: "v0.0.1",
-		}, event.origin);
-		return;
-	}
-
-	// Create a handler to handle requestGET calls. If the user is not
-	// logged in, the main important calls that can be sent are calls for
-	// kernel.skynet/auth.html (which is how the user can log into their
-	// kernel).
-	if (event.data.kernelMethod === "requestGET") {
-		logToSource(event, "requestGET received")
-		handleSkynetKernelRequestGET(event)
+		}, event.origin)
 		return
 	}
 
+	// Create default handlers for the requestGET and requestDNS methods.
+	// These methods are important during bootloading to ensure that the
+	// default login page can be loaded for the user.
+	if (event.data.kernelMethod === "requestGET") {
+		handleSkynetKernelRequestGET(event)
+		return
+	}
 	if (event.data.kernelMethod === "requestDNS") {
 		handleSkynetKernelRequestDNS(event)
 		return
 	}
 
-	// The bootloader doesn't recognize any other message types.
-	log("message", "unrecognized message received by bootloader\n", event)
-	return;
+	// Unrecognized method, reject the query.
+	event.source.postMessage({
+		queryStatus: "reject",
+		nonce: event.data.nonce,
+		kernelMethod: "unrecognizedKernelMethod",
+		err: "unrecognized kernelMethod: "+event.data.kernelMethod,
+	}, event.origin)
 }
 
 // Establish the event listener for the kernel. There are several default
@@ -361,9 +367,9 @@ window.addEventListener("storage", event => (handleStorage(event)))
 // authentication.
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
-	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU);
-	window.parent.postMessage({kernelMethod: "skynetKernelLoadedAuthFailed"}, "*");
+	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU)
+	window.parent.postMessage({kernelMethod: "skynetKernelLoadedAuthFailed"}, "*")
 } else {
-	log("lifecycle", "user is logged in, loading kernel");
-	loadSkynetKernel();
+	log("lifecycle", "user is logged in, loading kernel")
+	loadSkynetKernel()
 }

@@ -67,6 +67,10 @@ export function callModule(module: string, moduleMethod: string, moduleInput: an
 				resolve(response)
 			})
 			.catch(response => {
+				// Consumer doesn't care about the reponse or
+				// the query status.
+				delete response.nonce
+				delete response.queryStatus
 				reject(response)
 			})
 		})

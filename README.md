@@ -123,6 +123,12 @@ If you are developer that is just looking to build cool webapps, you stop
 reading here and get started by using 'libkernel'. Check out the README in the
 libkernel folder for more examples of interesting code.
 
+One of the best ways to help us keep the kernel reliable is to contribute
+testing to the test suite. If you write an application or a module for the
+kernel, we would love to have integration tests for your module added to our
+test suite. This helps ensure that future changes to the kernel will maintain
+full compatibility with your libraries and applications.
+
 ## Developing Kernel Modules
 
 See the README in the modules folder for an overview of how to develop kernel
