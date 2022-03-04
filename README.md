@@ -60,18 +60,42 @@ testapp which provides integration testing for the kernel.
 
 ## Building the Kernel
 
-The build process is being updated. It only works on Linux at the moment. Right
-now you need to acquire the 'skynet-utils' binary from the 'env-var' branch of
-the 'go-skynet' github repo.  You can get it by running 'go build ./...' and
-then adding the binary to your PATH. Then you run 'make'. The test suite is a
-webapp in 'webapps/kernel-test-suite'. It's a simple gatsby app that you can
-deploy with 'gatsby deploy', and build with 'gatsby build'.
+The build process is being updated. Currently, the build process is linux-only.
+That will be fixed soon. The extension has only been tested on Firefox. That
+will also be fixed soon.
 
-Once the extension is built you will see a 'build' folder and a 'build-cache'
-folder. The full extension is in 'build/extension/'. You can load the extension
-into firefox by going to 'about:debugging' -> 'This Firefox' and clicking on
-'Load Temporary Add-on'. Select the manifest.json file from the
-'build/extension' folder.
+To build the kernel today, first you need to build the 'skynet-utils' binary.
+To do this, clone the repo at 'github.com/SkynetLabs/go-skynet', check out the
+'env-var' branch, and run `go install ./...`. If you do not have go installed
+on your machine, you can install go by following the directions at
+'go.dev/doc/install/source'. Make sure you update your PATH variable, typically
+you need to add both `export PATH=$PATH:/usr/local/go/bin' and `export
+PATH=$PATH:/home/user/go/bin` to your .bashrc.
+
+You will also need 'tsc', which is the typescript compiler. You can install
+typescript by running `npm install -g typescript`. If you do not have npm, you
+will need to follow an online tutorial for getting it working.
+
+Once you have 'skynet-utils' and 'tsc' in your PATH, you can build the kernel
+by running 'make'. This will create a 'build' folder and a 'build-cache' folder
+in the repo. The browser extension will be in 'build/extension' and the kernel
+will be in 'build/kernel'.
+
+You can load the extension into Firefox by going to 'about:debugging' -> 'This
+Firefox' and then clicking on 'Load Temporary Add-on'. Navigate to
+'build/extension' in the file picker and select the 'manifest.json' file. This
+will load the Skynet Kernel into Firefox as a temporary add-on.
+
+## Running the Kernel Test Suite
+
+To run the kernel test suite, you will need 'gatsby', which you can get by
+running the command `npm install -g gatsby`. Then navigate to the
+'webapp/kernel-test-suite' folder in your terminal and run `gatsby develop`.
+
+You can then view the test suite by navigating to 'localhost:8000' in your
+browser. If you have not logged into the kernel before, many of the tests will
+fail. You can log in by going to 'kernel.skynet/auth.html' Refresh the test
+suite to re-run the tests.
 
 ## Using the Kernel
 
