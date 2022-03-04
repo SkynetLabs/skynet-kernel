@@ -301,8 +301,20 @@ var handleSkynetKernelRequestDNS = function(event) {
 // comes in. This function is intended to be overwritten by the kernel that we
 // fetch from the user's Skynet account.
 var handleMessage = function(event: any) {
+	let respondUnknownMethod = function(method: string) {
+		event.source.postMessage({
+			queryStatus: "reject",
+			nonce: event.data.nonce,
+			kernelMethod: "unrecognizedKernelMethod",
+			err: "unrecognized kernelMethod: "+method,
+		}, event.origin)
+	}
 	// Check that there's a nonce.
 	if (!("nonce" in event.data)) {
+		return
+	}
+	if (!("kernelMethod" in event.data)) {
+		respondUnknownMethod("[no method provided]")
 		return
 	}
 
@@ -333,12 +345,7 @@ var handleMessage = function(event: any) {
 	}
 
 	// Unrecognized method, reject the query.
-	event.source.postMessage({
-		queryStatus: "reject",
-		nonce: event.data.nonce,
-		kernelMethod: "unrecognizedKernelMethod",
-		err: "unrecognized kernelMethod: "+event.data.kernelMethod,
-	}, event.origin)
+	respondUnknownMethod(event.data.kernelMethod)
 }
 
 // Establish the event listener for the kernel. There are several default

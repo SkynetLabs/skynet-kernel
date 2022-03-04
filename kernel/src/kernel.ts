@@ -415,6 +415,12 @@ handleMessage = function(event) {
 		handleSkynetKernelRequestGET(event)
 		return
 	}
-	// Log if there's a kernelMethod that we do not recognize.
-	logToSource(event, "unrecognized kernel method: "+event.data.kernelMethod)
+
+	// Unrecognized method, reject the query.
+	event.source.postMessage({
+		queryStatus: "reject",
+		nonce: event.data.nonce,
+		kernelMethod: "unrecognizedKernelMethod",
+		err: "unrecognized kernelMethod: "+event.data.kernelMethod,
+	})
 }
