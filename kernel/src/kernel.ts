@@ -112,6 +112,8 @@ declare var addContextToErr
 declare var handleMessage
 declare var log
 declare var logToSource
+declare var handleRequestTest
+declare var handleSkynetKernelRequestGET
 declare var handleSkynetKernelRequestDNS
 
 // workers is an object which holds all of the workers in the kernel. There is
@@ -227,6 +229,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 				queryStatus: "resolve",
 				kernelMethod: "moduleResponse",
 				nonce: rwEvent.data.nonce,
+				err: null,
 				output: wEvent.data.moduleResponse,
 			}
 
@@ -313,71 +316,6 @@ var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 	} else {
 		source.postMessage(message, source.origin)
 	}
-}
-
-// handleSkynetKernelRequestGET handles messages calling the kernelMethod
-// "requestURL". The primary purpose of this method is to simulate a GET call
-// to a portal endpoint, but fill the response with trusted data rather than
-// accepting whatever the portal serves.
-var handleSkynetKernelRequestGET = function(event) {
-	// Define helper functions for responding to the request.
-	let respondErr = function(err: string) {
-		let requestURLResponse = {
-			queryStatus: "reject",
-			nonce: event.data.nonce,
-			kernelMethod: "requestURLResponseErr",
-			err,
-		}
-		event.source.postMessage(requestURLResponse, event.origin)
-	}
-	let respondBody = function(body) {
-		let requestURLResponse = {
-			queryStatus: "resolve",
-			nonce: event.data.nonce,
-			kernelMethod: "requestURLResponse",
-			response: body,
-		}
-		event.source.postMessage(requestURLResponse, event.origin)
-	}
-
-	// Input checking.
-	if (!("data" in event) || !("url" in event.data) || typeof event.data.url !== "string") {
-		respondErr("no url provided")
-		return
-	}
-
-	// Handle the authpage.
-	let url = event.data.url
-	if (url === "http://kernel.skynet/auth.html") {
-		// TODO: Change the auth page to a v2link so that we can update
-		// the homepage without having to modify the file.
-		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
-		.then(result => {
-			respondBody(result.fileData)
-		})
-		.catch(err => {
-			respondErr("unable to fetch skylink for auth page: "+err)
-		})
-		return
-	}
-
-	// Default, return a page indicating an error.
-	let buf = new TextEncoder().encode("err: an unrecognized URL: "+event.data.url)
-	respondBody(buf)
-}
-
-// handleRequestTest will respond to a requestTest call by sending a
-// receiveTest message. If a nonce was provided, the receiveTest message will
-// have a matching nonce. If there was no nonce provided, the receiveTest
-// message will also have no nonce.
-function handleRequestTest(event) {
-	// Send a 'receiveTest' response.
-	event.source.postMessage({
-		queryStatus: "resolve",
-		nonce: event.data.nonce,
-		kernelMethod: "receiveTest",
-		version: "v0.0.1",
-	}, event.origin)
 }
 
 // Overwrite the handleMessage function that gets called at the end of the

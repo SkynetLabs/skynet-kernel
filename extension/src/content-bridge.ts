@@ -18,22 +18,25 @@ function logErr(...inputs: any) {
 	console.error("[libkernel]", ...inputs)
 }
 
-// handleBridgeTest will send a response indicating the bridge is alive.
-function handleBridgeTest(event) {
+// handleTest will send a response indicating the bridge is alive.
+function handleTest(data) {
 	window.postMessage({
-		namespace: event.data.namespace,
-		nonce: event.data.nonce,
-		method: "bridgeTestResponse",
-		version: "v0.0.1",
-	}, event.source)
+		namespace: data.namespace,
+		nonce: data.nonce,
+		method: "response",
+		err: null,
+		data: {
+			version: "v0.0.1",
+		},
+	})
 }
 
 // handleKernelQuery handles messages sent by the page that are intended to
 // eventually reach the kernel.
-function handleKernelQuery(event) {
+function handleKernelQuery(data) {
 	// Check for a kernel query.
-	if (!("queryData" in event.data)) {
-		log("'bridgeToKernelQuery' requires queryData\n", event.data)
+	if (!("queryData" in data)) {
+		log("'newKernelQuery' requires queryData\n", data)
 		return
 	}
 
@@ -53,25 +56,26 @@ function handleKernelQuery(event) {
 		// that the response may itself be a failure, which will be
 		// indicated by the 'queryStatus' field of the data.
 		window.postMessage({
-			namespace: event.data.namespace,
-			nonce: event.data.nonce,
-			method: "bridgeToKernelResponse",
-			response,
+			namespace: data.namespace,
+			nonce: data.nonce,
+			method: "response",
 			err: null,
-		}, event.source)
+			data: {
+				response,
+			},
+		})
 	}
 	let wrappedErr = function(err) {
 		// A kernelResponseErr actually indicates some issue with
 		// 'sendMessage', and is expected to be uncommon.
 		window.postMessage({
-			namespace: event.data.namespace,
-			nonce: event.data.nonce,
-			method: "bridgeToKernelResponse",
-			response: null,
+			namespace: data.namespace,
+			nonce: data.nonce,
+			method: "response",
 			err,
-		}, event.source)
+		})
 	}
-	browser.runtime.sendMessage(event.data.queryData).then(wrappedResp, wrappedErr)
+	browser.runtime.sendMessage(data.queryData).then(wrappedResp, wrappedErr)
 }
 
 // This is the listener for the content script, it will receive messages from
@@ -81,26 +85,34 @@ window.addEventListener("message", function(event) {
 	if (event.source !== window) {
 		return
 	}
-	// Check that a method and nonce were both provided.
-	if (!("method" in event.data) || !("nonce" in event.data)) {
-		return
-	}
 	// Check that a namespace was provided.
 	if (!("namespace" in event.data)) {
 		logErr("'bridgeToKernelQuery' requires queryData\n", event.data)
 		return
 	}
+	// Check that a nonce and method were both provided.
+	if (!("nonce" in event.data) || !("method" in event.data)) {
+		return
+	}
 
 	// Switch on the method.
-	if (event.data.method === "bridgeTestQuery") {
-		handleBridgeTest(event)
+	if (event.data.method === "test") {
+		handleTest(event.data)
 		return
 	}
-	if (event.data.method === "bridgeToKernelQuery") {
-		handleKernelQuery(event)
+	if (event.data.method === "newKernelQuery") {
+		handleKernelQuery(event.data)
 		return
 	}
+
+	// Log and send an error if the method is not recognized.
 	logErr("bridge received message with unrecognized method\n", event.data)
+	window.postMessage({
+		namespace: event.data.namespace,
+		nonce: event.data.nonce,
+		method: "response",
+		err: "bridge received message with unrecoginzed method: "+JSON.stringify(event.data),
+	})
 })
 
 log("bridge has loaded")

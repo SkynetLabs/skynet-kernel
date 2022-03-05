@@ -174,19 +174,16 @@ function handleKernelResponse(event) {
 	}
 	let result = kernelQueries[event.data.nonce]
 	delete kernelQueries[event.data.nonce]
-	if (!("queryStatus" in event.data)) {
-		console.log("received a kernel message with no query status", event.data)
+	if (!("err" in event.data)) {
+		console.log("received a kernel message with no err field", event.data)
+		result.reject("received a kernel response with no err field: "+JSON.stringify(event.data))
 		return
 	}
-	if (event.data.queryStatus === "resolve") {
+	if (event.data.err === null) {
 		result.resolve(event.data)
-		return
+	} else {
+		result.reject(event.data.err)
 	}
-	if (event.data.queryStatus === "reject") {
-		result.reject(event.data)
-		return
-	}
-	console.log("received an invalid query status:", event.data.queryStatus)
 }
 // Create a listener to handle responses coming from the kernel.
 window.addEventListener("message", handleKernelResponse)
@@ -195,6 +192,7 @@ window.addEventListener("message", handleKernelResponse)
 // kernel will be swallowed and replaced by a content script. Calls to pages
 // other than the kernel will be passed to the kernel, and the kernel will
 // decide what response is appropriate for the provided call.
+let headers: any = new Object()
 function onBeforeRequestListener(details) {
 	// If the request is specifically for the kernel iframe, we need to
 	// swallow the request and let the content script do all of the work.
@@ -229,7 +227,6 @@ function onBeforeRequestListener(details) {
 	// response filter. The response filter can often take a while to
 	// become active, so we can start the process of fetching the trusted
 	// response from the kernel to keep things parallelized.
-	console.log("asking kernel for", details.url)
 	let query = queryKernel({
 		kernelMethod: "requestGET",
 		url: details.url,
@@ -240,8 +237,9 @@ function onBeforeRequestListener(details) {
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.onstart = event => {
 		query.then((response: any) => {
-			filter.write(response.response)
+			filter.write(response.response) // TODO: Change to body
 			filter.close()
+			headers[details.requestId] = response.headers
 		})
 		.catch(err => {
 			console.log("requestGET query to kernel failed:", err)
@@ -262,24 +260,14 @@ browser.webRequest.onBeforeRequest.addListener(
 // making the ultimate decisions on what headers are being injected and
 // replaced.
 function onHeadersReceivedListener(details) {
-	// Ignore anything thats not from the target URLs.
-	if (!(new URL(details.url).hostname.endsWith("skynet"))) {
-		return details.responseHeaders
+	// Check if a prior lookup to the kernel established some headers for
+	// this request.
+	if (!(details.requestId in headers)) {
+		return
 	}
-
-	// Replace the headers.
-	//
-	// TODO: We're going to need to modify this function to look at the
-	// skylink in the response so that we know what headers should be in
-	// place.
-	console.log("replacing headers for:", details.url)
-	let newHeaders = [
-		{
-			name: "content-type",
-			value: "text/html; charset=utf8"
-		}
-	]
-	return {responseHeaders: newHeaders}
+	let h = headers[details.requestId]
+	delete headers[details.requestId]
+	return {responseHeaders: h}
 }
 browser.webRequest.onHeadersReceived.addListener(
 	onHeadersReceivedListener,

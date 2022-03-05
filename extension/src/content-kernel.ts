@@ -236,22 +236,32 @@ var loadSkynetKernel = function() {
 // handleSkynetKernelRequestGET is defined for two pages when the user hasn't
 // logged in: the home page, and the authentication page.
 var handleSkynetKernelRequestGET = function(event) {
+	// Define the headers that need to be injected when responding to the
+	// GET request. In this case (pre-auth), the headers will be the same
+	// for all pages that we inject.
+	let headers = [
+		{
+			name: "content-type",
+			value: "text/html; charset=utf8",
+		},
+	]
+
 	// Define a helper function for returning an error.
 	let respondErr = function(err: string) {
 		let requestURLResponse = {
-			queryStatus: "reject",
 			nonce: event.data.nonce,
-			kernelMethod: "requestURLResponseErr",
+			method: "response",
 			err,
 		}
 		event.source.postMessage(requestURLResponse, event.origin)
 	}
 	let respondBody = function(body) {
 		let requestURLResponse = {
-			queryStatus: "resolve",
 			nonce: event.data.nonce,
 			kernelMethod: "requestURLResponse",
-			response: body,
+			err: null,
+			headers,
+			body,
 		}
 		event.source.postMessage(requestURLResponse, event.origin)
 	}
@@ -268,7 +278,6 @@ var handleSkynetKernelRequestGET = function(event) {
 	// without having to modify the file.
 	let url = event.data.url
 	if (url === "http://kernel.skynet/auth.html") {
-		logToSource(event, "requestGET received for auth")
 		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
 		.then(result => {
 			respondBody(result.fileData)
@@ -278,7 +287,6 @@ var handleSkynetKernelRequestGET = function(event) {
 		})
 		return
 	}
-	logToSource(event, "requestGET received for something else: "+event.data.url)
 
 	// Default, return a page indicating an error.
 	let buf = new TextEncoder().encode("err - unrecognized URL: "+event.data.url)
@@ -293,13 +301,27 @@ var handleSkynetKernelRequestDNS = function(event) {
 		queryStatus: "resolve",
 		nonce: event.data.nonce,
 		kernelMethod: "requestDNSResponse",
+		err: null,
 		proxy: false,
 	}, event.origin)
 }
 
-// handleMessage is called by the message event listener when a new message
-// comes in. This function is intended to be overwritten by the kernel that we
-// fetch from the user's Skynet account.
+// handleRequestTest responds to the 'requestTest' method.
+var handleRequestTest = function(event) {
+	log("lifecycle", "sending receiveTest message to source\n", event.source)
+	event.source.postMessage({
+		queryStatus: "resolve",
+		nonce: event.data.nonce,
+		kernelMethod: "receiveTest",
+		err: null,
+		version: "v0.0.1",
+	}, event.origin)
+}
+
+// Establish the event listener for the kernel. There are several default
+// requests that are supported, namely everything that the user needs to create
+// a seed and log in with an existing seed, because before we have the user
+// seed we cannot load the rest of the skynet kernel.
 var handleMessage = function(event: any) {
 	let respondUnknownMethod = function(method: string) {
 		event.source.postMessage({
@@ -322,13 +344,7 @@ var handleMessage = function(event: any) {
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
 	if (event.data.kernelMethod === "requestTest") {
-		log("lifecycle", "sending receiveTest message to source\n", event.source)
-		event.source.postMessage({
-			queryStatus: "resolve",
-			nonce: event.data.nonce,
-			kernelMethod: "receiveTest",
-			version: "v0.0.1",
-		}, event.origin)
+		handleRequestTest(event)
 		return
 	}
 
@@ -347,11 +363,6 @@ var handleMessage = function(event: any) {
 	// Unrecognized method, reject the query.
 	respondUnknownMethod(event.data.kernelMethod)
 }
-
-// Establish the event listener for the kernel. There are several default
-// requests that are supported, namely everything that the user needs to create
-// a seed and log in with an existing seed, because before we have the user
-// seed we cannot load the rest of the skynet kernel.
 window.addEventListener("message", event => {handleMessage(event)})
 
 // Establish a storage listener for the kernel that listens for any changes to

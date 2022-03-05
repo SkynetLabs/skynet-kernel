@@ -208,7 +208,8 @@ below. The key relationships are:
 
 + Web page -> Bridge
 + Bridge -> Background Page
-+ Background Page -> Kernel
++ All -> Kernel
++ Kernel -> Background Page
 + Kernel -> Module
 + Module -> Kernel
 
@@ -220,19 +221,23 @@ responses.
 
 All messages also have a 'method' field, which indicates which type of message
 is being sent and what code will be used by the receiver to process the
-message. Methods will typically have one of the following suffixes:
+message.
 
-+ Query: Opens a new line of messages and is expected to have a unique nonce.
-+ QueryUpdate: Sent by a caller to provide new information about an existing
-  query. The message must include the nonce of the query.
-+ ReponseUpdate: Sent by a receiver to provide new information to the caller
-  about an existing query. The message must include the nonce of the query.
-+ Response: Sent by a receiver as the final message associated with a query.
+An intial message opens up a 'query' and assigns the query a unique nonce. All
+subsequent messages within the query will use the same nonce, and will use one
+of three methods:
+
++ queryUpdate: Sent by the caller to provide new information about the query
++ reponseUpdate: Sent by the receiver to provide new information to the caller
+  about the query.
++ response: Sent by the receiver as the final message associated with a query.
   Future messages that use the query's nonce will be ignored.
 
-The remaining fields in a message will depend on the method being used. Care
-has been taken to ensure that methods are namespaced based on the actor sending
-them and the intended recipient.
+All messages will therefore have a nonce and a method. Additional fields may be
+required depending on the method of the original query. Any message with a
+method of 'response' will also have an 'err' field indicating whether or not
+there was an error during the call. The err will always either be a string or
+null, if the err is a string there will be no other fields.
 
 ### Web Page -> Bridge
 
@@ -271,9 +276,9 @@ The query message should have the form:
 
 ```ts
 window.postMessage({
-	namespace,
-	nonce,
-	method: "bridgeTestQuery",
+	namespace: <string>,
+	nonce: <number>,
+	method: "test",
 })
 ```
 
@@ -281,48 +286,52 @@ The response from the bridge will have the form:
 
 ```ts
 window.postMessage({
-	namespace,
-	nonce,
-	method: "bridgeTestResponse",
-	version: "v0.0.1",
+	namespace: event.data.namespace,
+	nonce: event.data.nonce,
+	method: "response",
+	err: null,
+	data: {
+		version: <string>,
+	},
 })
 ```
 
 There are no QueryUpdates or ResponseUpdates for this method.
 
-#### bridgeToKernel
+#### newKernelQuery
 
-bridgeToKernel is a method used by a web page to request a query be sent to the
-kernel. The payload for the message is called the 'queryData'. The queryData is
-unpacked transparently with one exception. The queryData should not include a
-'nonce' field, that will be filled in automatically by the bridge during the
-query and removed automatically by the bridge during the response.
+newKernelQuery is a method used by a web page to request a query be created
+with the kernel. The payload for the message is called the 'queryData'. The
+queryData is sent to the kernel with no modifications. The queryData should not
+contain a nonce, the bridge will add the nonce automatically.
 
 Note that the message does not go directly from the bridge to the kernel, it
 makes a stop at the background page along the way. This stop is also nearly
 transparent, though the nonce will once again be swapped out by the background
 page.
 
-The query message should have the form:
+The message should have the form:
 
 ```ts
 window.postMessage({
-	namespace,
-	nonce,
-	method: "bridgeToKernelQuery",
-	queryData,
+	namespace: <string>,
+	nonce: <number>,
+	method: "newKernelQuery",
+	queryData: <any>,
 })
 ```
 
-The response should have the form:
+The response will have the form:
 
 ```ts
 window.postMessage({
-	namespace,
-	nonce,
-	method: "bridgeToKernelResponse",
-	response,
-	err,
+	namespace: event.data.namespace,
+	nonce: event.data.nonce,
+	method: "response",
+	data: {
+		response: <any>,
+		err: null,
+	},
 })
 ```
 
@@ -331,6 +340,88 @@ them will always be 'null'. The response can be any object, but the err must
 always be a string.
 
 ###### As of writing, no support for QueryUpdate or ResponseUpdate is implemented, however both are planned to be supported in the short term.
+
+### Bridge -> Background Page
+
+The protocol for having the bridge communicate with the background page is
+going to be overhauled, and therefore has not been documented. This was seen as
+an acceptable launch decision, as both the bridge and the background page are
+part of the browser extension, and therefore do not need to maintain
+compatibility with external software.
+
+The major shortcoming for the current protocol is that there is no way to
+support QueryUpdate messages or ResponseUpdate messages.
+
+### All -> Kernel
+
+TODO: Need to distinguish which of these methods is supported without auth vs.
+with auth.
+
+TODO: Need to document 'respondUnknownMethod', which is actually going to
+change shape when we change the query format.
+
+In all cases, if there is an error, a response will be sent with the form:
+
+```ts
+event.source.postMessage({
+	nonce: event.data.nonce,
+	method: "response",
+	err: <string>,
+}, event.origin)
+
+
+#### requestTest
+
+#### requestGET
+
+The request should have the form:
+
+```ts
+kernelFrame.contentWindow.postMessage({
+	nonce: <number>,
+	method: "getRequest",
+	url: <string>,
+}, "http://kernel.skynet")
+```
+
+The response will have the form:
+
+```ts
+interface header {
+	name: string;
+	value: string;
+}
+event.source.postMessage({
+	nonce: event.data.nonce,
+	method: "response",
+	err: null,
+	headers: <header[]>,
+	body: <Uint8Array>,
+}, event.origin)
+
+```
+
+#### requestDNS
+
+#### callModule
+
+### Kernel -> Background Page
+
+#### log
+
+#### logErr
+
+#### authStatusChanged
+
+#### skynetKernelLoaded
+
+### Kernel -> Module
+
+TODO
+
+### Module -> Kernel
+
+TODO
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 

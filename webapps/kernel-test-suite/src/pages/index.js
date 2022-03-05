@@ -216,12 +216,14 @@ const IndexPage = () => {
 			<TestCard name="TestKernelInit" test={TestKernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestGenericModuleCall" test={TestGenericModuleCall} turn={getTurn()} />
+		</main>
+	)
+}
+export default IndexPage
+/*
 			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
 			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />
 			<TestCard name="TestPadAndEncryptSeq1k" test={TestPadAndEncryptSequential1k} turn={getTurn()} />
-		</main>
-	)
-}
-export default IndexPage
+*/
