@@ -7,9 +7,21 @@ export {}
 
 declare var browser
 
+// log provides a wrapper for console.log that prefixes 'libkernel'.
+function log(...inputs: any) {
+	console.log("[libkernel]", ...inputs)
+}
+
+// logErr provides a wrapper for console.error that prefixes '[libkernel]' to
+// the output.
+function logErr(...inputs: any) {
+	console.error("[libkernel]", ...inputs)
+}
+
 // handleBridgeTest will send a response indicating the bridge is alive.
 function handleBridgeTest(event) {
 	window.postMessage({
+		namespace: event.data.namespace,
 		method: "bridgeTestResponse",
 		nonce: event.data.nonce,
 		version: "v0.0.1",
@@ -21,7 +33,7 @@ function handleBridgeTest(event) {
 function handleKernelQuery(event) {
 	// Check for a kernel query.
 	if (!("queryData" in event.data)) {
-		console.error("[skynet bridge] 'bridgeToKernelQuery' requires queryData\n", event.data)
+		log("'bridgeToKernelQuery' requires queryData\n", event.data)
 		return
 	}
 
@@ -41,6 +53,7 @@ function handleKernelQuery(event) {
 		// that the response may itself be a failure, which will be
 		// indicated by the 'queryStatus' field of the data.
 		window.postMessage({
+			namespace: event.data.namespace,
 			method: "bridgeToKernelResponse",
 			nonce: event.data.nonce,
 			response,
@@ -51,13 +64,13 @@ function handleKernelQuery(event) {
 		// A kernelResponseErr actually indicates some issue with
 		// 'sendMessage', and is expected to be uncommon.
 		window.postMessage({
+			namespace: event.data.namespace,
 			method: "bridgeToKernelResponse",
 			nonce: event.data.nonce,
 			response: null,
 			err,
 		}, event.source)
 	}
-	console.log("sending message to background\n", event.data)
 	browser.runtime.sendMessage(event.data.queryData).then(wrappedResp, wrappedErr)
 }
 
@@ -70,6 +83,11 @@ window.addEventListener("message", function(event) {
 	}
 	// Check that a method and nonce were both provided.
 	if (!("method" in event.data) || !("nonce" in event.data)) {
+		return
+	}
+	// Check that a namespace was provided.
+	if (!("namespace" in event.data)) {
+		logErr("'bridgeToKernelQuery' requires queryData\n", event.data)
 		return
 	}
 
@@ -86,4 +104,4 @@ window.addEventListener("message", function(event) {
 	// TODO: Need to add handling / erroring out for unrecognized method.
 })
 
-console.log("[skynet bridge] bridge has loaded")
+log("bridge has loaded")

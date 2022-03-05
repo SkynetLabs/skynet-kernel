@@ -47,6 +47,7 @@ export function postKernelQuery(queryData: any): Promise<any> {
 		nextNonce++
 		queries[nonce] = {resolve, reject}
 		window.postMessage({
+			namespace: "libkernel",
 			method: "bridgeToKernelQuery",
 			nonce,
 			queryData,
@@ -97,15 +98,13 @@ function handleMessage(event: MessageEvent) {
 	if (event.source !== window) {
 		return
 	}
-	// Check that this message is a kernelResponse.
-	if (!("data" in event) || !("method" in event.data)) {
+	// Check that this message is a response targeting libkernel.
+	if (!("data" in event) || !("method" in event.data) || event.data.namespace !== "libkernel") {
 		return
 	}
-	// Check that the method is a string.
 	if (typeof event.data.method !== "string") {
 		return
 	}
-	// Check that the method is an inbound method.
 	if (!((event.data.method.endsWith("Response")) || (event.data.method.endsWith("ResponseUpdate")))) {
 		return
 	}
@@ -153,6 +152,7 @@ export function init(): Promise<string> {
 	// Send a message checking if the bridge is alive and responding. The
 	// nonce '0' is kept available explicitly for this purpose.
 	window.postMessage({
+		namespace: "libkernel",
 		method: "bridgeTestQuery",
 		nonce: 0,
 	})

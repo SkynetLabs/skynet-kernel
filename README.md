@@ -253,6 +253,12 @@ confirm that the bridge exists. 'bridgeToKernel' is a request to the bridge to
 forward a message to the kernel. The bridge will act as a proxy and
 transparently forward any requests to the kernel.
 
+Because multiple scripts on the same page may be trying to communicate with the
+bridge, and those scripts have no way to avoid nonce reuse, we namespace the
+messages. libkernel uses the namespace 'libkernel', other scripts that
+communicate with the bridge should take care to use namespaces that are not
+going to collide.
+
 #### bridgeTest
 
 bridgeTestQuery is a simple query that allows a webpage to check whether the
@@ -265,8 +271,9 @@ The query message should have the form:
 
 ```ts
 window.postMessage({
-	method: "bridgeTestQuery",
+	namespace,
 	nonce,
+	method: "bridgeTestQuery",
 })
 ```
 
@@ -274,8 +281,9 @@ The response from the bridge will have the form:
 
 ```ts
 window.postMessage({
-	method: "bridgeTestResponse",
+	namespace,
 	nonce,
+	method: "bridgeTestResponse",
 	version: "v0.0.1",
 })
 ```
@@ -299,8 +307,9 @@ The query message should have the form:
 
 ```ts
 window.postMessage({
-	method: "bridgeToKernelQuery",
+	namespace,
 	nonce,
+	method: "bridgeToKernelQuery",
 	queryData,
 })
 ```
@@ -309,8 +318,9 @@ The response should have the form:
 
 ```ts
 window.postMessage({
-	method: "bridgeToKernelResponse",
+	namespace,
 	nonce,
+	method: "bridgeToKernelResponse",
 	response,
 	err,
 })
