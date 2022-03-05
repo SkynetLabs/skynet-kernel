@@ -22,8 +22,8 @@ function logErr(...inputs: any) {
 function handleBridgeTest(event) {
 	window.postMessage({
 		namespace: event.data.namespace,
-		method: "bridgeTestResponse",
 		nonce: event.data.nonce,
+		method: "bridgeTestResponse",
 		version: "v0.0.1",
 	}, event.source)
 }
@@ -54,8 +54,8 @@ function handleKernelQuery(event) {
 		// indicated by the 'queryStatus' field of the data.
 		window.postMessage({
 			namespace: event.data.namespace,
-			method: "bridgeToKernelResponse",
 			nonce: event.data.nonce,
+			method: "bridgeToKernelResponse",
 			response,
 			err: null,
 		}, event.source)
@@ -65,8 +65,8 @@ function handleKernelQuery(event) {
 		// 'sendMessage', and is expected to be uncommon.
 		window.postMessage({
 			namespace: event.data.namespace,
-			method: "bridgeToKernelResponse",
 			nonce: event.data.nonce,
+			method: "bridgeToKernelResponse",
 			response: null,
 			err,
 		}, event.source)
@@ -100,8 +100,7 @@ window.addEventListener("message", function(event) {
 		handleKernelQuery(event)
 		return
 	}
-
-	// TODO: Need to add handling / erroring out for unrecognized method.
+	logErr("bridge received message with unrecognized method\n", event.data)
 })
 
 log("bridge has loaded")
