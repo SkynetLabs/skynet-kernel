@@ -328,9 +328,9 @@ window.postMessage({
 	namespace: event.data.namespace,
 	nonce: event.data.nonce,
 	method: "response",
+	err: null,
 	data: {
 		response: <any>,
-		err: null,
 	},
 })
 ```
@@ -368,6 +368,7 @@ event.source.postMessage({
 	method: "response",
 	err: <string>,
 }, event.origin)
+```
 
 
 #### requestTest
