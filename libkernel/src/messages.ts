@@ -31,13 +31,8 @@ export function testMessage(): Promise<string> {
 				}
 				resolve(response.version)
 			})
-			.catch(response => {
-				if (!("err" in response) || typeof response.err !== "string") {
-					logErr("unrecognized response in postKernelQuery catch", response)
-					reject("unrecognized repsonse")
-					return
-				}
-				reject(response.err)
+			.catch(err => {
+				reject(err)
 			})
 		})
 		.catch(err => {
@@ -105,8 +100,8 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 			.then(response => {
 				resolve(response.output)
 			})
-			.catch(response => {
-				reject(response.err)
+			.catch(err => {
+				reject(err)
 			})
 		})
 		.catch(x => {

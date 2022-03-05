@@ -206,51 +206,67 @@ second.
 The kernel requires a number of messaging protocols, which are all outlined
 below. The key relationships are:
 
-+ Web page -> Bridge Script
-+ Bridge Script -> Background Script
-+ Background Script -> Kernel
++ Web page -> Bridge
++ Bridge -> Background Page
++ Background Page -> Kernel
 + Kernel -> Module
 + Module -> Kernel
 
 At all layers, parallel communications are supported. This means that at any
-given time, any of these layers could have many simultaneous messages open, and
-the responses might come back fully out of order. To overcome this, every
-message is expected to include a nonce to ensure that the responses can be
-properly paired with the queries.
+time, any of these layers could have many simultaneous messages open, and the
+responses might come back fully out of order. To overcome this, every message
+is expected to include a nonce that will enable queries to be matched with
+responses.
 
 All messages also have a 'method' field, which indicates which type of message
 is being sent and what code will be used by the receiver to process the
-message. All of the remaining data will be dependent on the type of message
-that is being sent.
+message. Methods will typically have one of the following suffixes:
 
-### Web Page <-> Bridge Script
++ Query: Opens a new line of messages and is expected to have a unique nonce.
++ QueryUpdate: Sent by a caller to provide new information about an existing
+  query. The message must include the nonce of the query.
++ ReponseUpdate: Sent by a receiver to provide new information to the caller
+  about an existing query. The message must include the nonce of the query.
++ Response: Sent by a receiver as the final message associated with a query.
+  Future messages that use the query's nonce will be ignored.
 
-Web pages are not allowed to talk to web browser extension background pages
-directly. Instead, they have to communicate through a content script which
-we've called 'the bridge script', and can be found in
-'extension/content-bridge.ts'
+The remaining fields in a message will depend on the method being used. Care
+has been taken to ensure that methods are namespaced based on the actor sending
+them and the intended recipient.
 
-The browser extension loads the bridge script into every single page. Any
-webpage, including centralized web pages, is able to contact the bridge and use
-it to communicate with the user's kernel. The vast majority of application
-calls will talk exclusively to the bridge.
+### Web Page -> Bridge
 
-#### bridgeTestQuery
+According to the browser spec, web pages are not allowed to talk to browser
+extension background pages directly. Instead, they have to communicate to the
+background page using a content script. In the kernel, we've called that
+content script 'the bridge', and it can be found in
+'extension/content-bridge.ts'.
+
+The browser extension loads the bridge into every single page. Any webpage,
+including any centralized web page, is able to contact the bridge and use it to
+communicate with the user's kernel. The vast majority of application calls will
+talk exclusively to the bridge.
+
+The only two methods of the bridge are 'bridgeTest' and 'bridgeToKernel'.
+'bridgeTest' is a simple handshake protocol that a webpage can perform to
+confirm that the bridge exists. 'bridgeToKernel' is a request to the bridge to
+forward a message to the kernel. The bridge will act as a proxy and
+transparently forward any requests to the kernel.
+
+#### bridgeTest
 
 bridgeTestQuery is a simple query that allows a webpage to check whether the
 bridge exists. The bridge will respond to the query with a message that
 confirms it exists. If there is no response, the bridge does not exist.
-Typically, a response happens in under 10 milliseconds.
+Typically, a response happens in under 10 milliseconds, though we recommend a
+timeout of at least one second in case the browser is busy.
 
 The query message should have the form:
 
 ```ts
-// A nonce is required by the protocol, though in most situations the caller
-// will use a nonce of '0' because there will only be one receiver looking for
-// a bridgeTestResponse.
 window.postMessage({
 	method: "bridgeTestQuery",
-	nonce: 0,
+	nonce,
 })
 ```
 
@@ -264,9 +280,47 @@ window.postMessage({
 })
 ```
 
-#### kernelQuery
+There are no QueryUpdates or ResponseUpdates for this method.
 
-###### TODO
+#### bridgeToKernel
+
+bridgeToKernel is a method used by a web page to request a query be sent to the
+kernel. The payload for the message is called the 'queryData'. The queryData is
+unpacked transparently with one exception. The queryData should not include a
+'nonce' field, that will be filled in automatically by the bridge during the
+query and removed automatically by the bridge during the response.
+
+Note that the message does not go directly from the bridge to the kernel, it
+makes a stop at the background page along the way. This stop is also nearly
+transparent, though the nonce will once again be swapped out by the background
+page.
+
+The query message should have the form:
+
+```ts
+window.postMessage({
+	method: "bridgeToKernelQuery",
+	nonce,
+	queryData,
+})
+```
+
+The response should have the form:
+
+```ts
+window.postMessage({
+	method: "bridgeToKernelResponse",
+	nonce,
+	response,
+	err,
+})
+```
+
+Note that both 'response' and 'err' will always be included, and exactly one of
+them will always be 'null'. The response can be any object, but the err must
+always be a string.
+
+###### As of writing, no support for QueryUpdate or ResponseUpdate is implemented, however both are planned to be supported in the short term.
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 

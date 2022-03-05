@@ -20,8 +20,8 @@ function handleBridgeTest(event) {
 // eventually reach the kernel.
 function handleKernelQuery(event) {
 	// Check for a kernel query.
-	if (!("kernelQuery" in event.data)) {
-		console.error("[skynet bridge] method 'kernelQuery' requires a kernelQuery\n", event.data, "\n", event)
+	if (!("queryData" in event.data)) {
+		console.error("[skynet bridge] 'bridgeToKernelQuery' requires queryData\n", event.data)
 		return
 	}
 
@@ -41,21 +41,24 @@ function handleKernelQuery(event) {
 		// that the response may itself be a failure, which will be
 		// indicated by the 'queryStatus' field of the data.
 		window.postMessage({
-			method: "kernelResponse",
+			method: "bridgeToKernelResponse",
 			nonce: event.data.nonce,
 			response,
+			err: null,
 		}, event.source)
 	}
 	let wrappedErr = function(err) {
 		// A kernelResponseErr actually indicates some issue with
 		// 'sendMessage', and is expected to be uncommon.
 		window.postMessage({
-			method: "kernelResponseErr",
+			method: "bridgeToKernelResponse",
 			nonce: event.data.nonce,
+			response: null,
 			err,
 		}, event.source)
 	}
-	browser.runtime.sendMessage(event.data.kernelQuery).then(wrappedResp, wrappedErr)
+	console.log("sending message to background\n", event.data)
+	browser.runtime.sendMessage(event.data.queryData).then(wrappedResp, wrappedErr)
 }
 
 // This is the listener for the content script, it will receive messages from
@@ -75,10 +78,12 @@ window.addEventListener("message", function(event) {
 		handleBridgeTest(event)
 		return
 	}
-	if (event.data.method === "kernelQuery") {
+	if (event.data.method === "bridgeToKernelQuery") {
 		handleKernelQuery(event)
 		return
 	}
+
+	// TODO: Need to add handling / erroring out for unrecognized method.
 })
 
 console.log("[skynet bridge] bridge has loaded")
