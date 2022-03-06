@@ -113,8 +113,8 @@ declare var handleMessage
 declare var log
 declare var logToSource
 declare var handleTest
-declare var handleSkynetKernelRequestGET
-declare var handleSkynetKernelRequestDNS
+declare var handleSkynetKernelFetchGET
+declare var handleSkynetKernelProxyInfo
 
 // workers is an object which holds all of the workers in the kernel. There is
 // one worker per module.
@@ -344,12 +344,12 @@ handleMessage = function(event) {
 		handleModuleCall(event, event.source, false)
 		return
 	}
-	if (event.data.method === "requestGET") {
-		handleSkynetKernelRequestGET(event)
+	if (event.data.method === "fetchGET") {
+		handleSkynetKernelFetchGET(event)
 		return
 	}
-	if (event.data.method === "requestDNS") {
-		handleSkynetKernelRequestDNS(event)
+	if (event.data.method === "proxyInfo") {
+		handleSkynetKernelProxyInfo(event)
 		return
 	}
 

@@ -233,9 +233,9 @@ var loadSkynetKernel = function() {
 	})
 }
 
-// handleSkynetKernelRequestGET is defined for two pages when the user hasn't
-// logged in: the home page, and the authentication page.
-var handleSkynetKernelRequestGET = function(event) {
+// handleSkynetKernelRequestOverride is defined for two pages when the user
+// hasn't logged in: the home page, and the authentication page.
+var handleSkynetKernelRequestOverride = function(event) {
 	// Define the headers that need to be injected when responding to the
 	// GET request. In this case (pre-auth), the headers will be the same
 	// for all pages that we inject.
@@ -256,20 +256,32 @@ var handleSkynetKernelRequestGET = function(event) {
 		}, event.origin)
 	}
 	let respondBody = function(body) {
-		event.source.postMessage({
+		let msg = {
 			nonce: data.nonce,
-			method: "requestURLResponse",
+			method: "response",
 			err: null,
-			data: {
+		}
+		if (body === null) {
+			msg["data"] = {
+				override: false,
+			}
+		} else {
+			msg["data"] = {
+				override: true,
 				headers,
 				body,
-			},
-		}, event.origin)
+			}
+		}
+		event.source.postMessage(msg, event.origin)
 	}
 
 	// Input checking.
 	if (!("data" in data) || !("url" in data.data) || typeof data.data.url !== "string") {
-		respondErr("no url provided")
+		respondErr("no url provided: "+JSON.stringify(data))
+		return
+	}
+	if (!("method" in data.data) || typeof data.data.method !== "string") {
+		respondErr("no data.method provided: "+JSON.stringify(data))
 		return
 	}
 
@@ -288,21 +300,20 @@ var handleSkynetKernelRequestGET = function(event) {
 		})
 		return
 	}
-
-	// Default, return a page indicating an error.
-	let buf = new TextEncoder().encode("err - unrecognized URL: "+data.url)
-	respondBody(buf)
+	respondBody(null)
 }
 
-// handleSkynetKernelRequestDNS responds to a DNS query. The default kernel
+// handleSkynetKernelProxyInfo responds to a DNS query. The default kernel
 // always responds that there should be no proxy for the given domain - the
 // background script already has special carveouts for all required domains.
-var handleSkynetKernelRequestDNS = function(event) {
+var handleSkynetKernelProxyInfo = function(event) {
 	event.source.postMessage({
 		nonce: event.data.nonce,
 		method: "response",
 		err: null,
-		proxy: false,
+		data: {
+			proxy: false,
+		},
 	}, event.origin)
 }
 
@@ -347,15 +358,15 @@ var handleMessage = function(event: any) {
 		return
 	}
 
-	// Create default handlers for the requestGET and requestDNS methods.
+	// Create default handlers for the fetchGET and proxyInfo methods.
 	// These methods are important during bootloading to ensure that the
 	// default login page can be loaded for the user.
-	if (event.data.method === "requestGET") {
-		handleSkynetKernelRequestGET(event)
+	if (event.data.method === "requestOverride") {
+		handleSkynetKernelRequestOverride(event)
 		return
 	}
-	if (event.data.method === "requestDNS") {
-		handleSkynetKernelRequestDNS(event)
+	if (event.data.method === "proxyInfo") {
+		handleSkynetKernelProxyInfo(event)
 		return
 	}
 

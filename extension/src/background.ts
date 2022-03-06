@@ -275,32 +275,16 @@ function onBeforeRequestListener(details) {
 		return {}
 	}
 
-	// Ignore all requests that aren't pointed at the skynet TLD.
-	//
-	// TODO: Adjust this so that instead the kernel can respond with a
-	// message indicating that it's an ignored TLD.
-	let isSkynetTLD = new URL(details.url).hostname.endsWith("skynet")
-	if (!isSkynetTLD) {
-		return
-	}
-
-	// Ignore all requests that are not GET requests - we let these
-	// requests complete like normal.
-	//
-	// NOTE: We intend to intercept all other types of requests as well in
-	// the future, but for now we're only worrying about GET requests to
-	// keep things simpler.
-	if (details.method !== "GET") {
-		return
-	}
-
 	// Ask the kernel what data should be loaded before grabbing the
 	// response filter. The response filter can often take a while to
 	// become active, so we can start the process of fetching the trusted
 	// response from the kernel to keep things parallelized.
 	let query = queryKernel({
-		method: "requestGET",
-		data: {url: details.url},
+		method: "requestOverride",
+		data: {
+			url: details.url,
+			method: details.method,
+		},
 	})
 
 	// Grab the response data and replace it with the response from the
@@ -308,12 +292,31 @@ function onBeforeRequestListener(details) {
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.onstart = event => {
 		query.then((response: any) => {
+			if (!("data" in response) || !("override" in response.data)) {
+				console.error("requestOverride response has no 'override' field\n", response)
+				filter.disconnect()
+				return
+			}
+			if (response.data.override !== "true") {
+				filter.disconnect()
+				return
+			}
+			if (!("body" in response.data)) {
+				console.error("requestOverride response is missing 'body' field\n", response)
+				filter.disconnect()
+				return
+			}
+			if (!("headers" in response.data)) {
+				console.error("requestOverride response is missing 'headers' field\n", response)
+				filter.disconnect()
+				return
+			}
 			filter.write(response.body)
 			filter.close()
 			headers[details.requestId] = response.headers
 		})
 		.catch(err => {
-			console.log("requestGET query to kernel failed:", err)
+			console.log("requestOverride query to kernel failed:", err)
 		})
 	}
 }
@@ -373,16 +376,26 @@ browser.webRequest.onHeadersReceived.addListener(
 // kernel to load, and all other requests are routed to the kernel so that the
 // kernel can decide whether a proxy should be used for that page.
 //
-// TODO: We need a kernel level ability for the user to change which proxy they
-// use by default for all of their machines. We also need an extension level
-// override for this default so the user can make a change for just one
-// machine. We may be able to do that with kernel messages as well. For now,
-// there is no configurability.
+// TODO: Need to add an extension-level override for the proxy destination. The
+// kernel reports one option for where the proxy should go, but for example you
+// can massively speed up skynet by setting up a proxy server on localhost and
+// pointing to that. The kernel is global, but the proxy server will only be
+// available on one machine. Therefore, you need to be able to configure on a
+// per-machine level (meaning, through the extension not through the kernel)
+// where the proxies should redirect to. Defintely a post-launch sort of thing.
 function handleProxyRequest(info) {
 	// Hardcode an exception for 'kernel.skynet'. We need this exception
 	// because that's where the kernel exists, and the kernel needs to be
 	// loaded before we can ask the kernel whether we should be proxying
 	// something.
+	//
+	// TODO: We need some sort of failover resiliency here. The major
+	// challenge that I see is identifying when the primary destination is
+	// down / unusable. If we can easily know if it's up or down, we can
+	// easily swap in a failover url. And we will also want some sort of
+	// in-extenion UI that allows the user to set their failover options.
+	// And we'll also want to load the set of failover options from
+	// localstorage, and get that list of failover options from the kernel.
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
 		return {type: "http", host: "skynetfree.net", port: 80}
@@ -392,23 +405,43 @@ function handleProxyRequest(info) {
 	// the empty string as the domain of the query because the kernel is
 	// going to ignore that value anyway.
 	let query = queryKernel({
-		method: "requestDNS",
-		url: info.url,
+		method: "proxyInfo",
+		data: { url: info.url },
 	})
 	query.then((response: any) => {
 		// Input sanitization.
-		if (!("proxy" in response)) {
-			console.error("kernel did not include a 'proxy' in the response")
+		if (!("data" in response)) {
+			console.error("kernel did not include a 'data' field in the data\n", response)
 			return {type: "direct"}
 		}
-		if (response.proxy === true) {
-			return {type: "http", host: "skynetfree.net", port: 80}
-		} else {
+		let data = response.data
+		if (!("proxy" in data) || typeof data.proxy !== "boolean") {
+			console.error("kernel did not include a 'proxy' in the data\n", response)
 			return {type: "direct"}
+		}
+		if (data.proxy === false) {
+			return {type: "direct"}
+		}
+		if (!("destinationType" in data) || typeof data.destinationType !== "string") {
+			console.error("kernel did not include a destinationType in the data\n", response)
+			return {type: "direct"}
+		}
+		if (!("destinationHost" in data) || typeof data.destinationHost !== "string") {
+			console.error("kernel did not include a destinationHost in the data\n", response)
+			return {type: "direct"}
+		}
+		if (!("destinationPort" in data) || typeof data.destinationPort !== "number") {
+			console.error("kernel did not include a destinationPort in the data\n", response)
+			return {type: "direct"}
+		}
+		return {
+			type: data.destinationType,
+			host: data.destinationHost,
+			port: data.destinationPort,
 		}
 	})
 	.catch(errQK => {
-		console.error("error after sending requestDNS message:", errQK)
+		console.error("error after sending proxyInfo message:", errQK)
 		return {type: "direct"}
 	})
 }

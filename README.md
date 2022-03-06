@@ -404,16 +404,68 @@ event.source.postMessage({
 }, event.origin)
 ```
 
-#### requestGET
+There is no support for queryUpdate or responseUpdate messages for this method.
 
-requestGET is intended to emulate a GET request sent to a webserver. The input
-'url' is the url that the caller would normally be querying. The kernel will
-respond the way that the kernel believes a webserver at this URL should
-respond. requestGET is one of the most important methods to making the web
-trustless - the kernel is able to serve code that the user knows and trusts,
-rather than allowing a rogue server to provide compromised code. This is how we
-enable the user to log into the kernel without any fear that their seed will be
-stolen by a webserver.
+#### proxyInfo
+
+proxyInfo is a request usually made by the background script to the kernel
+requesting whether a particular url is supposed to be proxied. This endpoint is
+available to all callers, as they could learn the results of the endpoint
+anyway by making a normal 'fetch' request to a URL that they suspect is being
+proxied.
+
+The main purpose of proxyInfo is to enable the kernel to support arbitrary
+TLDs. Examples of TLDs that can be supported by proxyInfo are '.skynet',
+'.hns', '.web3', and '.eth'.
+
+The bootloader supports the method, but always indicates that a page should not
+be proxied. The background page already has a special, permanent carve-out for
+'.skynet' domains, because that is where the kernel gets loaded.
+
+The query message should have the form:
+
+```ts
+kernelFrame.contentWindow.postMessage({
+	nonce: <number>,
+	method: "proxyInfo",
+	data: {
+		url: <string>,
+	},
+}, "http://kernel.skynet")
+```
+
+The response will have the form:
+
+```ts
+event.source.postMessage({
+	nonce: originalRequest.nonce,
+	method: "response",
+	err: null,
+	data: {
+		// If proxy is 'false', the other types will be excluded.
+		proxy: <boolean>,
+		destinationType: <string>,
+		destinationHost: <string>,
+		destinationPort: <number>,
+	},
+}, event.origin)
+```
+
+There is no support for queryUpdate or responseUpdate messages for this method.
+
+#### requestOverride
+
+requestOverride is used by the background script to vet all requests
+intercepted by onBeforeRequest and determine whether the data should be
+replaced by other data. This endpoint is available to all callers, as they
+could figure out what the replacement data is anyway by making a fetch request.
+
+requestOverride is one of the most important methods of the kernel, as it
+allows the user to load webpages in a fully trustless way. The kernel can
+replace a standard query to a URL like 'homescreen.web3' and inject the user's
+preferred homescreen code, providing a guarantee that no web server can replace
+a user's application with malicious code. This makes crypto applications
+significantly safer and more decentralized.
 
 This method is supported by the bootloader, but only for the page at
 http://kernel.skynet/auth.html
@@ -426,6 +478,7 @@ kernelFrame.contentWindow.postMessage({
 	method: "getRequest",
 	data: {
 		url: <string>,
+		method: <string>,
 	},
 }, "http://kernel.skynet")
 ```
@@ -448,11 +501,11 @@ event.source.postMessage({
 }, event.origin)
 ```
 
-There are no queryUpdate or responseUpdate messages supported for this method.
-
-#### requestDNS
+There is no support for queryUpdate or responseUpdate messages for this method.
 
 #### callModule
+
+WIP
 
 ### Kernel -> Background Page
 

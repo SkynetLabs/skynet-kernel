@@ -26,29 +26,13 @@ function nextTest() {
 
 // TestLibkernelInit will check the init function of the kernel.
 function TestLibkernelInit() {
-	return new Promise((resolve, reject) => {
-		kernel.init()
-		.then(x => {
-			resolve(x)
-		})
-		.catch(x => {
-			reject(x)
-		})
-	})
+	return kernel.init()
 }
 
 // TestSendTestMessage will send a test message to the kernel and check for the
 // result.
 function TestSendTestMessage() {
-	return new Promise((resolve, reject) => {
-		kernel.testMessage()
-		.then(x => {
-			resolve(x)
-		})
-		.catch(x => {
-			reject(x)
-		})
-	})
+	return kernel.testMessage()
 }
 
 // TestGenericModuleCall will upload a very basic file to Skynet using libkernel.
@@ -57,17 +41,9 @@ function TestSendTestMessage() {
 // generic module.
 let padAndEncryptModule = "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ"
 function TestGenericModuleCall() {
-	return new Promise((resolve, reject) => {
-		kernel.callModule(padAndEncryptModule, "padAndEncrypt", {
-			filepath: "aFilename",
-			fileData: new TextEncoder().encode("a bit of file data")
-		})
-		.then(x => {
-			resolve(x.output)
-		})
-		.catch(x => {
-			reject(x.err)
-		})
+	return kernel.callModule(padAndEncryptModule, "padAndEncrypt", {
+		filepath: "aFilename",
+		fileData: new TextEncoder().encode("a bit of file data")
 	})
 }
 
