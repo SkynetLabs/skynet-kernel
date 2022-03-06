@@ -1,7 +1,5 @@
 export {}
 
-// TODO: Need to redo the logging system.
-
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.skynet"
@@ -25,12 +23,6 @@ document.body.appendChild(header)
 // import:::extension/lib/download.ts
 
 // transplant:::kernel/kernel.js
-
-// log is a wrapper to call sourceLog that ensures every log is prefixed with
-// 'Kernel'.
-var log = function(logType: string, ...inputs: any) {
-	sourceLog("Kernel", logType, ...inputs)
-}
 
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The

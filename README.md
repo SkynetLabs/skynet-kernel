@@ -209,7 +209,7 @@ below. The key relationships are:
 + Web page -> Bridge
 + Bridge -> Background Page
 + All -> Kernel
-+ Kernel -> Background Page
++ Kernel -> Parent
 + Kernel -> Module
 + Module -> Kernel
 
@@ -507,11 +507,34 @@ There is no support for queryUpdate or responseUpdate messages for this method.
 
 WIP
 
-### Kernel -> Background Page
+### Kernel -> Parent
+
+The kernel generally exists in an iframe, typically inside of the background
+page of a browser extension. The kernel has a few messages that it will send to
+its parent to ensure that everything is working smoothly.
 
 #### log
 
-#### logErr
+For whatever reason, calls to 'console.log' from the kernel are not visible
+when the kernel exists in the iframe of a background page of a web extension.
+To overcome this problem, the kernel can send a method that requests a log
+message be sent. If 'isErr' is set to 'true', the kernel is requesting a
+console.error instead of a console.log.
+
+The message will have the form:
+
+```ts
+window.parent.poastMessage({
+	method: "log",
+	data: {
+		isErr: <boolean>,
+		message: <string>,
+	},
+}, window.parent.origin)
+```
+
+This message is not a query, and therefore there are no response messages.
+There are also no queryUpdate or responseUpdate messages.
 
 #### authStatusChanged
 
@@ -583,6 +606,8 @@ WIP
   loaded by the extension. We want to make sure that the user gets a consistent
   experience, and we don't trust all browser extensions to use exactly the same
   default functions.
+
++ Adjust the log function so that it's not using localStorage
 
 + Create an API in the kernel for changing the logging settings.
 

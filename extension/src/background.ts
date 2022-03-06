@@ -197,18 +197,27 @@ function handleKernelResponse(event) {
 		console.log("received message without a method\n", event.data)
 		return
 	}
-	let method = event.data.method
+	let data = event.data
+	let method = data.method
 
 	// Check for the kernel requesting a log event. This infrastructure is
 	// in place because calling 'console.log' from the kernel itself does
 	// not seem to result in the log actually getting displayed in the
 	// console of the background page.
 	if (method === "log") {
-		console.log(event.data.message)
-		return
-	}
-	if (method === "logErr") {
-		console.error(event.data.message)
+		if (!("data" in data) || !("isErr" in data.data) || typeof data.data.isErr !== "boolean") {
+			console.error("kernel sent a log message with no 'isErr' field", data)
+			return
+		}
+		if (!("message" in data.data)) {
+			console.error("kernel sent a log message with no 'message' field", data)
+			return
+		}
+		if (data.data.isErr === false) {
+			console.log(data.data.message)
+		} else {
+			console.error(data.data.message)
+		}
 		return
 	}
 

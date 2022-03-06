@@ -111,7 +111,7 @@ declare var preferredPortals
 declare var addContextToErr
 declare var handleMessage
 declare var log
-declare var logToSource
+declare var logErr
 declare var handleTest
 declare var handleSkynetKernelFetchGET
 declare var handleSkynetKernelProxyInfo

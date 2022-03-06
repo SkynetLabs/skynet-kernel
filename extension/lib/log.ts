@@ -1,9 +1,18 @@
-// sourceLog provides syntactic sugar for the logging functions. This function
-// is intended to be wrapped by whatever page imports it so that the logSource
-// is different for each page. The first argument is the name of the page, the
-// second argument is the message type, and the remaining arguments are the
-// same as any inputs you would pass to console.log.
-var sourceLog = function(logSource: string, logType: string, ...inputs: any) {
+// log, and logErr are helper functions that wrap a log messages with a string
+// indicating where the log originates, and will also send a message to the
+// parent requesting that the parent create a log.
+//
+// Anything being sent to the parent (through postMessage) will need to be sent
+// as a string. Any inputs which cannot be converted to a string by
+// JSON.stringify will be ignored when sent to the parent.
+//
+// wlog is used for code deduplication, users should call log and logErr.
+//
+// TODO: Instead of using localStorage, we should probably use live variables.
+// At startup, localStorage will be used to set the live variables, and then a
+// background sync routine will update the live variables and the localStorage
+// both. That way we don't need to access localStorage with every call to log.
+var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 	// Fetch the log settings as a string.
 	let logSettingsStr = localStorage.getItem("v1-logSettings")
 
@@ -26,32 +35,47 @@ var sourceLog = function(logSource: string, logType: string, ...inputs: any) {
 		return
 	}
 
-	// Print the log.
-	let args = Array.prototype.slice.call(arguments)
-	args[0] = `[${logType}] ${logSource} (${performance.now()} ms): `
-	console.log.apply(console, args)
-	return
-}
+	// Log the message.
+	if (isErr === false) {
+		console.log("[kernel]", ...inputs)
+	} else {
+		console.error("[kernel]", ...inputs)
+	}
 
-// logToSource is a helper function to send a message to the source of an event
-// with a logging statement. For some reason, messages logged in the iframe of
-// a background extension (the generic construction of the kernel) don't output
-// by default and I couldn't figure out how to configure it to happen. Instead,
-// we send a message to the background script requesting that it do the log for
-// us.
-//
-// TODO: We should be able to merge sourceLog and logToSource, one does a
-// console.log (which is often invisible) and the other does a postMessage
-// (which works a lot better) - why not make them one function?
-function logToSource(event, message) {
+	// Send a message to the parent requesting a log.
+	if (!window.parent) {
+		return
+	}
+	let message = ""
+	for (let i = 0; i < inputs.length; i++) {
+		// Separate each input by a newline.
+		if (i !== 0) {
+			message += "\n"
+		}
+		// Strings can be placed in directly.
+		if (typeof inputs[i] === "string") {
+			message += inputs[i]
+			continue
+		}
+		// Everything else needs to be stringified.
+		try {
+			let item = JSON.stringify(inputs[i])
+			message += item
+		} catch {
+			message += "[input could not be stringified]"
+		}
+	}
 	window.parent.postMessage({
 		method: "log",
-		message,
-	}, event.origin)
+		data: {
+			isErr,
+			message,
+		},
+	})
 }
-function logToSourceW(message) {
-	window.parent.postMessage({
-		method: "log",
-		message,
-	}, window.parent.origin)
+var log = function(logType: string, ...inputs: any) {
+	wlog(false, logType, ...inputs)
+}
+var logErr = function(logType: string, ...inputs: any) {
+	wlog(true, logType, ...inputs)
 }
