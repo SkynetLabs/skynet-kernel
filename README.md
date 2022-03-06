@@ -354,14 +354,16 @@ window.postMessage({
 
 ### Bridge -> Background Page
 
-The protocol for having the bridge communicate with the background page is
-going to be overhauled, and therefore has not been documented. This was seen as
-an acceptable launch decision, as both the bridge and the background page are
-part of the browser extension, and therefore do not need to maintain
-compatibility with external software.
+The bridge communicates with the background page using browser.runtime.connect.
+This creates a single port that will be used for all communications between the
+bridge and the background.
 
-The major shortcoming for the current protocol is that there is no way to
-support QueryUpdate messages or ResponseUpdate messages.
+The only query method allowed is newKernelQuery. queryUpdate, responseUpdate,
+and response are also all supported. When a message is passed from the bridge
+to the background, the background will swap out the nonce and otherwise send
+the message directly to the kernel. When the kernel responds, the background
+will swap out the nonce again to restore the original nonce used by the bridge.
+The response is otherwise passed along untouched.
 
 ### All -> Kernel
 
@@ -393,7 +395,7 @@ The response will have the form:
 
 ```ts
 event.source.postMessage({
-	nonce: event.data.nonce,
+	nonce: originalMessage.nonce,
 	method: "response",
 	err: null,
 	data: {
@@ -401,7 +403,20 @@ event.source.postMessage({
 	},
 }, event.origin)
 ```
+
 #### requestGET
+
+requestGET is intended to emulate a GET request sent to a webserver. The input
+'url' is the url that the caller would normally be querying. The kernel will
+respond the way that the kernel believes a webserver at this URL should
+respond. requestGET is one of the most important methods to making the web
+trustless - the kernel is able to serve code that the user knows and trusts,
+rather than allowing a rogue server to provide compromised code. This is how we
+enable the user to log into the kernel without any fear that their seed will be
+stolen by a webserver.
+
+This method is supported by the bootloader, but only for the page at
+http://kernel.skynet/auth.html
 
 The request should have the form:
 
@@ -409,7 +424,9 @@ The request should have the form:
 kernelFrame.contentWindow.postMessage({
 	nonce: <number>,
 	method: "getRequest",
-	url: <string>,
+	data: {
+		url: <string>,
+	},
 }, "http://kernel.skynet")
 ```
 
@@ -424,10 +441,14 @@ event.source.postMessage({
 	nonce: event.data.nonce,
 	method: "response",
 	err: null,
-	headers: <header[]>,
-	body: <Uint8Array>,
+	data: {
+		headers: <header[]>,
+		body: <Uint8Array>,
+	},
 }, event.origin)
 ```
+
+There are no queryUpdate or responseUpdate messages supported for this method.
 
 #### requestDNS
 

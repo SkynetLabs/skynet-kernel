@@ -247,27 +247,28 @@ var handleSkynetKernelRequestGET = function(event) {
 	]
 
 	// Define a helper function for returning an error.
+	let data = event.data
 	let respondErr = function(err: string) {
-		let requestURLResponse = {
-			nonce: event.data.nonce,
+		event.source.postMessage({
+			nonce: data.nonce,
 			method: "response",
 			err,
-		}
-		event.source.postMessage(requestURLResponse, event.origin)
+		}, event.origin)
 	}
 	let respondBody = function(body) {
-		let requestURLResponse = {
-			nonce: event.data.nonce,
+		event.source.postMessage({
+			nonce: data.nonce,
 			method: "requestURLResponse",
 			err: null,
-			headers,
-			body,
-		}
-		event.source.postMessage(requestURLResponse, event.origin)
+			data: {
+				headers,
+				body,
+			},
+		}, event.origin)
 	}
 
 	// Input checking.
-	if (!("data" in event) || !("url" in event.data) || typeof event.data.url !== "string") {
+	if (!("data" in data) || !("url" in data.data) || typeof data.data.url !== "string") {
 		respondErr("no url provided")
 		return
 	}
@@ -276,7 +277,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	//
 	// TODO: Change the authpage to a v2link so that we can update the
 	// without having to modify the file.
-	let url = event.data.url
+	let url = data.data.url
 	if (url === "http://kernel.skynet/auth.html") {
 		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
 		.then(result => {
@@ -289,7 +290,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	}
 
 	// Default, return a page indicating an error.
-	let buf = new TextEncoder().encode("err - unrecognized URL: "+event.data.url)
+	let buf = new TextEncoder().encode("err - unrecognized URL: "+data.url)
 	respondBody(buf)
 }
 

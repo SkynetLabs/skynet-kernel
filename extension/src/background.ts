@@ -251,7 +251,9 @@ function handleKernelResponse(event) {
 		return
 	}
 	let result = queries[event.data.nonce]
-	delete queries[event.data.nonce]
+	if (method === "response") {
+		delete queries[event.data.nonce]
+	}
 	result(event.data)
 }
 // Create a listener to handle responses coming from the kernel.
@@ -298,7 +300,7 @@ function onBeforeRequestListener(details) {
 	// response from the kernel to keep things parallelized.
 	let query = queryKernel({
 		method: "requestGET",
-		url: details.url,
+		data: {url: details.url},
 	})
 
 	// Grab the response data and replace it with the response from the
@@ -400,7 +402,7 @@ function handleProxyRequest(info) {
 			return {type: "direct"}
 		}
 		if (response.proxy === true) {
-			return {type: "http", host: "siasky.net", port: 80}
+			return {type: "http", host: "skynetfree.net", port: 80}
 		} else {
 			return {type: "direct"}
 		}
