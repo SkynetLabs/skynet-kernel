@@ -519,11 +519,11 @@ WIP
 
 ### Kernel -> Module
 
-TODO
+WIP
 
 ### Module -> Kernel
 
-TODO
+WIP
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 
@@ -543,19 +543,6 @@ TODO
   the type is set to '2', we can't blindly assume the portal is malicious just
   because a registry entry is type 2.
 
-+ Try to find some solution (perhaps using content scripts) to allow skynet
-  pages to talk to the kernel through the background script rather than needing
-  to open an iframe to the kernel themselves. This is a performance boost. At the
-  very worst, we could have the kernel be a shim that forwards messages to the
-  background script. Though... this may not be good for parallelism. Maybe the
-  way forward is to let the app choose between talking to a dedicated kernel
-  instance and the background script. Or maybe the dedicated kernel can make the
-  call.
-
-+ Remove the downloadV1Skylink function in the extension. Currently it is used
-  by several of the modules, so we can't delete it until the modules are
-  updated. Need to wait until the trustless endpoint is broadly deployed.
-
 + Update all of the crypto functions so that they can be overwritten by the
   kernel, and namespace them so they don't get in the way of future cryptos.
   The annoying thing here is that the crypto libraries use 'var' everywhere
@@ -566,11 +553,6 @@ TODO
 + There are places where we could potentially switch the typescript types to be
   using fixed size arrays, which would eliminate the need for some of the
   functions to be doing length checking.
-
-+ Split the actual kernel and module files into separate repos. Once that is
-  complete, the build process should get simpler. Then hardcode the default
-  kernel so that you don't need to transplant it in the build process and in the
-  extension.
 
 + Add UI elements to the extension that allows a user to change the set of
   hardcoded portals which get used to bootstrap the kernel.
@@ -590,9 +572,6 @@ TODO
   malicious portal (or even a dysfuncitonal one), we can track that portal for
   the given API endpoint. This includes changing the way we handle the catch for
   5XX calls, because the caller needs to know that one of the portals failed...
-
-+ Need to update Homescreen to be able to handle the 'skynetKernelLoadFailed'
-  message.
 
 + The downloadSkylink call needs to be extended so that it can verify large
   file downloads on top of small file downloads. This should probably happen in
