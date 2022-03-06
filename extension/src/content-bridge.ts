@@ -7,7 +7,8 @@ export {}
 
 declare var browser
 
-// log provides a wrapper for console.log that prefixes 'libkernel'.
+// log provides a wrapper for console.log that prefixes '[libkernel]' to the
+// output.
 function log(...inputs: any) {
 	console.log("[libkernel]", ...inputs)
 }
@@ -17,6 +18,59 @@ function log(...inputs: any) {
 function logErr(...inputs: any) {
 	console.error("[libkernel]", ...inputs)
 }
+
+// Establish a system for matching queries with their responses. We need a map
+// that maps from a background nonce to a page namespace+nonce, and we need a
+// map that maps from a page namespace+nonce to a background nonce.
+var queriesNonce = 0
+var queries = new Object()
+var reverseQueries = new Object()
+function pageNonceStr(nonce: number, namespace: string) { return nonce.toString()+"n"+namespace }
+
+// Create the handler for messages from the background page. The background
+// will be exclusively relaying messages from the bridge to the kernel.
+function handleBackgroundMessage(data) {
+	// Check what query this message maps to.
+	if (!("nonce" in data)) {
+		logErr("received message from background with no nonce: "+JSON.stringify(data))
+		return
+	}
+	if (!(data.nonce in queries)) {
+		logErr("no record of that nonce : "+JSON.stringify(data)+"\n"+JSON.stringify(queries))
+		return
+	}
+
+	// Grab the info for this query. If the method is 'response' then this
+	// query is done and can be deleted.
+	let info = queries[data.nonce]
+	if (data.method === "response") {
+		delete queries[data.nonce]
+		let pns = pageNonceStr(info.nonce, info.namespace)
+		delete reverseQueries[pns]
+	}
+	let query = ({
+		namespace: info.namespace,
+		nonce: info.nonce,
+		method: data.method,
+	})
+
+	// Check that an error was included.
+	if (!("err" in data)) {
+		query["err"] = "kernel did not include an err field in response"
+		window.postMessage(query)
+		return
+	}
+	query["err"] = data.err
+	if ("data" in data) {
+		query["data"] = data.data
+	}
+	window.postMessage(query)
+}
+// Do not open the port until the first kernel query is made by the page
+// script, otherwise we will open a port for every single webpage that the user
+// visits, whether it is a skynet page or not.
+var port
+var portOpen = false
 
 // handleTest will send a response indicating the bridge is alive.
 function handleTest(data) {
@@ -34,60 +88,81 @@ function handleTest(data) {
 // handleKernelQuery handles messages sent by the page that are intended to
 // eventually reach the kernel.
 function handleKernelQuery(data) {
+	// Open the port if it is not already open.
+	if (portOpen === false) {
+		port = browser.runtime.connect()
+		port.onMessage.addListener(handleBackgroundMessage)
+		portOpen = true
+	}
+
 	// Check for a kernel query.
-	if (!("queryData" in data)) {
-		log("'newKernelQuery' requires queryData\n", data)
+	if (!("data" in data)) {
+		window.postMessage({
+			namespace: data.namespace,
+			nonce: data.nonce,
+			method: "response",
+			err: "missing data from newKernelQuery message: "+JSON.stringify(data),
+		})
 		return
 	}
 
-	// browser.runtime.sendMessage is unique and a bit frustrating to work
-	// with. The receiving end must always call 'resolve' even if there was
-	// an error. This is because a 'reject' is supposed to mean that the
-	// browser couldn't connect to the extension for some reason. It
-	// hijacks the error output, preventing the receiver from returning an
-	// error if the receiver chooses to reject.
-	//
-	// To get around this, the background script will always resolve,
-	// adding 'resp.resp' as a field to indicate success, and 'resp.err' as
-	// a field to indicate a failure. We still need to listen for an error
-	// though, because those can happen if the extension is unavailable.
-	let wrappedResp = function(response) {
-		// Pass the message from the kernel to the page script. Note
-		// that the response may itself be a failure, which will be
-		// indicated by the 'queryStatus' field of the data.
-		window.postMessage({
-			namespace: data.namespace,
-			nonce: data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				response,
-			},
-		})
+	// Grab a unique nonce for sending this message to the background and
+	// add it to the data.
+	let nonce = queriesNonce
+	queriesNonce++
+	data.data.nonce = nonce
+	queries[nonce] = {
+		namespace: data.namespace,
+		nonce: data.nonce,
 	}
-	let wrappedErr = function(err) {
-		// A kernelResponseErr actually indicates some issue with
-		// 'sendMessage', and is expected to be uncommon.
+	let pns = pageNonceStr(data.nonce, data.namespace)
+	reverseQueries[pns] = nonce
+	port.postMessage(data.data)
+}
+
+// handleQueryUpdate will forward an update to a query to the kernel.
+function handleQueryUpdate(data) {
+	// Helper function to report an error.
+	let postErr = function(err) {
 		window.postMessage({
 			namespace: data.namespace,
 			nonce: data.nonce,
-			method: "response",
+			method: "responseUpdate",
 			err,
 		})
 	}
-	browser.runtime.sendMessage(data.queryData).then(wrappedResp, wrappedErr)
+	// Check that data was provided.
+	if (!("data" in data)) {
+		postErr("missing data from queryUpdate message: "+JSON.stringify(data))
+		return
+	}
+
+	// Find the corresponding kernel query.
+	let pns = pageNonceStr(data.nonce, data.namespace)
+	if (!(pns in reverseQueries)) {
+		postErr("no open query for provided nonce")
+		return
+	}
+	let nonce = reverseQueries[data.pns]
+
+	// Send the update to the kernel.
+	port.postMessage({
+		nonce,
+		method: "queryUpdate",
+		data: data.data,
+	})
 }
 
 // This is the listener for the content script, it will receive messages from
 // the page script that it can forward to the kernel.
-window.addEventListener("message", function(event) {
+function handleMessage(event: MessageEvent) {
 	// Authenticate the message as a message from the kernel.
 	if (event.source !== window) {
 		return
 	}
 	// Check that a namespace was provided.
 	if (!("namespace" in event.data)) {
-		logErr("'bridgeToKernelQuery' requires queryData\n", event.data)
+		logErr("'newKernelQuery' requires a namespace\n", event.data)
 		return
 	}
 	// Check that a nonce and method were both provided.
@@ -104,6 +179,16 @@ window.addEventListener("message", function(event) {
 		handleKernelQuery(event.data)
 		return
 	}
+	if (event.data.method === "queryUpdate") {
+		handleQueryUpdate(event.data)
+		return
+	}
+
+	// Ignore response and responseUpdate messages because they may be from
+	// ourself.
+	if (event.data.method === "response" || event.data.method === "responseUpdate") {
+		return
+	}
 
 	// Log and send an error if the method is not recognized.
 	logErr("bridge received message with unrecognized method\n", event.data)
@@ -113,6 +198,7 @@ window.addEventListener("message", function(event) {
 		method: "response",
 		err: "bridge received message with unrecoginzed method: "+JSON.stringify(event.data),
 	})
-})
+}
+window.addEventListener("message", handleMessage)
 
 log("bridge has loaded")

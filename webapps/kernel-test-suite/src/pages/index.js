@@ -24,8 +24,8 @@ function nextTest() {
 	}
 }
 
-// TestKernelInit will check the init function of the kernel.
-function TestKernelInit() {
+// TestLibkernelInit will check the init function of the kernel.
+function TestLibkernelInit() {
 	return new Promise((resolve, reject) => {
 		kernel.init()
 		.then(x => {
@@ -213,7 +213,7 @@ const IndexPage = () => {
 		<main>
 			<title>Libkernel Test Suite</title>
 			<h1>Running Tests</h1>
-			<TestCard name="TestKernelInit" test={TestKernelInit} turn={getTurn()} />
+			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestGenericModuleCall" test={TestGenericModuleCall} turn={getTurn()} />
 		</main>

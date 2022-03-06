@@ -2,6 +2,36 @@ export {}
 
 declare var browser
 
+// composeErr takes a series of inputs and composes them into a single string.
+// Each element will be separated by a newline. If the input is not a string,
+// it will be transformed into a string with JSON.stringify.
+//
+// Any object that cannot be stringified will be skipped, though an error will
+// be logged.
+function composeErr(...inputs: any): string {
+	let result = "";
+	for (let i = 0; i < inputs.length; i++) {
+		// Prepend a newline if this isn't the first element.
+		if (i !== 0) {
+			result += "\n"
+		}
+		// Strings can be added without modification.
+		if (typeof inputs[i] === "string") {
+			result += inputs[i]
+			continue
+		}
+		// Everything else needs to be stringified, log an error if it
+		// fails.
+		try {
+			let str = JSON.stringify(inputs[i])
+			result += str
+		} catch {
+			console.error("unable to stringify input to composeErr")
+		}
+	}
+	return result
+}
+
 // blockUntilKernelLoaded is a promise that will resolve when the kernel sends
 // a message indicating it has loaded. We store the resolve function in a
 // global variable so the promise can be resolved by another frame.
@@ -13,62 +43,99 @@ var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 // responded to the query. The resolve function is stored in the kernelQueries
 // object using the nonce as the key. It will be called by the listener that
 // receives the kernel's response.
-var kernelQueriesNonce = 1
-var kernelQueries = new Object()
+//
+// NOTE: the queriesNonce and queries object is also shared by the
+// bridgeListener.
+//
+// NOTE: queryKernel cannot be used if you need queryUpdates or
+// responseUpdates, it's only intended to be used with single-message queries.
+var queriesNonce = 1
+var queries = new Object()
 function queryKernel(query) {
 	return new Promise((resolve, reject) => {
+		let nonce = queriesNonce
+		queriesNonce += 1
+		let respond = function(data) {
+			if (!("method" in data)) {
+				console.error("received response without a method field", data)
+				let cErr = composeErr("received response without a method field", data)
+				reject(cErr)
+				return
+			}
+			if (data.method !== "response") {
+				console.error("received bad method, incompatible with queryKernel", data)
+				let cErr = composeErr("received bad method in queryKernel", data)
+				reject(cErr)
+				return
+			}
+			if (!("err" in data)) {
+				let cErr = composeErr("received response with no defined error", data)
+				console.error("received response with no defined error", data)
+				reject(cErr)
+				return
+			}
+			if (data.err !== null) {
+				let cErr = composeErr("queryKernel received an error", data.err)
+				reject(cErr)
+				return
+			}
+			resolve(data)
+		}
 		blockUntilKernelLoaded
 		.then(x => {
 			// Grab the next nonce and store a promise resolution in the
 			// kernelQueries object.
-			let nonce = kernelQueriesNonce
-			kernelQueriesNonce++
 			query.nonce = nonce
-			kernelQueries[nonce] = {resolve, reject}
+			queries[nonce] = respond
 			kernelFrame.contentWindow.postMessage(query, "http://kernel.skynet")
 		})
 	})
 }
 
-// contentScriptListener will receive and handle messages coming from content
-// scripts. This is largely a passthrough function which sends messages to the
-// kernel, and then relays the responses back to the content script.
-//
-// Because we communicate to the content script through runtime.sendmessage, we
-// actaully cannot call 'reject' on the promise - if we do, the error will be
-// corrupted as it gets swallowed and replaced by another error related to the
-// background script being available. Instead, we call 'resolve' in both cases,
-// but send an object that indicates an error.
-//
-// TODO: This might actually be a bug with Firefox, intuitively it seems like
-// (including from reading the spec) we should be able to call 'reject' in the
-// .catch and have the error pass through correctly. But it's not, we get a
-// clone error even for simple objects like strings.
-function contentScriptListener(message, sender) {
-	// Grab the domain and add it to the message. The domain is important
-	// to the kernel modules because they can selectively enable or disable
-	// API endpoints based on the original domain of the caller. The
-	// kernel itself will have to be responsible for checking that the
-	// message is coming from the right browser extension.
-	let domain = new URL(sender.url).hostname
-	message.domain = domain
-	return new Promise((resolve, reject) => {
-		// The kernel data already includes a 'queryStatus' which
-		// indicates whether the content script should resolve or
-		// reject. The content script is going to need to know to check
-		// that status when picking a result for the corresponding
-		// promise.
-		queryKernel(message)
-		.then(resp => {
-			resolve(resp)
-		})
-		.catch(err => {
-			resolve(err)
-		})
+// bridgeBridgeMessage and the related functions will receive and handle
+// messages coming from the bridge. Note that many instances of the bridge can
+// exist across many different web pages.
+function handleBridgeMessage(port: any, data: any, domain: string) {
+	// Input sanitization.
+	if (!("nonce" in data)) {
+		console.error("received message from", domain, "with no nonce")
+		return
+	}
+	let originalNonce = data.nonce
+
+	// Build the functions that will respond to any messages that come from
+	// the kernel.
+	//
+	// NOTE: This has been structured so that you can use the same function
+	// for both responseUpdate messages and also response messages.
+	let respond = function(response) {
+		response.nonce = originalNonce
+		port.postMessage(response)
+	}
+
+	blockUntilKernelLoaded
+	.then(x => {
+		// Grab the next nonce and store a promise resolution in the
+		// queries object.
+		let nonce = queriesNonce
+		queriesNonce += 1
+		queries[nonce] = respond
+		data.nonce = nonce
+		kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
 	})
 }
+function bridgeListener(port) {
+	// Grab the domain of the webpage that's connecting to the background
+	// page. The kernel needs to know the domain so that it can
+	// conditionally apply restrictions or grant priviledges based on the
+	// domain. This is especially important for modules, as admin access to
+	// control the data of a module is typically only granted to a single
+	// web domain.
+	let domain = new URL(port.sender.url).hostname
+	port.onMessage.addListener(function(data) { handleBridgeMessage(port, data, domain) })
+}
 // Add a listener that will catch messages from content scripts.
-browser.runtime.onMessage.addListener(contentScriptListener)
+browser.runtime.onConnect.addListener(bridgeListener)
 
 // reloadKernel gets called if the kernel issues a signal indicating that it
 // should be reloaded. That will be the last message emitted by the kernel
@@ -79,13 +146,17 @@ function reloadKernel() {
 	// to block until the reload is complete.
 	kernelLoadedResolved = false
 	blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
-	kernelQueriesNonce = 1
+	queriesNonce = 1
 
-	// Reset the kernelQueries array. All open queries need to be rejected,
-	// as the kernel will no longer be processing them.
-	Object.keys(kernelQueries).forEach((key, i) => {
-		kernelQueries[key].reject("kernel was refreshed due to auth event")
-		delete kernelQueries[key]
+	// Reset the queries array. All open queries need to be rejected, as
+	// the kernel will no longer be processing them.
+	Object.keys(queries).forEach((key, i) => {
+		queries[key].respond({
+			nonce: queries[key].nonce,
+			method: "response",
+			err: "kernel was refreshed due to auth event, query has been cancelled",
+		})
+		delete queries[key]
 	})
 
 	// If we reset the kernel immediately, there is a race condition where
@@ -115,18 +186,18 @@ function reloadKernel() {
 }
 
 // Create a handler for all kernel responses. The responses are all keyed by a
-// nonce, which gets matched to a promise that's been stored in
-// 'kernelQueries'.
+// nonce, which gets matched to a promise that's been stored in 'queries'.
 function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "http://kernel.skynet") {
+		console.log("ignoring a message for not coming from the kernel", event.data)
 		return
 	}
-	if (!("kernelMethod" in event.data) || typeof event.data.kernelMethod !== "string") {
-		console.log("received message without a kernelMethod\n", event.data)
+	if (!("method" in event.data) || typeof event.data.method !== "string") {
+		console.log("received message without a method\n", event.data)
 		return
 	}
-	let method = event.data.kernelMethod
+	let method = event.data.method
 
 	// Check for the kernel requesting a log event. This infrastructure is
 	// in place because calling 'console.log' from the kernel itself does
@@ -162,28 +233,26 @@ function handleKernelResponse(event) {
 		return
 	}
 
+	// The only other methods we are expecting from the kernel are
+	// 'response' and 'responseUpdate'.
+	if (method !== "response" && method !== "responseUpdate") {
+		console.error("received a message from the kernel with unrecognized method:", event.data)
+		return
+	}
+
 	// Grab the nonce, determine the status of the response, and then
 	// resolve or reject accordingly.
 	if (!("nonce" in event.data) || typeof event.data.nonce !== "number") {
 		console.log("received a kernel message without a nonce\n", event.data)
 		return
 	}
-	if (!(event.data.nonce in kernelQueries)) {
+	if (!(event.data.nonce in queries)) {
 		console.log("received a kernel message without a corresponding query\n", event.data)
 		return
 	}
-	let result = kernelQueries[event.data.nonce]
-	delete kernelQueries[event.data.nonce]
-	if (!("err" in event.data)) {
-		console.log("received a kernel message with no err field", event.data)
-		result.reject("received a kernel response with no err field: "+JSON.stringify(event.data))
-		return
-	}
-	if (event.data.err === null) {
-		result.resolve(event.data)
-	} else {
-		result.reject(event.data.err)
-	}
+	let result = queries[event.data.nonce]
+	delete queries[event.data.nonce]
+	result(event.data)
 }
 // Create a listener to handle responses coming from the kernel.
 window.addEventListener("message", handleKernelResponse)
@@ -228,7 +297,7 @@ function onBeforeRequestListener(details) {
 	// become active, so we can start the process of fetching the trusted
 	// response from the kernel to keep things parallelized.
 	let query = queryKernel({
-		kernelMethod: "requestGET",
+		method: "requestGET",
 		url: details.url,
 	})
 
@@ -237,7 +306,7 @@ function onBeforeRequestListener(details) {
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 	filter.onstart = event => {
 		query.then((response: any) => {
-			filter.write(response.response) // TODO: Change to body
+			filter.write(response.body)
 			filter.close()
 			headers[details.requestId] = response.headers
 		})
@@ -314,14 +383,14 @@ function handleProxyRequest(info) {
 	// something.
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
-		return {type: "http", host: "siasky.net", port: 80}
+		return {type: "http", host: "skynetfree.net", port: 80}
 	}
 
 	// Ask the kernel whether there should be a proxy for this url. We use
 	// the empty string as the domain of the query because the kernel is
 	// going to ignore that value anyway.
 	let query = queryKernel({
-		kernelMethod: "requestDNS",
+		method: "requestDNS",
 		url: info.url,
 	})
 	query.then((response: any) => {

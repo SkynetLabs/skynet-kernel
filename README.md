@@ -233,11 +233,13 @@ of three methods:
 + response: Sent by the receiver as the final message associated with a query.
   Future messages that use the query's nonce will be ignored.
 
-All messages will therefore have a nonce and a method. Additional fields may be
-required depending on the method of the original query. Any message with a
-method of 'response' will also have an 'err' field indicating whether or not
-there was an error during the call. The err will always either be a string or
-null, if the err is a string there will be no other fields.
+All messages will therefore have a nonce and a method. Messages can optionally
+have a 'data' field, which can be any object and will vary based on the query
+method.
+
+Finally, all response messages will have an 'err' field. If there is no error,
+'err' will be set to 'null'. If there is an error, it is expected that there
+will be no data payload.
 
 ### Web Page -> Bridge
 
@@ -252,11 +254,10 @@ including any centralized web page, is able to contact the bridge and use it to
 communicate with the user's kernel. The vast majority of application calls will
 talk exclusively to the bridge.
 
-The only two methods of the bridge are 'bridgeTest' and 'bridgeToKernel'.
-'bridgeTest' is a simple handshake protocol that a webpage can perform to
-confirm that the bridge exists. 'bridgeToKernel' is a request to the bridge to
-forward a message to the kernel. The bridge will act as a proxy and
-transparently forward any requests to the kernel.
+The only two methods of the bridge are 'test' and 'newKernelQuery'.  'test' is
+a simple handshake protocol that a webpage can perform to confirm that the
+bridge exists. 'newKernelQuery' will cause the bridge to open a new query with
+the kernel, forwarding all updates and responses.
 
 Because multiple scripts on the same page may be trying to communicate with the
 bridge, and those scripts have no way to avoid nonce reuse, we namespace the
@@ -264,13 +265,12 @@ messages. libkernel uses the namespace 'libkernel', other scripts that
 communicate with the bridge should take care to use namespaces that are not
 going to collide.
 
-#### bridgeTest
+#### test
 
-bridgeTestQuery is a simple query that allows a webpage to check whether the
-bridge exists. The bridge will respond to the query with a message that
-confirms it exists. If there is no response, the bridge does not exist.
-Typically, a response happens in under 10 milliseconds, though we recommend a
-timeout of at least one second in case the browser is busy.
+The 'test' method can be used to check that the bridge exists. The bridge
+usually responds within 10 milliseconds. If there is no response after three
+seconds, it is safe to assume that the bridge does not exist, which usually
+means that the user has not installed the skynet browser extension.
 
 The query message should have the form:
 
@@ -286,8 +286,8 @@ The response from the bridge will have the form:
 
 ```ts
 window.postMessage({
-	namespace: event.data.namespace,
-	nonce: event.data.nonce,
+	namespace: originalQuery.namespace,
+	nonce: originalQuery.nonce,
 	method: "response",
 	err: null,
 	data: {
@@ -301,45 +301,56 @@ There are no QueryUpdates or ResponseUpdates for this method.
 #### newKernelQuery
 
 newKernelQuery is a method used by a web page to request a query be created
-with the kernel. The payload for the message is called the 'queryData'. The
-queryData is sent to the kernel with no modifications. The queryData should not
-contain a nonce, the bridge will add the nonce automatically.
+with the kernel. The payload for the message is called the 'data'. The bridge
+will assign a nonce to the data, and then send the data to the kernel to open a
+new query.
 
 Note that the message does not go directly from the bridge to the kernel, it
 makes a stop at the background page along the way. This stop is also nearly
-transparent, though the nonce will once again be swapped out by the background
-page.
+transparent, though the nonce which was added by the bridge will be swapped out
+for a background-specific nonce.
 
-The message should have the form:
+The initial query should have the form:
 
 ```ts
-window.postMessage({
+window.postMessage({data
 	namespace: <string>,
 	nonce: <number>,
 	method: "newKernelQuery",
-	queryData: <any>,
+	data: <any>,
 })
 ```
 
-The response will have the form:
+Any queryUpdate messages should have the form:
+
+```ts
+	namespace: originalQuery.namespace,
+	nonce: originalQuery.nonce,
+	method: "queryUpdate",
+	data: <any>,
+```
+
+Any responseUpdate messages will have the form:
+
+```ts
+	namespae: originalQuery.namespace,
+	nonce: originalQuery.nonce,
+	method: "responseUpdate",
+	err: null,
+	data: <any>,
+```
+
+The final response will have the form:
 
 ```ts
 window.postMessage({
-	namespace: event.data.namespace,
-	nonce: event.data.nonce,
+	namespace: originalQuery.namespace,
+	nonce: originalQuery.nonce,
 	method: "response",
 	err: null,
-	data: {
-		response: <any>,
-	},
+	data: <any>,
 })
 ```
-
-Note that both 'response' and 'err' will always be included, and exactly one of
-them will always be 'null'. The response can be any object, but the err must
-always be a string.
-
-###### As of writing, no support for QueryUpdate or ResponseUpdate is implemented, however both are planned to be supported in the short term.
 
 ### Bridge -> Background Page
 
@@ -354,25 +365,42 @@ support QueryUpdate messages or ResponseUpdate messages.
 
 ### All -> Kernel
 
-TODO: Need to distinguish which of these methods is supported without auth vs.
-with auth.
+Most callers will be communicating with the kernel through the bridge, however
+the kernel can be queried directly as well by opening an iframe to the kernel.
+Opening an iframe has a significant intial performance penalty, but
+applications that are sending huge numbers of messages to the kernel may
+benefit from reduced overheads, as they will not need to pass messages through
+the bridge or background page. It should be noted that total savings are less
+than 1 millisecond per kernel query, and very few applications will actually
+benefit from opening their own kernel iframe.
 
-TODO: Need to document 'respondUnknownMethod', which is actually going to
-change shape when we change the query format.
+#### test
 
-In all cases, if there is an error, a response will be sent with the form:
+test is a method that is supported by both the bootloader and the full kernel.
+It can be used by callers to establish that the kernel has loaded and is ready
+for communication.
+
+The query message should have the form:
+
+```ts
+kernelFrame.contentWindow.postMessage({
+	nonce: <number>,
+	method: "test",
+}, "http://kernel.skynet")
+```
+
+The response will have the form:
 
 ```ts
 event.source.postMessage({
 	nonce: event.data.nonce,
 	method: "response",
-	err: <string>,
+	err: null,
+	data: {
+		version: <string>,
+	},
 }, event.origin)
 ```
-
-
-#### requestTest
-
 #### requestGET
 
 The request should have the form:
@@ -399,7 +427,6 @@ event.source.postMessage({
 	headers: <header[]>,
 	body: <Uint8Array>,
 }, event.origin)
-
 ```
 
 #### requestDNS

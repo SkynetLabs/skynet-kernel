@@ -45,13 +45,13 @@ var sourceLog = function(logSource: string, logType: string, ...inputs: any) {
 // (which works a lot better) - why not make them one function?
 function logToSource(event, message) {
 	window.parent.postMessage({
-		kernelMethod: "log",
+		method: "log",
 		message,
 	}, event.origin)
 }
 function logToSourceW(message) {
 	window.parent.postMessage({
-		kernelMethod: "log",
+		method: "log",
 		message,
 	}, window.parent.origin)
 }

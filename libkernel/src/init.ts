@@ -9,9 +9,52 @@ export function logErr(...inputs: any) {
 	console.error("[libkernel]", ...inputs)
 }
 
+// composeErr takes a series of inputs and composes them into a single string.
+// Each element will be separated by a newline. If the input is not a string,
+// it will be transformed into a string with JSON.stringify.
+//
+// Any object that cannot be stringified will be skipped, though an error will
+// be logged.
+export function composeErr(...inputs: any): string {
+	let result = "";
+	for (let i = 0; i < inputs.length; i++) {
+		// Prepend a newline if this isn't the first element.
+		if (i !== 0) {
+			result += "\n"
+		}
+		// Strings can be added without modification.
+		if (typeof inputs[i] === "string") {
+			result += inputs[i]
+			continue
+		}
+		// Everything else needs to be stringified, log an error if it
+		// fails.
+		try {
+			let str = JSON.stringify(inputs[i])
+			result += str
+		} catch {
+			logErr("unable to stringify input to composeErr")
+		}
+	}
+	return result
+}
+
+// queryHandler is the data type that gets stored in the 'queries' map. There's
+// a resolve and reject function associated with a promise that is blocking
+// until the query is complete, and then there's an 'update' function which
+// gets called if the query receives a 'responseUpdate', as well as a 'handle'
+// function which gets called when the query receives a 'response'.
+interface queryHandler {
+	resolve: Function;
+	reject: Function;
+	update: Function;
+	handle: Function;
+}
+
 // Establish a hashmap for matching queries to their responses by their nonces.
 // nextNonce needs to start at '1' because '0' is reserved for the bridgeTest
 // method performed at init.
+const namespace = "libkernel-v0"
 var nextNonce = 1
 var queries: any = new Object()
 
@@ -47,48 +90,52 @@ function handleBridgeResponse(resolve: Function, reject: Function, data: any) {
 // "bridgeTestResponse" to determine that the bridge does exist. The init
 // script needs to send the bridge a "bridgeTestQuery" message so the bridge
 // knows to respond.
-interface handler {
-	resolve: Function;
-	reject: Function;
-	handle: Function;
-}
 var initialized: boolean
 var bridgeExists: boolean
-var bridgeAvailable: handler
+var bridgeAvailable: queryHandler
 var blockForBridge: Promise<string> = new Promise((resolve, reject)  => {
-	bridgeAvailable = {resolve, reject, handle: handleBridgeResponse}
+	bridgeAvailable = {resolve, reject, update: null as any, handle: handleBridgeResponse}
 })
 
-// postKernelQuery will send a postMessage to the kernel, handling details like
-// the nonce and the resolve/reject upon receiving a response. The inputs are a
-// resolve and reject function of a promise that should be resolved when the
-// response is received, and the message that is going to the kernel itself.
-export function postKernelQuery(queryData: any): Promise<any> {
-	return new Promise((resolve, reject) => {
-		let nonce = nextNonce
-		nextNonce++
-		queries[nonce] = {resolve, reject, handle: handleKernelResponse}
+// newKernelQuery will send a postMessage to the kernel, handling details like
+// the nonce and the resolve/reject upon receiving a response.
+//
+// The first return value is a function that can be called to send a
+// 'queryUpdate' to the kernel for that nonce.
+export function newKernelQuery(data: any, update: Function): [Function, Promise<any>] {
+	let nonce = nextNonce
+	nextNonce++
+	let sendUpdate = function(data: any) {
+		queryUpdate(nonce, data)
+	}
+	let p = new Promise((resolve, reject) => {
+		queries[nonce] = {resolve, reject, update, handle: handleKernelResponse}
 		window.postMessage({
-			namespace: "libkernel",
+			namespace,
 			method: "newKernelQuery",
 			nonce,
-			queryData,
+			data,
 		})
+	})
+	return [sendUpdate, p]
+}
+
+// queryUpdate is a function that can be called to send a queryUpdate to an
+// existing query.
+function queryUpdate(nonce: number, data: any) {
+	window.postMessage({
+		namespace,
+		method: "queryUpdate",
+		nonce,
+		data,
 	})
 }
 
 // handleKernelResponse will parse the kernel's response from the bridge and
 // resolve/reject the promise associated with the nonce.
 function handleKernelResponse(resolve: Function, reject: Function, data: any) {
-	// Check that the response is well formed.
-	if (!("response" in data)) {
-		logErr("no response returned to bridge\n", data)
-		reject("no response returned to bridge: "+JSON.stringify(data))
-		return
-	}
-	resolve(data.response)
+	resolve(data)
 }
-
 
 // handleMessage will handle a message from the kernel, using the response to
 // resolve the appropriate promise in the set of queries.
@@ -98,13 +145,16 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	// Check that this message is a response targeting libkernel.
-	if (!("data" in event) || !("method" in event.data) || event.data.namespace !== "libkernel") {
+	if (event.data.namespace !== namespace) {
 		return
 	}
-	if (typeof event.data.method !== "string") {
+	if (!("method" in event.data) || typeof event.data.method !== "string") {
+		logErr("received message targeting our namespace with malformed method", event.data)
 		return
 	}
 	if (event.data.method !== "response" && event.data.method !== "responseUpdate") {
+		// We don't log here because that would catch outbound messages
+		// from ourself.
 		return
 	}
 	// Check that we have a nonce for this message.
@@ -113,7 +163,23 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Check that there is data for this nonce.
+	// If this is a responseUpdate, pass the data to the update handler.
+	if (event.data.method === "responseUpdate") {
+		let handler = queries[event.data.nonce]
+		if (!("update" in handler) || typeof handler.update !== "function") {
+			logErr("responseUpdate received, but no update method defined in handler")
+			return
+		}
+		if (!("data" in event.data)) {
+			logErr("responseUpdate received, but no data provided: "+JSON.stringify(event.data))
+			return
+		}
+		handler.update(event.data.data)
+		return
+	}
+
+	// The method is "response", meaning the query is closed out can can be
+	// deleted.
 	let handler = queries[event.data.nonce]
 	delete queries[event.data.nonce]
 	if (!("err" in event.data)) {
@@ -124,11 +190,11 @@ function handleMessage(event: MessageEvent) {
 		handler.reject("response to bridge contained an error: "+event.data.err)
 		return
 	}
-	if ("data" in event.data) {
-		handler.handle(handler.resolve, handler.reject, event.data.data)
-	} else {
+	if (!("data" in event.data)) {
 		handler.reject("no data field provided in query: "+JSON.stringify(event.data))
+		return
 	}
+	handler.handle(handler.resolve, handler.reject, event.data.data)
 }
 
 // init will add an event listener for messages from the kernel bridge. It is
@@ -148,7 +214,7 @@ export function init(): Promise<string> {
 	// Send a message checking if the bridge is alive and responding. The
 	// nonce '0' is kept available explicitly for this purpose.
 	window.postMessage({
-		namespace: "libkernel",
+		namespace,
 		nonce: 0,
 		method: "test",
 	})
@@ -159,7 +225,7 @@ export function init(): Promise<string> {
 	setTimeout(function() {
 		if (bridgeExists !== true) {
 			bridgeExists = false
-			bridgeAvailable.reject(new Error("bridge unavailable, need skynet extension"))
+			bridgeAvailable.reject("bridge unavailable, need skynet extension")
 			logErr("bridge did not respond after 2 seconds")
 		}
 	}, 2000)

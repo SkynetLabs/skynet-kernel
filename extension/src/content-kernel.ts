@@ -185,7 +185,7 @@ var kernelDiscoveryFailed = function(err) {
 	err = addContextToErr(err, "unable to load the user's kernel")
 	log("lifecycle", err)
 	window.parent.postMessage({
-		kernelMethod: "skynetKernelLoadFailed",
+		method: "skynetKernelLoadFailed",
 		err: err,
 	}, "*")
 }
@@ -198,7 +198,7 @@ var evalKernel = function(kernel: string) {
 	// Only send a message indicating that the kernel was successfully
 	// loaded if the auth status hasn't changed in the meantime.
 	if (authChangeMessageSent === false) {
-		window.parent.postMessage({kernelMethod: "skynetKernelLoaded"}, "*")
+		window.parent.postMessage({method: "skynetKernelLoaded"}, "*")
 	}
 }
 
@@ -258,7 +258,7 @@ var handleSkynetKernelRequestGET = function(event) {
 	let respondBody = function(body) {
 		let requestURLResponse = {
 			nonce: event.data.nonce,
-			kernelMethod: "requestURLResponse",
+			method: "requestURLResponse",
 			err: null,
 			headers,
 			body,
@@ -298,23 +298,22 @@ var handleSkynetKernelRequestGET = function(event) {
 // background script already has special carveouts for all required domains.
 var handleSkynetKernelRequestDNS = function(event) {
 	event.source.postMessage({
-		queryStatus: "resolve",
 		nonce: event.data.nonce,
-		kernelMethod: "requestDNSResponse",
+		method: "response",
 		err: null,
 		proxy: false,
 	}, event.origin)
 }
 
-// handleRequestTest responds to the 'requestTest' method.
-var handleRequestTest = function(event) {
-	log("lifecycle", "sending receiveTest message to source\n", event.source)
+// handleTest responds to the 'test' method.
+var handleTest = function(event) {
 	event.source.postMessage({
-		queryStatus: "resolve",
 		nonce: event.data.nonce,
-		kernelMethod: "receiveTest",
+		method: "response",
 		err: null,
-		version: "v0.0.1",
+		data: {
+			version: "v0.0.1",
+		},
 	}, event.origin)
 }
 
@@ -325,17 +324,16 @@ var handleRequestTest = function(event) {
 var handleMessage = function(event: any) {
 	let respondUnknownMethod = function(method: string) {
 		event.source.postMessage({
-			queryStatus: "reject",
 			nonce: event.data.nonce,
-			kernelMethod: "unrecognizedKernelMethod",
-			err: "unrecognized kernelMethod: "+method,
+			method: "response",
+			err: "unrecognized method: "+method,
 		}, event.origin)
 	}
 	// Check that there's a nonce.
 	if (!("nonce" in event.data)) {
 		return
 	}
-	if (!("kernelMethod" in event.data)) {
+	if (!("method" in event.data)) {
 		respondUnknownMethod("[no method provided]")
 		return
 	}
@@ -343,25 +341,25 @@ var handleMessage = function(event: any) {
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
-	if (event.data.kernelMethod === "requestTest") {
-		handleRequestTest(event)
+	if (event.data.method === "test") {
+		handleTest(event)
 		return
 	}
 
 	// Create default handlers for the requestGET and requestDNS methods.
 	// These methods are important during bootloading to ensure that the
 	// default login page can be loaded for the user.
-	if (event.data.kernelMethod === "requestGET") {
+	if (event.data.method === "requestGET") {
 		handleSkynetKernelRequestGET(event)
 		return
 	}
-	if (event.data.kernelMethod === "requestDNS") {
+	if (event.data.method === "requestDNS") {
 		handleSkynetKernelRequestDNS(event)
 		return
 	}
 
 	// Unrecognized method, reject the query.
-	respondUnknownMethod(event.data.kernelMethod)
+	respondUnknownMethod(event.data.method)
 }
 window.addEventListener("message", event => {handleMessage(event)})
 
@@ -375,7 +373,7 @@ var handleStorage = function(event: StorageEvent) {
 	// the auth status has changed.
 	if (event.key === "v1-seed" || event.key === null) {
 		authChangeMessageSent = true
-		window.parent.postMessage({kernelMethod: "authStatusChanged"}, window.parent.origin)
+		window.parent.postMessage({method: "authStatusChanged"}, window.parent.origin)
 	}
 }
 window.addEventListener("storage", event => (handleStorage(event)))
@@ -386,7 +384,7 @@ window.addEventListener("storage", event => (handleStorage(event)))
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
 	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU)
-	window.parent.postMessage({kernelMethod: "skynetKernelLoadedAuthFailed"}, "*")
+	window.parent.postMessage({method: "skynetKernelLoadedAuthFailed"}, "*")
 } else {
 	log("lifecycle", "user is logged in, loading kernel")
 	loadSkynetKernel()

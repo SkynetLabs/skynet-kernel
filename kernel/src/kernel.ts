@@ -112,7 +112,7 @@ declare var addContextToErr
 declare var handleMessage
 declare var log
 declare var logToSource
-declare var handleRequestTest
+declare var handleTest
 declare var handleSkynetKernelRequestGET
 declare var handleSkynetKernelRequestDNS
 
@@ -192,18 +192,18 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 //
 // One of the major security concerns with this function is that multiple
 // different modules are going to be communicating with each other. We need to
-// make sure that key inputs like 'kernelMethod' and 'requestNonce' can't be
-// read or interfered with. I believe the current implementation has been
-// completed in a secure and robust way, but any changes made to this function
-// should carefully think through security implications, as we have multiple
-// bits of untrusted code running inside of this worker, and those bits of code
-// may intentionally be trying to mess with each other as well as mess with the
+// make sure that key inputs like 'method' and 'nonce' can't be read or
+// interfered with. I believe the current implementation has been completed in
+// a secure and robust way, but any changes made to this function should
+// carefully think through security implications, as we have multiple bits of
+// untrusted code running inside of this worker, and those bits of code may
+// intentionally be trying to mess with each other as well as mess with the
 // kernel itself.
 var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 	worker.onmessage = function(wEvent) {
-		// Check that the worker message contains a kernelMethod.
-		if (!("data" in wEvent) || !("kernelMethod" in wEvent.data)) {
-			let msg = "worker did not include a kernelMethod in its response"
+		// Check that the worker message contains a method.
+		if (!("data" in wEvent) || !("method" in wEvent.data)) {
+			let msg = "worker did not include a method in its response"
 			logToSource(rwEvent, msg)
 			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
 			return
@@ -211,14 +211,14 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 
 		// Check if the worker is trying to make a call to another
 		// module.
-		if (wEvent.data.kernelMethod === "moduleCall") {
+		if (wEvent.data.method === "moduleCall") {
 			logToSource(rwEvent, "worker is making a module call")
 			handleModuleCall(wEvent, worker, true)
 			return
 		}
 
 		// Check if the worker is responding to the original caller.
-		if (wEvent.data.kernelMethod === "moduleResponse") {
+		if (wEvent.data.method === "moduleResponse") {
 			if (!("moduleResponse" in wEvent.data)) {
 				let msg = "worker did not include a moduleResponse field in its moduleResponse"
 				logToSource(rwEvent, msg)
@@ -227,7 +227,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 			}
 			let message = {
 				queryStatus: "resolve",
-				kernelMethod: "moduleResponse",
+				method: "moduleResponse",
 				nonce: rwEvent.data.nonce,
 				err: null,
 				output: wEvent.data.moduleResponse,
@@ -245,7 +245,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		}
 
 		// Check whether the worker has reported an error.
-		if (wEvent.data.kernelMethod === "moduleResponseErr") {
+		if (wEvent.data.method === "moduleResponseErr") {
 			if (!("err" in wEvent.data)) {
 				let msg = "worker did not include an err field in its moduleResponseErr"
 				logToSource(rwEvent, msg)
@@ -257,7 +257,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 			return
 		}
 
-		let msg = "unrecognized kernelMethod\n"+JSON.stringify(wEvent.data)
+		let msg = "unrecognized method\n"+JSON.stringify(wEvent.data)
 		logToSource(rwEvent, msg)
 		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, msg)
 		return
@@ -294,7 +294,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 	worker.postMessage({
 		seed: "TODO",
 		sourceDomain: rwEvent.origin,
-		kernelMethod: "moduleCall",
+		method: "moduleCall",
 		moduleMethod: rwEvent.data.moduleMethod,
 		moduleInput: rwEvent.data.moduleInput,
 	})
@@ -307,7 +307,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 	let message = {
 		queryStatus: "reject",
-		kernelMethod: "moduleResponseErr",
+		method: "moduleResponseErr",
 		nonce,
 		err,
 	}
@@ -322,8 +322,8 @@ var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 // event handler, allowing us to support custom messages.
 handleMessage = function(event) {
 	// Input validation.
-	if (!("kernelMethod" in event.data)) {
-		logToSource(event, "kernel request is missing 'kernelMethod' field")
+	if (!("method" in event.data)) {
+		logToSource(event, "kernel request is missing 'method' field")
 		return
 	}
 	if (!("nonce" in event.data)) {
@@ -334,21 +334,21 @@ handleMessage = function(event) {
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
-	if (event.data.kernelMethod === "requestTest") {
-		handleRequestTest(event)
+	if (event.data.method === "test") {
+		handleTest(event)
 		return
 	}
 
 	// Establish handlers for the major kernel methods.
-	if (event.data.kernelMethod === "moduleCall") {
+	if (event.data.method === "moduleCall") {
 		handleModuleCall(event, event.source, false)
 		return
 	}
-	if (event.data.kernelMethod === "requestGET") {
+	if (event.data.method === "requestGET") {
 		handleSkynetKernelRequestGET(event)
 		return
 	}
-	if (event.data.kernelMethod === "requestDNS") {
+	if (event.data.method === "requestDNS") {
 		handleSkynetKernelRequestDNS(event)
 		return
 	}
@@ -357,7 +357,7 @@ handleMessage = function(event) {
 	event.source.postMessage({
 		queryStatus: "reject",
 		nonce: event.data.nonce,
-		kernelMethod: "unrecognizedKernelMethod",
-		err: "unrecognized kernelMethod: "+event.data.kernelMethod,
+		method: "unrecognizedKernelMethod",
+		err: "unrecognized method: "+event.data.method,
 	})
 }
