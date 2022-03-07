@@ -233,7 +233,7 @@ function handleKernelResponse(event) {
 	// reloading signal was received, we will ignore messages indicating
 	// that the kernel has loaded, because those messages are from the
 	// previous kernel, which we have already reset.
-	if ((method === "skynetKernelLoaded" || method === "skynetKernelLoadedAuthFailed") && reloading === false) {
+	if (method === "skynetKernelLoaded" && reloading === false) {
 		console.log("kernel has loaded")
 		if (kernelLoadedResolved !== true) {
 			kernelLoaded() // This is resolving a promise

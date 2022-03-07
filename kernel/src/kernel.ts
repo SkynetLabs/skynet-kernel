@@ -143,19 +143,19 @@ var handleModuleCall = function(event, source, sourceIsWorker) {
 	if (!("module" in event.data)) {
 		let err = "bad moduleCall request: module is not specified"
 		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logToSource(event, "module not specified")
+		logErr("moduleCall", "module not specified")
 		return
 	}
 	if (typeof event.data.module !== "string") {
 		let err = "bad moduleCall request: module is not a string"
 		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logToSource(event, "module not string")
+		logErr("moduleCall", "module not string")
 		return
 	}
 	if (event.data.module.length !== 46) {
 		let err = "bad moduleCall request: module is not 46 characters"
 		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logToSource(event, "module not 46 chars")
+		logErr("moduleCall", "module not 46 chars")
 		return
 	}
 
@@ -204,7 +204,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// Check that the worker message contains a method.
 		if (!("data" in wEvent) || !("method" in wEvent.data)) {
 			let msg = "worker did not include a method in its response"
-			logToSource(rwEvent, msg)
+			logErr("workerMessage", msg)
 			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
 			return
 		}
@@ -212,7 +212,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		// Check if the worker is trying to make a call to another
 		// module.
 		if (wEvent.data.method === "moduleCall") {
-			logToSource(rwEvent, "worker is making a module call")
+			logErr("workerMessage", "worker is making a module call")
 			handleModuleCall(wEvent, worker, true)
 			return
 		}
@@ -221,7 +221,7 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		if (wEvent.data.method === "moduleResponse") {
 			if (!("moduleResponse" in wEvent.data)) {
 				let msg = "worker did not include a moduleResponse field in its moduleResponse"
-				logToSource(rwEvent, msg)
+				logErr("workerMessage", msg)
 				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
 				return
 			}
@@ -248,17 +248,17 @@ var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
 		if (wEvent.data.method === "moduleResponseErr") {
 			if (!("err" in wEvent.data)) {
 				let msg = "worker did not include an err field in its moduleResponseErr"
-				logToSource(rwEvent, msg)
+				logErr("workerMessage", msg)
 				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
 				return
 			}
-			logToSource(rwEvent, "worker returned an error:\n"+JSON.stringify(wEvent.data.err))
+			logErr("workerMessage", "worker returned an error:\n"+JSON.stringify(wEvent.data.err))
 			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, wEvent.data.err)
 			return
 		}
 
 		let msg = "unrecognized method\n"+JSON.stringify(wEvent.data)
-		logToSource(rwEvent, msg)
+		logErr("workerMessage", msg)
 		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, msg)
 		return
 	}
@@ -323,11 +323,11 @@ var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
 handleMessage = function(event) {
 	// Input validation.
 	if (!("method" in event.data)) {
-		logToSource(event, "kernel request is missing 'method' field")
+		logErr("handleMessage", "kernel request is missing 'method' field")
 		return
 	}
 	if (!("nonce" in event.data)) {
-		logToSource(event, "message sent to kernel with no nonce field")
+		logErr("handleMessage", "message sent to kernel with no nonce field")
 		return
 	}
 

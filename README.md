@@ -524,7 +524,7 @@ console.error instead of a console.log.
 The message will have the form:
 
 ```ts
-window.parent.poastMessage({
+window.parent.postMessage({
 	method: "log",
 	data: {
 		isErr: <boolean>,
@@ -538,7 +538,48 @@ There are also no queryUpdate or responseUpdate messages.
 
 #### authStatusChanged
 
+authStatusChanged is a message that will be sent by the kernel to the parent if
+the user's auth status has changed. This typically means that the user has
+logged in, though it can also mean that the user has logged out, or that the
+user has switched to another account.
+
+Regardless of the source cause, the expectation from the kernel is that the
+iframe containing the kernel will be refreshed. Because there is state that
+needs to be kept consistent between the caller and the kernel (such as any open
+queries, and such as the loading status of the kernel), the kernel does not
+automatically refresh itself.
+
+The message will have the form:
+
+```ts
+window.parent.postMessage({
+	method: "authStatusChanged",
+}, window.parent.origin)
+```
+
+This message is not a query, and therefore there are no response messages.
+There are also no queryUpdate or responseUpdate messages.
+
 #### skynetKernelLoaded
+
+skynetKernelLoaded is a message that gets sent by the kernel when the kernel
+has finished loading. It includes a field that indicates whether the user
+successfully authorized or not. If the user did not authorize, the background
+script will still be talking to the bootloader.
+
+The message will have the form:
+
+```ts
+window.parent.postMessage({
+	method: "skynetKernelLoaded",
+	data: {
+		userAuthorized: <boolean>,
+	},
+}, window.parent.origin)
+```
+
+This message is not a query, and therefore there are no response messages.
+There are also no queryUpdate or responseUpdate messages.
 
 ### Kernel -> Module
 
@@ -615,3 +656,6 @@ WIP
   so that they correctly manage 429 responses. Probably do it at the
   download/registry level, as the best behavior might be different depending on
   request type.
+
++ update the 'skynetKernelLoaded' message to include the user's pubkey if they
+  have successfully logged in.

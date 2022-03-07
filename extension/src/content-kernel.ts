@@ -190,7 +190,12 @@ var evalKernel = function(kernel: string) {
 	// Only send a message indicating that the kernel was successfully
 	// loaded if the auth status hasn't changed in the meantime.
 	if (authChangeMessageSent === false) {
-		window.parent.postMessage({method: "skynetKernelLoaded"}, "*")
+		window.parent.postMessage({
+			method: "skynetKernelLoaded",
+			data: {
+				userAuthorized: true,
+			},
+		}, window.parent.origin)
 	}
 }
 
@@ -388,7 +393,12 @@ window.addEventListener("storage", event => (handleStorage(event)))
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
 	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU)
-	window.parent.postMessage({method: "skynetKernelLoadedAuthFailed"}, "*")
+	window.parent.postMessage({
+		method: "skynetKernelLoaded",
+		data: {
+			userAuthorized: false,
+		},
+	}, window.parent.origin)
 } else {
 	log("lifecycle", "user is logged in, loading kernel")
 	loadSkynetKernel()
