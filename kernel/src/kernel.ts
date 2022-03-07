@@ -35,31 +35,9 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
-// TODO: Do we have to wrap postMessage in try-catch blocks?
-
-// TODO: We need a better logging framework in the kernel.
-
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
 // preferred portals. This process is independent of the full process, which we
 // need to marry to the bootstrap process.
-
-// TODO: Load any long-running background processes in web workers. At
-// least initially, we're mainly going to save that for our internal
-// stealth blockchain. The main thing I'm worried about with long
-// running background threads is that developers might be over-eager in
-// launching processes that they don't need, and the user may end up
-// with like dozens or hundreds of long running background threads
-// mostly doing things that the user doesn't care for. We probably want
-// to establish some controls around that but I have no idea what sort
-// of controls would make sense.
-
-// TODO: Implement logging out. This is just going to clear the seed. All of
-// the items that get put into local storage will stay there. To protect
-// privacy if another user logs in, we should make sure that any other items
-// which get put into local storage are stored at a key namespaced to the
-// user's seed (really, the hash of their seed) and are encrypted using the
-// seed, meaning another user on the same machine who logs in afterwards has no
-// ability to see what the previous person's seed was.
 
 // TODO: When implementing versioning, need to distinguish between a developer
 // domain and a production domain, and add some extra steps to publishing
@@ -93,9 +71,6 @@
 // running different versions of the kernel. That could cause data corruption
 // and inconsistency if they aren't coordinating around the upgrade together
 // effectively.
-
-// TODO: All of the wildcard postmessage calls need to be updated to follow
-// better security practice.
 
 // TODO: Need to set up a system that watches for updates to our worker code
 // and then injects the new code into the workers object.
