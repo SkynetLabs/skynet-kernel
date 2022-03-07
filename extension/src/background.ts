@@ -275,6 +275,15 @@ window.addEventListener("message", handleKernelResponse)
 // decide what response is appropriate for the provided call.
 let headers: any = new Object()
 function onBeforeRequestListener(details) {
+	// Set up a helper function for disconnecting if we decide that we
+	// don't want to interfere with this request at all.
+	let filter = browser.webRequest.filterResponseData(details.requestId)
+	let disconnect = function() {
+		filter.onstart = event => {
+			filter.disconnect()
+		}
+	}
+
 	// If the request is specifically for the kernel iframe, we need to
 	// swallow the request and let the content script do all of the work.
 	if (details.url === "http://kernel.skynet/") {
@@ -285,11 +294,28 @@ function onBeforeRequestListener(details) {
 				value: "text/html; charset=utf8",
 			}])
 		})
-		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
 		}
 		return {}
+	}
+
+	// If the kernel is still starting up, we don't intercept anything.
+	//
+	// TODO: This is bad, because it means that users going to .skynet URLs
+	// during startup are going to be presented with a 'could not find
+	// page' warning rather than having the page wait to load until the
+	// kernel is ready. The only way to solve this is to have some way to
+	// distinguish between requests that are coming from the kernel during
+	// startup and requests that aren't.
+	//
+	// I wonder if one option is to use a different method during startup
+	// where the kernel will block if its not making its own request, and
+	// otherwise continue. That's a lot of work though, we're going to
+	// leave it imperfect for MVP and we'llcome back to it later
+	if (kernelLoadedResolved === false) {
+		disconnect()
+		return
 	}
 
 	// This is probably the most complicated and tempermental piece of the
@@ -316,11 +342,10 @@ function onBeforeRequestListener(details) {
 	// I deeply apologize that this code works much like a rubik's cube. I
 	// don't believe there's a cleaner way to do this.
 	let resolveHeaders
-	let rejectHeaders
 	headers[details.requestId] = new Promise((resolve, reject) => {
 		resolveHeaders = resolve
-		rejectHeaders = reject
 	})
+	console.log("doing requestOverride for:", details.url)
 	let query = queryKernel({
 		method: "requestOverride",
 		data: {
@@ -328,16 +353,11 @@ function onBeforeRequestListener(details) {
 			method: details.method,
 		},
 	})
-	let filter = browser.webRequest.filterResponseData(details.requestId)
 	query.then((response: any) => {
-		let disconnect = function() {
-			filter.onstart = event => {
-				filter.disconnect()
-			}
-		}
+		console.log("received response from kernel on the requestOverride")
 		if (!("data" in response) || !("override" in response.data)) {
 			console.error("requestOverride response has no 'override' field\n", response)
-			rejectHeaders()
+			resolveHeaders(null)
 			disconnect()
 			return
 		}
@@ -348,13 +368,13 @@ function onBeforeRequestListener(details) {
 		}
 		if (!("body" in response.data)) {
 			console.error("requestOverride response is missing 'body' field\n", response)
-			rejectHeaders()
+			resolveHeaders(null)
 			disconnect()
 			return
 		}
 		if (!("headers" in response.data)) {
 			console.error("requestOverride response is missing 'headers' field\n", response)
-			rejectHeaders()
+			resolveHeaders(null)
 			disconnect()
 			return
 		}
@@ -462,6 +482,23 @@ function handleProxyRequest(info) {
 	// localstorage, and get that list of failover options from the kernel.
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
+		return {type: "http", host: "skynetfree.net", port: 80}
+	}
+
+	// If the kernel is still starting up, we don't proxy anything.
+	//
+	// TODO: This is bad, because it means that users going to .skynet URLs
+	// during startup are going to be presented with a 'could not find
+	// page' warning rather than having the page wait to load until the
+	// kernel is ready. The only way to solve this is to have some way to
+	// distinguish between requests that are coming from the kernel during
+	// startup and requests that aren't.
+	//
+	// I wonder if one option is to use a different method during startup
+	// where the kernel will block if its not making its own request, and
+	// otherwise continue. That's a lot of work though, we're going to
+	// leave it imperfect for MVP and we'llcome back to it later
+	if (kernelLoadedResolved === false) {
 		return {type: "http", host: "skynetfree.net", port: 80}
 	}
 

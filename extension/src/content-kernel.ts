@@ -212,7 +212,6 @@ var loadSkynetKernel = function() {
 	// block until the loading is complete and then send a message to the
 	// caller indicating a successful load.
 	if (kernelLoading) {
-		log("lifecycle", "loadSkynetKernel called when kernel is already loading")
 		return
 	}
 	kernelLoading = true
