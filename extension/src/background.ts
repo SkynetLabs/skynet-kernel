@@ -292,7 +292,29 @@ function onBeforeRequestListener(details) {
 		return {}
 	}
 
-	// This is not fun.
+	// This is probably the most complicated and tempermental piece of the
+	// browser extension. This code fires before onHeadersReceived fires.
+	// However, onHeadersReceived will fire before filter.onstart fires.
+	//
+	// The general order of execution is:
+	// 	1. onBeforeRequest (that's this code)
+	// 	2. onHeadersRecevied
+	// 	3. filter.onstart
+	//
+	// The challenge is that we learn what the headers are supposed to be
+	// in this function, but after onHeadersReceived fires. So we need
+	// onHeadersReceived to returna promise, and we need to resolve that
+	// promise here, where we made the queryKernel call.
+	//
+	// filter.onstart **will not fire** until the promise for
+	// onHeadersReceived has resolved. At the same time, we need to make
+	// sure we grab the filter in the current frame, so that we stop any
+	// data from reaching the browser without our injections. Which means
+	// we also need to remember to disconnect from the filter. And we can't
+	// disconnect from the filter until we call filter.onstart.
+	//
+	// I deeply apologize that this code works much like a rubik's cube. I
+	// don't believe there's a cleaner way to do this.
 	let resolveHeaders
 	let rejectHeaders
 	headers[details.requestId] = new Promise((resolve, reject) => {
