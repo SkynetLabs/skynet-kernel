@@ -121,6 +121,7 @@ function handleBridgeMessage(port: any, data: any, domain: string) {
 		queriesNonce += 1
 		queries[nonce] = respond
 		data.nonce = nonce
+		data.domain = domain
 		kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
 	})
 }
@@ -277,6 +278,13 @@ function onBeforeRequestListener(details) {
 	// If the request is specifically for the kernel iframe, we need to
 	// swallow the request and let the content script do all of the work.
 	if (details.url === "http://kernel.skynet/") {
+		// Need to set the headers still.
+		headers[details.requestId] = new Promise((resolve, reject) => {
+			resolve([{
+				name: "content-type",
+				value: "text/html; charset=utf8",
+			}])
+		})
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = event => {
 			filter.close()
@@ -284,10 +292,13 @@ function onBeforeRequestListener(details) {
 		return {}
 	}
 
-	// Ask the kernel what data should be loaded before grabbing the
-	// response filter. The response filter can often take a while to
-	// become active, so we can start the process of fetching the trusted
-	// response from the kernel to keep things parallelized.
+	// This is not fun.
+	let resolveHeaders
+	let rejectHeaders
+	headers[details.requestId] = new Promise((resolve, reject) => {
+		resolveHeaders = resolve
+		rejectHeaders = reject
+	})
 	let query = queryKernel({
 		method: "requestOverride",
 		data: {
@@ -295,39 +306,45 @@ function onBeforeRequestListener(details) {
 			method: details.method,
 		},
 	})
-
-	// Grab the response data and replace it with the response from the
-	// kernel.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
-	filter.onstart = event => {
-		query.then((response: any) => {
-			if (!("data" in response) || !("override" in response.data)) {
-				console.error("requestOverride response has no 'override' field\n", response)
+	query.then((response: any) => {
+		let disconnect = function() {
+			filter.onstart = event => {
 				filter.disconnect()
-				return
 			}
-			if (response.data.override !== "true") {
-				filter.disconnect()
-				return
-			}
-			if (!("body" in response.data)) {
-				console.error("requestOverride response is missing 'body' field\n", response)
-				filter.disconnect()
-				return
-			}
-			if (!("headers" in response.data)) {
-				console.error("requestOverride response is missing 'headers' field\n", response)
-				filter.disconnect()
-				return
-			}
-			filter.write(response.body)
+		}
+		if (!("data" in response) || !("override" in response.data)) {
+			console.error("requestOverride response has no 'override' field\n", response)
+			rejectHeaders()
+			disconnect()
+			return
+		}
+		if (response.data.override !== true) {
+			resolveHeaders(null)
+			disconnect()
+			return
+		}
+		if (!("body" in response.data)) {
+			console.error("requestOverride response is missing 'body' field\n", response)
+			rejectHeaders()
+			disconnect()
+			return
+		}
+		if (!("headers" in response.data)) {
+			console.error("requestOverride response is missing 'headers' field\n", response)
+			rejectHeaders()
+			disconnect()
+			return
+		}
+		resolveHeaders(response.data.headers)
+		filter.onstart = event => {
+			filter.write(response.data.body)
 			filter.close()
-			headers[details.requestId] = response.headers
-		})
-		.catch(err => {
-			console.log("requestOverride query to kernel failed:", err)
-		})
-	}
+		}
+	})
+	.catch(err => {
+		console.log("requestOverride query to kernel failed:", err)
+	})
 }
 browser.webRequest.onBeforeRequest.addListener(
 	onBeforeRequestListener,
@@ -338,19 +355,35 @@ browser.webRequest.onBeforeRequest.addListener(
 // onHeadersReceivedListener will replace the headers provided by the portal
 // with trusted headers, preventing the portal from providing potentially
 // malicious information through the headers.
-//
-// TODO: Adjust this function with calls to the kernel so that the kernel is
-// making the ultimate decisions on what headers are being injected and
-// replaced.
 function onHeadersReceivedListener(details) {
-	// Check if a prior lookup to the kernel established some headers for
-	// this request.
+	// Do nothing if there's no item for this request in the headers
+	// object.
 	if (!(details.requestId in headers)) {
 		return
 	}
-	let h = headers[details.requestId]
-	delete headers[details.requestId]
-	return {responseHeaders: h}
+
+	// There is an item for this request. Return a promise that will
+	// resolve to updated headers when we know what the updated headers are
+	// supposed to be.
+	//
+	// We aren't going to know until the kernel has finished downloading
+	// the original page, this typically completes after we need the
+	// headers, which is why we use promises rather than using the desired
+	// values directly.
+	return new Promise((resolve, reject) => {
+		let h = headers[details.requestId]
+		delete headers[details.requestId]
+		h.then(response => {
+			if (response !== null) {
+				resolve({responseHeaders: response})
+			} else {
+				resolve({responseHeaders: details.responseHeaders})
+			}
+		})
+		.catch(err => {
+			resolve({responseHeaders: details.responseHeaders})
+		})
+	})
 }
 browser.webRequest.onHeadersReceived.addListener(
 	onHeadersReceivedListener,

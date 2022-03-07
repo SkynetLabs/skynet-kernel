@@ -22,7 +22,7 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 	// as needed, to avoid having to use the kernel api to change your log
 	// settings as you develop).
 	if (logSettingsStr === null) {
-		logSettingsStr = '{"ERROR": true, "error": true, "lifecycle": true, "portal": true}'
+		logSettingsStr = '{"ERROR": true, "error": true, "debug": true, "portal": true}'
 	}
 	// Parse the logSettingsStr.
 	let [logSettings, errJSON] = parseJSON(logSettingsStr)
@@ -71,7 +71,7 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 			isErr,
 			message,
 		},
-	})
+	}, window.parent.origin)
 }
 var log = function(logType: string, ...inputs: any) {
 	wlog(false, logType, ...inputs)

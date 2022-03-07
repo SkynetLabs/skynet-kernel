@@ -333,7 +333,7 @@ Any queryUpdate messages should have the form:
 Any responseUpdate messages will have the form:
 
 ```ts
-	namespae: originalQuery.namespace,
+	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
 	err: null,
@@ -505,7 +505,75 @@ There is no support for queryUpdate or responseUpdate messages for this method.
 
 #### callModule
 
-WIP
+callModule is the main programmable element of the kernel. A module is a new
+element that exists entirely inside of a webworker, where it is sandboxed away
+from other webworkers. This means that the module can have its own private
+state, and with some help from the kernel it also can get its own private
+storage. Modules can be used to build systems like private folders for the
+user, private messaging systems for the user, profile information for the user
+that can be read by anyone but only updated by certain domains, or really any
+repository of shared data.
+
+callModule itself is how external users ask the kernel to create a module
+query. The inputs of a callModule call are the module that is being called, the
+method that is being called on the module, and any input that should be
+provided to the module. The module that is being called is typically a resolver
+skylink which tells the kernel how to download the code for the module. The
+kernel will then run that code in a webworker and pass the input to the module.
+
+callModule is not available in the bootloader, the user must be logged in for a
+callModule request to succeed.
+
+The message contains a 'domain' field which states which domain the calling
+application is in. If the message is being sent by a web page, the kernel will
+ignore this field and instead use the actual domain of the sender.  If the
+message is being sent by a browser extension, the domain is trusted to be
+accurate. This does create a vulnerability where a user may install a rogue
+browser extension that could then impersonate any domain and gain unfair access
+to the user's data and modules. We don't have a good solution to this problem
+at this time.
+
+The message will have the form:
+
+```ts
+kernelFrame.contentWindow.postMessage({
+	domain: <string>,
+	nonce: <number>,
+	method: "moduleCall",
+	data: {
+		method: <string>,
+		data: <any>,
+	},
+}, "http://kernel.skynet")
+```
+
+Any queryUpdate messages should have the form:
+
+```ts
+	nonce: originalQuery.nonce,
+	method: "queryUpdate",
+	data: <any>,
+```
+
+Any responseUpdate messages will have the form:
+
+```ts
+	nonce: originalQuery.nonce,
+	method: "responseUpdate",
+	err: null,
+	data: <any>,
+```
+
+The final response will have the form:
+
+```ts
+window.postMessage({
+	nonce: originalQuery.nonce,
+	method: "response",
+	err: null,
+	data: <any>,
+})
+```
 
 ### Kernel -> Parent
 
@@ -593,6 +661,8 @@ WIP
 
 + Need a specification for the file that loads the user's portal preferences.
   This file should be encrypted and padded.
+
++ Need some easy way for an application to tell if the user is logged in
 
 + We should add a version number for loading the user's kernel. v1 means the
   kernel is not encrypted, v2 means the kernel is encrypted. Higher versions

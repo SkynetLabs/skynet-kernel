@@ -177,9 +177,11 @@ var kernelDiscoveryFailed = function(err) {
 	err = addContextToErr(err, "unable to load the user's kernel")
 	log("lifecycle", err)
 	window.parent.postMessage({
-		method: "skynetKernelLoadFailed",
-		err: err,
-	}, "*")
+		method: "skynetKernelLoaded",
+		data: {
+			userAuthorized: false,
+		},
+	}, window.parent.origin)
 }
 
 // evalKernel will call 'eval' on the provided kernel code.
@@ -392,7 +394,7 @@ window.addEventListener("storage", event => (handleStorage(event)))
 // authentication.
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
-	log("lifecycle", "user is not logged in, sending message to parent\n", errGSU)
+	log("auth", "user is not logged in\n", errGSU)
 	window.parent.postMessage({
 		method: "skynetKernelLoaded",
 		data: {
@@ -400,6 +402,6 @@ if (errGSU !== null) {
 		},
 	}, window.parent.origin)
 } else {
-	log("lifecycle", "user is logged in, loading kernel")
+	log("auth", "user is logged in, attempting to load kernel")
 	loadSkynetKernel()
 }
