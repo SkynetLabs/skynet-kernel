@@ -88,7 +88,7 @@ declare var handleMessage
 declare var log
 declare var logErr
 declare var handleTest
-declare var handleSkynetKernelFetchGET
+declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
 // workers is an object which holds all of the workers in the kernel. There is
@@ -319,8 +319,8 @@ handleMessage = function(event) {
 		handleModuleCall(event, event.source, false)
 		return
 	}
-	if (event.data.method === "fetchGET") {
-		handleSkynetKernelFetchGET(event)
+	if (event.data.method === "requestOverride") {
+		handleSkynetKernelRequestOverride(event)
 		return
 	}
 	if (event.data.method === "proxyInfo") {
@@ -332,7 +332,7 @@ handleMessage = function(event) {
 	event.source.postMessage({
 		queryStatus: "reject",
 		nonce: event.data.nonce,
-		method: "unrecognizedKernelMethod",
+		method: "response",
 		err: "unrecognized method: "+event.data.method,
-	})
+	}, event.origin)
 }

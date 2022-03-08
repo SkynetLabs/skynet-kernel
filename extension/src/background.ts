@@ -191,11 +191,9 @@ function reloadKernel() {
 function handleKernelResponse(event) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "http://kernel.skynet") {
-		console.log("ignoring a message for not coming from the kernel", event.data)
 		return
 	}
 	if (!("method" in event.data) || typeof event.data.method !== "string") {
-		console.log("received message without a method\n", event.data)
 		return
 	}
 	let data = event.data
@@ -275,77 +273,66 @@ window.addEventListener("message", handleKernelResponse)
 // decide what response is appropriate for the provided call.
 let headers: any = new Object()
 function onBeforeRequestListener(details) {
-	// Set up a helper function for disconnecting if we decide that we
-	// don't want to interfere with this request at all.
+	// Set up a promise that will be used by onHeadersReceived to inject
+	// the right headers into the response.
+	let resolveHeaders
+	headers[details.requestId] = new Promise((resolve, reject) => {
+		resolveHeaders = resolve
+	})
+
+	// Grab the filter for this request.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
-	let disconnect = function() {
-		filter.onstart = event => {
-			filter.disconnect()
-		}
-	}
 
 	// If the request is specifically for the kernel iframe, we need to
-	// swallow the request and let the content script do all of the work.
+	// swallow the request and let the content script do all of the work,
+	// as there is no kernel to receive a query.
 	if (details.url === "http://kernel.skynet/") {
-		// Need to set the headers still.
-		headers[details.requestId] = new Promise((resolve, reject) => {
-			resolve([{
-				name: "content-type",
-				value: "text/html; charset=utf8",
-			}])
-		})
-		filter.onstart = event => {
+		resolveHeaders([{
+			name: "content-type",
+			value: "text/html; charset=utf8",
+		}])
+		filter.onstart = function(event) {
+			// Calling filter.close() immediately as the filter
+			// starts will ensure that no data is served.
 			filter.close()
 		}
 		return {}
 	}
 
-	// If the kernel is still starting up, we don't intercept anything.
+	// If the kernel is still starting up, don't intercept any requests. If
+	// we try to intercept requests at this stage, the kernel won't be able
+	// to complete startup until our queryKernel call resolves, and our
+	// queryKernel call will block until kernel startup is complete,
+	// resulting in deadlock.
 	//
-	// TODO: This is bad, because it means that users going to .skynet URLs
-	// during startup are going to be presented with a 'could not find
-	// page' warning rather than having the page wait to load until the
-	// kernel is ready. The only way to solve this is to have some way to
-	// distinguish between requests that are coming from the kernel during
-	// startup and requests that aren't.
-	//
-	// I wonder if one option is to use a different method during startup
-	// where the kernel will block if its not making its own request, and
-	// otherwise continue. That's a lot of work though, we're going to
-	// leave it imperfect for MVP and we'llcome back to it later
+	// TODO: This is sloppy, because we really do want to intercept all
+	// requests except for the requests made by the kernel, and have those
+	// requests block until the kernel has loaded fully. There might be a
+	// way to accomplish this by changing the startup progression of the
+	// kernel. 'kernelLoaded' would indicate that the kernel is ready to
+	// receive requests, and the kernel would internally know which inbound
+	// requests are intended to be parsed pre-auth.
 	if (kernelLoadedResolved === false) {
-		disconnect()
+		console.log("ignoring OBR because kernel has not loaded", details.url)
+		resolveHeaders(null)
+		// TODO: Is this completely necessary? Let's try removing it at
+		// some point and see what happens.
+		filter.onstart = function(event) {
+			filter.disconnect()
+		}
 		return
 	}
 
-	// This is probably the most complicated and tempermental piece of the
-	// browser extension. This code fires before onHeadersReceived fires.
-	// However, onHeadersReceived will fire before filter.onstart fires.
-	//
-	// The general order of execution is:
-	// 	1. onBeforeRequest (that's this code)
-	// 	2. onHeadersRecevied
-	// 	3. filter.onstart
-	//
-	// The challenge is that we learn what the headers are supposed to be
-	// in this function, but after onHeadersReceived fires. So we need
-	// onHeadersReceived to returna promise, and we need to resolve that
-	// promise here, where we made the queryKernel call.
-	//
-	// filter.onstart **will not fire** until the promise for
-	// onHeadersReceived has resolved. At the same time, we need to make
-	// sure we grab the filter in the current frame, so that we stop any
-	// data from reaching the browser without our injections. Which means
-	// we also need to remember to disconnect from the filter. And we can't
-	// disconnect from the filter until we call filter.onstart.
-	//
-	// I deeply apologize that this code works much like a rubik's cube. I
-	// don't believe there's a cleaner way to do this.
-	let resolveHeaders
-	headers[details.requestId] = new Promise((resolve, reject) => {
-		resolveHeaders = resolve
+	// We need to resolve the query before filter.onstart, otherwise the
+	// headers will be blocked, and the headers need to resolve before
+	// filter.onstart will be called.
+	let resolveFilter
+	let filterResult = new Promise((resolve, reject) => {
+		resolveFilter = resolve
 	})
-	console.log("doing requestOverride for:", details.url)
+
+	// Set up the query that will ask the kernel for the appropriate
+	// response.
 	let query = queryKernel({
 		method: "requestOverride",
 		data: {
@@ -353,40 +340,79 @@ function onBeforeRequestListener(details) {
 			method: details.method,
 		},
 	})
+
+	// Wait for the query to resolve, then resume the filter and
+	// use the kernel response to determine how to handle the
+	// request.
+	//
+	// Any errors will result in a call to 'filter.disconnect',
+	// which essentially means that the request is ignored by the
+	// extension and execution will proceed as normal.
 	query.then((response: any) => {
-		console.log("received response from kernel on the requestOverride")
+		// Check for correct inputs from the kernel. Any error
+		// will result in ignoring the request, which we can do
+		// by resolving 'null' for the headers promise, and by
+		// disconnecting from the filter.
 		if (!("data" in response) || !("override" in response.data)) {
 			console.error("requestOverride response has no 'override' field\n", response)
 			resolveHeaders(null)
-			disconnect()
+			resolveFilter(null)
 			return
 		}
+		if (!("err" in response) || response.err !== null) {
+			console.error("requestOverride returned an error\n", response.err)
+			resolveHeaders(null)
+			resolveFilter(null)
+			return
+		}
+		// If the kernel doesn't explicitly tell us to override
+		// this request, then we ignore the request.
 		if (response.data.override !== true) {
 			resolveHeaders(null)
-			disconnect()
+			resolveFilter(null)
 			return
 		}
 		if (!("body" in response.data)) {
 			console.error("requestOverride response is missing 'body' field\n", response)
 			resolveHeaders(null)
-			disconnect()
+			resolveFilter(null)
 			return
 		}
 		if (!("headers" in response.data)) {
 			console.error("requestOverride response is missing 'headers' field\n", response)
 			resolveHeaders(null)
-			disconnect()
+			resolveFilter(null)
 			return
 		}
+
+		// We have a set of headers and a response body from
+		// the kernel, we want to inject them into the
+		// response. We resolve the headers promise with the
+		// headers provided by the kernel, and we write the
+		// response data to the filter. After writing the
+		// response data we close the filter so that no more
+		// data from the server can get through.
 		resolveHeaders(response.data.headers)
-		filter.onstart = event => {
-			filter.write(response.data.body)
-			filter.close()
-		}
+		resolveFilter(response.data.body)
 	})
 	.catch(err => {
-		console.log("requestOverride query to kernel failed:", err)
+		console.error("requestOverride query to kernel failed:", err)
+		resolveHeaders(null)
+		resolveFilter(null)
 	})
+
+	// Set up the filter that will replace the request with whatever the
+	// kernel decides is the appropriate response.
+	filter.onstart = function(event) {
+		filterResult.then(response => {
+			if (response === null) {
+				filter.disconnect()
+				return
+			}
+			filter.write(response)
+			filter.close()
+		})
+	}
 }
 browser.webRequest.onBeforeRequest.addListener(
 	onBeforeRequestListener,
@@ -398,12 +424,6 @@ browser.webRequest.onBeforeRequest.addListener(
 // with trusted headers, preventing the portal from providing potentially
 // malicious information through the headers.
 function onHeadersReceivedListener(details) {
-	// Do nothing if there's no item for this request in the headers
-	// object.
-	if (!(details.requestId in headers)) {
-		return
-	}
-
 	// There is an item for this request. Return a promise that will
 	// resolve to updated headers when we know what the updated headers are
 	// supposed to be.
@@ -413,6 +433,15 @@ function onHeadersReceivedListener(details) {
 	// headers, which is why we use promises rather than using the desired
 	// values directly.
 	return new Promise((resolve, reject) => {
+		// Do nothing if there's no item for this request in the headers
+		// object.
+		if (!(details.requestId in headers)) {
+			// TODO: If the query was _just_ a headers query, we
+			// may need to ask the kernel anyway.
+			resolve({responseHeaders: details.responseHeaders})
+			return
+		}
+
 		let h = headers[details.requestId]
 		delete headers[details.requestId]
 		h.then(response => {
@@ -423,6 +452,7 @@ function onHeadersReceivedListener(details) {
 			}
 		})
 		.catch(err => {
+			console.error("headers promise failed", details.url, "\n", err)
 			resolve({responseHeaders: details.responseHeaders})
 		})
 	})

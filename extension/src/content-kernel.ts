@@ -356,9 +356,9 @@ var handleMessage = function(event: any) {
 		return
 	}
 
-	// Create default handlers for the fetchGET and proxyInfo methods.
-	// These methods are important during bootloading to ensure that the
-	// default login page can be loaded for the user.
+	// Create default handlers for the requestOverride and proxyInfo
+	// methods.  These methods are important during bootloading to ensure
+	// that the default login page can be loaded for the user.
 	if (event.data.method === "requestOverride") {
 		handleSkynetKernelRequestOverride(event)
 		return
