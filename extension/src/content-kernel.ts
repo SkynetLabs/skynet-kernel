@@ -174,8 +174,7 @@ var kernelDiscoveryFailed = function(err) {
 	kernelLoading = false
 
 	// Log the error and send a failure notification to the parent.
-	err = addContextToErr(err, "unable to load the user's kernel")
-	log("lifecycle", err)
+	log("auth", "unable to load user's kernel", err)
 	window.parent.postMessage({
 		method: "skynetKernelLoaded",
 		data: {
@@ -224,9 +223,11 @@ var loadSkynetKernel = function() {
 		return downloadUserKernel()
 	})
 	.then(kernel => {
+		log("auth", "calling eval on kernel", kernel)
 		evalKernel(kernel)
 	})
 	.catch(err => {
+		log("auth", "unable to load kernel", err)
 		kernelDiscoveryFailed(err)
 	})
 }
@@ -336,7 +337,7 @@ var handleMessage = function(event: any) {
 		event.source.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
-			err: "unrecognized method: "+method,
+			err: "unrecognized method (user may need to log in): "+method,
 		}, event.origin)
 	}
 	// Check that there's a nonce.

@@ -249,8 +249,8 @@ function createWorker(workerCode: Uint8Array, domain: string) {
 // extension or webpage.
 function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean) {
 	if (!("data" in event.data) || !("module" in event.data.data)) {
-		logErr("moduleCall", "received moduleCall with no module field in the data")
-		respondErr(event, "moduleCall did not include module field in the data")
+		logErr("moduleCall", "received moduleCall with no module field in the data", event.data)
+		respondErr(event, "moduleCall is missing 'module' field: "+JSON.stringify(event.data))
 		return
 	}
 	if (typeof event.data.data.module !== "string" || event.data.data.module.length != 46) {
@@ -343,7 +343,6 @@ handleMessage = function(event) {
 		// **which** extension is sending the message, we are only
 		// checking that the message is coming from a browser
 		// extension.
-		log(event.origin)
 		if (event.origin.startsWith("moz") && !("domain" in event.data)) {
 			logErr("moduleCall", "caller is an extension, but no domain was provided")
 			respondErr(event, "caller is an extension, but not domain was provided")

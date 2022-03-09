@@ -35,6 +35,22 @@ function TestSendTestMessage() {
 	return kernel.testMessage()
 }
 
+// TestModuleHasSeed checks that the module
+let basicTestSuite = "AQB6Gs0VcwH-xvEUaoGqORMNuBvpXdt0wRyex-Kqckad-A"
+function TestModuleHasSeed() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(basicTestSuite, "viewSeed", {})
+		.then(data => {
+			// TODO: We need to check that the data actually makes
+			// sense.
+			resolve(data)
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestGenericModuleCall will upload a very basic file to Skynet using libkernel.
 //
 // TODO: Probably want to use something besides padAndEncrypt as the test for a
@@ -150,7 +166,8 @@ function TestCard(props) {
 				console.error(x)
 				setTestStatus(x)
 				setStatusColor("rgba(255, 0, 0, 0.6)")
-				setDuration(performance.now()-start)
+				let end = performance.now()
+				setDuration(end-start)
 				nextTest()
 			})
 		})
@@ -173,12 +190,13 @@ const IndexPage = () => {
 			<h1>Running Tests</h1>
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
-			<TestCard name="TestGenericModuleCall" test={TestGenericModuleCall} turn={getTurn()} />
+			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
 		</main>
 	)
 }
 export default IndexPage
 /*
+			<TestCard name="TestGenericModuleCall" test={TestGenericModuleCall} turn={getTurn()} />
 			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
 			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />

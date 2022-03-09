@@ -97,9 +97,9 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 				first4XX,
 			})
 		})
-		.catch((err) => {
+		.catch(err => {
 			// This portal failed, try again with the next portal.
-			log("portal", "error with fetch call\n", portal, "\n", query, "\n", err)
+			log("portal", "error with fetch call", portal, query, err)
 			nextPortal()
 		})
 	})
