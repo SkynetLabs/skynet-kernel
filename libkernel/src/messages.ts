@@ -67,27 +67,34 @@ export function testMessage(): Promise<string> {
 // callModule is a generic function to call a module. It will send a message to
 // the kernel and respond with the kernel's response. All nonce magic is
 // handled for the user.
-export function callModule(module: string, moduleMethod: string, moduleInput: any): Promise<any> {
+//
+// callModule can only be used for query-response communications, there is no
+// support for sending queryUpdate messages or receiving responseUpdate
+// messages. If you need those, use 'connectModule' instead.
+export function callModule(module: string, method: string, data: any): Promise<any> {
 	return new Promise((resolve, reject) => {
 		init()
 		.then(x => {
 			let [_, query] = newKernelQuery({
 				method: "moduleCall",
-				module,
-				moduleMethod,
-				moduleInput,
+				data: {
+					module,
+					method,
+					data,
+				}
 			}, null as any)
 			query.then(response => {
 				resolve(response)
 			})
 			.catch(err => {
-				// Consumer doesn't care about the reponse or
-				// the query status.
+				let cErr = composeErr("moduleCall query to kernel failed", err)
 				reject(err)
 			})
 		})
 		.catch(err => {
-			reject(err)
+			let cErr = composeErr(noBridge, err)
+			logErr(cErr)
+			reject(cErr)
 		})
 	})
 }

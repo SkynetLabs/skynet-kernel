@@ -75,10 +75,21 @@
 // TODO: Need to set up a system that watches for updates to our worker code
 // and then injects the new code into the workers object.
 
+// TODO: Need to set up a system for tracking the number of workers that we
+// have open and deciding when to terminate workers when we reach some
+// threshold of "too many".
+
+// TODO: Need some way to control the total number of queries that are open so
+// that we don't leak memory. This needs to be handled at all layers where a
+// query map exists. This gets tricky when you have multiple layers of queries
+// going for a request. For example, a webapp has a query to a kernel that's a
+// moduleCall, which means the kernel also has a query going to the worker. We
+// need to make sure that the worker query fails eventually, and we also need
+// to make sure that when it does fail we close out the webapp query as well.
+
 // TODO: Don't declare these, actually overwrite them. We don't want to be
 // dependent on a particular extension having the same implementation as all of
 // the others.
-declare var downloadV1Skylink
 declare var downloadSkylink
 declare var getUserSeed
 declare var defaultPortalList
@@ -91,206 +102,211 @@ declare var handleTest
 declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
+// Set up a system to track messages that are sent to workers and to connect
+// the responses. queriesNonce is a field to help ensure there is only one
+// query for each nonce. queries is a map from a nonce to an openQuery.
+interface openQuery {
+	isWorker: boolean;
+	domain: string;
+	source: MessageEventSource;
+}
+var queriesNonce = 0
+var queries = new Object()
+
 // workers is an object which holds all of the workers in the kernel. There is
 // one worker per module.
 var workers = new Object()
 
+// respondErr will send an error response to the caller that closes out the
+// query for the provided nonce.
+function respondErr(event: MessageEvent, err: string) {
+	event.source.postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err,
+	}, event.origin)
+}
+
+// Create a standard message handler for the workers. Every worker will be
+// using this handler.
+//
+// TODO: Create a worker that can test the logic inside of this function.
+function handleWorkerMessage(event: MessageEvent, domain: string) {
+	// Check for a nonce.
+	if (!("nonce" in event.data) || !("method" in event.data)) {
+		// TODO: shut down the worker for being buggy.
+		logErr("workerMessage", "worker message was malformed")
+		return
+	}
+
+	// Check for a test method, this is also a way to get the version of
+	// the kernel.
+	if (event.data.method === "test") {
+		handleTest(event)
+		return
+	}
+
+	// If the method is a moduleCall, open a query to the worker that is
+	// being called.
+	if (event.data.method === "moduleCall") {
+		handleModuleCall(event, domain, true)
+		return
+	}
+
+	// Only options left are response and responseUpdate
+	if (event.data.method !== "responseUpdate" && event.data.method !== "responseUpdate") {
+		logErr("workerMessage", "received message from worker with unrecognized method")
+		// TODO: Shut down the worker for being buggy.
+		return
+	}
+
+	// Grab the query information so that we can properly relay the worker
+	// response to the original caller.
+	if (!(event.data.nonce in queries)) {
+		if (event.data.method === "responseUpdate") {
+			// It's possible that non-deterministic ordering of
+			// messages resulted in this responseUpdate being
+			// processed after the final response was processed,
+			// therefore this is not a fatal error and doesn't need
+			// to result in the worker being shut down.
+			return
+		}
+		logErr("workerMessage", "received message from worker for non-existent nonce")
+		// TODO: Shut down the worker for being buggy.
+		return
+	}
+	let sourceIsWorker = queries[event.data.nonce].isWorker
+	let sourceNonce = queries[event.data.nonce].nonce
+	let source = queries[event.data.nonce].source
+
+	// Check that the required fields and rules are met.
+	if (!("err" in event.data) || !("data" in event.data.data)) {
+		logErr("workerMessage", "responseUpdates from worker need to have an err and data field")
+		// TODO: shut down the worker for being buggy.
+		return
+	}
+	errNull = event.data.err === null
+	dataNull = event.data.data === null
+	if (errNull === dataNull) {
+		logErr("workerMessage", "exactly one of err and data must be null")
+		// TODO: shut down the worker for being buggy.
+		return
+	}
+
+	// Pass the message to the original caller.
+	let msg = {
+		nonce: sourceNonce,
+		method: event.data.method,
+		err: event.data.err,
+		data: event.data.data,
+	}
+	if (sourceType === "worker") {
+		source.postMessage(msg)
+	} else {
+		source.postMessage(msg, event.origin)
+	}
+
+	// For responses only, close out the query.
+	if (event.data.method === "response") {
+		delete queries[event.data.nonce]
+	}
+}
+
 // createWorker will create a worker for the provided code.
-function createWorker(workerCode) {
+//
+// TODO: When we create a worker, we also need to create a listener for that
+// worker that can receive messages.
+//
+// TODO: We probably need to wrap 'new Worker' in a try-catch block and have
+// this function return an error.
+function createWorker(workerCode: Uint8Array, domain: string) {
+	// Create a webworker from the worker code.
 	let url = URL.createObjectURL(new Blob([workerCode]))
 	let worker = new Worker(url)
+	worker.onmessage = function(event: MessageEvent) {
+		handleWorkerMessage(event, domain)
+	}
+
+	// Derive the seed for this worker and then send the presentSeed
+	// message.
+	let path = "moduleSeedDerivation"+domain
+	let u8Path = new TextEncoder().encode(path)
+	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
+	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
+	worker.postMessage({
+		method: "presentSeed,
+		data {
+			seed: moduleSeed,
+		},
+	})
 	return worker
 }
 
-// handleModuleCall handles a call to a version 1 skynet kernel module.
-//
-// The module name should be a skylink, either V1 or V2, which holds the code
-// that will run for the module. The domain of the module will be equal to the
-// skylink. For V1 skylinks, there is a fundamental marriage between the code
-// and the domain, any updates to the code will result in a new domain. For V2
-// skylinks, which is expected to be more commonly used, the code can be
-// updated by pushing new code with a higher revision number. This new code
-// will have access to the same domain, effecitviely giving it root privledges
-// to all data that was trusted to prior versions of the code.
-var handleModuleCall = function(event, source, sourceIsWorker) {
-	// Check that the module exists, and that it has been formatted as a
-	// skylink.
-	if (!("module" in event.data)) {
-		let err = "bad moduleCall request: module is not specified"
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logErr("moduleCall", "module not specified")
+// handleModuleCall will handle a callModule message sent to the kernel from an
+// extension or webpage.
+function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean) {
+	if (!("data" in event.data) || !("module" in event.data.data)) {
+		logErr("moduleCall", "received moduleCall with no module field in the data")
+		respondErr("moduleCall did not include module field in the data")
 		return
 	}
-	if (typeof event.data.module !== "string") {
-		let err = "bad moduleCall request: module is not a string"
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logErr("moduleCall", "module not string")
+	if (typeof event.data.data.module !== "string") || event.data.data.module.length != 46) {
+		logErr("moduleCall", "received moduleCall with malformed module")
+		respondErr("'module' field in moduleCall is expected to be a base64 skylink")
 		return
 	}
-	if (event.data.module.length !== 46) {
-		let err = "bad moduleCall request: module is not 46 characters"
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
-		logErr("moduleCall", "module not 46 chars")
+	if (!("method" in event.data.data)) {
+		logErr("moduleCall", "received moduleCall without a method set for the module")
+		respondErr("no 'data.method' specified, module does not know what method to run")
+		return
+	}
+	if (!("data" in event.data.data)) {
+		logErr("moduleCall", "received moduleCall with no input for the module")
+		respondErr("no field data.data in moduleCall, data.data contains the module input")
 		return
 	}
 
 	// TODO: Load any overrides.
+	let finalModule = event.data.data.module
 
-	// Check the local cache to see if the worker already exists.
-	if (event.data.module in workers) {
-		let worker = workers[event.data.module]
-		runModuleCall(event, source, sourceIsWorker, worker)
-		return
+	// Define a helper function to create a new query to the module.
+	let newModuleQuery = function(worker: Worker) {
+		let nonce = queriesNonce
+		queriesNonce += 1
+		queries[nonce] = {
+			isWorker: true,
+			domain,
+			source: event.source,
+		}
+		worker.postMessage({
+			nonce: nonce,
+			method: event.data.data.method,
+			data: event.data.data.data,
+		})
+	}
+
+	// Check the worker pool to see if this module is already running.
+	if (finalModule in workers) {
+		let worker = workers[finalModule]
+		newModuleQuery(worker)
 	}
 
 	// TODO: Check localStorage for the module.
 
 	// Download the code for the worker.
-	downloadSkylink(event.data.module)
+	downloadSkylink(event.data.data.module)
 	.then(result => {
 		// TODO: Save the result to localStorage. Can't do that until
 		// subscriptions are in place.
 
 		let worker = createWorker(result.fileData)
 		workers[event.data.module] = worker
-		runModuleCall(event, source, sourceIsWorker, worker)
+		runModuleCall(event, domain, source, sourceIsWorker, worker)
 	})
 	.catch(err => {
 		err = addContextToErr(err, "unable to download module")
 		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
 	})
-}
-
-// Define the function that will create a blob from the handler code for the
-// worker. We need to define this as a separate function because any code we
-// fetch from Skynet needs to be run in a promise.
-//
-// One of the major security concerns with this function is that multiple
-// different modules are going to be communicating with each other. We need to
-// make sure that key inputs like 'method' and 'nonce' can't be read or
-// interfered with. I believe the current implementation has been completed in
-// a secure and robust way, but any changes made to this function should
-// carefully think through security implications, as we have multiple bits of
-// untrusted code running inside of this worker, and those bits of code may
-// intentionally be trying to mess with each other as well as mess with the
-// kernel itself.
-var runModuleCall = function(rwEvent, rwSource, rwSourceIsWorker, worker) {
-	worker.onmessage = function(wEvent) {
-		// Check that the worker message contains a method.
-		if (!("data" in wEvent) || !("method" in wEvent.data)) {
-			let msg = "worker did not include a method in its response"
-			logErr("workerMessage", msg)
-			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
-			return
-		}
-
-		// Check if the worker is trying to make a call to another
-		// module.
-		if (wEvent.data.method === "moduleCall") {
-			logErr("workerMessage", "worker is making a module call")
-			handleModuleCall(wEvent, worker, true)
-			return
-		}
-
-		// Check if the worker is responding to the original caller.
-		if (wEvent.data.method === "moduleResponse") {
-			if (!("moduleResponse" in wEvent.data)) {
-				let msg = "worker did not include a moduleResponse field in its moduleResponse"
-				logErr("workerMessage", msg)
-				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
-				return
-			}
-			let message = {
-				queryStatus: "resolve",
-				method: "moduleResponse",
-				nonce: rwEvent.data.nonce,
-				err: null,
-				output: wEvent.data.moduleResponse,
-			}
-
-			// If the source is a worker, the postMessage call
-			// needs to be constructed differently than if the
-			// source is a window.
-			if (rwSourceIsWorker) {
-				rwSource.postMessage(message)
-			} else {
-				rwSource.postMessage(message, rwEvent.source.origin)
-			}
-			return
-		}
-
-		// Check whether the worker has reported an error.
-		if (wEvent.data.method === "moduleResponseErr") {
-			if (!("err" in wEvent.data)) {
-				let msg = "worker did not include an err field in its moduleResponseErr"
-				logErr("workerMessage", msg)
-				reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, msg)
-				return
-			}
-			logErr("workerMessage", "worker returned an error:\n"+JSON.stringify(wEvent.data.err))
-			reportModuleCallKernelError(rwSource, rwSourceIsWorker, rwEvent.data.nonce, wEvent.data.err)
-			return
-		}
-
-		let msg = "unrecognized method\n"+JSON.stringify(wEvent.data)
-		logErr("workerMessage", msg)
-		reportModuleCallKernelError(rwSource, true, rwEvent.data.requestNonce, msg)
-		return
-	}
-
-	// When sending a method to the worker, we need to clearly
-	// distinguish between a new request being sent to the worker
-	// and a response that the worker is receiving from a request
-	// by the worker. This distinction is made using the 'method'
-	// field, and must be set only by the kernel, such that the
-	// worker does not have to worry about some module pretending
-	// to be responding to a request the worker made when in fact
-	// it has made a new request.
-	// 
-	// NOTE: There are legacy modules that aren't going to be able
-	// to update or add code if the kernel method changes. If a
-	// spec for a V2 ever gets defined, the kernel needs to know in
-	// advance of sending the postmessage which versions the module
-	// knows how to handle. We version these regardless because
-	// it's entirely possible that a V2 gets defined, and user does
-	// not upgrade their kernel to V2, which means that the module
-	// needs to be able to communicate using the V1 protocol since
-	// that's the only thing the user's kernel understands.
-	//
-	// TODO: Need to check that the sourceDomain is correct, we are using
-	// rwEvent.origin but that may not actually be the real source. This is
-	// also important when receiving calls from other workers, because we
-	// need to make sure the domain rights are switched over accordingly.
-	//
-	// TODO: Derive a proper seed for the module.
-	//
-	// TODO: The worker is expecting that the inputs have already been
-	// checked and sanitized.
-	worker.postMessage({
-		seed: "TODO",
-		sourceDomain: rwEvent.origin,
-		method: "moduleCall",
-		moduleMethod: rwEvent.data.moduleMethod,
-		moduleInput: rwEvent.data.moduleInput,
-	})
-}
-
-// reportModuleCallKernelError will repsond to the source with an error message,
-// indicating that the RPC failed.
-//
-// The kernel provides a guarantee that 'err' will always be a string.
-var reportModuleCallKernelError = function(source, sourceIsWorker, nonce, err) {
-	let message = {
-		queryStatus: "reject",
-		method: "moduleResponseErr",
-		nonce,
-		err,
-	}
-	if (sourceIsWorker) {
-		source.postMessage(message)
-	} else {
-		source.postMessage(message, source.origin)
-	}
 }
 
 // Overwrite the handleMessage function that gets called at the end of the
@@ -316,7 +332,27 @@ handleMessage = function(event) {
 
 	// Establish handlers for the major kernel methods.
 	if (event.data.method === "moduleCall") {
-		handleModuleCall(event, event.source, false)
+		// Check for a domain. If the message was sent by a browser
+		// extension, we trust the domain provided by the extension,
+		// otherwise we use the domain of the parent as the domain.
+		// This does mean that the kernel is trusting that the user has
+		// no malicious browser extensions, as we aren't checking for
+		// **which** extension is sending the message, we are only
+		// checking that the message is coming from a browser
+		// extension.
+		log(event.origin)
+		if (event.origin.startsWith("moz") && !("domain" in event.data)) {
+			logErr("moduleCall", "caller is an extension, but no domain was provided")
+			respondErr(event, "caller is an extension, but not domain was provided")
+			return
+		}
+		let domain
+		if (event.origin.startsWith("moz")) {
+			domain = event.data.domain
+		} else {
+			domain = new URL(event.origin).hostname
+		}
+		handleModuleCall(event, domain, false)
 		return
 	}
 	if (event.data.method === "requestOverride") {
@@ -329,10 +365,5 @@ handleMessage = function(event) {
 	}
 
 	// Unrecognized method, reject the query.
-	event.source.postMessage({
-		queryStatus: "reject",
-		nonce: event.data.nonce,
-		method: "response",
-		err: "unrecognized method: "+event.data.method,
-	}, event.origin)
+	respondErr(event, "unrecognized method: "+event.data.method)
 }

@@ -49,32 +49,14 @@ function TestGenericModuleCall() {
 
 // TestSecureUpload will upload a very basic file to Skynet using libkernel.
 function TestSecureUpload() {
-	return new Promise((resolve, reject) => {
-		let u8 = new TextEncoder().encode("some test file data")
-		kernel.upload("testUpload.txt", u8)
-		.then(x => {
-			resolve(x)
-		})
-		.catch(x => {
-			reject(x)
-		})
-	})
+	return kernel.upload("testUpload.txt", new TextEncoder().encode("test data"))
 }
 
 // TestPadAndEncrypt will use the padAndEncrypt function, which has the dual
 // purpose of testing encryption and seeing whether or not kernel
 // communications are working.
 function TestPadAndEncrypt() {
-	return new Promise((resolve, reject) => {
-		let u8 = new TextEncoder().encode("some file data")
-		kernel.padAndEncrypt("test.txt", u8)
-		.then(x => {
-			resolve(x)
-		})
-		.catch(x => {
-			reject(x)
-		})
-	})
+	return kernel.padAndEncrypt("text.txt", new TextEncoder().encode("some file data"))
 }
 
 // TestMessageSpeedSequential1k will send ten thousand messages to the kernel

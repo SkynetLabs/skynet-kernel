@@ -537,10 +537,11 @@ The message will have the form:
 
 ```ts
 kernelFrame.contentWindow.postMessage({
-	domain: <string>,
 	nonce: <number>,
+	domain: <string>,
 	method: "moduleCall",
 	data: {
+		module: <string>,
 		method: <string>,
 		data: <any>,
 	},
@@ -651,7 +652,42 @@ There are also no queryUpdate or responseUpdate messages.
 
 ### Kernel -> Module
 
-WIP
+When the kernel creates a module, it creates a webworker for that module and
+then leaves the worker running for long periods of time. Immediately after
+startup, the kernel will send a message to the worker containing a unique seed
+for the module that was derived from the user's seed. Besides the seed message,
+all other messages are 'callModule' messages.
+
+#### presentSeed
+
+presentSeed gets called immediately after a worker is created, it contains a
+seed that module can use. That seed is unique to the module, and is derived
+from the user's login seed. It will be the same on all of the user's devices,
+and different from the unique seed that gets presented to other modules.
+
+The derivation uses the domain of the module (which is a Skylink, can be either
+a resolver link or a content link) and the user's seed.
+
+```ts
+	let path = "moduleSeedDerivation"+moduleResolverSkylink
+	let u8Path = new TextEncoder().encode(path)
+	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
+	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
+```
+
+The message will have the form:
+
+```ts
+worker.postMessage({
+	method: "presentSeed",
+	data: {
+		seed: <Uint8Array>,
+	},
+})
+```
+
+This message is not a query, and therefore does not support queryUpdate,
+responseUpdate, or response messages.
 
 ### Module -> Kernel
 
