@@ -35,6 +35,8 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
+// TODO: Need to add support for QueryUpdate messages.
+
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
 // preferred portals. This process is independent of the full process, which we
 // need to marry to the bootstrap process.

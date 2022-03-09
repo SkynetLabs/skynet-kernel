@@ -211,7 +211,6 @@ below. The key relationships are:
 + All -> Kernel
 + Kernel -> Parent
 + Kernel -> Module
-+ Module -> Kernel
 
 At all layers, parallel communications are supported. This means that at any
 time, any of these layers could have many simultaneous messages open, and the
@@ -652,11 +651,12 @@ There are also no queryUpdate or responseUpdate messages.
 
 ### Kernel -> Module
 
-When the kernel creates a module, it creates a webworker for that module and
-then leaves the worker running for long periods of time. Immediately after
-startup, the kernel will send a message to the worker containing a unique seed
-for the module that was derived from the user's seed. Besides the seed message,
-all other messages are 'callModule' messages.
+There is one predefined method that the kernel will send to a module, which is
+the 'presentSeed' method. Other other methods are variants of the 'callModule'
+method, which have a standardized set of inputs but the actual method name and
+data will depend on the specification of the module itself. The kernel of
+course does not know what this specification is, so the method name and data
+are fully untrusted inputs.
 
 #### presentSeed
 
@@ -689,9 +689,58 @@ worker.postMessage({
 This message is not a query, and therefore does not support queryUpdate,
 responseUpdate, or response messages.
 
-### Module -> Kernel
+#### callModule
 
-WIP
+Unlike the other methods in this documentation, 'callModule' is not actually a
+real method but a class of methods. The method that gets passed into the module
+is whatever method the original caller is hoping to run on the module, instead
+of being "callModule". The nonce is a nonce that's specific to the connection
+between the kernel and the module.
+
+The message will have the form:
+
+```ts
+worker.postMessage({
+	nonce: <number>,
+	method: <string>,
+	data: <any>,
+})
+```
+
+Any queryUpdate messages will have the form:
+
+```ts
+worker.postMessage({
+	nonce: originalQuery.nonce,
+	method: "queryUpdate",
+	data: <any>,
+})
+```
+
+Any responseUpdate should have the form:
+
+```ts
+postMessage({
+	nonce: originalQuery.nonce,
+	method: "responseUpdate",
+	err: null,
+	data: <any>,
+})
+```
+
+Any response should have the form:
+
+```ts
+postMessage({
+	nonce: originalQuery.nonce,
+	method: "response",
+	err: null,
+	data: <any>,
+})
+```
+
+Once a response is sent, the query is closed and all future messages for that
+nonce will be ignored or met with an error.
 
 ## TODO: Bootloader Roadmap (Remove once completed)
 
