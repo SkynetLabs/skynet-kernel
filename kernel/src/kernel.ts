@@ -92,6 +92,7 @@
 // TODO: Don't declare these, actually overwrite them. We don't want to be
 // dependent on a particular extension having the same implementation as all of
 // the others.
+declare var blake2b
 declare var downloadSkylink
 declare var getUserSeed
 declare var defaultPortalList
@@ -126,7 +127,7 @@ function respondErr(event: MessageEvent, err: string) {
 		nonce: event.data.nonce,
 		method: "response",
 		err,
-	}, event.origin)
+	}, <any>event.origin)
 }
 
 // Create a standard message handler for the workers. Every worker will be
@@ -187,8 +188,8 @@ function handleWorkerMessage(event: MessageEvent, domain: string) {
 		// TODO: shut down the worker for being buggy.
 		return
 	}
-	errNull = event.data.err === null
-	dataNull = event.data.data === null
+	let errNull = event.data.err === null
+	let dataNull = event.data.data === null
 	if (errNull === dataNull) {
 		logErr("workerMessage", "exactly one of err and data must be null")
 		// TODO: shut down the worker for being buggy.
@@ -202,7 +203,7 @@ function handleWorkerMessage(event: MessageEvent, domain: string) {
 		err: event.data.err,
 		data: event.data.data,
 	}
-	if (sourceType === "worker") {
+	if (sourceIsWorker === true) {
 		source.postMessage(msg)
 	} else {
 		source.postMessage(msg, event.origin)
@@ -236,8 +237,8 @@ function createWorker(workerCode: Uint8Array, domain: string) {
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
 	worker.postMessage({
-		method: "presentSeed,
-		data {
+		method: "presentSeed",
+		data: {
 			seed: moduleSeed,
 		},
 	})
@@ -249,22 +250,22 @@ function createWorker(workerCode: Uint8Array, domain: string) {
 function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean) {
 	if (!("data" in event.data) || !("module" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall with no module field in the data")
-		respondErr("moduleCall did not include module field in the data")
+		respondErr(event, "moduleCall did not include module field in the data")
 		return
 	}
-	if (typeof event.data.data.module !== "string") || event.data.data.module.length != 46) {
+	if (typeof event.data.data.module !== "string" || event.data.data.module.length != 46) {
 		logErr("moduleCall", "received moduleCall with malformed module")
-		respondErr("'module' field in moduleCall is expected to be a base64 skylink")
+		respondErr(event, "'module' field in moduleCall is expected to be a base64 skylink")
 		return
 	}
 	if (!("method" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall without a method set for the module")
-		respondErr("no 'data.method' specified, module does not know what method to run")
+		respondErr(event, "no 'data.method' specified, module does not know what method to run")
 		return
 	}
 	if (!("data" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall with no input for the module")
-		respondErr("no field data.data in moduleCall, data.data contains the module input")
+		respondErr(event, "no field data.data in moduleCall, data.data contains the module input")
 		return
 	}
 
@@ -301,13 +302,13 @@ function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean
 		// TODO: Save the result to localStorage. Can't do that until
 		// subscriptions are in place.
 
-		let worker = createWorker(result.fileData)
+		let worker = createWorker(result.fileData, domain)
 		workers[event.data.module] = worker
-		runModuleCall(event, domain, source, sourceIsWorker, worker)
+		newModuleQuery(worker)
 	})
 	.catch(err => {
-		err = addContextToErr(err, "unable to download module")
-		reportModuleCallKernelError(source, false, event.data.requestNonce, err)
+		logErr("moduleCall", "unable to download module", err)
+		respondErr(event, "unable to download module: "+err)
 	})
 }
 

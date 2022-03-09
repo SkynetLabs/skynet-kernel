@@ -512,8 +512,9 @@ function handleProxyRequest(info) {
 	// localstorage, and get that list of failover options from the kernel.
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
-		return {type: "http", host: "skynetfree.net", port: 80}
+		return {type: "http", host: "siasky.net", port: 80}
 	}
+	console.log("got proxy request")
 
 	// If the kernel is still starting up, we don't proxy anything.
 	//
@@ -529,7 +530,7 @@ function handleProxyRequest(info) {
 	// otherwise continue. That's a lot of work though, we're going to
 	// leave it imperfect for MVP and we'llcome back to it later
 	if (kernelLoadedResolved === false) {
-		return {type: "http", host: "skynetfree.net", port: 80}
+		return {type: "http", host: "siasky.net", port: 80}
 	}
 
 	// Ask the kernel whether there should be a proxy for this url. We use
