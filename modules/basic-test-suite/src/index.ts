@@ -167,24 +167,14 @@ onmessage = function(event) {
 
 	// Create a method to share all of the errors that the module has
 	// detected.
-	if (event.data.method === "readErrors") {
-		blockForSeed
-		.then(x => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: null,
-				data: {
-					errors,
-				},
-			})
-		})
-		.catch(err => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: "there was a problem when the seed was presented: "+err,
-			})
+	if (event.data.method === "viewErrors") {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				errors,
+			},
 		})
 		return
 	}

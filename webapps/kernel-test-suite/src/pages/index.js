@@ -57,6 +57,28 @@ function TestModuleHasSeed() {
 	})
 }
 
+// TestModuleHasErrors asks the TestModule whether it has encountered any
+// errors during the test cycle.
+function TestModuleHasErrors() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(basicTestSuite, "viewErrors", {})
+		.then(data => {
+			if (!("errors" in data)) {
+				reject("viewSeed in test module did not return a data.errors")
+				return
+			}
+			if (data.errors.length !== 0) {
+				reject("test module has acculumated errors: " + JSON.stringify(data.errors))
+				return
+			}
+			resolve("test module did not accumulate any errors")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestGenericModuleCall will upload a very basic file to Skynet using libkernel.
 //
 // TODO: Probably want to use something besides padAndEncrypt as the test for a
@@ -197,6 +219,7 @@ const IndexPage = () => {
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
 		</main>
 	)
 }
