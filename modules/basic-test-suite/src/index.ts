@@ -15,7 +15,8 @@ var blockForSeed = new Promise((resolve, reject) => {
 // list.
 var errors: string[] = []
 
-// Create a helper function for logging.
+// Create a helper function for logging. At least for the test worker, any log
+// is an error.
 function log(message: string) {
 	postMessage({
 		method: "log",
@@ -182,11 +183,3 @@ onmessage = function(event) {
 	respondErr("method is unrecognized")
 	return
 }
-
-// Now that onmessage has been established, need to send a message to the
-// kernel indicating that startup is complete. The kernel will block all
-// messages to the worker until it knows that the worker is ready.
-postMessage({method: "startupComplete"})
-
-// Send a log indicating the worker has started up.
-log("worker is operational")

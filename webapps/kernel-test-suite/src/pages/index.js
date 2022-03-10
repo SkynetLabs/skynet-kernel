@@ -41,9 +41,15 @@ function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(basicTestSuite, "viewSeed", {})
 		.then(data => {
-			// TODO: We need to check that the data actually makes
-			// sense.
-			resolve(data)
+			if (!("seed" in data)) {
+				reject("viewSeed in test module did not return a data.seed")
+				return
+			}
+			if (data.seed.length !== 16) {
+				reject("viewSeed in test module returned a seed with a non-standard length")
+				return
+			}
+			resolve("viewSeed appears to have returned a standard seed")
 		})
 		.catch(err => {
 			reject(err)
