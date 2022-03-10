@@ -89,6 +89,10 @@
 // need to make sure that the worker query fails eventually, and we also need
 // to make sure that when it does fail we close out the webapp query as well.
 
+// TODO: We need to make a sort of task manager app to kill workers. As far as
+// I know though there's no easy way to tell how much memory and cpu each
+// worker is consuming.
+
 // TODO: Don't declare these, actually overwrite them. We don't want to be
 // dependent on a particular extension having the same implementation as all of
 // the others.
@@ -112,13 +116,34 @@ interface openQuery {
 	isWorker: boolean;
 	domain: string;
 	source: MessageEventSource;
+	nonce: number;
 }
 var queriesNonce = 0
 var queries = new Object()
 
-// workers is an object which holds all of the workers in the kernel. There is
-// one worker per module.
-var workers = new Object()
+// modules is an array that keeps track of all the modules that are currently
+// running. The 'worker' is the webworker object that runs the code of the
+// module, and the 'ready' object is a promise which will resolve when the
+// worker sends a message indicating that it is ready to receive messages.
+//
+// TODO: We should probably be able to track whether this worker has timed out
+// in doing the workerReady task. If a worker doesn't become ready fast enough,
+// or otherwise appears to have stalled, we need to kill it.
+interface kmodule {
+	// The webworker object.
+	worker: Worker;
+
+	// The domain that the worker is allowed to operate within.
+	domain: string;
+
+	// A promise and the associated state that allows the kernel to know
+	// whether or not this worker has completed startup.
+	workerReady: Promise<void>;
+	resolved: boolean;
+	resolve: Function;
+	reject: Function;
+}
+var modules = new Object()
 
 // respondErr will send an error response to the caller that closes out the
 // query for the provided nonce.
@@ -131,14 +156,55 @@ function respondErr(event: MessageEvent, err: string) {
 }
 
 // Create a standard message handler for the workers. Every worker will be
-// using this handler.
-//
-// TODO: Create a worker that can test the logic inside of this function.
-function handleWorkerMessage(event: MessageEvent, domain: string) {
+// using this handler. The event input is the standard MessageEvent that is
+// presented when the worker sends a message. The domain is the domain of the
+// worker. The resolve/reject pair are the resolve/reject elements of a
+// promise.
+function handleWorkerMessage(event: MessageEvent, kmodule: kmodule) {
+	// Check for a method.
+	if (!("method" in event.data)) {
+		logErr("workerMessage", "worker message is missing method")
+		// TODO: shut down the worker for being buggy.
+		return
+	}
+
+	// Check whether this is a startup call.
+	if (event.data.method === "startupComplete") {
+		if (kmodule.resolved === true) {
+			logErr("workerMessage", "worker sent a duplicate startupComplete message")
+			// TODO: shut down the worker for being buggy.
+			return
+		}
+		kmodule.resolve()
+		return
+	}
+	
+	// Check whether this is a logging call.
+	if (event.data.method === "log") {
+		if (!("data" in event.data)) {
+			logErr("workerMessage", "received log with no data field")
+			return
+		}
+		if (!("isErr" in event.data.data) || !("message" in event.data.data)) {
+			logErr("workerMessage", "received log message, missing data.isErr or data.message")
+			return
+		}
+		// TODO: We probably want the log function to treat the domain
+		// as a tag, we need some way to control here which domains get
+		// to log and which domains do not, which might suggest the way
+		// we handle tags is not quite correct.
+		if (event.data.data.isErr === true) {
+			logErr("workerMessage", kmodule.domain, event.data.data.message)
+		} else {
+			log("workerMessage", kmodule.domain, event.data.data.message)
+		}
+		return
+	}
+
 	// Check for a nonce.
 	if (!("nonce" in event.data) || !("method" in event.data)) {
+		logErr("workerMessage", "worker message is missing nonce")
 		// TODO: shut down the worker for being buggy.
-		logErr("workerMessage", "worker message was malformed")
 		return
 	}
 
@@ -152,12 +218,12 @@ function handleWorkerMessage(event: MessageEvent, domain: string) {
 	// If the method is a moduleCall, open a query to the worker that is
 	// being called.
 	if (event.data.method === "moduleCall") {
-		handleModuleCall(event, domain, true)
+		handleModuleCall(event, kmodule.domain, true)
 		return
 	}
 
 	// Only options left are response and responseUpdate
-	if (event.data.method !== "responseUpdate" && event.data.method !== "responseUpdate") {
+	if (event.data.method !== "responseUpdate" && event.data.method !== "response") {
 		logErr("workerMessage", "received message from worker with unrecognized method")
 		// TODO: Shut down the worker for being buggy.
 		return
@@ -175,22 +241,27 @@ function handleWorkerMessage(event: MessageEvent, domain: string) {
 			return
 		}
 		logErr("workerMessage", "received message from worker for non-existent nonce")
+		logErr("debug", "received message from worker for non-existent nonce")
 		// TODO: Shut down the worker for being buggy.
 		return
 	}
+	log("debug", "received a response or responseUpdate from the worker, sending back to caller")
 	let sourceIsWorker = queries[event.data.nonce].isWorker
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
 
 	// Check that the required fields and rules are met.
-	if (!("err" in event.data) || !("data" in event.data.data)) {
+	if (!("err" in event.data) || !("data" in event.data)) {
+		logErr("debug", "responseUpdates from worker need to have an err and data field")
 		logErr("workerMessage", "responseUpdates from worker need to have an err and data field")
 		// TODO: shut down the worker for being buggy.
 		return
 	}
+	log("debug", "doing data null check")
 	let errNull = event.data.err === null
 	let dataNull = event.data.data === null
 	if (errNull === dataNull) {
+		logErr("debug", "exactly one of err and data must be null")
 		logErr("workerMessage", "exactly one of err and data must be null")
 		// TODO: shut down the worker for being buggy.
 		return
@@ -203,10 +274,13 @@ function handleWorkerMessage(event: MessageEvent, domain: string) {
 		err: event.data.err,
 		data: event.data.data,
 	}
+	log("debug", "kernel received response message from worker, sending it forward", msg)
 	if (sourceIsWorker === true) {
+		log("debug", "sourceIsWorker was set to true!?")
 		source.postMessage(msg)
 	} else {
-		source.postMessage(msg, event.origin)
+		log("debug", "sending to source", source.origin)
+		source.postMessage(msg, source.origin)
 	}
 
 	// For responses only, close out the query.
@@ -215,34 +289,70 @@ function handleWorkerMessage(event: MessageEvent, domain: string) {
 	}
 }
 
-// createWorker will create a worker for the provided code.
+// createMdoule will create a worker for the provided code.
 //
 // TODO: When we create a worker, we also need to create a listener for that
 // worker that can receive messages.
 //
 // TODO: We probably need to wrap 'new Worker' in a try-catch block and have
 // this function return an error.
-function createWorker(workerCode: Uint8Array, domain: string) {
+//
+// TODO: This needs to return a promise, and that promise can't resolve until
+// the worker has sent a message to establish that it is alive.
+//
+// TODO: Need to set up an onerror
+function createModule(workerCode: Uint8Array, domain: string): [kmodule, string] {
+	// Create a promise that will be resolved when the worker sends a
+	// message indicating that startup is complete.
+	let kmodule = {} as kmodule
+	kmodule.domain = domain
+	kmodule.resolved = false
+	kmodule.workerReady = new Promise((resolve, reject) => {
+		kmodule.resolve = resolve
+		kmodule.reject = reject
+	})
+
 	// Create a webworker from the worker code.
+	log("debug", "creating worker from this code", new TextDecoder().decode(workerCode))
 	let url = URL.createObjectURL(new Blob([workerCode]))
-	let worker = new Worker(url)
-	worker.onmessage = function(event: MessageEvent) {
-		handleWorkerMessage(event, domain)
+	try {
+		kmodule.worker = new Worker(url)
+	} catch (err) {
+		logErr("debug", "unable to create worker", domain, err)
+		return [null, addContextToErr(err, "unable to create worker")]
+	}
+	kmodule.worker.onmessage = function(event: MessageEvent) {
+		log("debug", "received message from worker", event.data)
+		handleWorkerMessage(event, kmodule)
 	}
 
-	// Derive the seed for this worker and then send the presentSeed
-	// message.
 	let path = "moduleSeedDerivation"+domain
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
-	worker.postMessage({
+	log("debug", "calling presentSeed on worker", moduleSeed)
+	kmodule.worker.postMessage({
 		method: "presentSeed",
 		data: {
 			seed: moduleSeed,
 		},
 	})
-	return worker
+
+	// Queue up a function to send the worker its seed, but don't actually
+	// send the worker its seed until the worker is ready.
+	//
+	// TODO: Clean this up, we don't need it after all.
+	kmodule.workerReady.then(x => {
+		// Wait until we get a message from the worker insit
+
+		// Derive the seed for this worker and then send the presentSeed
+		// message.
+		kmodule.resolve()
+	}).catch(err => {
+		logErr("worker", addContextToErr(err, "worker was unable to start"))
+	})
+	log("debug", "module has been built, returning the module")
+	return [kmodule, null]
 }
 
 // handleModuleCall will handle a callModule message sent to the kernel from an
@@ -273,40 +383,59 @@ function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean
 	let finalModule = event.data.data.module
 
 	// Define a helper function to create a new query to the module.
-	let newModuleQuery = function(worker: Worker) {
-		let nonce = queriesNonce
-		queriesNonce += 1
-		queries[nonce] = {
-			isWorker: true,
-			domain,
-			source: event.source,
-		}
-		worker.postMessage({
-			nonce: nonce,
-			method: event.data.data.method,
-			data: event.data.data.data,
+	let newModuleQuery = function(kmodule: kmodule) {
+		// Before doing anything, we need to wait for the worker to
+		// finish startup.
+		log("debug", "waiting until the worker is ready", kmodule)
+		kmodule.workerReady.then(x => {
+			let nonce = queriesNonce
+			queriesNonce += 1
+			queries[nonce] = {
+				isWorker,
+				domain,
+				source: event.source,
+				nonce: event.data.nonce,
+			}
+			log("debug", "sending message to worker", domain, event.data)
+			kmodule.worker.postMessage({
+				nonce: nonce,
+				method: event.data.data.method,
+				data: event.data.data.data,
+			})
 		})
 	}
 
 	// Check the worker pool to see if this module is already running.
-	if (finalModule in workers) {
-		let worker = workers[finalModule]
-		newModuleQuery(worker)
+	if (finalModule in modules) {
+		let kmodule = modules[finalModule]
+		newModuleQuery(kmodule)
+		return
 	}
 
 	// TODO: Check localStorage for the module.
 
 	// Download the code for the worker.
+	log("debug", "downloading the worker data", finalModule)
 	downloadSkylink(event.data.data.module)
 	.then(result => {
 		// TODO: Save the result to localStorage. Can't do that until
 		// subscriptions are in place.
 
-		let worker = createWorker(result.fileData, domain)
-		workers[event.data.module] = worker
-		newModuleQuery(worker)
+		// Create a new module.
+		log("debug", "got the data for the worker", finalModule, result)
+		let [kmodule, err] = createModule(result.fileData, domain)
+		if (err !== null) {
+			respondErr(event, addContextToErr(err, "unable to create module"))
+			return
+		}
+		log("debug", "got the kmodule", event.data, event.data.data.module, kmodule, err)
+
+		// Add the module to the list of modules.
+		modules[event.data.data.module] = kmodule
+		newModuleQuery(kmodule)
 	})
 	.catch(err => {
+		log("debug", "download of worker data failed", err)
 		logErr("moduleCall", "unable to download module", err)
 		respondErr(event, "unable to download module: "+err)
 	})
@@ -335,6 +464,7 @@ handleMessage = function(event) {
 
 	// Establish handlers for the major kernel methods.
 	if (event.data.method === "moduleCall") {
+		log("debug", "received moduleCall", event.data)
 		// Check for a domain. If the message was sent by a browser
 		// extension, we trust the domain provided by the extension,
 		// otherwise we use the domain of the parent as the domain.

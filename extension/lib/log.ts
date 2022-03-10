@@ -22,6 +22,14 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 	// as needed, to avoid having to use the kernel api to change your log
 	// settings as you develop).
 	if (logSettingsStr === null) {
+		logSettingsStr = JSON.stringify({
+			ERROR: true,
+			error: true,
+			debug: true,
+			auth: true,
+			portal: true,
+			workerMessage: true,
+		})
 		logSettingsStr = '{"ERROR": true, "error": true, "debug": true, "auth": true, "portal": true}'
 	}
 	// Parse the logSettingsStr.
@@ -52,13 +60,20 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 		if (i !== 0) {
 			message += "\n"
 		}
+
 		// Strings can be placed in directly.
 		if (typeof inputs[i] === "string") {
 			message += inputs[i]
 			continue
 		}
+
 		// Everything else needs to be stringified.
 		try {
+			// TODO: This doesn't work, a large amount of the time
+			// we have important objects (mostly errors) that are
+			// getting stringified to '{ }'. I'm not sure how we
+			// can ensure we always display the thing we need to
+			// display.
 			let item = JSON.stringify(inputs[i])
 			message += item
 		} catch {
