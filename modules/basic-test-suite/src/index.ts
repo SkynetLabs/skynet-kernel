@@ -1,5 +1,8 @@
 // Define helper functions that will allow the worker to block until the seed
-// is received.
+// is received. This is going to be standard code in every module that needs a
+// private seed. Not all modules will require a private seed, especially if
+// they are using other modules (such as fsDAC and profileDAC) for shared
+// state.
 var seed: Uint8Array
 var resolveSeed: Function
 var rejectSeed: Function
@@ -13,10 +16,19 @@ var blockForSeed = new Promise((resolve, reject) => {
 // running list of errors that will grow over time as errors are encountered.
 // Only unexpected errors that indicate a bug of some sort are added to this
 // list.
+//
+// Most modules will not have something like this, this is really only here to
+// increase test coverage and make sure that every error is tracked in case the
+// kernel is dropping logging messages or is having other problems that will
+// cause errors to be silently missed within the test suite.
 var errors: string[] = []
 
-// Create a helper function for logging. At least for the test worker, any log
-// is an error.
+// Create a helper function for logging.
+//
+// Most modules will do logging of some form, though most modules will have
+// both a log and a logErr function, where 'isErr' is set to false in the
+// standard log function. For the test suite, if we feel a need to log
+// something at all it's because there was an error.
 function log(message: string) {
 	postMessage({
 		method: "log",

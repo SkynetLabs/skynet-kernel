@@ -93,6 +93,12 @@
 // I know though there's no easy way to tell how much memory and cpu each
 // worker is consuming.
 
+// TODO: Change the logging format for any postMessage based logging to include
+// an array of objects to log rather than just a string, this will solve our
+// issue where things like quotes around objects get escaped a billion times.
+// When you do this, remember to update the test modules so that they make use
+// of the new logging format properly.
+
 // TODO: Don't declare these, actually overwrite them. We don't want to be
 // dependent on a particular extension having the same implementation as all of
 // the others.
