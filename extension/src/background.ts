@@ -189,7 +189,6 @@ function reloadKernel() {
 // Create a handler for all kernel responses. The responses are all keyed by a
 // nonce, which gets matched to a promise that's been stored in 'queries'.
 function handleKernelResponse(event) {
-	console.log("got a response from the kernel\n", event.data)
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "http://kernel.skynet") {
 		return
@@ -263,7 +262,6 @@ function handleKernelResponse(event) {
 	if (method === "response") {
 		delete queries[event.data.nonce]
 	}
-	console.log("relaying the response", event.data)
 	result(event.data)
 }
 // Create a listener to handle responses coming from the kernel.

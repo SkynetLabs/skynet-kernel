@@ -248,7 +248,6 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// TODO: Shut down the worker for being buggy.
 		return
 	}
-	log("debug", "received a response or responseUpdate from the worker, sending back to caller")
 	let sourceIsWorker = queries[event.data.nonce].isWorker
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
@@ -274,12 +273,9 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		err: event.data.err,
 		data: event.data.data,
 	}
-	log("debug", "kernel received response message from worker, sending it forward", msg)
 	if (sourceIsWorker === true) {
-		log("debug", "sourceIsWorker was set to true!?")
 		source.postMessage(msg)
 	} else {
-		log("debug", "sending to source", source.origin)
 		source.postMessage(msg, source.origin)
 	}
 
@@ -303,14 +299,23 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 		return [null, addContextToErr(err, "unable to create worker")]
 	}
 	module.worker.onmessage = function(event: MessageEvent) {
-		log("debug", "received message from worker", event.data)
 		handleWorkerMessage(event, module)
+	}
+
+	// Grab the user's seed so we can make a unique module seed.
+	let [userSeed, errGSU] = getUserSeed()
+	if (errGSU !== null) {
+		logErr("createModule", "unable to create worker because seed is unavailable", errGSU)
+		return [null, addContextToErr(errGSU, "seed is unavailable")]
 	}
 
 	let path = "moduleSeedDerivation"+domain
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
+	moduleSeedPreimage.set(u8Path, 0)
+	moduleSeedPreimage.set(userSeed, u8Path.length)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
+	log("debug", "creating a seed", domain, moduleSeed)
 	module.worker.postMessage({
 		method: "presentSeed",
 		domain: "root",
@@ -340,7 +345,6 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, domain: strin
 		return
 	}
 	if (event.data.data.method === "presentSeed") {
-		log("debug", "caught an illegal call to presentSeed")
 		logErr("moduleCall", "received malicious moduleCall - only root is allowed to use presentSeed method")
 		respondErr(event, messagePortal, isWorker, "presentSeed is a priviledged method, only root is allowed to use it")
 		return
@@ -366,7 +370,6 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, domain: strin
 			source: messagePortal,
 			nonce: event.data.nonce,
 		}
-		log("debug", "sending message to worker", domain, event.data)
 		module.worker.postMessage({
 			nonce: nonce,
 			domain,
@@ -392,7 +395,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, domain: strin
 		// with any updates from the remote module.
 
 		// Create a new module.
-		let [module, err] = createModule(result.fileData, domain)
+		let [module, err] = createModule(result.fileData, event.data.data.module)
 		if (err !== null) {
 			respondErr(event, messagePortal, isWorker, addContextToErr(err, "unable to create module"))
 			return
@@ -440,7 +443,6 @@ handleMessage = function(event) {
 
 	// Establish handlers for the major kernel methods.
 	if (event.data.method === "moduleCall") {
-		log("debug", "received moduleCall", event.data)
 		// Check for a domain. If the message was sent by a browser
 		// extension, we trust the domain provided by the extension,
 		// otherwise we use the domain of the parent as the domain.

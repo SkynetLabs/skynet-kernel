@@ -92,9 +92,9 @@ function TestModulePresentSeed() {
 // to the kernel.
 //
 // The full message flow here is:
-// 	us -> bridge -> background -> kernel -> module ->
+// 	webpage -> bridge -> background -> kernel -> module ->
 // 		kernel -> module ->
-// 	kernel -> background -> bridge -> us
+// 	kernel -> background -> bridge -> webpage
 function TestModuleQueryKernel() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(basicTestSuite, "sendTestToKernel", {})
@@ -111,6 +111,29 @@ function TestModuleQueryKernel() {
 	})
 }
 
+// TestModuleCheckHelperSeed opens a query with the test module to have the
+// test module check the seed of the helper module.
+//
+// The full message flow here is:
+// 	webpage -> bridge -> background -> kernel -> test module ->
+// 		kernel -> helper module -> kernel -> test module ->
+// 	kernel -> background -> bridge -> webpage
+function TestModuleCheckHelperSeed() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(basicTestSuite, "viewHelperSeed", {})
+		.then(data => {
+			if (!("message" in data)) {
+				reject("expecting response to have a kernelVersion")
+				return
+			}
+			resolve(data.message)
+		})
+		.catch(err => {
+			reject("callModule failed: "+err)
+		})
+	})
+}
+
 // TestModuleHasErrors asks the TestModule whether it has encountered any
 // errors during the test cycle.
 function TestModuleHasErrors() {
@@ -118,7 +141,7 @@ function TestModuleHasErrors() {
 		kernel.callModule(basicTestSuite, "viewErrors", {})
 		.then(data => {
 			if (!("errors" in data)) {
-				reject("viewSeed in test module did not return a data.errors")
+				reject("viewErrors in test module did not return a data.errors")
 				return
 			}
 			if (data.errors.length !== 0) {
@@ -126,6 +149,29 @@ function TestModuleHasErrors() {
 				return
 			}
 			resolve("test module did not accumulate any errors")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
+// Check whether any errors showed up in the helper module of the testing
+// module.
+let helperModule = "AQAnqy99JwNg5yJ29slKeAspVqLtC5QrAp_fPdjwNMF8kw"
+function TestHelperModuleHasErrors() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(helperModule, "viewErrors", {})
+		.then(data => {
+			if (!("errors" in data)) {
+				reject("viewErrors in helper module did not return a data.errors")
+				return
+			}
+			if (data.errors.length !== 0) {
+				reject("helper module has acculumated errors: " + JSON.stringify(data.errors))
+				return
+			}
+			resolve("helper module did not accumulate any errors")
 		})
 		.catch(err => {
 			reject(err)
@@ -275,7 +321,9 @@ const IndexPage = () => {
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
 			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
 			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
+			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 		</main>
 	)
 }

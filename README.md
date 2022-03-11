@@ -1,4 +1,4 @@
-# skynet-kernel (EXPERIMENTAL)
+# skynet-kernel (EXPERIMENTAL AND BUGGY)
 
 skynet-kernel is a web3 browser extension that creates a fully trustless
 client-side environment for the user. Every line of code that runs in this
@@ -33,6 +33,38 @@ for the user. A more complex example might be a social graph which establishes
 all of a users friends and all of the content creators that they follow,
 allowing a user to automatically be subscribed to all of their favorite
 creators the moment they join a new application or platform.
+
+## Known Issues
+
+There's an issue with the proxy code that causes websites to sometimes fail to
+load. This includes both skynet apps and also standard websites. This also
+impacts the test suite non-deterministically. There's probably a race condition
+somewhere that results in pages being sent out of order. This is high priority
+to fix.
+
+There's an issue with the kernel loading procedure where after you log into the
+kernel, it'll fail to refresh correctly. The problem is well understood and
+there are some annoying solutions. This is high priority to fix.
+
+The build process only works on Linux and is highly non-standard. If you are
+getting started on a new machine, you will also need to swap out the v2
+skylinks of every kernel module that gets imported by the test suite, by
+libkernel, and by other modules. This is high priority to fix.
+
+There are a bunch of other places in the code where things are done in strange
+or inefficient ways. The kernel is very much in a state of 'it started working
+so we stopped touching it for now', we will be going thorugh the kernel over
+the next few weeks and cleaning up a lot of the jank and inefficiency. Some of
+the jank is actually doing a good job of exposing bugs, so we won't be cleaning
+that up until all the bugs are fixed first. The jank is medium priority to
+clean up.
+
+We have done our best to polish and finish all pieces of the code that might
+impact compatibility in the future. Things like the kernel messaging protocol
+are well refined at this point and should not be changing. Developers using the
+kernel API or building kernel modules should be prepared for minor breaking
+changes, but the kernel is already in a place where there's a reasonable chance
+that we will never need to make any breaking changes.
 
 ## Repository Structure
 

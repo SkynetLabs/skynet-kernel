@@ -1,3 +1,6 @@
+// TODO: Write a test with the helperModule to verify that the domains the
+// kernel is passing around are correct.
+
 // Define helper functions that will allow the worker to block until the seed
 // is received. This is going to be standard code in every module that needs a
 // private seed. Not all modules will require a private seed, especially if
@@ -11,6 +14,11 @@ var blockForSeed = new Promise((resolve, reject) => {
 	resolveSeed = resolve
 	rejectSeed = reject
 })
+
+// Establish the module name of the helper module that we'll be using to test
+// cross-module communciation and a few other things that we can only test by
+// using another outside module.
+var helperModule = "AQAnqy99JwNg5yJ29slKeAspVqLtC5QrAp_fPdjwNMF8kw"
 
 // Set up a list of errors that can be queried by a caller. This is a long
 // running list of errors that will grow over time as errors are encountered.
@@ -181,10 +189,77 @@ function handleViewSeed(event: MessageEvent) {
 	})
 }
 
+// handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
+// module for its seed and then compares the helper module's seed to its own
+// seed.
+function handleViewHelperSeed(event: MessageEvent) {
+	let outData = {
+		module: helperModule,
+		method: "viewSeed",
+		data: {},
+	}
+	newKernelQuery("moduleCall", outData, function(inData: any) {
+		handleViewHelperSeedResponse(event, inData)
+	})
+}
+function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
+	if (!("err" in data) || !("data" in data)) {
+		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+	if (!("seed" in data.data)) {
+		let err = "helper module response did not have data.seed field: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+	if (data.data.seed.length !== 16) {
+		let err = "helper module seed is wrong size: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+
+	// Need to wait until the kernel has send us our seed to do a seed
+	// comparison.
+	blockForSeed
+	.then(x => {
+		let equal = true
+		for (let i = 0; i < 16; i++) {
+			if (seed[i] !== data.data.seed[i]) {
+				equal = false
+				break
+			}
+		}
+		if (equal === true) {
+			let err = "helper module seed matches test module seed"
+			errors.push(err)
+			respondErr(originalEvent, err)
+			return
+		}
+		// Respond success.
+		postMessage({
+			nonce: originalEvent.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				message: "(success) helper seed does not match tester seed",
+			},
+		})
+	})
+	.catch(err => {
+		let helperSeedStr = JSON.stringify(data.data.seed)
+		let seedStr = JSON.stringify(seed)
+		errors.push("issue in getting seed from kernel: "+err+helperSeedStr+seedStr)
+		respondErr(originalEvent, "test module could not get seed: "+err)
+		return
+	})
+}
+
 // onmessage receives messages from the kernel.
 onmessage = function(event: MessageEvent) {
-	log("worker has received message: "+JSON.stringify(event.data))
-
 	// Check that the kernel included a method in the message.
 	//
 	// NOTE: A typical kenrel module does not need to check that event.data
@@ -248,6 +323,16 @@ onmessage = function(event: MessageEvent) {
 	// exist within an allow list of domains.
 	if (event.data.method === "viewSeed") {
 		handleViewSeed(event)
+		return
+	}
+
+	// Create a method that calls 'viewSeed' on a helper module. The helper
+	// module will be revealing its own seed, and we will compare that seed
+	// with our own to make sure that the kernel isn't giving out the same
+	// seed to different modules. This test also helps to confirm that
+	// cross module communication is working.
+	if (event.data.method === "viewHelperSeed") {
+		handleViewHelperSeed(event)
 		return
 	}
 
