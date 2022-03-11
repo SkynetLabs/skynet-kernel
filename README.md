@@ -1,4 +1,4 @@
-# skynet-kernel (EXPERIMENTAL AND BUGGY)
+# skynet-kernel (EXPERIMENTAL, BUGGY, FIREFOX ONLY)
 
 skynet-kernel is a web3 browser extension that creates a fully trustless
 client-side environment for the user. Every line of code that runs in this
@@ -35,6 +35,9 @@ allowing a user to automatically be subscribed to all of their favorite
 creators the moment they join a new application or platform.
 
 ## Known Issues
+
+This browser extension does not work in Chrome. This is medium-high priority to
+fix.
 
 There's an issue with the proxy code that causes websites to sometimes fail to
 load. This includes both skynet apps and also standard websites. This also
