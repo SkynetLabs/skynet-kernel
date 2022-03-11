@@ -187,7 +187,7 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	if (event.data.err !== null) {
-		handler.reject("response to bridge contained an error: "+event.data.err)
+		handler.reject(event.data.err)
 		return
 	}
 	if (!("data" in event.data)) {

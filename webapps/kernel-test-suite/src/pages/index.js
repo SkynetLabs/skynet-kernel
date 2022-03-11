@@ -24,18 +24,24 @@ function nextTest() {
 	}
 }
 
-// TestLibkernelInit will check the init function of the kernel.
+// TestLibkernelInit will check the init function of libkernel. This tests that
+// the bridge script was loaded. If this fails, it either means the browser
+// extension is missing entirely or it means that something fundamental broke.
 function TestLibkernelInit() {
 	return kernel.init()
 }
 
 // TestSendTestMessage will send a test message to the kernel and check for the
-// result.
+// result. If this fails it probably means the kernel failed to load for some
+// reason, though it could also mean that the page->bridge->background->kernel
+// communication path is broken in some way.
 function TestSendTestMessage() {
 	return kernel.testMessage()
 }
 
-// TestModuleHasSeed checks that the module
+// TestModuleHasSeed checks that the test module was given a seed by the
+// kernel. This is one of the fundamental priveledges of being a kernel module:
+// receiving a secure and unique seed for module-specific user data.
 let basicTestSuite = "AQB6Gs0VcwH-xvEUaoGqORMNuBvpXdt0wRyex-Kqckad-A"
 function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
@@ -53,6 +59,54 @@ function TestModuleHasSeed() {
 		})
 		.catch(err => {
 			reject(err)
+		})
+	})
+}
+
+// TestModulePresentSeed attempts to send a 'presentSeed' method to the test
+// module. This is expected to fail because the kernel is not supposed to allow
+// external callers to use the 'presentSeed' method. If it succeeds, the test
+// module will log an error that TestModuleHasErrors will catch.
+function TestModulePresentSeed() {
+	return new Promise((resolve, reject) => {
+		let fakeSeed = new Uint8Array(16)
+		kernel.callModule(basicTestSuite, "presentSeed", {
+			seed: fakeSeed,
+		})
+		.then(data => {
+			// The reject and resolve get flipped because we want
+			// to trigger an error.
+			reject("expecting an error for using a forbidden method")
+		})
+		.catch(err => {
+			// The reject and resolve get flipped because we want
+			// to trigger an error.
+			resolve("received expected error: "+err)
+		})
+	})
+}
+
+// TestModuleQueryKernel opens a query with the test module that has the test
+// module send a test query to the kernel, and then the test module reports the
+// kernel version back to us. This test confirms that modules are able to talk
+// to the kernel.
+//
+// The full message flow here is:
+// 	us -> bridge -> background -> kernel -> module ->
+// 		kernel -> module ->
+// 	kernel -> background -> bridge -> us
+function TestModuleQueryKernel() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(basicTestSuite, "sendTestToKernel", {})
+		.then(data => {
+			if (!("kernelVersion" in data)) {
+				reject("expecting response to have a kernelVersion")
+				return
+			}
+			resolve(data.kernelVersion)
+		})
+		.catch(err => {
+			reject("callModule failed: "+err)
 		})
 	})
 }
@@ -219,6 +273,8 @@ const IndexPage = () => {
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
+			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
 		</main>
 	)

@@ -115,13 +115,15 @@ declare var handleTest
 declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
+const kernelVersion = "v0.0.1"
+
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
 // query for each nonce. queries is a map from a nonce to an openQuery.
 interface openQuery {
 	isWorker: boolean;
 	domain: string;
-	source: MessageEventSource;
+	source: any;
 	nonce: number;
 }
 var queriesNonce = 0
@@ -141,13 +143,22 @@ interface module {
 var modules = new Object()
 
 // respondErr will send an error response to the caller that closes out the
-// query for the provided nonce.
-function respondErr(event: MessageEvent, err: string) {
-	event.source.postMessage({
+// query for the provided nonce. The gross extra inputs of 'messagePortal' and
+// 'isWorker' are necessary to handle the fact that the MessageEvent you get
+// from a worker message is different from the MessageEvent you get from a
+// window message, and also from the fact that postMessage has different
+// arguments depending on whether the messagePortal is a worker or a window.
+function respondErr(event: any, messagePortal: any, isWorker: boolean, err: string) {
+	let message = {
 		nonce: event.data.nonce,
 		method: "response",
 		err,
-	}, <any>event.origin)
+	}
+	if (isWorker === true) {
+		messagePortal.postMessage(message)
+	} else {
+		messagePortal.postMessage(message, event.origin)
+	}
 }
 
 // Create a standard message handler for the workers. Every worker will be
@@ -193,16 +204,25 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	}
 
 	// Check for a test method, this is also a way to get the version of
-	// the kernel.
+	// the kernel. It was easier to just define the full message here than
+	// to abstract the handleTest function to be able to handle responding
+	// to both webworkers and windows.
 	if (event.data.method === "test") {
-		handleTest(event)
+		module.worker.postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				version: kernelVersion,
+			},
+		})
 		return
 	}
 
 	// If the method is a moduleCall, open a query to the worker that is
 	// being called.
 	if (event.data.method === "moduleCall") {
-		handleModuleCall(event, module.domain, true)
+		handleModuleCall(event, module.worker, module.domain, true)
 		return
 	}
 
@@ -291,9 +311,9 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
-	log("debug", "calling presentSeed on worker", moduleSeed)
 	module.worker.postMessage({
 		method: "presentSeed",
+		domain: "root",
 		data: {
 			seed: moduleSeed,
 		},
@@ -303,25 +323,31 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 
 // handleModuleCall will handle a callModule message sent to the kernel from an
 // extension or webpage.
-function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean) {
+function handleModuleCall(event: MessageEvent, messagePortal: any, domain: string, isWorker: boolean) {
 	if (!("data" in event.data) || !("module" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall with no module field in the data", event.data)
-		respondErr(event, "moduleCall is missing 'module' field: "+JSON.stringify(event.data))
+		respondErr(event, messagePortal, isWorker, "moduleCall is missing 'module' field: "+JSON.stringify(event.data))
 		return
 	}
 	if (typeof event.data.data.module !== "string" || event.data.data.module.length != 46) {
 		logErr("moduleCall", "received moduleCall with malformed module")
-		respondErr(event, "'module' field in moduleCall is expected to be a base64 skylink")
+		respondErr(event, messagePortal, isWorker, "'module' field in moduleCall is expected to be a base64 skylink")
 		return
 	}
 	if (!("method" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall without a method set for the module")
-		respondErr(event, "no 'data.method' specified, module does not know what method to run")
+		respondErr(event, messagePortal, isWorker, "no 'data.method' specified, module does not know what method to run")
+		return
+	}
+	if (event.data.data.method === "presentSeed") {
+		log("debug", "caught an illegal call to presentSeed")
+		logErr("moduleCall", "received malicious moduleCall - only root is allowed to use presentSeed method")
+		respondErr(event, messagePortal, isWorker, "presentSeed is a priviledged method, only root is allowed to use it")
 		return
 	}
 	if (!("data" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall with no input for the module")
-		respondErr(event, "no field data.data in moduleCall, data.data contains the module input")
+		respondErr(event, messagePortal, isWorker, "no field data.data in moduleCall, data.data contains the module input")
 		return
 	}
 
@@ -337,12 +363,13 @@ function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean
 		queries[nonce] = {
 			isWorker,
 			domain,
-			source: event.source,
+			source: messagePortal,
 			nonce: event.data.nonce,
 		}
 		log("debug", "sending message to worker", domain, event.data)
 		module.worker.postMessage({
 			nonce: nonce,
+			domain,
 			method: event.data.data.method,
 			data: event.data.data.data,
 		})
@@ -367,7 +394,7 @@ function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean
 		// Create a new module.
 		let [module, err] = createModule(result.fileData, domain)
 		if (err !== null) {
-			respondErr(event, addContextToErr(err, "unable to create module"))
+			respondErr(event, messagePortal, isWorker, addContextToErr(err, "unable to create module"))
 			return
 		}
 
@@ -377,7 +404,7 @@ function handleModuleCall(event: MessageEvent, domain: string, isWorker: boolean
 	})
 	.catch(err => {
 		logErr("moduleCall", "unable to download module", err)
-		respondErr(event, "unable to download module: "+err)
+		respondErr(event, messagePortal, isWorker, "unable to download module: "+err)
 	})
 }
 
@@ -397,8 +424,17 @@ handleMessage = function(event) {
 	// Establish a debugging handler that a developer can call to verify
 	// that round-trip communication has been correctly programmed between
 	// the kernel and the calling application.
+	//
+	// It was easier to inline the message than to abstract it.
 	if (event.data.method === "test") {
-		handleTest(event)
+		event.source.postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				version: kernelVersion,
+			},
+		}, event.origin)
 		return
 	}
 
@@ -415,7 +451,7 @@ handleMessage = function(event) {
 		// extension.
 		if (event.origin.startsWith("moz") && !("domain" in event.data)) {
 			logErr("moduleCall", "caller is an extension, but no domain was provided")
-			respondErr(event, "caller is an extension, but not domain was provided")
+			respondErr(event, event.source, false, "caller is an extension, but not domain was provided")
 			return
 		}
 		let domain
@@ -424,7 +460,7 @@ handleMessage = function(event) {
 		} else {
 			domain = new URL(event.origin).hostname
 		}
-		handleModuleCall(event, domain, false)
+		handleModuleCall(event, event.source, domain, false)
 		return
 	}
 	if (event.data.method === "requestOverride") {
@@ -437,5 +473,5 @@ handleMessage = function(event) {
 	}
 
 	// Unrecognized method, reject the query.
-	respondErr(event, "unrecognized method: "+event.data.method)
+	respondErr(event, event.source, false, "unrecognized method: "+event.data.method)
 }

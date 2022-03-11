@@ -223,7 +223,6 @@ var loadSkynetKernel = function() {
 		return downloadUserKernel()
 	})
 	.then(kernel => {
-		log("auth", "calling eval on kernel", kernel)
 		evalKernel(kernel)
 	})
 	.catch(err => {
@@ -317,7 +316,7 @@ var handleSkynetKernelProxyInfo = function(event) {
 }
 
 // handleTest responds to the 'test' method.
-var handleTest = function(event) {
+var handleTest = function(event: MessageEvent) {
 	event.source.postMessage({
 		nonce: event.data.nonce,
 		method: "response",
@@ -325,20 +324,20 @@ var handleTest = function(event) {
 		data: {
 			version: "v0.0.1",
 		},
-	}, event.origin)
+	}, event.origin as any)
 }
 
 // Establish the event listener for the kernel. There are several default
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
-var handleMessage = function(event: any) {
+var handleMessage = function(event: MessageEvent) {
 	let respondUnknownMethod = function(method: string) {
 		event.source.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: "unrecognized method (user may need to log in): "+method,
-		}, event.origin)
+		}, event.origin as any)
 	}
 	// Check that there's a nonce.
 	if (!("nonce" in event.data)) {
