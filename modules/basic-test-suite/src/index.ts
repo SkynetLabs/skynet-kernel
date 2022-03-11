@@ -279,8 +279,7 @@ onmessage = function(event: MessageEvent) {
 
 	// Catch any unrecognized methods. The test suite will intentionally
 	// send nonsense method names.
-	log("method is unrecognized")
-	respondErr(event, "method is unrecognized: "+JSON.stringify(event.data))
+	respondErr(event, "unrecognized method sent to test module: "+JSON.stringify(event.data))
 	errors.push("received an unrecognized method: "+event.data.method)
 	return
 }
