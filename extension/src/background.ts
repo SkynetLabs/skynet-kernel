@@ -267,25 +267,55 @@ function handleKernelResponse(event) {
 // Create a listener to handle responses coming from the kernel.
 window.addEventListener("message", handleKernelResponse)
 
-// onBeforeRequestListener will handle calls from onBeforeRequest. Calls to the
-// kernel will be swallowed and replaced by a content script. Calls to pages
-// other than the kernel will be passed to the kernel, and the kernel will
-// decide what response is appropriate for the provided call.
+// onBeforeRequestListener processes requests that are sent to us by the
+// onBeforeRequest hook. The page 'kernel.skynet' is hardcoded and will be
+// completely swallowed, returning a blank page. The content script for
+// 'kernel.skynet' will inject code that loads the kernel.
+//
+// For all other pages, the kernel will be consulted. The kernel will either
+// indicate that the page should be ignored and therefore loaded as the server
+// presents it, or the kernel will indicate that an alternate response should
+// be provided.
+//
+// NOTE: The implementation details for the use of the filterResponseData
+// object, in particular around the 'filter.onstart', 'filter.ondata',
+// 'filter.onstop', 'filter.write', 'filter.close', and 'filter.disconnect' are
+// quite tempermental. It has been my experience that these things don't behave
+// quite like explained in the MDN documentation. I also found
+// music.youtube.com to be particularly useful when debugging, as it was very
+// sensitive to any mistakes that were made in this function.
 let headers: any = new Object()
 function onBeforeRequestListener(details) {
 	// Set up a promise that will be used by onHeadersReceived to inject
-	// the right headers into the response.
+	// the right headers into the response. onHeadersReceived will compare
+	// the requestId that it gets to the 'headers' hashmap, and will do
+	// nothing unless there's a promise in the hashmap. This code is
+	// guaranteed to fire before onHeadersReceived fires.
 	let resolveHeaders
 	headers[details.requestId] = new Promise((resolve, reject) => {
 		resolveHeaders = resolve
 	})
 
-	// Grab the filter for this request.
+	// Grab the filter for this request. As soon as we call it, the
+	// behavior of the webpage changes such that no data will be served and
+	// the request will hang. It is now our responsibility to ensure that
+	// we call filter.write and filter.close.
+	//
+	// NOTE: In my experience, filter.disconnect didn't work as described
+	// in the docs. We therefore avoid its use here and instead make
+	// explicit calls to filter.close, using promises to ensure that we
+	// don't call filter.close until we've finished writing everything that
+	// we intend to write.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 
-	// If the request is specifically for the kernel iframe, we need to
-	// swallow the request and let the content script do all of the work,
-	// as there is no kernel to receive a query.
+	// Set filter.onerror so we can log anything that goes wrong.
+	filter.onerror = event => {
+		console.error(filter.error)
+	}
+
+	// If the request is specifically for the kernel iframe, we swallow the
+	// request entirely. The content scripts will take over and ensure the
+	// kernel loads properly.
 	if (details.url === "http://kernel.skynet/") {
 		resolveHeaders([{
 			name: "content-type",
@@ -315,40 +345,39 @@ function onBeforeRequestListener(details) {
 	if (kernelLoadedResolved === false) {
 		console.log("ignoring OBR because kernel has not loaded", details.url)
 		resolveHeaders(null)
-		// TODO: Is this completely necessary? Let's try removing it at
-		// some point and see what happens.
-		filter.onstart = function(event) {
-			filter.disconnect()
+		filter.ondata = function(event) {
+			filter.write(event.data)
 		}
-		return
+		filter.onstop = event => {
+			filter.close()
+		}
+		return {}
 	}
 
-	// We need to resolve the query before filter.onstart, otherwise the
-	// headers will be blocked, and the headers need to resolve before
-	// filter.onstart will be called.
+	// Set up a query to the kernel that will ask what response should be
+	// used for this page. The kernel will provide information about both
+	// what the response body should be, and also what the response headers
+	// should be.
+	//
+	// We need to set filter.onstart and filter.onstop inside of this
+	// frame, therefore we cannot set them after the queryKernel promise
+	// resolves. But we need to make sure that the code inside of
+	// filter.onstart and filter.onstop doesn't run until after we have our
+	// response from the kernel, so we need to use a promise to coordinate
+	// the timings. The 'blockFilter' promise will block any filter
+	// operations until the kernel query has come back.
 	let resolveFilter
-	let filterResult = new Promise((resolve, reject) => {
+	let blockFilter = new Promise((resolve, reject) => {
 		resolveFilter = resolve
 	})
-
-	// Set up the query that will ask the kernel for the appropriate
-	// response.
-	let query = queryKernel({
+	queryKernel({
 		method: "requestOverride",
 		data: {
 			url: details.url,
 			method: details.method,
 		},
 	})
-
-	// Wait for the query to resolve, then resume the filter and
-	// use the kernel response to determine how to handle the
-	// request.
-	//
-	// Any errors will result in a call to 'filter.disconnect',
-	// which essentially means that the request is ignored by the
-	// extension and execution will proceed as normal.
-	query.then((response: any) => {
+	.then((response: any) => {
 		// Check for correct inputs from the kernel. Any error
 		// will result in ignoring the request, which we can do
 		// by resolving 'null' for the headers promise, and by
@@ -401,18 +430,30 @@ function onBeforeRequestListener(details) {
 		resolveFilter(null)
 	})
 
-	// Set up the filter that will replace the request with whatever the
-	// kernel decides is the appropriate response.
-	filter.onstart = function(event) {
-		filterResult.then(response => {
+	// Set the filter.ondata and the filter.onstop functions. filter.ondata
+	// will block until the kernel query returns, and then it will write
+	// the webpage based on what the kernel responds.
+	//
+	// The blockClose promise will block the call to filter.close until the
+	// full data has been written.
+	let closeFilter
+	let blockClose = new Promise((resolve, reject) => {
+		closeFilter = resolve
+	})
+	filter.ondata = function(event) {
+		blockFilter.then(response => {
 			if (response === null) {
-				filter.disconnect()
-				return
+				filter.write(event.data)
+			} else {
+				filter.write(response)
 			}
-			filter.write(response)
-			filter.close()
+			closeFilter()
 		})
 	}
+	filter.onstop = function(event) {
+		blockClose.then(x => {filter.close()})
+	}
+	return {}
 }
 browser.webRequest.onBeforeRequest.addListener(
 	onBeforeRequestListener,
@@ -532,9 +573,7 @@ function handleProxyRequest(info) {
 		return {type: "direct"}
 	}
 
-	// Ask the kernel whether there should be a proxy for this url. We use
-	// the empty string as the domain of the query because the kernel is
-	// going to ignore that value anyway.
+	// Ask the kernel whether there should be a proxy for this url.
 	let query = queryKernel({
 		method: "proxyInfo",
 		data: { url: info.url },

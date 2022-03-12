@@ -39,12 +39,6 @@ creators the moment they join a new application or platform.
 This browser extension does not work in Chrome. This is medium-high priority to
 fix.
 
-There's an issue with the proxy code that causes websites to sometimes fail to
-load. This includes both skynet apps and also standard websites. This also
-impacts the test suite non-deterministically. There's probably a race condition
-somewhere that results in pages being sent out of order. This is high priority
-to fix.
-
 There's an issue with the kernel loading procedure where after you log into the
 kernel, it'll fail to refresh correctly. The problem is well understood and
 there are some annoying solutions. This is high priority to fix.
