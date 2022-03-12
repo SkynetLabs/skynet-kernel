@@ -35,6 +35,8 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
+// TODO: Rename all of the 'test' methods to 'version' methods.
+
 // TODO: Need to add support for QueryUpdate messages.
 
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
@@ -62,11 +64,6 @@
 // of the transformations has failed or only made partial progress, you need a
 // way to pause everyone else while the transformer is going, you need a way to
 // isolate the transformation so you can start over if it fails or corrupts.
-
-// TODO: We need some sort of call we can make that will block until the kernel
-// has finished upgrading all modules. This call is particularly useful for
-// development, devs can push a new update to their dev-module and then make
-// sure the testing software gets to block until the upgrade is loaded.
 
 // TODO: One of the consistency errors that we could run into when upgrading
 // the kernel is having two windows open on different devices that are each
@@ -156,11 +153,7 @@ function respondErr(event: any, messagePortal: any, isWorker: boolean, err: stri
 	}
 }
 
-// Create a standard message handler for the workers. Every worker will be
-// using this handler. The event input is the standard MessageEvent that is
-// presented when the worker sends a message. The domain is the domain of the
-// worker. The resolve/reject pair are the resolve/reject elements of a
-// promise.
+// Create a standard message handler for messages coming from workers.
 function handleWorkerMessage(event: MessageEvent, module: module) {
 	// Check for a method.
 	if (!("method" in event.data)) {
@@ -173,10 +166,12 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	if (event.data.method === "log") {
 		if (!("data" in event.data)) {
 			logErr("workerMessage", "received log with no data field")
+			// TODO: shut down the worker for being buggy.
 			return
 		}
 		if (!("isErr" in event.data.data) || !("message" in event.data.data)) {
 			logErr("workerMessage", "received log message, missing data.isErr or data.message")
+			// TODO: shut down the worker for being buggy.
 			return
 		}
 		// TODO: We probably want the log function to treat the domain
@@ -184,6 +179,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// to log and which domains do not, which might suggest the way
 		// we handle tags is not quite correct.
 		if (event.data.data.isErr === true) {
+			logErr("debug", module.domain, event.data.data.message)
 			logErr("workerMessage", module.domain, event.data.data.message)
 		} else {
 			log("workerMessage", module.domain, event.data.data.message)
@@ -192,16 +188,13 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	}
 
 	// Check for a nonce.
-	if (!("nonce" in event.data) || !("method" in event.data)) {
+	if (!("nonce" in event.data)) {
 		logErr("workerMessage", "worker message is missing nonce")
 		// TODO: shut down the worker for being buggy.
 		return
 	}
 
-	// Check for a test method, this is also a way to get the version of
-	// the kernel. It was easier to just define the full message here than
-	// to abstract the handleTest function to be able to handle responding
-	// to both webworkers and windows.
+	// Check if ther worker is performing a test query.
 	if (event.data.method === "test") {
 		module.worker.postMessage({
 			nonce: event.data.nonce,
@@ -214,15 +207,19 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		return
 	}
 
-	// If the method is a moduleCall, open a query to the worker that is
-	// being called.
+	// If the method is a moduleCall, create a query with the worker that
+	// is being called.
 	if (event.data.method === "moduleCall") {
 		handleModuleCall(event, module.worker, module.domain, true)
 		return
 	}
 
-	// Only options left are response and responseUpdate
-	if (event.data.method !== "responseUpdate" && event.data.method !== "response") {
+	// The only other methods allowed are the queryUpdate, responseUpdate,
+	// and response methods.
+	let isQueryUpdate = event.data.method === "queryUpdate"
+	let isResponseUpdate = event.data.method === "responseUpdate"
+	let isResponse = event.data.method === "response"
+	if (isQueryUpdate !== true && isResponseUpdate !== true && isResponse !== true) {
 		logErr("workerMessage", "received message from worker with unrecognized method")
 		// TODO: Shut down the worker for being buggy.
 		return
@@ -231,7 +228,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	// Grab the query information so that we can properly relay the worker
 	// response to the original caller.
 	if (!(event.data.nonce in queries)) {
-		if (event.data.method === "responseUpdate") {
+		if (isQueryUpdate === true || isResponseUpdate === true) {
 			// It's possible that non-deterministic ordering of
 			// messages resulted in this responseUpdate being
 			// processed after the final response was processed,
@@ -249,7 +246,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 
 	// Check that the required fields and rules are met.
 	if (!("err" in event.data) || !("data" in event.data)) {
-		logErr("workerMessage", "responseUpdates from worker need to have an err and data field")
+		logErr("workerMessage", "responses and updates from worker need to have an err and data field")
 		// TODO: shut down the worker for being buggy.
 		return
 	}
