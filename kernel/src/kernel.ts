@@ -127,20 +127,15 @@ interface openQuery {
 	nonce: number;
 }
 var queriesNonce = 0
-var queries = new Object()
+var queries = {}
 
-// modules is an array that keeps track of all the modules that are currently
-// running. The 'worker' is the webworker object that runs the code of the
-// module, and the 'ready' object is a promise which will resolve when the
-// worker sends a message indicating that it is ready to receive messages.
+// modules is a hashmap that maps from a domain to the module that responds to
+// that domain.
 interface module {
-	// The webworker object.
 	worker: Worker;
-
-	// The domain that the worker is allowed to operate within.
 	domain: string;
 }
-var modules = new Object()
+var modules = {}
 
 // respondErr will send an error response to the caller that closes out the
 // query for the provided nonce. The gross extra inputs of 'messagePortal' and
@@ -189,6 +184,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// to log and which domains do not, which might suggest the way
 		// we handle tags is not quite correct.
 		if (event.data.data.isErr === true) {
+			log("debug", module.domain, event.data.data.message)
 			logErr("workerMessage", module.domain, event.data.data.message)
 		} else {
 			log("workerMessage", module.domain, event.data.data.message)
@@ -290,7 +286,9 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 // TODO: Need to set up an onerror
 function createModule(workerCode: Uint8Array, domain: string): [module, string] {
 	// Create a webworker from the worker code.
-	let module = {} as module
+	let module = {
+		domain,
+	} as module
 	let url = URL.createObjectURL(new Blob([workerCode]))
 	try {
 		module.worker = new Worker(url)
@@ -315,7 +313,6 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 	moduleSeedPreimage.set(u8Path, 0)
 	moduleSeedPreimage.set(userSeed, u8Path.length)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
-	log("debug", "creating a seed", domain, moduleSeed)
 	module.worker.postMessage({
 		method: "presentSeed",
 		domain: "root",
@@ -328,7 +325,7 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 
 // handleModuleCall will handle a callModule message sent to the kernel from an
 // extension or webpage.
-function handleModuleCall(event: MessageEvent, messagePortal: any, domain: string, isWorker: boolean) {
+function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain: string, isWorker: boolean) {
 	if (!("data" in event.data) || !("module" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall with no module field in the data", event.data)
 		respondErr(event, messagePortal, isWorker, "moduleCall is missing 'module' field: "+JSON.stringify(event.data))
@@ -356,7 +353,8 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, domain: strin
 	}
 
 	// TODO: Load any overrides.
-	let finalModule = event.data.data.module
+	let finalModule = event.data.data.module // Can change with overrides.
+	let moduleDomain = event.data.data.module // Does not change with overrides.
 
 	// Define a helper function to create a new query to the module.
 	let newModuleQuery = function(module: module) {
@@ -366,21 +364,21 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, domain: strin
 		queriesNonce += 1
 		queries[nonce] = {
 			isWorker,
-			domain,
+			domain: callerDomain,
 			source: messagePortal,
 			nonce: event.data.nonce,
 		}
 		module.worker.postMessage({
 			nonce: nonce,
-			domain,
+			domain: callerDomain,
 			method: event.data.data.method,
 			data: event.data.data.data,
 		})
 	}
 
 	// Check the worker pool to see if this module is already running.
-	if (finalModule in modules) {
-		let module = modules[finalModule]
+	if (moduleDomain in modules) {
+		let module = modules[moduleDomain]
 		newModuleQuery(module)
 		return
 	}
@@ -388,21 +386,21 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, domain: strin
 	// TODO: Check localStorage for the module.
 
 	// Download the code for the worker.
-	downloadSkylink(event.data.data.module)
+	downloadSkylink(finalModule)
 	.then(result => {
 		// TODO: Save the result to localStorage. Can't do that until
 		// subscriptions are in place so that localStorage can sync
 		// with any updates from the remote module.
 
 		// Create a new module.
-		let [module, err] = createModule(result.fileData, event.data.data.module)
+		let [module, err] = createModule(result.fileData, moduleDomain)
 		if (err !== null) {
 			respondErr(event, messagePortal, isWorker, addContextToErr(err, "unable to create module"))
 			return
 		}
 
 		// Add the module to the list of modules.
-		modules[event.data.data.module] = module
+		modules[moduleDomain] = module
 		newModuleQuery(module)
 	})
 	.catch(err => {

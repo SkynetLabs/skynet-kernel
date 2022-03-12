@@ -1,6 +1,10 @@
 // TODO: Write a test with the helperModule to verify that the domains the
 // kernel is passing around are correct.
 
+// TODO: The kernel should sanitize any module responses and guarantee that
+// they will have a data field and an error field. That will save standard
+// modules and webapps from having to do the verification themselves.
+
 // Define helper functions that will allow the worker to block until the seed
 // is received. This is going to be standard code in every module that needs a
 // private seed. Not all modules will require a private seed, especially if
@@ -100,6 +104,12 @@ function handleTestResponse(originalEvent: MessageEvent, kernelResponseData: any
 	if (!("err" in kernelResponseData) || !("data" in kernelResponseData)) {
 		errors.push("kernel response does not have the exptected fields: "+JSON.stringify(kernelResponseData))
 		respondErr(originalEvent, "kernel response did not have err and data fields: "+JSON.stringify(kernelResponseData))
+		return
+	}
+	if (kernelResponseData.err !== null) {
+		let err = "test call to kernel returned an error: "+kernelResponseData.err
+		errors.push(err)
+		respondErr(originalEvent, err)
 		return
 	}
 	if (!("version" in kernelResponseData.data)) {
@@ -209,6 +219,12 @@ function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
 		respondErr(originalEvent, err)
 		return
 	}
+	if (data.err !== null) {
+		let err = "helper module viewSeed call returned an error: "+data.err
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
 	if (!("seed" in data.data)) {
 		let err = "helper module response did not have data.seed field: "+JSON.stringify(data)
 		errors.push(err)
@@ -258,6 +274,125 @@ function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
 	})
 }
 
+// handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
+// It asks the helper module to ask the tester module (ourself) for its seed.
+// If all goes well, the helper module should respond with our seed.
+function handleViewOwnSeedThroughHelper(event: MessageEvent) {
+	let outData = {
+		module: helperModule,
+		method: "viewTesterSeed",
+		data: {},
+	}
+	log("sending viewTesterSeed query to helper module")
+	newKernelQuery("moduleCall", outData, function(inData: any) {
+		handleViewTesterSeedResponse(event, inData)
+	})
+}
+function handleViewTesterSeedResponse(originalEvent: MessageEvent, data: any) {
+	log("received response from viewTestserSeed from helper module")
+	if (!("err" in data) || !("data" in data)) {
+		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+	if (data.err !== null) {
+		let err = "helper module returned an error: "+data.err
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+	if (!("testerSeed" in data.data)) {
+		let err = "helper module response did not have data.testerSeed field: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+	if (data.data.testerSeed.length !== 16) {
+		let err = "helper module seed is wrong size: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(originalEvent, err)
+		return
+	}
+
+	// Need to wait until the kernel has send us our seed to do a seed
+	// comparison.
+	blockForSeed
+	.then(x => {
+		let equal = true
+		for (let i = 0; i < 16; i++) {
+			if (seed[i] !== data.data.testerSeed[i]) {
+				equal = false
+				break
+			}
+		}
+		if (equal === false) {
+			let err = "when our seed is viewed thorugh the helper, it does not match"
+			errors.push(err)
+			respondErr(originalEvent, err)
+			return
+		}
+		// Respond success.
+		postMessage({
+			nonce: originalEvent.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				message: "our seed as reported by the helper is correct",
+			},
+		})
+	})
+	.catch(err => {
+		let helperSeedStr = JSON.stringify(data.data.testerSeed)
+		let seedStr = JSON.stringify(seed)
+		errors.push("issue in getting seed from kernel: "+err+helperSeedStr+seedStr)
+		respondErr(originalEvent, "test module could not get seed: "+err)
+		return
+	})
+}
+
+// handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
+// module will call 'mirrorDomain' on the helper module and return the result.
+function handleTesterMirrorDomain(event: MessageEvent) {
+	let outData = {
+		module: helperModule,
+		method: "mirrorDomain",
+		data: {},
+	}
+	newKernelQuery("moduleCall", outData, function(inData: any) {
+		handleTesterMirrorDomainResponse(event, inData)
+	})
+}
+function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
+	if (!("err" in data) || !("data" in data)) {
+		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+	if (data.err !== null) {
+		let err = "helper module returned an error: "+data.err
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+	if (!("domain" in data.data)) {
+		let err = "helper module response did not have data.domain field: "+JSON.stringify(data)
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+	// Respond with the domain.
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err: null,
+		data: {
+			domain: data.data.domain,
+		},
+	})
+}
+
 // onmessage receives messages from the kernel.
 onmessage = function(event: MessageEvent) {
 	// Check that the kernel included a method in the message.
@@ -303,8 +438,20 @@ onmessage = function(event: MessageEvent) {
 		return
 	}
 
+
+	// Handle any responses to queries that we've made.
 	if (event.data.method === "response") {
 		handleResponse(event)
+		return
+	}
+
+	// Like 'data', the kernel guarantees that a domain will be provided.
+	// This check isn't necessary for most modules. The domain is not
+	// provided on queryUpdate, responseUpdate, or response messages.
+	if (!("domain" in event.data)) {
+		log("received a message with no domain: "+JSON.stringify(event.data))
+		errors.push("received a message with no domain")
+		respondErr(event, "received a message from kernel with no domain")
 		return
 	}
 
@@ -336,15 +483,49 @@ onmessage = function(event: MessageEvent) {
 		return
 	}
 
+	// Create a method to view our own seed as seen by the helper. This
+	// results in communication that goes:
+	//
+	// webapp => tester module => helper module => tester module -> helper
+	// module -> tester module -> webapp, which demonstrates that an extra
+	// level of communication is still working.
+	if (event.data.method === "viewOwnSeedThroughHelper") {
+		handleViewOwnSeedThroughHelper(event)
+		return
+	}
+
 	// Handle a request asking the module to send a test message to the
 	// kernel.
 	if (event.data.method === "sendTestToKernel") {
+		log("sending test query to kernel")
 		newKernelQuery("test", {}, function(data: any) {
 			// The handler for the query needs the current event so
 			// that it knows how to form the response to the
 			// original query.
 			handleTestResponse(event, data)
 		})
+		return
+	}
+
+	// Check for the 'mirrorDomain' method, which just informs the caller
+	// what domain the kernel has assigned to them.
+	if (event.data.method === "mirrorDomain") {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				domain: event.data.domain,
+			},
+		})
+		return
+	}
+
+	// testerMirrorDomain will have the tester call 'mirrorDomain' on the
+	// helper module, and then the tester will return whatever the helper
+	// module established that the tester's domain was.
+	if (event.data.method === "testerMirrorDomain") {
+		handleTesterMirrorDomain(event)
 		return
 	}
 

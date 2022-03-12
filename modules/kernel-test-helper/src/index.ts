@@ -58,6 +58,9 @@ function acceptSeed(event: MessageEvent) {
 // modules will not need to do this.
 var errors: string[] = []
 
+// Define the testerModule that we use to help coordinate testing.
+const testerModule = "AQB6Gs0VcwH-xvEUaoGqORMNuBvpXdt0wRyex-Kqckad-A"
+
 // Create a helper function for logging. Most modules will have two helper
 // functions, 'log' and 'logErr', which will set the 'isErr' flag to false and
 // true respectively. Since this is a testing module, anything that needs to be
@@ -83,9 +86,28 @@ function respondErr(event: MessageEvent, err: string) {
 	})
 }
 
-// TODO: Add back the query handling code, because we need to handle a response
-// from the test module so that we can ask the test module for its seed and
-// send its own seed back to it.
+// Set up the state required to make queries and handle responses.
+var queriesNonce = 0
+var queries = {} as any
+function newKernelQuery(method: string, data: any, handler: Function) {
+	let nonce = queriesNonce
+	queriesNonce += 1
+	queries[nonce] = handler
+	postMessage({
+		method,
+		nonce,
+		data,
+	})
+}
+function handleResponse(event: MessageEvent) {
+	if (!(event.data.nonce in queries)) {
+		log("no open query found for provided nonce: "+JSON.stringify(event.data))
+		errors.push("module received response with no matching query")
+		return
+	}
+	queries[event.data.nonce](event.data)
+	delete queries[event.data.nonce]
+}
 
 // handle a call to 'viewSeed'. Most modules will not have any sort of support
 // for a function like 'viewSeed', the seed is supposed to be private. But we
@@ -109,6 +131,56 @@ function handleViewSeed(event: MessageEvent) {
 			method: "response",
 			err: "there was a problem when the seed was presented: "+err,
 		})
+	})
+}
+
+// handleViewTesterSeed makes a query to the tester module to grab its seed. It
+// then returns the seed of the tester module. This method is used by the
+// tester module to check that multi-hop module communication works.
+function handleViewTesterSeed(event: MessageEvent) {
+	// Build the query.
+	let data = {
+		module: testerModule,
+		method: "viewSeed",
+		data: {},
+	}
+	// Perform the query.
+	log("sending viewSeed query to tester module")
+	newKernelQuery("moduleCall", data, function(inData: any) {
+		handleViewSeedResponse(event, inData)
+	})
+}
+function handleViewSeedResponse(event: MessageEvent, data: any) {
+	log("received viewSeed response from tester module")
+	// Perform input validation.
+	if (!("err" in data) || !("data" in data)) {
+		let err = "tester module provided response without err or data fields"
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+	if (data.err !== null) {
+		let err = "tester module responded with an err: "+data.err
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+	if (!("seed" in data.data)) {
+		let err = "tester module did not provide seed"
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+
+	// Pass the tester seed back to the caller.
+	log("helper module is sending a response to the caller")
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err: null,
+		data: {
+			testerSeed: data.data.seed,
+		},
 	})
 }
 
@@ -158,11 +230,29 @@ onmessage = function(event: MessageEvent) {
 		return
 	}
 
+	// Handle any responses to queries that we've made.
+	if (event.data.method === "response") {
+		handleResponse(event)
+		return
+	}
+
+	// Like data, the kernel guarantees that 'domain' is going to be
+	// provided. Most modules don't need to perform this check.
+	if (!("domain" in event.data)) {
+		errors.push("received a message with no domain")
+		respondErr(event, "received a message with no domain")
+		return
+	}
+
 	// Check for a 'viewSeed' method. Note that this method is highly
 	// unsual and only exists here for testing purposes, most modules
 	// should not be exposing their seed.
 	if (event.data.method === "viewSeed") {
 		handleViewSeed(event)
+		return
+	}
+	if (event.data.method === "viewTesterSeed") {
+		handleViewTesterSeed(event)
 		return
 	}
 
@@ -175,6 +265,21 @@ onmessage = function(event: MessageEvent) {
 			err: null,
 			data: {
 				errors,
+			},
+		})
+		return
+	}
+
+	// Check for the mirrorDomain method, which just informs the caller
+	// what domain the kernel has assigned to them.
+	if (event.data.method === "mirrorDomain") {
+		log("helper is sending a domain home: "+event.data.domain)
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				domain: event.data.domain,
 			},
 		})
 		return
