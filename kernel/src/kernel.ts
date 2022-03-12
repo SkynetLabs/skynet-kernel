@@ -184,7 +184,6 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// to log and which domains do not, which might suggest the way
 		// we handle tags is not quite correct.
 		if (event.data.data.isErr === true) {
-			log("debug", module.domain, event.data.data.message)
 			logErr("workerMessage", module.domain, event.data.data.message)
 		} else {
 			log("workerMessage", module.domain, event.data.data.message)

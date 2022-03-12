@@ -170,7 +170,6 @@ function acceptSeed(event: MessageEvent) {
 		rejectSeed("provided seed way not 16 bytes")
 		return
 	}
-	log("worker has recevied seed")
 	seed = event.data.data.seed
 	resolveSeed() // This resolves a promise.
 	return
@@ -283,13 +282,11 @@ function handleViewOwnSeedThroughHelper(event: MessageEvent) {
 		method: "viewTesterSeed",
 		data: {},
 	}
-	log("sending viewTesterSeed query to helper module")
 	newKernelQuery("moduleCall", outData, function(inData: any) {
 		handleViewTesterSeedResponse(event, inData)
 	})
 }
 function handleViewTesterSeedResponse(originalEvent: MessageEvent, data: any) {
-	log("received response from viewTestserSeed from helper module")
 	if (!("err" in data) || !("data" in data)) {
 		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
 		errors.push(err)
@@ -497,7 +494,6 @@ onmessage = function(event: MessageEvent) {
 	// Handle a request asking the module to send a test message to the
 	// kernel.
 	if (event.data.method === "sendTestToKernel") {
-		log("sending test query to kernel")
 		newKernelQuery("test", {}, function(data: any) {
 			// The handler for the query needs the current event so
 			// that it knows how to form the response to the

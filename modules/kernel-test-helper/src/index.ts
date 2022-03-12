@@ -48,7 +48,6 @@ function acceptSeed(event: MessageEvent) {
 		rejectSeed("provided seed way not 16 bytes")
 		return
 	}
-	log("worker has recevied seed")
 	seed = event.data.data.seed
 	resolveSeed() // This resolves a promise.
 	return
@@ -145,13 +144,11 @@ function handleViewTesterSeed(event: MessageEvent) {
 		data: {},
 	}
 	// Perform the query.
-	log("sending viewSeed query to tester module")
 	newKernelQuery("moduleCall", data, function(inData: any) {
 		handleViewSeedResponse(event, inData)
 	})
 }
 function handleViewSeedResponse(event: MessageEvent, data: any) {
-	log("received viewSeed response from tester module")
 	// Perform input validation.
 	if (!("err" in data) || !("data" in data)) {
 		let err = "tester module provided response without err or data fields"
@@ -173,7 +170,6 @@ function handleViewSeedResponse(event: MessageEvent, data: any) {
 	}
 
 	// Pass the tester seed back to the caller.
-	log("helper module is sending a response to the caller")
 	postMessage({
 		nonce: event.data.nonce,
 		method: "response",
@@ -273,7 +269,6 @@ onmessage = function(event: MessageEvent) {
 	// Check for the mirrorDomain method, which just informs the caller
 	// what domain the kernel has assigned to them.
 	if (event.data.method === "mirrorDomain") {
-		log("helper is sending a domain home: "+event.data.domain)
 		postMessage({
 			nonce: event.data.nonce,
 			method: "response",
