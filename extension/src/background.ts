@@ -511,28 +511,32 @@ browser.webRequest.onHeadersReceived.addListener(
 // kernel can decide whether a proxy should be used for that page.
 //
 // TODO: Need to add an extension-level override for the proxy destination. The
-// kernel reports one option for where the proxy should go, but for example you
-// can massively speed up skynet by setting up a proxy server on localhost and
-// pointing to that. The kernel is global, but the proxy server will only be
-// available on one machine. Therefore, you need to be able to configure on a
-// per-machine level (meaning, through the extension not through the kernel)
-// where the proxies should redirect to. Defintely a post-launch sort of thing.
+// kernel can specify whether the extension-specific proxies get to take
+// priority or not.
 function handleProxyRequest(info) {
 	// Hardcode an exception for 'kernel.skynet'. We need this exception
 	// because that's where the kernel exists, and the kernel needs to be
 	// loaded before we can ask the kernel whether we should be proxying
 	// something.
 	//
-	// TODO: We need some sort of failover resiliency here. The major
-	// challenge that I see is identifying when the primary destination is
-	// down / unusable. If we can easily know if it's up or down, we can
-	// easily swap in a failover url. And we will also want some sort of
-	// in-extenion UI that allows the user to set their failover options.
-	// And we'll also want to load the set of failover options from
-	// localstorage, and get that list of failover options from the kernel.
+	// When we return an array of proxy options, the browser will go
+	// through the options in order until one of the proxies succeeds. By
+	// having a list, we ensure that even if one of the major services is
+	// down, the kernel extension and all pages will still work.
+	//
+	// TODO: Add a default set of proxies the same way that we do for
+	// default portals. And really, all of a user's default portals should
+	// be included in this list.
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
-		return {type: "http", host: "siasky.net", port: 80}
+		return [
+			{type: "http", host: "localhost", port: 25252},
+			{type: "http", host: "siasky.net", port: 80},
+			{type: "http", host: "skynetfree.net", port: 80},
+			{type: "http", host: "fileportal.org", port: 80},
+			{type: "http", host: "skynetpro.net", port: 80},
+			{type: "http", host: "google.com", port: 80},
+		]
 	}
 
 	// Ask the kernel whether there should be a proxy for this url.

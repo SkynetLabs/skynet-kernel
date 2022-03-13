@@ -66,6 +66,11 @@ a typescript project which uses a manual bundler (build.sh at the top level) to
 compile into the final browser extension. The code in this folder is
 responsible for creating a trustless execution zone for the user.
 
+The 'http-server' folder contains an http-server which serves basic http
+responses to all requests to localhost:25252. This is a completely optional
+utility which improves performance and privacy. See the README in this folder
+for more details.
+
 The 'kernel' folder contains the default kernel that gets loaded for the user
 when the user first logs into Skynet. The majority of the interesting concepts
 are in this folder.

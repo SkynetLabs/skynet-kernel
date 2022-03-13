@@ -8,6 +8,9 @@ build-cache
 bundle
 dist
 
+# http-server executable
+http-server/http-server
+
 # gatsby related files
 .cache
 node_modules
