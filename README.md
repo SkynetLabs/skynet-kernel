@@ -36,13 +36,6 @@ creators the moment they join a new application or platform.
 
 ## Known Issues
 
-This browser extension does not work in Chrome. This is medium-high priority to
-fix.
-
-There's an issue with the kernel loading procedure where after you log into the
-kernel, it'll fail to refresh correctly. The problem is well understood and
-there are some annoying solutions. This is high priority to fix.
-
 The build process only works on Linux and is highly non-standard. If you are
 getting started on a new machine, you will also need to swap out the v2
 skylinks of every kernel module that gets imported by the test suite, by
@@ -62,6 +55,9 @@ are well refined at this point and should not be changing. Developers using the
 kernel API or building kernel modules should be prepared for minor breaking
 changes, but the kernel is already in a place where there's a reasonable chance
 that we will never need to make any breaking changes.
+
+This browser extension does not work in Chrome. This is medium-high priority to
+fix.
 
 ## Repository Structure
 
@@ -317,7 +313,7 @@ window.postMessage({
 	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: {
 		version: <string>,
 	},
@@ -364,7 +360,7 @@ Any responseUpdate messages will have the form:
 	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
-	err: null,
+	err: <string | null>,
 	data: <any>,
 ```
 
@@ -375,7 +371,7 @@ window.postMessage({
 	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: <any>,
 })
 ```
@@ -425,7 +421,7 @@ The response will have the form:
 event.source.postMessage({
 	nonce: originalMessage.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: {
 		version: <string>,
 	},
@@ -468,7 +464,7 @@ The response will have the form:
 event.source.postMessage({
 	nonce: originalRequest.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: {
 		// If proxy is 'false', the other types will be excluded.
 		proxy: <boolean>,
@@ -521,7 +517,7 @@ interface header {
 event.source.postMessage({
 	nonce: event.data.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: {
 		headers: <header[]>,
 		body: <Uint8Array>,
@@ -589,7 +585,7 @@ Any responseUpdate messages will have the form:
 ```ts
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
-	err: null,
+	err: <string | null>,
 	data: <any>,
 ```
 
@@ -599,7 +595,7 @@ The final response will have the form:
 window.postMessage({
 	nonce: originalQuery.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: <any>,
 })
 ```
@@ -633,12 +629,12 @@ window.parent.postMessage({
 This message is not a query, and therefore there are no response messages.
 There are also no queryUpdate or responseUpdate messages.
 
-#### authStatusChanged
+#### kernelAuthStatusChanged
 
-authStatusChanged is a message that will be sent by the kernel to the parent if
-the user's auth status has changed. This typically means that the user has
-logged in, though it can also mean that the user has logged out, or that the
-user has switched to another account.
+kernelAuthStatusChanged is a message that will be sent by the kernel to the
+parent if the user's auth status has changed. This typically means that the
+user has logged in, though it can also mean that the user has logged out, or
+that the user has switched to another account.
 
 Regardless of the source cause, the expectation from the kernel is that the
 iframe containing the kernel will be refreshed. Because there is state that
@@ -650,33 +646,50 @@ The message will have the form:
 
 ```ts
 window.parent.postMessage({
-	method: "authStatusChanged",
+	method: "kernelAuthStatusChanged",
 }, window.parent.origin)
 ```
 
 This message is not a query, and therefore there are no response messages.
 There are also no queryUpdate or responseUpdate messages.
 
-#### skynetKernelLoaded
+#### kernelReady
 
-skynetKernelLoaded is a message that gets sent by the kernel when the kernel
-has finished loading. It includes a field that indicates whether the user
-successfully authorized or not. If the user did not authorize, the background
-script will still be talking to the bootloader.
+kernelReady is a message that gets sent by the kernel when the kernel is ready
+to receive messages. This message is sent before the kernel has fully finished
+loading, but the kernel will properly wait to process the messages until it has
+loaded all the way.
 
 The message will have the form:
 
 ```ts
 window.parent.postMessage({
-	method: "skynetKernelLoaded",
-	data: {
-		userAuthorized: <boolean>,
-	},
+	method: "kernelReady",
 }, window.parent.origin)
 ```
 
 This message is not a query, and therefore there are no response messages.
 There are also no queryUpdate or responseUpdate messages.
+
+#### kernelAuthStatus
+
+kernelAuthStatus is a message that the kernel will send once the kernel knows
+whether or not the user is logged in. If the user is not logged in, it will
+know almost immediately. If the user is logged in, it will wait to send this
+message until it knows whether the user's kernel could be loaded and eval'd. If
+the user's kernel could not be loaded, it will include an err.
+
+The message will have the form:
+
+```ts
+window.parent.postMessage({
+	method: "kernelAuthStatus",
+	data: {
+		userAuthorized: <boolean>,
+		err: <string | null>,
+	},
+}, window.parent.origin)
+```
 
 ### Kernel -> Module
 
@@ -752,7 +765,7 @@ Any responseUpdate should have the form:
 postMessage({
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
-	err: null,
+	err: <string | null>,
 	data: <any>,
 })
 ```
@@ -763,7 +776,7 @@ Any response should have the form:
 postMessage({
 	nonce: originalQuery.nonce,
 	method: "response",
-	err: null,
+	err: <string | null>,
 	data: <any>,
 })
 ```

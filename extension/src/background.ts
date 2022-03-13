@@ -2,6 +2,13 @@ export {}
 
 declare var browser
 
+// Messages cannot be sent to the kernel until the kernel has indicated that it
+// is ready to receive messages. We create a promise here that will resovle
+// when the kernel sends us a message indicating that it is ready to receive
+// messages.
+var kernelReady
+var blockForKernel = new Promise(resolve => {kernelReady = resolve})
+
 // composeErr takes a series of inputs and composes them into a single string.
 // Each element will be separated by a newline. If the input is not a string,
 // it will be transformed into a string with JSON.stringify.
@@ -31,13 +38,6 @@ function composeErr(...inputs: any): string {
 	}
 	return result
 }
-
-// blockUntilKernelLoaded is a promise that will resolve when the kernel sends
-// a message indicating it has loaded. We store the resolve function in a
-// global variable so the promise can be resolved by another frame.
-var kernelLoaded
-var kernelLoadedResolved = false
-var blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
 
 // queryKernel returns a promise that will resolve when the kernel has
 // responded to the query. The resolve function is stored in the kernelQueries
@@ -81,7 +81,7 @@ function queryKernel(query) {
 			}
 			resolve(data)
 		}
-		blockUntilKernelLoaded
+		blockForKernel
 		.then(x => {
 			// Grab the next nonce and store a promise resolution in the
 			// kernelQueries object.
@@ -113,7 +113,7 @@ function handleBridgeMessage(port: any, data: any, domain: string) {
 		port.postMessage(response)
 	}
 
-	blockUntilKernelLoaded
+	blockForKernel
 	.then(x => {
 		// Grab the next nonce and store a promise resolution in the
 		// queries object.
@@ -145,9 +145,8 @@ var reloading = false
 function reloadKernel() {
 	// Reset the kernel loading variables. This will cause all new messages
 	// to block until the reload is complete.
-	kernelLoadedResolved = false
-	blockUntilKernelLoaded = new Promise(x => { kernelLoaded = x })
-	queriesNonce = 1
+	blockForKernel = new Promise(resolve => {kernelReady = resolve})
+	queriesNonce = 1 // Technically not needed, but we do it anyway to be thorough
 
 	// Reset the queries array. All open queries need to be rejected, as
 	// the kernel will no longer be processing them.
@@ -155,29 +154,27 @@ function reloadKernel() {
 		queries[key].respond({
 			nonce: queries[key].nonce,
 			method: "response",
-			err: "kernel was refreshed due to auth event, query has been cancelled",
+			err: "user has logged out, cancelling query",
 		})
 		delete queries[key]
 	})
 
 	// If we reset the kernel immediately, there is a race condition where
-	// the old kernel may have emitted a 'skynetKernelLoaded' message that
-	// hasn't been processed yet. If that message gets processed before the
-	// new kernel has loaded, we may start sending messages that will get
-	// lost.
+	// the old kernel may have emitted a 'kernelReady' message that hasn't
+	// been processed yet. If that message gets processed before the new
+	// kernel has loaded, we may start sending messages that will get lost.
 	//
-	// To mitigate this risk, we wait a full second before reloading the
-	// kernel. This gives the event loop a full second to reach any
-	// messages which may be from the old kernel indicating that the kernel
-	// finished loading. If a 'skynetKernelLoaded' message is received
-	// while 'reloading' is set to false, it will be ignored.
+	// To mitigate this risk, we wait a bit before reloading the kernel.
+	// This gives the event loop some time to reach any messages which may
+	// be from the old kernel indicating that the kernel finished loading.
+	// If a 'kernelReady' message is received while 'reloading' is set to
+	// false, it will be ignored.
 	//
 	// For UX, waiting 300 milliseconds is not ideal, but this should only
 	// happen in the rare event of a login or log out, something that a
 	// user is expected to do less than once a month. I could not find any
-	// other reliable way to ensure a 'skynetKernelLoaded' message would
-	// not be processed incorrectly, and even this method is not totally
-	// reliable.
+	// other reliable way to ensure a 'kernelReady' message would not be
+	// processed incorrectly, and even this method is not totally reliable.
 	reloading = true
 	setTimeout(function() {
 		reloading = false
@@ -222,7 +219,7 @@ function handleKernelResponse(event) {
 
 	// If the kernel is reporting anything to indicate a change in auth
 	// status, reload the extension.
-	if (method === "authStatusChanged") {
+	if (method === "kernelAuthStatusChanged") {
 		console.log("received authStatusChanged signal, reloading the kernel")
 		reloadKernel()
 		return
@@ -232,12 +229,18 @@ function handleKernelResponse(event) {
 	// reloading signal was received, we will ignore messages indicating
 	// that the kernel has loaded, because those messages are from the
 	// previous kernel, which we have already reset.
-	if (method === "skynetKernelLoaded" && reloading === false) {
+	if (method === "kernelReady" && reloading === false) {
 		console.log("kernel has loaded")
-		if (kernelLoadedResolved !== true) {
-			kernelLoaded() // This is resolving a promise
-			kernelLoadedResolved = true
-		}
+		kernelReady() // This is resolving a promise
+		return
+	}
+
+	// Ignore the auth status message, we don't care.
+	//
+	// TODO: We actually do care, because we need to know so that apps can
+	// ask the background what the auth status is. Need to extend the
+	// protocol a bit here.
+	if (method === "kernelAuthStatus") {
 		return
 	}
 
@@ -284,6 +287,12 @@ window.addEventListener("message", handleKernelResponse)
 // quite like explained in the MDN documentation. I also found
 // music.youtube.com to be particularly useful when debugging, as it was very
 // sensitive to any mistakes that were made in this function.
+//
+// NOTE: We don't filter.onerror at the moment because there were a bunch of
+// 'Channel Redirected' and 'Invalid Request Id' errors. I suspect that those
+// errors were coming from other extensions (uMatrix and uBlock Origin) messing
+// around with the requests, but I never confirmed what was going on.
+// Regardless, all of the errors seemed pretty harmless.
 let headers: any = new Object()
 function onBeforeRequestListener(details) {
 	// Set up a promise that will be used by onHeadersReceived to inject
@@ -308,11 +317,6 @@ function onBeforeRequestListener(details) {
 	// we intend to write.
 	let filter = browser.webRequest.filterResponseData(details.requestId)
 
-	// Set filter.onerror so we can log anything that goes wrong.
-	filter.onerror = event => {
-		console.error(filter.error)
-	}
-
 	// If the request is specifically for the kernel iframe, we swallow the
 	// request entirely. The content scripts will take over and ensure the
 	// kernel loads properly.
@@ -324,31 +328,6 @@ function onBeforeRequestListener(details) {
 		filter.onstart = function(event) {
 			// Calling filter.close() immediately as the filter
 			// starts will ensure that no data is served.
-			filter.close()
-		}
-		return {}
-	}
-
-	// If the kernel is still starting up, don't intercept any requests. If
-	// we try to intercept requests at this stage, the kernel won't be able
-	// to complete startup until our queryKernel call resolves, and our
-	// queryKernel call will block until kernel startup is complete,
-	// resulting in deadlock.
-	//
-	// TODO: This is sloppy, because we really do want to intercept all
-	// requests except for the requests made by the kernel, and have those
-	// requests block until the kernel has loaded fully. There might be a
-	// way to accomplish this by changing the startup progression of the
-	// kernel. 'kernelLoaded' would indicate that the kernel is ready to
-	// receive requests, and the kernel would internally know which inbound
-	// requests are intended to be parsed pre-auth.
-	if (kernelLoadedResolved === false) {
-		console.log("ignoring OBR because kernel has not loaded", details.url)
-		resolveHeaders(null)
-		filter.ondata = function(event) {
-			filter.write(event.data)
-		}
-		filter.onstop = event => {
 			filter.close()
 		}
 		return {}
@@ -477,8 +456,8 @@ function onHeadersReceivedListener(details) {
 		// Do nothing if there's no item for this request in the headers
 		// object.
 		if (!(details.requestId in headers)) {
-			// TODO: If the query was _just_ a headers query, we
-			// may need to ask the kernel anyway.
+			// TODO: If the query was just a headers query, we may
+			// need to ask the kernel anyway.
 			resolve({responseHeaders: details.responseHeaders})
 			return
 		}
@@ -554,23 +533,6 @@ function handleProxyRequest(info) {
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
 		return {type: "http", host: "siasky.net", port: 80}
-	}
-
-	// If the kernel is still starting up, we don't proxy anything.
-	//
-	// TODO: This is bad, because it means that users going to .skynet URLs
-	// during startup are going to be presented with a 'could not find
-	// page' warning rather than having the page wait to load until the
-	// kernel is ready. The only way to solve this is to have some way to
-	// distinguish between requests that are coming from the kernel during
-	// startup and requests that aren't.
-	//
-	// I wonder if one option is to use a different method during startup
-	// where the kernel will block if its not making its own request, and
-	// otherwise continue. That's a lot of work though, we're going to
-	// leave it imperfect for MVP and we'llcome back to it later
-	if (kernelLoadedResolved === false) {
-		return {type: "direct"}
 	}
 
 	// Ask the kernel whether there should be a proxy for this url.

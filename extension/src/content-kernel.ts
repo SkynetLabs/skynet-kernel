@@ -24,6 +24,17 @@ document.body.appendChild(header)
 
 // transplant:::kernel/kernel.js
 
+// Establish a promise that will block until the kernel is loaded. Messages
+// that are received will wait to be processed until the kernel has finished
+// bootstrapping. Messages that are required for kernel bootstrapping will
+// bypass the block.
+//
+// The kernelHasLoaded variable is used by the handleMessage function to make
+// sure that messages aren't stuck in an infinite loop.
+var kernelLoaded
+var blockUntilLoaded = new Promise(resolve => {kernelLoaded = resolve})
+var kernelHasLoaded = false
+
 // getUserSeed will return the seed that is stored in localStorage. This is the
 // first function that gets called when the kernel iframe is openend. The
 // kernel will not be loaded if no seed is present, as it means that the user
@@ -176,11 +187,14 @@ var kernelDiscoveryFailed = function(err) {
 	// Log the error and send a failure notification to the parent.
 	log("auth", "unable to load user's kernel", err)
 	window.parent.postMessage({
-		method: "skynetKernelLoaded",
+		method: "kernelAuthStatus",
 		data: {
-			userAuthorized: false,
+			userAuthorized: true,
+			err,
 		},
 	}, window.parent.origin)
+	kernelLoaded()
+	kernelHasLoaded = true
 }
 
 // evalKernel will call 'eval' on the provided kernel code.
@@ -192,11 +206,14 @@ var evalKernel = function(kernel: string) {
 	// loaded if the auth status hasn't changed in the meantime.
 	if (authChangeMessageSent === false) {
 		window.parent.postMessage({
-			method: "skynetKernelLoaded",
+			method: "kernelAuthStatus",
 			data: {
 				userAuthorized: true,
+				err: null,
 			},
 		}, window.parent.origin)
+		kernelLoaded()
+		kernelHasLoaded = true
 	}
 }
 
@@ -332,6 +349,7 @@ var handleTest = function(event: MessageEvent) {
 // a seed and log in with an existing seed, because before we have the user
 // seed we cannot load the rest of the skynet kernel.
 var handleMessage = function(event: MessageEvent) {
+	// Establish some error handling helpers.
 	let respondUnknownMethod = function(method: string) {
 		event.source.postMessage({
 			nonce: event.data.nonce,
@@ -359,6 +377,10 @@ var handleMessage = function(event: MessageEvent) {
 	// Create default handlers for the requestOverride and proxyInfo
 	// methods.  These methods are important during bootloading to ensure
 	// that the default login page can be loaded for the user.
+	//
+	// TODO: Only select versions of these methods should actually run, we
+	// don't want to do everything prior to boostrap just the requests that
+	// directly pertain to the bootstrapping process.
 	if (event.data.method === "requestOverride") {
 		handleSkynetKernelRequestOverride(event)
 		return
@@ -368,14 +390,25 @@ var handleMessage = function(event: MessageEvent) {
 		return
 	}
 
-	// Unrecognized method, reject the query.
-	respondUnknownMethod(event.data.method)
+	// This message is not supposed to be handled until the kernel has
+	// loaded. If the kernel is already loaded, then we respond with an
+	// error. If the kernel has not yet loaded, we wait until the kernel is
+	// loaded. Then we call 'handleMessage' again because the full kernel
+	// will overwrite the function, and we want to use the new rules.
+	if (kernelHasLoaded === true) {
+		respondUnknownMethod(event.data.method)
+	} else {
+		blockUntilLoaded
+		.then(x => {
+			handleMessage(event)
+		})
+	}
 }
 window.addEventListener("message", event => {handleMessage(event)})
 
 // Establish a storage listener for the kernel that listens for any changes to
 // the userSeed storage key. In the event of a change, we want to emit an
-// 'authStatusChanged' method to the parent so that the kernel can be
+// 'kernelAuthStatusChanged' method to the parent so that the kernel can be
 // refreshed.
 var authChangeMessageSent = false
 var handleStorage = function(event: StorageEvent) {
@@ -383,23 +416,33 @@ var handleStorage = function(event: StorageEvent) {
 	// the auth status has changed.
 	if (event.key === "v1-seed" || event.key === null) {
 		authChangeMessageSent = true
-		window.parent.postMessage({method: "authStatusChanged"}, window.parent.origin)
+		window.parent.postMessage({method: "kernelAuthStatusChanged"}, window.parent.origin)
 	}
 }
 window.addEventListener("storage", event => (handleStorage(event)))
+
+// Send a message indicating that the kernel has loaded.
+window.parent.postMessage({
+	method: "kernelReady",
+	data: {},
+}, window.parent.origin)
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
+	// Send a message indicating the auth status.
 	log("auth", "user is not logged in\n", errGSU)
 	window.parent.postMessage({
-		method: "skynetKernelLoaded",
+		method: "kernelAuthStatus",
 		data: {
 			userAuthorized: false,
+			err: null,
 		},
 	}, window.parent.origin)
+	kernelLoaded()
+	kernelHasLoaded = true
 } else {
 	log("auth", "user is logged in, attempting to load kernel")
 	loadSkynetKernel()
