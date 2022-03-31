@@ -531,11 +531,10 @@ function handleProxyRequest(info) {
 	if (hostname === "kernel.skynet") {
 		return [
 			{type: "http", host: "localhost", port: 25252},
-			{type: "http", host: "siasky.net", port: 80},
-			{type: "http", host: "skynetfree.net", port: 80},
-			{type: "http", host: "fileportal.org", port: 80},
 			{type: "http", host: "skynetpro.net", port: 80},
-			{type: "http", host: "google.com", port: 80},
+			{type: "http", host: "skynetfree.net", port: 80},
+			{type: "http", host: "siasky.net", port: 80},
+			{type: "http", host: "fileportal.org", port: 80},
 		]
 	}
 
