@@ -1,4 +1,4 @@
-# skynet-kernel (EXPERIMENTAL, BUGGY, FIREFOX ONLY)
+# skynet-kernel (EXPERIMENTAL, FIREFOX ONLY)
 
 skynet-kernel is a web3 browser extension that creates a fully trustless
 client-side environment for the user. Every line of code that runs in this
