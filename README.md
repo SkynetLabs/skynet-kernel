@@ -473,9 +473,7 @@ event.source.postMessage({
 	data: {
 		// If proxy is 'false', the other types will be excluded.
 		proxy: <boolean>,
-		destinationType: <string>,
-		destinationHost: <string>,
-		destinationPort: <number>,
+		proxyValue: <any>,
 	},
 }, event.origin)
 ```

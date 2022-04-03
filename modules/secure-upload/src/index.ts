@@ -4,48 +4,198 @@
 //
 // secure-upload will use portal-dac to determine the user's portals.
 
-// reportErr will send a postMessage back to the kernel reporting the error.
-function reportErr(err: string) {
+// TODO: Split progressiveFetch out into its own module. progressiveFetch will
+// use the portals module to figure out the best portal for the user initially,
+// but progressiveFetch will also later be extended to support passing in
+// custom portals, which will give the upload module a chance to optimize based
+// on qualities like performance or price.
+
+// Create helper functions for logging.
+function log(message: string) {
 	postMessage({
-		kernelMethod: "moduleResponseErr",
-		err,
+		method: "log",
+		data: {
+			isErr: true,
+			message,
+		},
+	})
+}
+function logErr(message: string) {
+	postMessage({
+		method: "log",
+		data: {
+			isErr: false,
+			message,
+		},
 	})
 }
 
-// onmessage receives messages from the kernel.
-onmessage = function(event) {
-	// Check that the general fields are recognized.
-	if (event.data.kernelMethod === "moduleCall") {
-		handleModuleCall(event)
-		return
-	}
-	/*
-	if (event.data.kernelMethod === "moduleResponse") {
-		handleModuleResponse(event)
-		return
-	}
-       */
-
-	// The kernelMethod was not recognized.
-	reportErr("unrecognized kernelMethod: "+event.data.kernelMethod)
-	return
+// Define a helper method for sending an error as a response. This is a
+// typical function that you will see in normal modules.
+function respondErr(event: MessageEvent, err: string) {
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err,
+		data: null,
+	})
 }
 
-// handleModuleCall will handle any moduleCalls sent to the module.
-function handleModuleCall(event: MessageEvent) {
-	// Check for the secureUpload call.
-	if (event.data.moduleMethod === "secureUpload") {
+// onmessage receives messages from the kernel. The kernel will ensure the
+// standard fields are all included.
+onmessage = function(event) {
+	// Check for known methods.
+	if (event.data.method === "secureUpload") {
 		handleSecureUpload(event)
 		return
 	}
 
-	// Unrecognized moduleMethod.
-	reportErr("unrecognized moduleMethod "+event.data.moduleMethod)
+	// Check for 'presentSeed', which we currently ignore but it's not an
+	// unrecognized method.
+	if (event.data.method === "presentSeed") {
+		return
+	}
+
+	// The kernelMethod was not recognized.
+	respondErr(event, "unrecognized method: "+event.data.method)
 	return
 }
 
-// TODO: handleModuleResponse - need this for portal lookup, and for blake2b
-// merkle rooting, I think
+// handleSecureUpload will handle a call to secureUpload.
+function handleSecureUpload(event: MessageEvent) {
+	// Check for the two required fields: filename and fileData.
+	if (!("filename" in event.data.data)) {
+		respondErr(event, "missing filename from module data")
+		return
+	}
+	if (typeof event.data.data.filename !== "string") {
+		respondErr(event, "filename is expected to be a string")
+		return
+	}
+	if (!("fileData" in event.data.data)) {
+		respondErr(event, "missing fileData from module data")
+		return
+	}
+	// TODO: I don't know how to check if fileData is a Uint8Array. This is
+	// important to enusre the module is byzantine fault tolerant.
+
+	// Compute the binary version of the metadata.
+	let metadataString = JSON.stringify({
+		Filename: event.data.data.filename,
+		Length: event.data.data.fileData.length,
+	})
+	let metadataBytes  = new TextEncoder().encode(metadataString)
+
+	// Compute the binary
+	let layoutBytes = new Uint8Array(99)
+	// Set the version.
+	let offset = 0
+	layoutBytes[offset] = 1
+	offset++
+	// Set the filesize.
+	let filesizeBytes = encodeNumber(event.data.data.fileData.length)
+	layoutBytes.set(filesizeBytes, offset)
+	offset += 8
+	// Set the metadata size.
+	let mdSizeBytes = encodeNumber(metadataBytes.length)
+	layoutBytes.set(mdSizeBytes, offset)
+	offset += 8
+	// Skip the fanout size and fanout data+parity pieces.
+	offset += 10
+	// Set the cipher type.
+	offset += 7
+	layoutBytes[offset] = 1
+	offset++
+	// The rest is key data, which is deprecated.
+
+	// Build the base sector.
+	let totalSize = event.data.data.fileData.length + layoutBytes.length + metadataBytes.length
+	if (totalSize > 4194304) {
+		respondErr(event, "file is too large for secure-upload, only small files supported for now")
+		return
+	}
+	let baseSector = new Uint8Array(4194304+92)
+	offset = 92
+	baseSector.set(layoutBytes, offset)
+	offset += layoutBytes.length
+	baseSector.set(metadataBytes, offset)
+	offset += metadataBytes.length
+	baseSector.set(event.data.data.fileData, offset)
+
+	// Compute the merkle root of the base sector
+	let ps = {
+		subtreeRoots: <Uint8Array[]>[],
+		subtreeHeights: <number[]>[],
+	}
+	for (let i = 92; i < baseSector.length; i+=64) {
+		let errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i+64))
+		if (errALB !== null) {
+			respondErr(event, "unable to build merkle root of file: " + errALB)
+			return
+		}
+	}
+	let [merkleRoot, errPSR] = blake2bProofStackRoot(ps)
+	if (errPSR !== null) {
+		respondErr(event, "unable to finalize merkle root of file: " + errPSR)
+		return
+	}
+
+	// Compute the bitfield, given that version is 1, the offset is zero,
+	// and the fetch size is at least totalSize.
+	let bitfield = skylinkBitfield(totalSize)
+
+	// Compute the skylink.
+	let bLink = new Uint8Array(34)
+	bLink.set(bitfield, 0)
+	bLink.set(merkleRoot, 2)
+	let skylink = bufToB64(bLink)
+
+	// Create the metadata header.
+	let lenPrefix1 = encodeNumber(15)
+	let str1 = new TextEncoder().encode("Skyfile Backup\n")
+	let lenPrefix2 = encodeNumber(7)
+	let str2 = new TextEncoder().encode("v1.5.5\n")
+	let lenPrefix3 = encodeNumber(46)
+	let str3 = new TextEncoder().encode(skylink)
+	let backupHeader = new Uint8Array(92)
+	offset = 0
+	backupHeader.set(lenPrefix1, offset)
+	offset += 8
+	backupHeader.set(str1, offset)
+	offset += 15
+	backupHeader.set(lenPrefix2, offset)
+	offset += 8
+	backupHeader.set(str2, offset)
+	offset += 7
+	backupHeader.set(lenPrefix3, offset)
+	offset += 8
+	backupHeader.set(str3, offset)
+
+	// Set the first 92 bytes of the base sector to the backup header.
+	baseSector.set(backupHeader, 0)
+
+	// Do the POST request to /skynet/restore
+	let fetchOpts = {
+		method: "post",
+		body: baseSector,
+	}
+	let endpoint = "/skynet/restore"
+	progressiveFetch(endpoint, fetchOpts, ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"], null!, null!)
+	.then(output => {
+		// We are assuming that progressiveFetch 
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				skylink,
+			},
+		})
+	})
+	.catch(err => {
+		respondErr(event, "progressiveFetch failed: "+err)
+	})
+}
 
 // encodeNumber is a helper function to turn a number into an 8 byte
 // Uint8Array.
@@ -151,138 +301,6 @@ var blake2bProofStackRoot = function(ps: blake2bProofStack): [Uint8Array, Error]
 		baseSubtreeRoot = blake2b(combinedRoot)
 	}
 	return [baseSubtreeRoot, null!]
-}
-
-// handleSecureUpload will handle a call to secureUpload.
-function handleSecureUpload(event: MessageEvent) {
-	// Check for the two required fields: filename and fileData.
-	if (!("filename" in event.data.moduleInput)) {
-		reportErr("missing filename from moduleInput")
-		return
-	}
-	if (!("fileData" in event.data.moduleInput)) {
-		reportErr("missing fileData from moduleInput")
-		return
-	}
-
-	// TODO: Need to validate the filename.
-
-	// Compute the binary version of the metadata.
-	//
-	// TODO: We may need to include the mode here. If things aren't
-	// working, try adding the mode.
-	let metadataString = JSON.stringify({
-		Filename: event.data.moduleInput.filename,
-		Length: event.data.moduleInput.fileData.length,
-	})
-	let metadataBytes  = new TextEncoder().encode(metadataString)
-
-	// Compute the binary
-	let layoutBytes = new Uint8Array(99)
-	// Set the version.
-	let offset = 0
-	layoutBytes[offset] = 1
-	offset++
-	// Set the filesize.
-	let filesizeBytes = encodeNumber(event.data.moduleInput.fileData.length)
-	layoutBytes.set(filesizeBytes, offset)
-	offset += 8
-	// Set the metadata size.
-	let mdSizeBytes = encodeNumber(metadataBytes.length)
-	layoutBytes.set(mdSizeBytes, offset)
-	offset += 8
-	// Skip the fanout size and fanout data+parity pieces.
-	offset += 10
-	// Set the cipher type.
-	offset += 7
-	layoutBytes[offset] = 1
-	offset++
-	// The rest is key data, which is deprecated.
-
-	// Build the base sector.
-	let totalSize = event.data.moduleInput.fileData.length + layoutBytes.length + metadataBytes.length
-	if (totalSize > 4194304) {
-		reportErr("file is too large for secure-upload, only small files supported for now")
-		return
-	}
-	let baseSector = new Uint8Array(4194304+92)
-	offset = 92
-	baseSector.set(layoutBytes, offset)
-	offset += layoutBytes.length
-	baseSector.set(metadataBytes, offset)
-	offset += metadataBytes.length
-	baseSector.set(event.data.moduleInput.fileData, offset)
-
-	// Compute the merkle root of the base sector
-	let ps = {
-		subtreeRoots: <Uint8Array[]>[],
-		subtreeHeights: <number[]>[],
-	}
-	for (let i = 92; i < baseSector.length; i+=64) {
-		let errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i+64))
-		if (errALB !== null) {
-			reportErr("unable to build merkle root of file: " + errALB)
-			return
-		}
-	}
-	let [merkleRoot, errPSR] = blake2bProofStackRoot(ps)
-	if (errPSR !== null) {
-		reportErr("unable to finalize merkle root of file: " + errPSR)
-		return
-	}
-
-	// Compute the bitfield, given that version is 1, the offset is zero,
-	// and the fetch size is at least totalSize.
-	let bitfield = skylinkBitfield(totalSize)
-
-	// Compute the skylink.
-	let bLink = new Uint8Array(34)
-	bLink.set(bitfield, 0)
-	bLink.set(merkleRoot, 2)
-	let skylink = bufToB64(bLink)
-
-	// Create the metadata header.
-	let lenPrefix1 = encodeNumber(15)
-	let str1 = new TextEncoder().encode("Skyfile Backup\n")
-	let lenPrefix2 = encodeNumber(7)
-	let str2 = new TextEncoder().encode("v1.5.5\n")
-	let lenPrefix3 = encodeNumber(46)
-	let str3 = new TextEncoder().encode(skylink)
-	let backupHeader = new Uint8Array(92)
-	offset = 0
-	backupHeader.set(lenPrefix1, offset)
-	offset += 8
-	backupHeader.set(str1, offset)
-	offset += 15
-	backupHeader.set(lenPrefix2, offset)
-	offset += 8
-	backupHeader.set(str2, offset)
-	offset += 7
-	backupHeader.set(lenPrefix3, offset)
-	offset += 8
-	backupHeader.set(str3, offset)
-
-	// Set the first 92 bytes of the base sector to the backup header.
-	baseSector.set(backupHeader, 0)
-
-	// Do the POST request to /skynet/restore
-	let fetchOpts = {
-		method: "post",
-		body: baseSector,
-	}
-	let endpoint = "/skynet/restore"
-	progressiveFetch(endpoint, fetchOpts, ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"], null!)
-	.then(output => {
-		// TODO: Fix this, can't provide the output naively need to
-		// instead inject the skylink.
-		postMessage({
-			kernelMethod: "moduleResponse",
-			moduleResponse: skylink,
-		})
-	})
-	.catch(err => {
-		reportErr("progressiveFetch failed: "+err)
-	})
 }
 
 // skylinkBitfield returns the 2 byte bitfield given the fetchSize. The offset
@@ -804,12 +822,12 @@ interface progressiveFetchResult {
 // portal, and we can't give a rogue portal the opportunity to interrupt our
 // user experience simply by returning a dishonest 404. So we need to keep
 // querying more portals and gain confidence that the 404 a truthful response.
-var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPortals: string[], first4XX: progressiveFetchResult): Promise<progressiveFetchResult> {
+var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPortals: string[], first4XX: progressiveFetchResult, errStrs: string): Promise<progressiveFetchResult> {
 	return new Promise((resolve, reject) => {
 		// If we run out of portals and there's no 4XX response, return
 		// an error.
 		if (!remainingPortals.length && first4XX == null) {
-			reject("no portals remaining")
+			reject("no portals remaining: "+endpoint+" :: "+JSON.stringify(fetchOpts)+" ::: "+errStrs)
 			return
 		}
 		// If we run out of portals but there is a first 4XX response,
@@ -821,12 +839,12 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 
 		// Grab the portal and query.
 		let portal = <any>remainingPortals.shift()
-		let query = "https://" + portal + endpoint
+		let query = "http://" + portal + endpoint
 
 		// Define a helper function to try the next portal in the event
 		// of an error, then perform the fetch.
-		let nextPortal = function() {
-			progressiveFetch(endpoint, fetchOpts, remainingPortals, first4XX)
+		let nextPortal = function(errStr: string) {
+			progressiveFetch(endpoint, fetchOpts, remainingPortals, first4XX, errStrs + " : " + errStr)
 			.then(output => resolve(output))
 			.catch(err => reject(err))
 		}
@@ -834,11 +852,11 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 		.then(response => {
 			// Check for a 5XX error.
 			if (!("status" in response) || typeof(response.status) !== "number") {
-				nextPortal()
+				nextPortal("status issues" + JSON.stringify(response))
 				return
 			}
 			if (response.status >= 500 && response.status < 600) {
-				nextPortal()
+				nextPortal("status issues" + JSON.stringify(response.status))
 				return
 			}
 			// Special handling for 4XX. If we already have a
@@ -849,7 +867,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 			// progressiveFetch.
 			if (response.status >= 400 && response.status < 500) {
 				if (first4XX !== null) {
-					nextPortal()
+					nextPortal("non-first 4XX")
 					return
 				}
 
@@ -862,7 +880,7 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 					remainingPortals,
 					first4XX: null,
 				}
-				progressiveFetch(endpoint, fetchOpts, remainingPortals, <any>new4XX)
+				progressiveFetch(endpoint, fetchOpts, remainingPortals, <any>new4XX, errStrs+" : new 4xx")
 				.then(output => resolve(output))
 				.catch(err => reject(err))
 			}
@@ -877,7 +895,8 @@ var progressiveFetch = function(endpoint: string, fetchOpts: any, remainingPorta
 		})
 		.catch((err) => {
 			// This portal failed, try again with the next portal.
-			nextPortal()
+			logErr("got an err: "+err)
+			nextPortal(err)
 		})
 	})
 }

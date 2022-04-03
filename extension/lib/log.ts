@@ -30,7 +30,7 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 			portal: true,
 			workerMessage: true,
 		})
-		logSettingsStr = '{"ERROR": true, "error": true, "debug": true, "auth": true, "portal": true}'
+		logSettingsStr = '{"ERROR": true, "error": true, "debug": true, "auth": true, "portal": true, "workerMessage", true}'
 	}
 	// Parse the logSettingsStr.
 	let [logSettings, errJSON] = parseJSON(logSettingsStr)

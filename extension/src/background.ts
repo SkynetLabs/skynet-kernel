@@ -321,10 +321,12 @@ function onBeforeRequestListener(details) {
 	// request entirely. The content scripts will take over and ensure the
 	// kernel loads properly.
 	if (details.url === "http://kernel.skynet/") {
-		resolveHeaders([{
-			name: "content-type",
-			value: "text/html; charset=utf8",
-		}])
+		resolveHeaders([
+			{
+				name: "content-type",
+				value: "text/html; charset=utf8",
+			},
+		])
 		filter.onstart = function(event) {
 			// Calling filter.close() immediately as the filter
 			// starts will ensure that no data is served.
@@ -557,23 +559,11 @@ function handleProxyRequest(info) {
 		if (data.proxy === false) {
 			return {type: "direct"}
 		}
-		if (!("destinationType" in data) || typeof data.destinationType !== "string") {
-			console.error("kernel did not include a destinationType in the data\n", response)
+		if (!("proxyValue" in data)) {
+			console.error("kernel did not include a proxyValue in the data\n", response)
 			return {type: "direct"}
 		}
-		if (!("destinationHost" in data) || typeof data.destinationHost !== "string") {
-			console.error("kernel did not include a destinationHost in the data\n", response)
-			return {type: "direct"}
-		}
-		if (!("destinationPort" in data) || typeof data.destinationPort !== "number") {
-			console.error("kernel did not include a destinationPort in the data\n", response)
-			return {type: "direct"}
-		}
-		return {
-			type: data.destinationType,
-			host: data.destinationHost,
-			port: data.destinationPort,
-		}
+		return data.proxyValue
 	})
 	.catch(errQK => {
 		console.error("error after sending proxyInfo message:", errQK)

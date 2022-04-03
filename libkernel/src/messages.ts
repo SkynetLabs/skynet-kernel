@@ -106,23 +106,23 @@ export function callModule(module: string, method: string, data: any): Promise<a
 //
 // NOTE: The largest allowed file is currently slightly less than 4 MiB
 // (roughly 500 bytes less)
-//
-// TODO: Clean this function up (the response should be a bit more helpful)
 export function upload(filename: string, fileData: Uint8Array): Promise<string> {
 	return new Promise((resolve, reject) => {
 		init()
 		.then(x => {
 			let [_, query] = newKernelQuery({
-				kernelMethod: "moduleCall",
-				module: "AQCS3RHbDlk00IdICFEI1rKZp-VNsnsKWC0n7K-taoAuog",
-				moduleMethod: "secureUpload",
-				moduleInput: {
-					filename,
-					fileData,
+				method: "moduleCall",
+				data: {
+					module: "AQD1kFeJJhRnkgWGD-ws6V1QITQrHd2WX5pQnU78MM_o3Q",
+					method: "secureUpload",
+					data: {
+						filename,
+						fileData,
+					},
 				},
 			}, null as any)
 			query.then(response => {
-				resolve(response.output)
+				resolve(response.skylink)
 			})
 			.catch(err => {
 				reject(err)

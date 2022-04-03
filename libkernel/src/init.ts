@@ -88,8 +88,8 @@ function handleBridgeResponse(resolve: Function, reject: Function, data: any) {
 // The init() function will use a timeout to decide that the bridge does not
 // exist, the hanelMessage function will look for a method called
 // "bridgeTestResponse" to determine that the bridge does exist. The init
-// script needs to send the bridge a "bridgeTestQuery" message so the bridge
-// knows to respond.
+// script needs to send the bridge a test message so the bridge knows to
+// respond.
 var initialized: boolean
 var bridgeExists: boolean
 var bridgeAvailable: queryHandler

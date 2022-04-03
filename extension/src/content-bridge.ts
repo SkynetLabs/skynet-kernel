@@ -10,13 +10,13 @@ declare var browser
 // log provides a wrapper for console.log that prefixes '[libkernel]' to the
 // output.
 function log(...inputs: any) {
-	console.log("[libkernel]", ...inputs)
+	console.log("[skynet-bridge]", ...inputs)
 }
 
 // logErr provides a wrapper for console.error that prefixes '[libkernel]' to
 // the output.
 function logErr(...inputs: any) {
-	console.error("[libkernel]", ...inputs)
+	console.error("[skynet-bridge]", ...inputs)
 }
 
 // Establish a system for matching queries with their responses. We need a map

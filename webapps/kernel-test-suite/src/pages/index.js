@@ -1,6 +1,10 @@
 import * as React from "react"
 import * as kernel from "libkernel"
 
+// TODO: Ensure we've written tests to verify that the kernel is checking that
+// all standard module method fields are included. Namely, the kernel should
+// ensure that every moduleCall includes a method for the module.
+
 // Define a set of functions which facilitate executing the tests sequentially.
 // Each test is assigned a 'turn' and then will wait to begin execution until
 // all tests before it have completed.
@@ -42,7 +46,7 @@ function TestSendTestMessage() {
 // TestModuleHasSeed checks that the test module was given a seed by the
 // kernel. This is one of the fundamental priveledges of being a kernel module:
 // receiving a secure and unique seed for module-specific user data.
-let kernelTestSuite = "AQB6Gs0VcwH-xvEUaoGqORMNuBvpXdt0wRyex-Kqckad-A"
+let kernelTestSuite = "AQBs9h3GnpdpVk84zpCa-dVYh9T6b1oyCHq7JzoaA1JJAw"
 function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(kernelTestSuite, "viewSeed", {})
@@ -92,9 +96,11 @@ function TestModulePresentSeed() {
 // to the kernel.
 //
 // The full message flow here is:
-// 	webpage -> bridge -> background -> kernel -> module ->
-// 		kernel -> module ->
-// 	kernel -> background -> bridge -> webpage
+// 	webpage => bridge => background => 
+// 		kernel => test module =>
+// 			kernel -> test module ->
+// 		kernel ->
+// 	background -> bridge -> webpage
 function TestModuleQueryKernel() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(kernelTestSuite, "sendTestToKernel", {})
@@ -259,7 +265,33 @@ function TestHelperModuleHasErrors() {
 	})
 }
 
+// TestBasicCORS has the test module make a fetch request to a couple of
+// websites to check that CORS is not preventing workers from talking to the
+// network.
+function TestBasicCORS() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "testCORS", {})
+		.then(data => {
+			if (!("url" in data)) {
+				reject("testCORS did not return a url")
+				return
+			}
+			if (typeof data.url !== "string") {
+				reject("testCORS returned wrong type: "+typeof data.domain)
+				return
+			}
+			resolve("CORS test passed for url: "+data.url)
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestSecureUpload will upload a very basic file to Skynet using libkernel.
+//
+// TODO: Part of this test should be to download the file again and verify that
+// the filename and fileData came back correctly.
 function TestSecureUpload() {
 	return kernel.upload("testUpload.txt", new TextEncoder().encode("test data"))
 }
@@ -395,12 +427,13 @@ const IndexPage = () => {
 			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
+			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
 		</main>
 	)
 }
 export default IndexPage
 /*
-			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
 			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />

@@ -58,7 +58,7 @@ function acceptSeed(event: MessageEvent) {
 var errors: string[] = []
 
 // Define the testerModule that we use to help coordinate testing.
-const testerModule = "AQB6Gs0VcwH-xvEUaoGqORMNuBvpXdt0wRyex-Kqckad-A"
+const testerModule = "AQBs9h3GnpdpVk84zpCa-dVYh9T6b1oyCHq7JzoaA1JJAw"
 
 // Create a helper function for logging. Most modules will have two helper
 // functions, 'log' and 'logErr', which will set the 'isErr' flag to false and

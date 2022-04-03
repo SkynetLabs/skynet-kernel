@@ -1,10 +1,3 @@
-// TODO: Write a test with the helperModule to verify that the domains the
-// kernel is passing around are correct.
-
-// TODO: The kernel should sanitize any module responses and guarantee that
-// they will have a data field and an error field. That will save standard
-// modules and webapps from having to do the verification themselves.
-
 // Define helper functions that will allow the worker to block until the seed
 // is received. This is going to be standard code in every module that needs a
 // private seed. Not all modules will require a private seed, especially if
@@ -22,7 +15,7 @@ var blockForSeed = new Promise((resolve, reject) => {
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
 // using another outside module.
-var helperModule = "AQAnqy99JwNg5yJ29slKeAspVqLtC5QrAp_fPdjwNMF8kw"
+var helperModule = "AQDhKoOtI5PbzUEtwKM_qGzvfBCncevwTOiuBxKpV_ASig"
 
 // Set up a list of errors that can be queried by a caller. This is a long
 // running list of errors that will grow over time as errors are encountered.
@@ -390,6 +383,28 @@ function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
 	})
 }
 
+// handleTestCORS checks that the webworker is able to make webrequests to at
+// least one portal. If not, this indicates that CORS is not set up correctly
+// somewhere in the client.
+function handleTestCORS(event: MessageEvent) {
+	fetch("https://siasky.net")
+	.then(response => {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				url: response.url,
+			},
+		})
+	})
+	.catch(errFetch => {
+		let err = "fetch request failed: "+errFetch
+		errors.push(err)
+		respondErr(event, err)
+	})
+}
+
 // onmessage receives messages from the kernel.
 onmessage = function(event: MessageEvent) {
 	// Check that the kernel included a method in the message.
@@ -525,6 +540,11 @@ onmessage = function(event: MessageEvent) {
 		return
 	}
 
+	if (event.data.method === "testCORS") {
+		handleTestCORS(event)
+		return
+	}
+
 	// Create a method to share all of the errors that the module has
 	// detected.
 	if (event.data.method === "viewErrors") {
@@ -541,7 +561,7 @@ onmessage = function(event: MessageEvent) {
 
 	// Catch any unrecognized methods. The test suite will intentionally
 	// send nonsense method names.
-	respondErr(event, "unrecognized method sent to test module: "+JSON.stringify(event.data))
+	respondErr(event, "unrecognized method was sent to test module: "+JSON.stringify(event.data))
 	errors.push("received an unrecognized method: "+event.data.method)
 	return
 }
