@@ -1,4 +1,4 @@
-var defaultPortalList = ["dev1.siasky.dev", "eu-ger-12.siasky.net", "siasky.net"]
+var defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net", "fileportal.org", "siasky.dev"]
 
 // preferredPortals will determine the user's preferred portals by looking in
 // localStorage. If no local list of portals is found, the hardcoded default

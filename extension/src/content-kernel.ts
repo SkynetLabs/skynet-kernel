@@ -190,7 +190,7 @@ var kernelDiscoveryFailed = function(err) {
 		method: "kernelAuthStatus",
 		data: {
 			userAuthorized: true,
-			err,
+			err: err.message,
 		},
 	}, window.parent.origin)
 	kernelLoaded()
@@ -241,6 +241,7 @@ var loadSkynetKernel = function() {
 	})
 	.then(kernel => {
 		evalKernel(kernel)
+		log("auth", "kernel is loaded")
 	})
 	.catch(err => {
 		log("auth", "unable to load kernel", err)
@@ -306,7 +307,7 @@ var handleSkynetKernelRequestOverride = function(event) {
 	// without having to modify the file.
 	let url = data.data.url
 	if (url === "http://kernel.skynet/auth.html") {
-		downloadSkylink("OABWRQ5IlmfLMAB0XYq_ZE3Z6gX995hj4J_dbawpPHtoYg")
+		downloadSkylink("OAC7797uTAoG25e9psL6ejA71VLKinUdF4t76sMkYTj8IA")
 		.then(result => {
 			respondBody(result.fileData)
 		})
