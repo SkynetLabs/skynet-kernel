@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --config webpack.config.js --mode=production"
+    "build": "webpack --config webpack.config.js --mode=production && node ./build.js dev",
+    "deploy": "webpack --config webpack.config.js --mode=production && node ./build.js prod"
   },
   "author": "David Vorick",
   "license": "MIT",
