@@ -53,3 +53,13 @@ want a central server that controls the deployment process in the Skynet
 ecosystem. Over time, we will be able to add more sophisticated tooling such as
 a decentralized 2FA scheme and a decentralized code approval process which
 ensures code cannot be shipped to users without some process and oversight.
+
+## Contributing
+
+Check your code formatting before sumitting code:
+
+- `npm run prettier -- --write`
+
+Lint your code with eslint:
+
+- `npm run eslint -- --fix`

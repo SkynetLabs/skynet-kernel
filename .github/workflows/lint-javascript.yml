@@ -1,0 +1,28 @@
+name: Lint Javascript
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory:
+          - modules/secure-upload
+        command:
+          - prettier
+          - eslint
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+      - run: npm i
+        working-directory: ${{ matrix.directory }}
+      - run: npm run ${{ matrix.command }}
+        working-directory: ${{ matrix.directory }}
