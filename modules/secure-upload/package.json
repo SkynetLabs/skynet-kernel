@@ -11,6 +11,7 @@
   "author": "David Vorick",
   "license": "MIT",
   "devDependencies": {
+    "read": "^1.0.7",
     "ts-loader": "^9.2.8",
     "typescript": "^4.6.3",
     "webpack": "^5.71.0",

@@ -68,16 +68,22 @@ var seedWordsToSeed = function (seedWords) {
 };
 
 // generateSeedPhrase will generate and verify a seed phrase for the user.
-function generateSeedPhrase() {
-		// Get the random numbers for the seed phrase. Typically, you need to
-		// have code that avoids bias by checking the random results and
-		// re-rolling the random numbers if the result is outside of the range
-		// of numbers that would produce no bias. Because the search space
-		// (1024) evenly divides the random number space (2^16), we can skip
-		// this step and just use a modulus instead. The result will have no
-		// bias, but only because the search space is a power of 2.
-		let buf = crypto.randomBytes(24)
-		let randNums = Uint16Array.from(buf)
+function generateSeedPhrase(password) {
+		let randNums
+		if (password === null) {
+				// Get the random numbers for the seed phrase. Typically, you need to
+				// have code that avoids bias by checking the random results and
+				// re-rolling the random numbers if the result is outside of the range
+				// of numbers that would produce no bias. Because the search space
+				// (1024) evenly divides the random number space (2^16), we can skip
+				// this step and just use a modulus instead. The result will have no
+				// bias, but only because the search space is a power of 2.
+				let buf = crypto.randomBytes(24)
+				randNums = Uint16Array.from(buf)
+		} else {
+			let buf = sha512.sha512(password)
+			randNums = Uint16Array.from(buf)
+		}
 
 		// Generate the seed phrase from the randNums.
 		let seedWords = [];
