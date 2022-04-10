@@ -11,6 +11,8 @@
   "author": "David Vorick",
   "license": "MIT",
   "devDependencies": {
+    "eslint": "^8.13.0",
+    "prettier": "^2.6.2",
     "read": "^1.0.7",
     "ts-loader": "^9.2.8",
     "typescript": "^4.6.3",
