@@ -1,9 +1,8 @@
 // This is the standard build script for a kernel module.
 
-fs = require("fs")
-read = require("read")
-seed = require("./src/build-lib/seed")
-reg = require("./src/build-lib/registry")
+let fs = require("fs")
+let read = require("read")
+let seed = require("./src/build-lib/seed")
 
 // Add a newline for readability.
 console.log()

@@ -62,9 +62,9 @@ export function skylinkBitfield(fetchSize: number): Uint8Array {
 	// Version 1 corresponds to 2 empty bits in the bottom of the bitfield.
 	num = num << 2
 	// Convert the num to a Uint8Array.
-	let encoded = new Uint8Array(2)
+	const encoded = new Uint8Array(2)
 	for (let i = 0; i < 2; i++) {
-		let byte = num & 0xff
+		const byte = num & 0xff
 		encoded[i] = byte
 		num = num >> 8
 	}

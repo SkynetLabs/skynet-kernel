@@ -4,7 +4,6 @@
 //
 // secure-upload will use portal-dac to determine the user's portals.
 
-import { log, logErr } from "./lib/log"
 import { encodeNumber, bufToB64 } from "./lib/encode"
 import { addLeafBytesToBlake2bProofStack, blake2bProofStackRoot } from "./lib/blake2bmerkle"
 import { skylinkBitfield } from "./lib/skylinks"
@@ -65,24 +64,24 @@ function handleSecureUpload(event: MessageEvent) {
 	// important to enusre the module is byzantine fault tolerant.
 
 	// Compute the binary version of the metadata.
-	let metadataString = JSON.stringify({
+	const metadataString = JSON.stringify({
 		Filename: event.data.data.filename,
 		Length: event.data.data.fileData.length,
 	})
-	let metadataBytes = new TextEncoder().encode(metadataString)
+	const metadataBytes = new TextEncoder().encode(metadataString)
 
 	// Compute the binary
-	let layoutBytes = new Uint8Array(99)
+	const layoutBytes = new Uint8Array(99)
 	// Set the version.
 	let offset = 0
 	layoutBytes[offset] = 1
 	offset++
 	// Set the filesize.
-	let filesizeBytes = encodeNumber(event.data.data.fileData.length)
+	const filesizeBytes = encodeNumber(event.data.data.fileData.length)
 	layoutBytes.set(filesizeBytes, offset)
 	offset += 8
 	// Set the metadata size.
-	let mdSizeBytes = encodeNumber(metadataBytes.length)
+	const mdSizeBytes = encodeNumber(metadataBytes.length)
 	layoutBytes.set(mdSizeBytes, offset)
 	offset += 8
 	// Skip the fanout size and fanout data+parity pieces.
@@ -94,12 +93,12 @@ function handleSecureUpload(event: MessageEvent) {
 	// The rest is key data, which is deprecated.
 
 	// Build the base sector.
-	let totalSize = event.data.data.fileData.length + layoutBytes.length + metadataBytes.length
+	const totalSize = event.data.data.fileData.length + layoutBytes.length + metadataBytes.length
 	if (totalSize > 4194304) {
 		respondErr(event, "file is too large for secure-upload, only small files supported for now")
 		return
 	}
-	let baseSector = new Uint8Array(4194304 + 92)
+	const baseSector = new Uint8Array(4194304 + 92)
 	offset = 92
 	baseSector.set(layoutBytes, offset)
 	offset += layoutBytes.length
@@ -108,18 +107,18 @@ function handleSecureUpload(event: MessageEvent) {
 	baseSector.set(event.data.data.fileData, offset)
 
 	// Compute the merkle root of the base sector
-	let ps = {
+	const ps = {
 		subtreeRoots: <Uint8Array[]>[],
 		subtreeHeights: <number[]>[],
 	}
 	for (let i = 92; i < baseSector.length; i += 64) {
-		let errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i + 64))
+		const errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i + 64))
 		if (errALB !== null) {
 			respondErr(event, "unable to build merkle root of file: " + errALB)
 			return
 		}
 	}
-	let [merkleRoot, errPSR] = blake2bProofStackRoot(ps)
+	const [merkleRoot, errPSR] = blake2bProofStackRoot(ps)
 	if (errPSR !== null) {
 		respondErr(event, "unable to finalize merkle root of file: " + errPSR)
 		return
@@ -127,22 +126,22 @@ function handleSecureUpload(event: MessageEvent) {
 
 	// Compute the bitfield, given that version is 1, the offset is zero,
 	// and the fetch size is at least totalSize.
-	let bitfield = skylinkBitfield(totalSize)
+	const bitfield = skylinkBitfield(totalSize)
 
 	// Compute the skylink.
-	let bLink = new Uint8Array(34)
+	const bLink = new Uint8Array(34)
 	bLink.set(bitfield, 0)
 	bLink.set(merkleRoot, 2)
-	let skylink = bufToB64(bLink)
+	const skylink = bufToB64(bLink)
 
 	// Create the metadata header.
-	let lenPrefix1 = encodeNumber(15)
-	let str1 = new TextEncoder().encode("Skyfile Backup\n")
-	let lenPrefix2 = encodeNumber(7)
-	let str2 = new TextEncoder().encode("v1.5.5\n")
-	let lenPrefix3 = encodeNumber(46)
-	let str3 = new TextEncoder().encode(skylink)
-	let backupHeader = new Uint8Array(92)
+	const lenPrefix1 = encodeNumber(15)
+	const str1 = new TextEncoder().encode("Skyfile Backup\n")
+	const lenPrefix2 = encodeNumber(7)
+	const str2 = new TextEncoder().encode("v1.5.5\n")
+	const lenPrefix3 = encodeNumber(46)
+	const str3 = new TextEncoder().encode(skylink)
+	const backupHeader = new Uint8Array(92)
 	offset = 0
 	backupHeader.set(lenPrefix1, offset)
 	offset += 8
@@ -160,13 +159,13 @@ function handleSecureUpload(event: MessageEvent) {
 	baseSector.set(backupHeader, 0)
 
 	// Do the POST request to /skynet/restore
-	let fetchOpts = {
+	const fetchOpts = {
 		method: "post",
 		body: baseSector,
 	}
-	let endpoint = "/skynet/restore"
+	const endpoint = "/skynet/restore"
 	progressiveFetch(endpoint, fetchOpts, ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"], null!, null!)
-		.then((output) => {
+		.then(() => {
 			// We are assuming that progressiveFetch
 			postMessage({
 				nonce: event.data.nonce,

@@ -1,7 +1,6 @@
-crypto = require("crypto")
-
-dict = require("./dictionary")
-sha512 = require("./sha512")
+let crypto = require("crypto")
+let dict = require("./dictionary")
+let sha512 = require("./sha512")
 
 // seedToChecksumWords will compute the two checksum words for the provided
 // seed. The two return values are the two checksum words.

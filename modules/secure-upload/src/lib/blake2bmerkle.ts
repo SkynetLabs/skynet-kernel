@@ -16,12 +16,12 @@ interface blake2bProofStack {
 // addLeafBytesToBlake2bProofStack will add a leaf to a proof stack.
 export function addLeafBytesToBlake2bProofStack(ps: blake2bProofStack, leafBytes: Uint8Array): Error {
 	if (leafBytes.length !== 64) {
-		let strBytes = leafBytes.length.toString()
+		const strBytes = leafBytes.length.toString()
 		return new Error("blake2bProofStack expects leafByte objects to be exactly 64 bytes: " + strBytes)
 	}
-	let taggedBytes = new Uint8Array(65)
+	const taggedBytes = new Uint8Array(65)
 	taggedBytes.set(leafBytes, 1)
-	let subtreeRoot = blake2b(taggedBytes)
+	const subtreeRoot = blake2b(taggedBytes)
 	return addSubtreeToBlake2bProofStack(ps, subtreeRoot, 1)
 }
 
@@ -37,8 +37,8 @@ export function blake2bProofStackRoot(ps: blake2bProofStack): [Uint8Array, Error
 	// it to the previous tree. Repeat until there are no more trees.
 	let baseSubtreeRoot = <Uint8Array>ps.subtreeRoots.pop()
 	while (ps.subtreeRoots.length !== 0) {
-		let nextSubtreeRoot = <Uint8Array>ps.subtreeRoots.pop()
-		let combinedRoot = new Uint8Array(65)
+		const nextSubtreeRoot = <Uint8Array>ps.subtreeRoots.pop()
+		const combinedRoot = new Uint8Array(65)
 		combinedRoot[0] = 1
 		combinedRoot.set(baseSubtreeRoot, 1)
 		combinedRoot.set(nextSubtreeRoot, 33)
@@ -65,7 +65,7 @@ function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8
 	// Check the height of the new subtree against the height of the
 	// smallest subtree in the blake2bProofStack. If the new subtree is
 	// larger, the subtree cannot be added.
-	let maxHeight = ps.subtreeHeights[ps.subtreeHeights.length - 1]
+	const maxHeight = ps.subtreeHeights[ps.subtreeHeights.length - 1]
 	if (subtreeHeight > maxHeight) {
 		return new Error(
 			`cannot add a subtree that is taller ${subtreeHeight} than the smallest ${maxHeight} subtree in the stack`
@@ -83,12 +83,12 @@ function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8
 	// If the new subtree is the same height as the smallest subtree, we
 	// have to pull the smallest subtree out, combine it with the new
 	// subtree, and push the result.
-	let oldSTR = <Uint8Array>ps.subtreeRoots.pop()
+	const oldSTR = <Uint8Array>ps.subtreeRoots.pop()
 	ps.subtreeHeights.pop() // We already have the height.
-	let combinedRoot = new Uint8Array(65)
+	const combinedRoot = new Uint8Array(65)
 	combinedRoot[0] = 1
 	combinedRoot.set(oldSTR, 1)
 	combinedRoot.set(subtreeRoot, 33)
-	let newSubtreeRoot = blake2b(combinedRoot)
+	const newSubtreeRoot = blake2b(combinedRoot)
 	return addSubtreeToBlake2bProofStack(ps, newSubtreeRoot, subtreeHeight + 1)
 }

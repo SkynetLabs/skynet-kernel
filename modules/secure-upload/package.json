@@ -4,15 +4,18 @@
 	"description": "skynet kernel module to securely upload files to skynet",
 	"main": "index.js",
 	"scripts": {
-		"eslint": "eslint src",
-		"prettier": "prettier --write --loglevel warn .",
+		"eslint": "eslint src --fix",
+		"prettier": "prettier --write .",
 		"test": "echo \"Error: no test specified\" && exit 1",
-		"build": "webpack --config webpack.config.js --mode=production && node ./build.js dev",
-		"deploy": "webpack --config webpack.config.js --mode=production && node ./build.js prod"
+		"build-webpack": "webpack --config webpack.config.js --mode=production",
+		"build-prep": "npm run prettier && npm run build-webpack",
+		"build": "npm run build-prep && node ./build.js dev && npm run eslint",
+		"deploy": "npm run build-prep && node ./build.js prod"
 	},
 	"author": "David Vorick",
 	"license": "MIT",
 	"devDependencies": {
+		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"eslint": "^8.13.0",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
