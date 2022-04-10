@@ -1,4 +1,4 @@
-import {blake2b} from './blake2b'
+import { blake2b } from "./blake2b"
 
 // blake2bProofStack is an abstraction for an in-progress Merkle tree. You need
 // at most one object in memory per height of the tree, otherwise objects can
@@ -9,15 +9,15 @@ import {blake2b} from './blake2b'
 // interface, but at least for now we've chosen to minimize the total number of
 // types instead.
 interface blake2bProofStack {
-	subtreeRoots: Uint8Array[];
-	subtreeHeights: number[];
+	subtreeRoots: Uint8Array[]
+	subtreeHeights: number[]
 }
 
 // addLeafBytesToBlake2bProofStack will add a leaf to a proof stack.
 export function addLeafBytesToBlake2bProofStack(ps: blake2bProofStack, leafBytes: Uint8Array): Error {
 	if (leafBytes.length !== 64) {
 		let strBytes = leafBytes.length.toString()
-		return new Error("blake2bProofStack expects leafByte objects to be exactly 64 bytes: "+strBytes)
+		return new Error("blake2bProofStack expects leafByte objects to be exactly 64 bytes: " + strBytes)
 	}
 	let taggedBytes = new Uint8Array(65)
 	taggedBytes.set(leafBytes, 1)
@@ -27,7 +27,7 @@ export function addLeafBytesToBlake2bProofStack(ps: blake2bProofStack, leafBytes
 
 // blake2bProofStackRoot returns the final Merkle root of the data in the
 // current proof stack.
-export function blake2bProofStackRoot (ps: blake2bProofStack): [Uint8Array, Error] {
+export function blake2bProofStackRoot(ps: blake2bProofStack): [Uint8Array, Error] {
 	// Input checking.
 	if (ps.subtreeRoots.length === 0) {
 		return [null!, new Error("cannot compute the Merkle root of an empty data set")]
@@ -48,7 +48,7 @@ export function blake2bProofStackRoot (ps: blake2bProofStack): [Uint8Array, Erro
 }
 
 // addSubtreeToBlake2bProofStack will add a subtree to a proof stack.
-function addSubtreeToBlake2bProofStack (ps: blake2bProofStack, subtreeRoot: Uint8Array, subtreeHeight: number): Error {
+function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8Array, subtreeHeight: number): Error {
 	// Input checking.
 	if (subtreeRoot.length !== 32) {
 		return new Error("cannot add subtree because root is wrong length")
@@ -65,9 +65,11 @@ function addSubtreeToBlake2bProofStack (ps: blake2bProofStack, subtreeRoot: Uint
 	// Check the height of the new subtree against the height of the
 	// smallest subtree in the blake2bProofStack. If the new subtree is
 	// larger, the subtree cannot be added.
-	let maxHeight = ps.subtreeHeights[ps.subtreeHeights.length-1]
+	let maxHeight = ps.subtreeHeights[ps.subtreeHeights.length - 1]
 	if (subtreeHeight > maxHeight) {
-		return new Error(`cannot add a subtree that is taller ${subtreeHeight} than the smallest ${maxHeight} subtree in the stack`)
+		return new Error(
+			`cannot add a subtree that is taller ${subtreeHeight} than the smallest ${maxHeight} subtree in the stack`
+		)
 	}
 
 	// If the new subtreeHeight is smaller than the max height, we can just
@@ -88,5 +90,5 @@ function addSubtreeToBlake2bProofStack (ps: blake2bProofStack, subtreeRoot: Uint
 	combinedRoot.set(oldSTR, 1)
 	combinedRoot.set(subtreeRoot, 33)
 	let newSubtreeRoot = blake2b(combinedRoot)
-	return addSubtreeToBlake2bProofStack(ps, newSubtreeRoot, subtreeHeight+1)
+	return addSubtreeToBlake2bProofStack(ps, newSubtreeRoot, subtreeHeight + 1)
 }

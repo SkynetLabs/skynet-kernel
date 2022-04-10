@@ -16,6 +16,6 @@ export function encodeNumber(num: number): Uint8Array {
 // bufToB64 will convert a Uint8Array to a base64 string with URL encoding and
 // no padding characters.
 export function bufToB64(buf: Uint8Array): string {
-	let b64Str = btoa(String.fromCharCode.apply(null, <any>buf));
-	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "");
+	let b64Str = btoa(String.fromCharCode.apply(null, <any>buf))
+	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/\=/g, "")
 }

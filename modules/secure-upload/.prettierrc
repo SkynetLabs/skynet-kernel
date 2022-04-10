@@ -1,6 +1,5 @@
 {
 	"printWidth": 120,
-	"tabs": true,
-	"semicolons": false,
-	"quotes": true,
+	"useTabs": true,
+	"semi": false
 }

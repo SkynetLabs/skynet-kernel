@@ -4,11 +4,11 @@
 //
 // secure-upload will use portal-dac to determine the user's portals.
 
-import {log, logErr} from './lib/log'
-import {encodeNumber, bufToB64} from './lib/encode'
-import {addLeafBytesToBlake2bProofStack, blake2bProofStackRoot} from './lib/blake2bmerkle'
-import {skylinkBitfield} from './lib/skylinks'
-import {progressiveFetch} from './lib/progressivefetch'
+import { log, logErr } from "./lib/log"
+import { encodeNumber, bufToB64 } from "./lib/encode"
+import { addLeafBytesToBlake2bProofStack, blake2bProofStackRoot } from "./lib/blake2bmerkle"
+import { skylinkBitfield } from "./lib/skylinks"
+import { progressiveFetch } from "./lib/progressivefetch"
 
 // TODO: Split progressiveFetch out into its own module. progressiveFetch will
 // use the portals module to figure out the best portal for the user initially,
@@ -28,7 +28,7 @@ function respondErr(event: MessageEvent, err: string) {
 
 // onmessage receives messages from the kernel. The kernel will ensure the
 // standard fields are all included.
-onmessage = function(event) {
+onmessage = function (event) {
 	// Check for known methods.
 	if (event.data.method === "secureUpload") {
 		handleSecureUpload(event)
@@ -42,7 +42,7 @@ onmessage = function(event) {
 	}
 
 	// The kernelMethod was not recognized.
-	respondErr(event, "unrecognized method: "+event.data.method)
+	respondErr(event, "unrecognized method: " + event.data.method)
 	return
 }
 
@@ -69,7 +69,7 @@ function handleSecureUpload(event: MessageEvent) {
 		Filename: event.data.data.filename,
 		Length: event.data.data.fileData.length,
 	})
-	let metadataBytes  = new TextEncoder().encode(metadataString)
+	let metadataBytes = new TextEncoder().encode(metadataString)
 
 	// Compute the binary
 	let layoutBytes = new Uint8Array(99)
@@ -99,7 +99,7 @@ function handleSecureUpload(event: MessageEvent) {
 		respondErr(event, "file is too large for secure-upload, only small files supported for now")
 		return
 	}
-	let baseSector = new Uint8Array(4194304+92)
+	let baseSector = new Uint8Array(4194304 + 92)
 	offset = 92
 	baseSector.set(layoutBytes, offset)
 	offset += layoutBytes.length
@@ -112,8 +112,8 @@ function handleSecureUpload(event: MessageEvent) {
 		subtreeRoots: <Uint8Array[]>[],
 		subtreeHeights: <number[]>[],
 	}
-	for (let i = 92; i < baseSector.length; i+=64) {
-		let errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i+64))
+	for (let i = 92; i < baseSector.length; i += 64) {
+		let errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i + 64))
 		if (errALB !== null) {
 			respondErr(event, "unable to build merkle root of file: " + errALB)
 			return
@@ -166,18 +166,18 @@ function handleSecureUpload(event: MessageEvent) {
 	}
 	let endpoint = "/skynet/restore"
 	progressiveFetch(endpoint, fetchOpts, ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"], null!, null!)
-	.then(output => {
-		// We are assuming that progressiveFetch 
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				skylink,
-			},
+		.then((output) => {
+			// We are assuming that progressiveFetch
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					skylink,
+				},
+			})
 		})
-	})
-	.catch(err => {
-		respondErr(event, "progressiveFetch failed: "+err)
-	})
+		.catch((err) => {
+			respondErr(event, "progressiveFetch failed: " + err)
+		})
 }

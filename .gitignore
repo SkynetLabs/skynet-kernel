@@ -1,6 +1,7 @@
 # Dev tools
 *.swp
 notes
+out.txt
 
 # Folders created in the build process
 build
