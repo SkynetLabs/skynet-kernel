@@ -1,1 +1,1 @@
-export {sha512} from './sha512'
+export { sha512 } from './sha512.js'

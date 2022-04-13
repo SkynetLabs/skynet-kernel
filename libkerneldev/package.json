@@ -1,8 +1,9 @@
 {
   "name": "libkerneldev",
-  "version": "0.0.1",
+  "version": "0.0.6",
   "description": "helper library for skynet kernel development",
   "main": "dist/index.js",
+  "type": "module",
   "types": "dist/index.d.js",
   "files": [
     "/dist"
