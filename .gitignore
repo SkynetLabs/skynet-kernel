@@ -9,6 +9,7 @@ build-cache
 bundle
 dist
 dist-test
+dist-build
 
 # http-server executable
 http-server/http-server
