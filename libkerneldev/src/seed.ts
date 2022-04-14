@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto'
-import { DICTIONARY_UNIQUE_PREFIX, dictionary } from './dictionary'
-import { sha512 } from './sha512'
-import { addContextToErr } from './err'
+import { DICTIONARY_UNIQUE_PREFIX, dictionary } from './dictionary.js'
+import { sha512 } from './sha512.js'
+import { addContextToErr } from './err.js'
 
 // Define the number of entropy words used when generating the seed.
 const SEED_ENTROPY_WORDS = 13
@@ -33,7 +33,7 @@ function seedToChecksumWords(seed: Uint8Array): [string, string, string | null] 
 // validSeedPhrase checks whether the provided seed phrase is valid, returning
 // an error if not. If the seed phrase is valid, the full seed will be returned
 // as a Uint8Array.
-function validSeedPhrase(seedPhrase: string): [Uint8Array | null, string | null] {
+function validSeedPhrase(seedPhrase: string): [Uint8Array, string | null] {
 	// Create a helper function to make the below code more readable.
 	let prefix = function(s: string): string {
 		return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
@@ -48,18 +48,18 @@ function validSeedPhrase(seedPhrase: string): [Uint8Array | null, string | null]
 	// Convert the seedWords to a seed.
 	let [seed, err1] = seedWordsToSeed(seedWords);
 	if (err1 !== null) {
-		return [null, addContextToErr(err1, "unable to parse seed phrase")]
+		return [new Uint8Array(0), addContextToErr(err1, "unable to parse seed phrase")]
 	}
 
 	let [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed);
 	if (err2 !== null) {
-		return [null, addContextToErr(err2, "could not compute checksum words")]
+		return [new Uint8Array(0), addContextToErr(err2, "could not compute checksum words")]
 	}
 	if (prefix(checksumOne) !== prefix(checksumOneVerify)) {
-		return [null, "first checksum word is invalid"];
+		return [new Uint8Array(0), "first checksum word is invalid"];
 	}
 	if (prefix(checksumTwo) !== prefix(checksumTwoVerify)) {
-		return [null, "second checksum word is invalid"];
+		return [new Uint8Array(0), "second checksum word is invalid"];
 	}
 	return [seed, null];
 }
@@ -114,7 +114,7 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
 }
 
 // generateSeedPhrase will generate and verify a seed phrase for the user.
-function generateSeedPhrase(password: string | null): [string | null, string | null] {
+function generateSeedPhrase(password: string | null): [string, string | null] {
 	let randNums
 	if (password === null) {
 		// Get the random numbers for the seed phrase. Typically, you need to
@@ -142,13 +142,13 @@ function generateSeedPhrase(password: string | null): [string | null, string | n
 	// Convert the seedWords to a seed.
 	let [seed, err1] = seedWordsToSeed(seedWords)
 	if (err1 !== null) {
-		return [null, err1]
+		return ["", err1]
 	}
 
 	// Compute the checksum.
 	let [checksumOne, checksumTwo, err2] = seedToChecksumWords(seed)
 	if (err2 !== null) {
-		return [null, err2]
+		return ["", err2]
 	}
 
 	// Assemble the final seed phrase and set the text field.

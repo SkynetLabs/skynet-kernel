@@ -3,7 +3,7 @@
 // very persistent about layering context onto errors is incredibly helpful
 // when debugging, even though it often creates comically verbose error
 // messages. Trust me, it's well worth the tradeoff.
-var addContextToErr = function(err: string | null, context: string): string | null {
+function addContextToErr(err: string | null, context: string): string | null {
 	if (err === null) {
 		return null
 	}
