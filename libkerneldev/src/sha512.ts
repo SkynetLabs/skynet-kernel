@@ -458,7 +458,7 @@ var sha512internal = function(out: any, m: any, n: any) {
 // sha512 is the standard sha512 cryptographic hash function. This is the
 // default choice for Skynet operations, though many of the Sia protocol
 // standards use blake2b instead, so you will see both.
-function sha512(m: Uint8Array): Uint8Array {
+export default function sha512(m: Uint8Array): Uint8Array {
 	let out = new Uint8Array(64);
 	sha512internal(out, m, m.length);
 	return out;

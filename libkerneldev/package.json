@@ -7,5 +7,12 @@
   "types": "dist/index.d.js",
   "files": [
     "/dist"
-  ]
+  ],
+  "scripts": {
+	  "test": "tsc --project tsconfig.test.json && node ./dist-test/test.js"
+  },
+  "author": "David Vorick",
+  "devDependencies": {
+    "@types/node": "^17.0.23"
+  }
 }
