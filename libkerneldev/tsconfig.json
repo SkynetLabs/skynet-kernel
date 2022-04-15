@@ -1,15 +1,13 @@
 {
-  "compilerOptions": {
-    "target": "es2016",
-    "declaration": true,
-    "module": "esnext",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "outDir": "./dist"
-  },
-  "include": [
-    "src/**/*"
-  ]
+	"compilerOptions": {
+		"target": "es2016",
+		"declaration": true,
+		"module": "esnext",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"outDir": "./dist"
+	},
+	"include": ["src/**/*"]
 }
