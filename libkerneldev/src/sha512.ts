@@ -541,4 +541,4 @@ export default function sha512(m: Uint8Array): Uint8Array {
 	return out
 }
 
-export { sha512 }
+export { sha512, sha512internal }
