@@ -1,7 +1,9 @@
 import { ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
+import { blake2b } from "./blake2b.js"
 import { sha512 } from "./sha512.js"
 import { addContextToErr } from "./err.js"
+import { encodeNumber } from "./encoding.js"
 
 /*
 // registryEntry defines fields that are important to processing a registry
@@ -76,16 +78,15 @@ function taggedRegistryEntryKeys(
 	return [keypair, datakey, null]
 }
 
-/*
 // deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
 // datakey.
-var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, Error] {
+function deriveRegistryEntryID(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, string | null] {
 	// Check the lengths of the inputs.
 	if (pubkey.length !== 32) {
-		return [null, new Error("pubkey is invalid, length is wrong")];
+		return [nu8, "pubkey is invalid, length is wrong"];
 	}
 	if (datakey.length !== 32) {
-		return [null, new Error("datakey is not a valid hash, length is wrong")];
+		return [nu8, "datakey is not a valid hash, length is wrong"];
 	}
 
 	// Establish the encoding. First 16 bytes is a specifier, second 8
@@ -112,6 +113,7 @@ var deriveRegistryEntryID = function(pubkey: Uint8Array, datakey: Uint8Array): [
 	return [id, null];
 }
 
+/*
 // deriveResolverLink will derive the resolver link from the tags that
 // determine the pubkey and datakey.
 var deriveResolverLink = function(keypairTagStr: string, datakeyTagStr: string): [string, Error] {

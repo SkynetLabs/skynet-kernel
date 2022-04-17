@@ -11,15 +11,25 @@ function fail(errStr: string, ...inputs: any) {
 	}
 	failed = true
 	t.failed = true
+	t.printed = true
 	console.log("\t", errStr, ...inputs)
+}
+function log(...inputs: any) {
+	if (!(t.printed)) {
+		console.log(t.testName)
+	}
+	t.printed = true
+	console.log("\t", ...inputs)
 }
 let t = {
 	failed: false,
+	printed: false,
 	testName: "",
 	fail,
 }
 function runTest(test: any) {
 	t.failed = false
+	t.printed = false
 	t.testName = test.name
 	test(t)
 	if (!(t.failed)) {
