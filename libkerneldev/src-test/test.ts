@@ -1,5 +1,6 @@
 import { generateSeedPhrase, validSeedPhrase } from "../src/seed.js"
-import { ed25519KeyPairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
+import { ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
+import { registryEntryKeys } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
 
 // Establish a global set of functions and objects for testing flow control.
@@ -7,7 +8,7 @@ let failed = false
 function fail(errStr: string, ...inputs: any) {
 	failed = true
 	t.failed = true
-	console.log(new Error(errStr), ...inputs)
+	console.log(errStr, ...inputs)
 }
 let t = {
 	failed: false,
@@ -74,25 +75,36 @@ function TestEd25519(t: any) {
 	// Test some of the ed25519 functions by making some entropy, then making a
 	// keypair, then signing some data and verifying the signature.
 	let entropy = sha512(new TextEncoder().encode("fake entropy"))
-	let [keyPair, errKPFE] = ed25519KeyPairFromEntropy(entropy.slice(0, 32))
+	let [keypair, errKPFE] = ed25519KeypairFromEntropy(entropy.slice(0, 32))
 	if (errKPFE !== null) {
 		t.fail(errKPFE, "kpfe failed")
 		return
 	}
 	let message = new TextEncoder().encode("fake message")
-	let [signature, errS] = ed25519Sign(message, keyPair.secretKey)
+	let [signature, errS] = ed25519Sign(message, keypair.secretKey)
 	if (errS !== null) {
 		t.fail(errS, "sign failed")
 		return
 	}
-	let validSig = ed25519Verify(message, signature, keyPair.publicKey)
+	let validSig = ed25519Verify(message, signature, keypair.publicKey)
 	if (!validSig) {
 		t.fail("ed25519 sig not valid")
 	}
 }
 
+// Smoke testing for the basic registry functions.
+function TestRegistry(t: any) {
+	let [x1, x2, errREK1] = registryEntryKeys(new TextEncoder().encode("not a seed"), "", "")
+	if (errREK1 === null) {
+		t.fail("expected error when using bad seed")
+	}
+
+	// let [keypair, datakey,
+}
+
 runTest(TestGenerateSeedPhrase)
 runTest(TestEd25519)
+runTest(TestRegistry)
 
 console.log()
 if (failed) {

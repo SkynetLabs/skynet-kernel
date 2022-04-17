@@ -21,7 +21,7 @@ const K = [
 	0xcb3e42b6, 0x597f299c, 0xfc657e2a, 0x5fcb6fab, 0x3ad6faec, 0x6c44198c, 0x4a475817,
 ]
 
-function ts64(x: any, i: any, h: any, l: any) {
+function ts64(x: Uint8Array, i: number, h: number, l: number) {
 	x[i] = (h >> 24) & 0xff
 	x[i + 1] = (h >> 16) & 0xff
 	x[i + 2] = (h >> 8) & 0xff
@@ -32,7 +32,7 @@ function ts64(x: any, i: any, h: any, l: any) {
 	x[i + 7] = l & 0xff
 }
 
-function crypto_hashblocks_hl(hh: any, hl: any, m: any, n: any) {
+function crypto_hashblocks_hl(hh: Int32Array, hl: Int32Array, m: Uint8Array, n: number) {
 	let wh = new Int32Array(16),
 		wl = new Int32Array(16),
 		bh0,
@@ -491,7 +491,7 @@ function crypto_hashblocks_hl(hh: any, hl: any, m: any, n: any) {
 	return n
 }
 
-const sha512internal = function (out: any, m: any, n: any) {
+const sha512internal = function (out: Uint8Array, m: Uint8Array, n: number) {
 	let hh = new Int32Array(8),
 		hl = new Int32Array(8),
 		x = new Uint8Array(256),

@@ -876,7 +876,7 @@ const nkp = { publicKey: nu8, secretKey: nu8 }
 // checkAllUint8Array is a helper function to perform input checking on the
 // crypto API functions. Because the kernel is often hot-loading untrusted
 // code, we cannot depend on typescript to provide type safety.
-let checkAllUint8Array = function (...args: any[]): string | null {
+function checkAllUint8Array(...args: any[]): string | null {
 	for (let i = 0; i < args.length; i++) {
 		if (!(args[i] instanceof Uint8Array)) {
 			return "unexpected type, use Uint8Array"
@@ -885,9 +885,9 @@ let checkAllUint8Array = function (...args: any[]): string | null {
 	return null
 }
 
-// ed25519KeyPairFromEntropy is a function that generates an ed25519 keypair
+// ed25519KeypairFromEntropy is a function that generates an ed25519 keypair
 // from the provided entropy.
-let ed25519KeyPairFromEntropy = function (seed: Uint8Array): [ed25519Keypair, string | null] {
+function ed25519KeypairFromEntropy(seed: Uint8Array): [ed25519Keypair, string | null] {
 	// Input checking.
 	let errU8 = checkAllUint8Array(seed)
 	if (errU8 !== null) {
@@ -915,7 +915,7 @@ let ed25519KeyPairFromEntropy = function (seed: Uint8Array): [ed25519Keypair, st
 }
 
 // ed25519Sign will produce an ed25519 signature of a given input.
-let ed25519Sign = function (msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, string | null] {
+function ed25519Sign(msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, string | null] {
 	// Input checking.
 	let errU8 = checkAllUint8Array(msg, secretKey)
 	if (errU8 !== null) {
@@ -937,7 +937,7 @@ let ed25519Sign = function (msg: Uint8Array, secretKey: Uint8Array): [Uint8Array
 
 // ed25519Verify will check whether a signature is valid against the given
 // publicKey and message.
-let ed25519Verify = function (msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array): boolean {
+function ed25519Verify(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array): boolean {
 	let errU8 = checkAllUint8Array(msg, sig, publicKey)
 	if (errU8 !== null) {
 		return false
@@ -961,4 +961,4 @@ let ed25519Verify = function (msg: Uint8Array, sig: Uint8Array, publicKey: Uint8
 	return crypto_sign_open(m, sm, sm.length, publicKey) >= 0
 }
 
-export { ed25519Keypair, ed25519KeyPairFromEntropy, ed25519Sign, ed25519Verify }
+export { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify }

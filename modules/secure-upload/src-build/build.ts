@@ -42,19 +42,21 @@ if (process.argv[2] === "prod") {
 	handlePass(null)
 }
 
+function writeFile(fileName: string, fileData: Uint8Array): string | null {
+	try {
+		fs.writeFileSync(seedFile, seedPhrase)
+		return null
+	} catch(err) {
+		return err
+	}
+}
+
 // handlePass handles all portions of the script that occur after the password
 // has been requested. If no password needs to be requested, handlePass will be
 // called with a null input. We need to structure the code this way because the
 // password reader is async and we can only access the password when using a
 // callback.
 function handlePass(password: string | null) {
-	// Print the password so that we know the dependencies are
-	// working.
-	if (password !== null) {
-		let u8pw = new TextEncoder().encode(password)
-		console.log(sha512(u8pw))
-	}
-
 	try {
 		// If we are running prod and the seed file does not exist, we
 		// need to confirm the password and also warn the user to use a
@@ -112,8 +114,11 @@ function handlePassConfirm(password: string | null) {
 			console.error("Unable to generate seed phrase: ", errGSP)
 			process.exit(1)
 		}
-		console.log("writing out dev seed phrase:", seedPhrase)
-		fs.writeFileSync(seedFile, seedPhrase) // TODO: try-catch
+		let errWF = writeFile(seedFile, seedPhrase)
+		if (errWF !== null) {
+			console.error("unable to write file:", errWF)
+			process.exit(1)
+		}
 	} else if (!fs.existsSync(seedFile) && process.argv[2] === "prod") {
 		// Generate the true seed phrase.
 		let [seedPhrase, errGSP] = generateSeedPhrase(password)
@@ -121,6 +126,8 @@ function handlePassConfirm(password: string | null) {
 			console.error("Unable to generate seed phrase: ", errGSP)
 			process.exit(1)
 		}
+
+		// TODO: Swap this out for a v2 skylink.
 
 		// Get a new seed phrase using the true seed phrase as the
 		// password and write that to disk so that we can publish the
@@ -131,10 +138,11 @@ function handlePassConfirm(password: string | null) {
 			console.error("Unable to generate shielded seed phrase: ", errGSP2)
 			process.exit(1)
 		}
-		fs.writeFile(seedFile, seedPhraseShield, (err) => {
-			console.error(err)
+		let errWF = writeFile(seedFile, seedPhraseShield)
+		if (errWF !== null) {
+			console.error("unable to write file:", errWF)
 			process.exit(1)
-		})
+		}
 	}
 
 	// Load or verify the seed. If this is prod, the password is used to
@@ -163,7 +171,6 @@ function handlePassConfirm(password: string | null) {
 	} else {
 		seedPhrase = fs.readFileSync(seedFile, "utf8")
 	}
-	console.log("build appears to be successful")
 
 	// TODO: Generate the v2 skylink.
 
