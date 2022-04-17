@@ -12,15 +12,15 @@ var encodeNumber = function(num: number): Uint8Array {
 	return encoded
 }
 
-/*
-// buf2hex takes a Uint8Array as input and returns the hex encoding of those
+// bufToHex takes a Uint8Array as input and returns the hex encoding of those
 // bytes as a string.
-var buf2hex = function(buf: Uint8Array): string {
+var bufToHex = function(buf: Uint8Array): string {
 	return [...buf]
 		.map(x => x.toString(16).padStart(2, '0'))
 		.join('');
 }
 
+/*
 // hex2buf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
 var hex2buf = function(hex: string): [Uint8Array, string | null] {
@@ -118,4 +118,4 @@ var encodePrefixedBytes = function(bytes: Uint8Array): [Uint8Array, Error] {
 }
 */
 
-export { encodeNumber }
+export { encodeNumber, bufToHex }

@@ -59,6 +59,13 @@ function taggedRegistryEntryKeys(
 	// Use the seed to dervie the datakey for the registry entry. We use
 	// a different tag to ensure that the datakey is independently random, such
 	// that the registry entry looks like it could be any other registry entry.
+	//
+	// We don't want it to be possible for two different combinations of
+	// tags to end up with the same datakey. If you don't use a length
+	// prefix, for example the tags ["123", "456"] and ["12", "3456"] would
+	// have the same datakey. You have to add the length prefix to the
+	// first tag otherwise you can get pairs like ["6", "4321"] and ["65",
+	// "321"] which could end up with the same datakey.
 	let datakeyTag = new TextEncoder().encode(datakeyTagStr)
 	let datakeyInput = new Uint8Array(seed.length + 1 + keypairTag.length + datakeyTag.length)
 	let keypairLen = new Uint8Array(1)
@@ -418,4 +425,4 @@ var writeNewOwnRegistryEntry = function(keypairTagStr: string, datakeyTagStr: st
 }
 */
 
-export { taggedRegistryEntryKeys }
+export { taggedRegistryEntryKeys, deriveRegistryEntryID }

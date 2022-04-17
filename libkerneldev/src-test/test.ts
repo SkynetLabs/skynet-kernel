@@ -1,7 +1,8 @@
 import { generateSeedPhrase, validSeedPhrase } from "../src/seed.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
-import { taggedRegistryEntryKeys } from "../src/registry.js"
+import { taggedRegistryEntryKeys, deriveRegistryEntryID } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
+import { bufToHex } from "../src/encoding.js"
 
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
@@ -11,26 +12,21 @@ function fail(errStr: string, ...inputs: any) {
 	}
 	failed = true
 	t.failed = true
-	t.printed = true
 	console.log("\t", errStr, ...inputs)
 }
 function log(...inputs: any) {
-	if (!(t.printed)) {
-		console.log(t.testName)
-	}
-	t.printed = true
 	console.log("\t", ...inputs)
 }
 let t = {
 	failed: false,
-	printed: false,
 	testName: "",
 	fail,
+	log,
 }
 function runTest(test: any) {
 	t.failed = false
-	t.printed = false
 	t.testName = test.name
+	console.log(t.testName, "is running")
 	test(t)
 	if (!(t.failed)) {
 		console.log(t.testName, "has passed")
@@ -190,6 +186,14 @@ function TestRegistry(t: any) {
 	if (u8sEqual(datakey4, datakey5)) {
 		t.fail("datakeys should be different")
 	}
+
+	// Check that we can derive a registry entry id.
+	let [entryID, errDREID] = deriveRegistryEntryID(keypair5.publicKey, datakey5)
+	if (errDREID !== null) {
+		t.fail(errDREID, "could not derive entry id")
+		return
+	}
+	t.log("example entry id:", bufToHex(entryID))
 }
 
 runTest(TestGenerateSeedPhrase)
