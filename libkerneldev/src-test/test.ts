@@ -1,27 +1,52 @@
 import { generateSeedPhrase, validSeedPhrase } from "../src/seed.js"
-import { ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
-import { registryEntryKeys } from "../src/registry.js"
+import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
+import { taggedRegistryEntryKeys } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
 
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
 function fail(errStr: string, ...inputs: any) {
+	if (!(t.failed)) {
+		console.error(t.testName, "has failed")
+	}
 	failed = true
 	t.failed = true
-	console.log(errStr, ...inputs)
+	console.log("\t", errStr, ...inputs)
 }
 let t = {
 	failed: false,
+	testName: "",
 	fail,
 }
 function runTest(test: any) {
 	t.failed = false
+	t.testName = test.name
 	test(t)
-	if (t.failed) {
-		console.error(test.name, "has failed")
-	} else {
-		console.log(test.name, "has passed")
+	if (!(t.failed)) {
+		console.log(t.testName, "has passed")
 	}
+}
+
+// Helper functions.
+function u8sEqual(a: Uint8Array, b: Uint8Array): boolean {
+	if (a.length !== b.length) {
+		return false
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+			return false
+		}
+	}
+	return true
+}
+function keypairsEqual(a: ed25519Keypair, b: ed25519Keypair): boolean {
+	if (!(u8sEqual(a.publicKey, b.publicKey))) {
+		return false
+	}
+	if (!(u8sEqual(a.secretKey, b.secretKey))) {
+		return false
+	}
+	return true
 }
 
 // Smoke testing for generating a seed phrase.
@@ -94,12 +119,67 @@ function TestEd25519(t: any) {
 
 // Smoke testing for the basic registry functions.
 function TestRegistry(t: any) {
-	let [x1, x2, errREK1] = registryEntryKeys(new TextEncoder().encode("not a seed"), "", "")
+	let [x1, x2, errREK1] = taggedRegistryEntryKeys(new TextEncoder().encode("not a seed"), "", "")
 	if (errREK1 === null) {
 		t.fail("expected error when using bad seed")
 	}
 
-	// let [keypair, datakey,
+	let [seedPhrase, errGSP] = generateSeedPhrase(null)
+	if (errGSP !== null) {
+		t.fail("could not get seed phrase")
+		return
+	}
+	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	if (errVSP !== null) {
+		t.fail("seed phrase is not valid")
+		return
+	}
+
+	// Check that keypairs are deterministic.
+	let [keypair2, datakey2, errREK2] = taggedRegistryEntryKeys(seed, "test-keypair", "test-datakey")
+	let [keypair3, datakey3, errREK3] = taggedRegistryEntryKeys(seed, "test-keypair", "test-datakey")
+	if (errREK2 !== null) {
+		t.fail(errREK2, "could not get tagged keys")
+		return
+	}
+	if (errREK3 !== null) {
+		t.fail(errREK3, "could not get tagged keys")
+		return
+	}
+	if (!(u8sEqual(datakey2, datakey3))) {
+		t.fail("datakeys don't match for deterministic derivation")
+		t.fail(datakey2)
+		t.fail(datakey3)
+	}
+	if (!(keypairsEqual(keypair2, keypair3))) {
+		t.fail("keypairs don't match for deterministic derivation")
+	}
+
+	// Check that changing the keypair also changes the datakey even if the
+	// datakeyTag is unchanged.
+	let [keypair4, datakey4, errREK4] = taggedRegistryEntryKeys(seed, "test-keypair2", "test-datakey")
+	if (errREK4 !== null) {
+		t.fail(errREK4, "could not get tagged keys")
+		return
+	}
+	if (keypairsEqual(keypair3, keypair4)) {
+		t.fail("keypairs should be different")
+	}
+	if (u8sEqual(datakey3, datakey4)) {
+		t.fail("datakeys should be different")
+	}
+	// Check that changing the datakey doesn't change the keypair.
+	let [keypair5, datakey5, errREK5] = taggedRegistryEntryKeys(seed, "test-keypair2", "test-datakey2")
+	if (errREK5 !== null) {
+		t.fail(errREK5, "could not get tagged keys")
+		return
+	}
+	if (!(keypairsEqual(keypair4, keypair5))) {
+		t.fail("keypairs should be equal")
+	}
+	if (u8sEqual(datakey4, datakey5)) {
+		t.fail("datakeys should be different")
+	}
 }
 
 runTest(TestGenerateSeedPhrase)

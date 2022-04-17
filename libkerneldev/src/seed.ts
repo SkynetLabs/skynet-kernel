@@ -161,4 +161,4 @@ function generateSeedPhrase(password: string | null): [string, string | null] {
 	return [seedPhrase, null]
 }
 
-export { generateSeedPhrase, seedToChecksumWords, seedWordsToSeed, validSeedPhrase, SEED_BYTES }
+export { generateSeedPhrase, seedToChecksumWords, validSeedPhrase, SEED_BYTES }
