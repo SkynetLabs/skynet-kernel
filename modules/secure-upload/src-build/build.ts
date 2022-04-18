@@ -50,13 +50,48 @@ if (process.argv[2] === "prod") {
 	handlePass(null)
 }
 
+// readFile is a wrapper for fs.readFileSync that handles the try-catch for the
+// caller.
+function readFile(fileName: string): [string, string | null] {
+	try {
+		let data = fs.readFileSync(fileName, "utf8")
+		return [data, null]
+	} catch (err) {
+		return ["", "unable to read file: " + JSON.stringify(err)]
+	}
+}
+
+// writeFile is a wrapper for fs.writeFileSync which handles the try-catch in a
+// non-exception way.
 function writeFile(fileName: string, fileData: string): string | null {
 	try {
-		fs.writeFileSync(seedFile, fileData)
+		fs.writeFileSync(fileName, fileData)
 		return null
 	} catch (err) {
 		return "unable to write file: " + JSON.stringify(err)
 	}
+}
+
+// seedPhraseToRegistryLink will take a seedPhrase as input and convert it to
+// the registry link for the module.
+function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
+	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	if (errVSP !== null) {
+		return ["", addContextToErr(errVSP, "unable to compute seed phrase")]
+	}
+	let [keypair, datakey, errTREK] = taggedRegistryEntryKeys(seed, "module-build", "module-key")
+	if (errTREK !== null) {
+		return ["", addContextToErr(errTREK, "unable to compute registry entry keys")]
+	}
+	let [entryID, errDREID] = deriveRegistryEntryID(keypair.publicKey, datakey)
+	if (errDREID !== null) {
+		return ["", addContextToErr(errDREID, "unable to compute registry entry id")]
+	}
+	let [registryLink, errRL] = resolverLink(entryID)
+	if (errRL !== null) {
+		return ["", addContextToErr(errRL, "unable to compute registry link")]
+	}
+	return [registryLink, null]
 }
 
 // handlePass handles all portions of the script that occur after the password
@@ -164,39 +199,36 @@ function handlePassConfirm(password: string | null) {
 			console.error("Unable to generate registry link:", errSPTRL)
 			process.exit(1)
 		}
-		let registryLinkVerify = fs.readFileSync(seedFile, "utf8")
+		let [registryLinkVerify, errRF] = readFile(seedFile)
+		if (errRF !== null) {
+			console.error("unable to read seedFile")
+			process.exit(1)
+		}
 		if (registryLink !== registryLinkVerify) {
 			console.error("Incorrect password")
 			process.exit(1)
 		}
 		seedPhrase = sp
 	} else {
-		seedPhrase = fs.readFileSync(seedFile, "utf8")
+		let [sp, errRF] = readFile(seedFile)
+		if (errRF !== null) {
+			console.error("unable to read seed phrase for dev command from disk")
+			process.exit(1)
+		}
+		let [registryLink, errSPTRL] = seedPhraseToRegistryLink(sp)
+		if (errSPTRL !== null) {
+			console.error("Unable to generate registry link:", errSPTRL)
+			process.exit(1)
+		}
+		// Write the registry link to the module skylinkd dev file.
+		let errWF = writeFile("build/module-skylink-dev", registryLink)
+		if (errWF !== null) {
+			console.error("unable to write registry link file:", errWF)
+			process.exit(1)
+		}
 	}
 
 	// TODO: Upload the dist file
 
 	// TODO: Update the v2 skylink
-}
-
-// seedPhraseToRegistryLink will take a seedPhrase as input and convert it to
-// the registry link for the module.
-function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
-	if (errVSP !== null) {
-		return ["", addContextToErr(errVSP, "unable to compute seed phrase")]
-	}
-	let [keypair, datakey, errTREK] = taggedRegistryEntryKeys(seed, "module-build", "module-key")
-	if (errTREK !== null) {
-		return ["", addContextToErr(errTREK, "unable to compute registry entry keys")]
-	}
-	let [entryID, errDREID] = deriveRegistryEntryID(keypair.publicKey, datakey)
-	if (errDREID !== null) {
-		return ["", addContextToErr(errDREID, "unable to compute registry entry id")]
-	}
-	let [registryLink, errRL] = resolverLink(entryID)
-	if (errRL !== null) {
-		return ["", addContextToErr(errRL, "unable to compute registry link")]
-	}
-	return [registryLink, null]
 }
