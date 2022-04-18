@@ -1,7 +1,15 @@
 // This is the standard build script for a kernel module.
 
 import * as fs from "fs"
-import { generateSeedPhrase, sha512 } from "libkerneldev"
+import {
+	generateSeedPhrase,
+	sha512,
+	addContextToErr,
+	validSeedPhrase,
+	taggedRegistryEntryKeys,
+	deriveRegistryEntryID,
+	resolverLink,
+} from "libkerneldev"
 import read from "read"
 
 // Add a newline for readability.
@@ -21,7 +29,7 @@ if (!fs.existsSync("build")) {
 // Determine the seed file.
 let seedFile: string
 if (process.argv[2] === "prod") {
-	seedFile = "build/module-double-seed"
+	seedFile = "build/module-skylink"
 } else if (process.argv[2] === "dev") {
 	seedFile = "build/dev-seed"
 } else {
@@ -33,7 +41,7 @@ if (process.argv[2] === "prod") {
 if (process.argv[2] === "prod") {
 	read({ prompt: "Password: ", silent: true }, function (err: any, password: string) {
 		if (err) {
-			console.error("unable to fetch password: ", err)
+			console.error("unable to fetch password:", err)
 			process.exit(1)
 		}
 		handlePass(password)
@@ -42,12 +50,12 @@ if (process.argv[2] === "prod") {
 	handlePass(null)
 }
 
-function writeFile(fileName: string, fileData: Uint8Array): string | null {
+function writeFile(fileName: string, fileData: string): string | null {
 	try {
-		fs.writeFileSync(seedFile, seedPhrase)
+		fs.writeFileSync(seedFile, fileData)
 		return null
-	} catch(err) {
-		return err
+	} catch (err) {
+		return "unable to write file: " + JSON.stringify(err)
 	}
 }
 
@@ -71,7 +79,7 @@ function handlePass(password: string | null) {
 			console.log()
 			read({ prompt: "Confirm Password: ", silent: true }, function (err: any, confirmPassword: string) {
 				if (err) {
-					console.error("unable to fetch password: ", err)
+					console.error("unable to fetch password:", err)
 					process.exit(1)
 				}
 				if (password !== confirmPassword) {
@@ -111,7 +119,7 @@ function handlePassConfirm(password: string | null) {
 		// Generate the seed phrase and write it to the file.
 		let [seedPhrase, errGSP] = generateSeedPhrase(null)
 		if (errGSP !== null) {
-			console.error("Unable to generate seed phrase: ", errGSP)
+			console.error("Unable to generate seed phrase:", errGSP)
 			process.exit(1)
 		}
 		let errWF = writeFile(seedFile, seedPhrase)
@@ -120,27 +128,22 @@ function handlePassConfirm(password: string | null) {
 			process.exit(1)
 		}
 	} else if (!fs.existsSync(seedFile) && process.argv[2] === "prod") {
-		// Generate the true seed phrase.
+		// Generate the seed phrase.
 		let [seedPhrase, errGSP] = generateSeedPhrase(password)
 		if (errGSP !== null) {
-			console.error("Unable to generate seed phrase: ", errGSP)
+			console.error("Unable to generate seed phrase:", errGSP)
+			process.exit(1)
+		}
+		let [registryLink, errSPTRL] = seedPhraseToRegistryLink(seedPhrase)
+		if (errSPTRL !== null) {
+			console.error("Unable to generate registry link:", errSPTRL)
 			process.exit(1)
 		}
 
-		// TODO: Swap this out for a v2 skylink.
-
-		// Get a new seed phrase using the true seed phrase as the
-		// password and write that to disk so that we can publish the
-		// prod seed phrase to the repo without giving anyone the
-		// ability to update the module.
-		let [seedPhraseShield, errGSP2] = generateSeedPhrase(seedPhrase)
-		if (errGSP2 !== null) {
-			console.error("Unable to generate shielded seed phrase: ", errGSP2)
-			process.exit(1)
-		}
-		let errWF = writeFile(seedFile, seedPhraseShield)
+		// Write the registry link to the file.
+		let errWF = writeFile(seedFile, registryLink)
 		if (errWF !== null) {
-			console.error("unable to write file:", errWF)
+			console.error("unable to write registry link file:", errWF)
 			process.exit(1)
 		}
 	}
@@ -156,27 +159,44 @@ function handlePassConfirm(password: string | null) {
 			console.error("Unable to generate seed phrase: ", errGSP)
 			process.exit(1)
 		}
-		let [seedPhraseShield, errGSP2] = generateSeedPhrase(sp)
-		if (errGSP2 !== null) {
-			console.error("Unable to generate shielded seed phrase: ", errGSP2)
+		let [registryLink, errSPTRL] = seedPhraseToRegistryLink(sp)
+		if (errSPTRL !== null) {
+			console.error("Unable to generate registry link:", errSPTRL)
 			process.exit(1)
 		}
-		let seedPhraseShieldVerify = fs.readFileSync(seedFile, "utf8")
-		if (seedPhraseShieldVerify !== seedPhraseShield) {
+		let registryLinkVerify = fs.readFileSync(seedFile, "utf8")
+		if (registryLink !== registryLinkVerify) {
 			console.error("Incorrect password")
 			process.exit(1)
 		}
-
 		seedPhrase = sp
 	} else {
 		seedPhrase = fs.readFileSync(seedFile, "utf8")
 	}
 
-	// TODO: Generate the v2 skylink.
-
-	// TODO: For prod, verify the v2 skylink.
-
 	// TODO: Upload the dist file
 
 	// TODO: Update the v2 skylink
+}
+
+// seedPhraseToRegistryLink will take a seedPhrase as input and convert it to
+// the registry link for the module.
+function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
+	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	if (errVSP !== null) {
+		return ["", addContextToErr(errVSP, "unable to compute seed phrase")]
+	}
+	let [keypair, datakey, errTREK] = taggedRegistryEntryKeys(seed, "module-build", "module-key")
+	if (errTREK !== null) {
+		return ["", addContextToErr(errTREK, "unable to compute registry entry keys")]
+	}
+	let [entryID, errDREID] = deriveRegistryEntryID(keypair.publicKey, datakey)
+	if (errDREID !== null) {
+		return ["", addContextToErr(errDREID, "unable to compute registry entry id")]
+	}
+	let [registryLink, errRL] = resolverLink(entryID)
+	if (errRL !== null) {
+		return ["", addContextToErr(errRL, "unable to compute registry link")]
+	}
+	return [registryLink, null]
 }

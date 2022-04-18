@@ -11,7 +11,7 @@
 		"make-build-script": "tsc --project tsconfig.build.json",
 		"build-prep": "npm run webpack && npm run make-build-script && mv dist-build/build.js dist-build/build.mjs",
 		"build": "npm run build-prep && node ./dist-build/build.mjs dev",
-		"deploy": "npm run lint && npm run build-prep && node ./build.mjs prod",
+		"deploy": "npm run lint && npm run build-prep && node ./dist-build/build.mjs prod",
 		"test": "echo \"Error: no test specified\" && exit 1"
 	},
 	"author": "David Vorick",
@@ -20,7 +20,7 @@
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"eslint": "^8.13.0",
-		"libkerneldev": "^0.0.10",
+		"libkerneldev": "^0.0.17",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
 		"ts-loader": "^9.2.8",
