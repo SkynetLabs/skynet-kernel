@@ -1,13 +1,13 @@
 import { generateSeedPhrase, validSeedPhrase } from "../src/seed.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
-import { taggedRegistryEntryKeys, deriveRegistryEntryID } from "../src/registry.js"
+import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
 import { bufToHex } from "../src/encoding.js"
 
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
 function fail(errStr: string, ...inputs: any) {
-	if (!(t.failed)) {
+	if (!t.failed) {
 		console.error(t.testName, "has failed")
 	}
 	failed = true
@@ -28,7 +28,7 @@ function runTest(test: any) {
 	t.testName = test.name
 	console.log(t.testName, "is running")
 	test(t)
-	if (!(t.failed)) {
+	if (!t.failed) {
 		console.log(t.testName, "has passed")
 	}
 }
@@ -46,10 +46,10 @@ function u8sEqual(a: Uint8Array, b: Uint8Array): boolean {
 	return true
 }
 function keypairsEqual(a: ed25519Keypair, b: ed25519Keypair): boolean {
-	if (!(u8sEqual(a.publicKey, b.publicKey))) {
+	if (!u8sEqual(a.publicKey, b.publicKey)) {
 		return false
 	}
-	if (!(u8sEqual(a.secretKey, b.secretKey))) {
+	if (!u8sEqual(a.secretKey, b.secretKey)) {
 		return false
 	}
 	return true
@@ -152,12 +152,12 @@ function TestRegistry(t: any) {
 		t.fail(errREK3, "could not get tagged keys")
 		return
 	}
-	if (!(u8sEqual(datakey2, datakey3))) {
+	if (!u8sEqual(datakey2, datakey3)) {
 		t.fail("datakeys don't match for deterministic derivation")
 		t.fail(datakey2)
 		t.fail(datakey3)
 	}
-	if (!(keypairsEqual(keypair2, keypair3))) {
+	if (!keypairsEqual(keypair2, keypair3)) {
 		t.fail("keypairs don't match for deterministic derivation")
 	}
 
@@ -180,7 +180,7 @@ function TestRegistry(t: any) {
 		t.fail(errREK5, "could not get tagged keys")
 		return
 	}
-	if (!(keypairsEqual(keypair4, keypair5))) {
+	if (!keypairsEqual(keypair4, keypair5)) {
 		t.fail("keypairs should be equal")
 	}
 	if (u8sEqual(datakey4, datakey5)) {
@@ -193,7 +193,14 @@ function TestRegistry(t: any) {
 		t.fail(errDREID, "could not derive entry id")
 		return
 	}
-	t.log("example entry id:", bufToHex(entryID))
+	t.log("example entry id:     ", bufToHex(entryID))
+	// Convert to resolver link.
+	let [rl, errRL] = resolverLink(entryID)
+	if (errRL !== null) {
+		t.fail(errRL, "could not get resolver link")
+		return
+	}
+	t.log("example resolver link:", rl)
 }
 
 runTest(TestGenerateSeedPhrase)

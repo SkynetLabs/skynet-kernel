@@ -3,7 +3,7 @@ import { SEED_BYTES } from "./seed.js"
 import { blake2b } from "./blake2b.js"
 import { sha512 } from "./sha512.js"
 import { addContextToErr } from "./err.js"
-import { encodeNumber } from "./encoding.js"
+import { encodeNumber, bufToB64 } from "./encoding.js"
 
 /*
 // registryEntry defines fields that are important to processing a registry
@@ -72,8 +72,8 @@ function taggedRegistryEntryKeys(
 	keypairLen[0] = keypairTag.length
 	datakeyInput.set(seed)
 	datakeyInput.set(keypairLen, seed.length)
-	datakeyInput.set(keypairTag, seed.length+1)
-	datakeyInput.set(datakeyTag, seed.length+1+keypairTag.length)
+	datakeyInput.set(keypairTag, seed.length + 1)
+	datakeyInput.set(datakeyTag, seed.length + 1 + keypairTag.length)
 	let datakeyEntropy = sha512(datakeyInput)
 
 	// Create the private key for the registry entry.
@@ -90,10 +90,10 @@ function taggedRegistryEntryKeys(
 function deriveRegistryEntryID(pubkey: Uint8Array, datakey: Uint8Array): [Uint8Array, string | null] {
 	// Check the lengths of the inputs.
 	if (pubkey.length !== 32) {
-		return [nu8, "pubkey is invalid, length is wrong"];
+		return [nu8, "pubkey is invalid, length is wrong"]
 	}
 	if (datakey.length !== 32) {
-		return [nu8, "datakey is not a valid hash, length is wrong"];
+		return [nu8, "datakey is not a valid hash, length is wrong"]
 	}
 
 	// Establish the encoding. First 16 bytes is a specifier, second 8
@@ -102,39 +102,30 @@ function deriveRegistryEntryID(pubkey: Uint8Array, datakey: Uint8Array): [Uint8A
 	// determined by the Sia protocol.
 	let encoding = new Uint8Array(16 + 8 + 32 + 32)
 	// Set the specifier.
-	encoding[0] = "e".charCodeAt(0);
-	encoding[1] = "d".charCodeAt(0);
-	encoding[2] = "2".charCodeAt(0);
-	encoding[3] = "5".charCodeAt(0);
-	encoding[4] = "5".charCodeAt(0);
-	encoding[5] = "1".charCodeAt(0);
-	encoding[6] = "9".charCodeAt(0);
+	encoding[0] = "e".charCodeAt(0)
+	encoding[1] = "d".charCodeAt(0)
+	encoding[2] = "2".charCodeAt(0)
+	encoding[3] = "5".charCodeAt(0)
+	encoding[4] = "5".charCodeAt(0)
+	encoding[5] = "1".charCodeAt(0)
+	encoding[6] = "9".charCodeAt(0)
 	// Set the pubkey.
-	let encodedLen = encodeNumber(32);
-	encoding.set(encodedLen, 16);
-	encoding.set(pubkey, 16+8);
-	encoding.set(datakey, 16+8+32);
+	let encodedLen = encodeNumber(32)
+	encoding.set(encodedLen, 16)
+	encoding.set(pubkey, 16 + 8)
+	encoding.set(datakey, 16 + 8 + 32)
 
 	// Get the final ID by hashing the encoded data.
-	let id = blake2b(encoding);
-	return [id, null];
+	let id = blake2b(encoding)
+	return [id, null]
 }
 
-/*
-// deriveResolverLink will derive the resolver link from the tags that
-// determine the pubkey and datakey.
-var deriveResolverLink = function(keypairTagStr: string, datakeyTagStr: string): [string, Error] {
-	// Compute the ID of the registry entry for the user's
-	// preferences.
-	let [keypair, datakey, errOREK] = ownRegistryEntryKeys(keypairTagStr, datakeyTagStr)
-	if (errOREK !== null) {
-		return [null, addContextToErr(errOREK, "unable to derive portal pref registry entry")]
+// resolverLink will take a registryEntryID and return the corresponding
+// resolver link.
+function resolverLink(entryID: Uint8Array): [string, string | null] {
+	if (entryID.length !== 32) {
+		return ["", "provided entry ID has the wrong length"]
 	}
-	let [entryID, errDREI] = deriveRegistryEntryID(keypair.publicKey, datakey)
-	if (errDREI !== null) {
-		return [null, addContextToErr(errDREI, "unable to derive portal entry id")]
-	}
-	// Build a v2 skylink from the entryID.
 	let v2Skylink = new Uint8Array(34)
 	v2Skylink.set(entryID, 2)
 	v2Skylink[0] = 1
@@ -142,6 +133,7 @@ var deriveResolverLink = function(keypairTagStr: string, datakeyTagStr: string):
 	return [skylink, null]
 }
 
+/*
 // verifyRegistrySignature will verify the signature of a registry entry.
 var verifyRegistrySignature = function(pubkey: Uint8Array, datakey: Uint8Array, data: Uint8Array, revision: number, sig: Uint8Array): boolean {
 	let [encodedData, errEPB] = encodePrefixedBytes(data);
@@ -425,4 +417,4 @@ var writeNewOwnRegistryEntry = function(keypairTagStr: string, datakeyTagStr: st
 }
 */
 
-export { taggedRegistryEntryKeys, deriveRegistryEntryID }
+export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink }
