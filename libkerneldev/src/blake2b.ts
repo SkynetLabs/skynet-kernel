@@ -1,7 +1,6 @@
-// Blake2B in pure Javascript
-// Adapted from the reference implementation in RFC7693
+// Blake2B, adapted from the reference implementation in RFC7693
 // Ported to Javascript by DC - https://github.com/dcposch
-// Adapted again for the Skynet Kernel browser extension
+// Then ported to typescript by https://github.com/DavidVorick
 
 // 64-bit unsigned addition
 // Sets v[a,a+1] += v[b,b+1]
@@ -134,8 +133,6 @@ function blake2bCompress(ctx: any, last: boolean) {
 	}
 
 	// twelve rounds of mixing
-	// uncomment the DebugPrint calls to log the computation
-	// and match the RFC sample documentation
 	for (i = 0; i < 12; i++) {
 		B2B_G(0, 8, 16, 24, SIGMA82[i * 16 + 0], SIGMA82[i * 16 + 1], m, v)
 		B2B_G(2, 10, 18, 26, SIGMA82[i * 16 + 2], SIGMA82[i * 16 + 3], m, v)
