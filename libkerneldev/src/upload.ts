@@ -74,7 +74,7 @@ function validateSkyfileMetadata(metadata: any): string | null {
 	}
 
 	if ("TryFiles" in metadata) {
-		if (!(metadata.TryFiles.IsArray())) {
+		if (!metadata.TryFiles.IsArray()) {
 			return "metadata.TryFiles must be an array"
 		}
 		if (metadata.TryFiles.length === 0) {
@@ -118,7 +118,7 @@ function skylinkV1Bitfield(dataSize: number): [Uint8Array, string | null] {
 		downloadNumber = Math.floor(dataSize / (1 << 12))
 	} else {
 		let step = 1 << (11 + mode)
-		let target = dataSize - (1 << (14+mode))
+		let target = dataSize - (1 << (14 + mode))
 		downloadNumber = Math.floor(target / step)
 	}
 
@@ -129,38 +129,38 @@ function skylinkV1Bitfield(dataSize: number): [Uint8Array, string | null] {
 		bitfield[0] = downloadNumber
 		bitfield[0] *= 4
 		bitfield[0] += 1
-		bitfield[1] = 4+8+16+32+64+128
+		bitfield[1] = 4 + 8 + 16 + 32 + 64 + 128
 	}
 	if (mode === 6) {
 		// 0 0 0 0 X X X 0|1 1 1 1 1 1 0 0
 		bitfield[0] = downloadNumber
 		bitfield[0] *= 2
-		bitfield[1] = 4+8+16+32+64+128
+		bitfield[1] = 4 + 8 + 16 + 32 + 64 + 128
 	}
 	if (mode === 5) {
 		// 0 0 0 0 0 X X X|0 1 1 1 1 1 0 0
 		bitfield[0] = downloadNumber
-		bitfield[1] = 4+8+16+32+64
+		bitfield[1] = 4 + 8 + 16 + 32 + 64
 	}
 	if (mode === 4) {
 		// 0 0 0 0 0 0 X X|X 0 1 1 1 1 0 0
 		bitfield[0] = downloadNumber
 		bitfield[0] /= 2
 		bitfield[1] = (downloadNumber & 1) * 128
-		bitfield[1] += 4+8+16+32
+		bitfield[1] += 4 + 8 + 16 + 32
 	}
 	if (mode === 3) {
 		// 0 0 0 0 0 0 0 X|X X 0 1 1 1 0 0
 		bitfield[0] = downloadNumber
 		bitfield[0] /= 4
 		bitfield[1] = (downloadNumber & 3) * 64
-		bitfield[1] += 4+8+16
+		bitfield[1] += 4 + 8 + 16
 	}
 	if (mode === 2) {
 		// 0 0 0 0 0 0 0 0|X X X 0 1 1 0 0
 		bitfield[0] = 0
 		bitfield[1] = downloadNumber * 32
-		bitfield[1] += 4+8
+		bitfield[1] += 4 + 8
 	}
 	if (mode === 1) {
 		// 0 0 0 0 0 0 0 0|0 X X X 0 1 0 0
@@ -214,7 +214,7 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 		offset += 1
 		layoutBytes[offset] = 0 // Set the fanout parity pieces
 		offset += 1
-		layoutBytes[offset+7] = 1 // Set the cipher type
+		layoutBytes[offset + 7] = 1 // Set the cipher type
 		offset += 8
 		if (offset + 64 !== 99) {
 			reject("error when building the layout bytes, got wrong final offset")
@@ -232,7 +232,7 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 		baseSector.set(layoutBytes, offset)
 		offset += layoutBytes.length
 		baseSector.set(metadataBytes, offset)
-		offset += metadataBytes.length)
+		offset += metadataBytes.length
 		baseSector.set(fileData, offset)
 
 		// Compute the Skylink of this file.
@@ -268,7 +268,7 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 		header.set(skylink, offset)
 
 		// Build the full request body.
-		let reqBody = new Uint8Array((1 << 22)+92)
+		let reqBody = new Uint8Array((1 << 22) + 92)
 		reqBody.set(header, 0)
 		reqBody.set(baseSector, 92)
 
@@ -279,13 +279,15 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 			body: reqBody,
 		}
 		let portals = defaultPortalList
-		progressiveFetch(endpoint, fetchOpts, portals)
-		.then(resp => {
-			// TODO: verify that the response worked.
-			resolve(skylink)
-		})
-		.catch(err => {
-			reject(err)
+		progressiveFetch(endpoint, fetchOpts, portals).then((result) => {
+			if (!result.success) {
+				reject("could not complete upload\n" + JSON.stringify(result.logs))
+			}
+			result.response.json().then((j) => {
+				resolve(j)
+			})
 		})
 	})
 }
+
+export { upload }
