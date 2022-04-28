@@ -1,4 +1,4 @@
-// Blake2B in pure Javascript
+// Blake2B
 // Adapted from the reference implementation in RFC7693
 // Ported to Javascript by DC - https://github.com/dcposch
 // Adapted again for the Skynet Kernel browser extension

@@ -1,6 +1,6 @@
 // encodeNumber will take a number as input and return a corresponding
 // Uint8Array.
-let encodeNumber = function (num: number): Uint8Array {
+function encodeNumber(num: number): Uint8Array {
 	let encoded = new Uint8Array(8)
 	for (let i = 0; i < encoded.length; i++) {
 		let byte = num & 0xff
@@ -12,13 +12,13 @@ let encodeNumber = function (num: number): Uint8Array {
 
 // bufToHex takes a Uint8Array as input and returns the hex encoding of those
 // bytes as a string.
-let bufToHex = function (buf: Uint8Array): string {
+function bufToHex(buf: Uint8Array): string {
 	return [...buf].map((x) => x.toString(16).padStart(2, "0")).join("")
 }
 
 // bufToB64 will convert a Uint8Array to a base64 string with URL encoding and
 // no padding characters.
-let bufToB64 = function (buf: Uint8Array): string {
+function bufToB64(buf: Uint8Array): string {
 	let b64Str = btoa(String.fromCharCode.apply(null, <number[]>(<unknown>buf)))
 	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 }
