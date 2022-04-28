@@ -135,4 +135,4 @@ function progressiveFetch(endpoint: string, fetchOpts: any, portals: string[]): 
 	})
 }
 
-export { progressiveFetch }
+export { progressiveFetch, progressiveFetchResult }

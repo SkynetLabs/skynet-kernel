@@ -1,6 +1,11 @@
 import { addContextToErr } from "./err.js"
-import { encodeNumber } from "./encoding.js"
+import { encodeNumber, bufToB64 } from "./encoding.js"
 import { blake2bMerkleRoot } from "./merkle.js"
+import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
+import { defaultPortalList } from "./defaultportals.js"
+
+// Helper variables for returning empty values alongside errors.
+const nu8 = new Uint8Array(0)
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
 // file in a skylink.
@@ -38,6 +43,7 @@ function validateSkyfilePath(path: string): string | null {
 			return "path cannot have an empty element, cannot contain //"
 		}
 	}
+	return null
 }
 
 // validateSkyfileMetadata checks whether the provided metadata is valid
@@ -180,7 +186,7 @@ function skylinkV1Bitfield(dataSize: number): [Uint8Array, string | null] {
 // metadata and then return the resulting skylink. Upload is a secure function
 // that computes the skylink of the upload locally, ensuring that the server
 // cannot return a malicious skylink and convince a user to run modified code.
-function upload(fileData: Uin8Array, metadata: any): Promise<string> {
+function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 	return new Promise((resolve, reject) => {
 		// Check that this is a small file.
 		if (fileData.length > 4 * 1000 * 1000) {
@@ -236,15 +242,19 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 		baseSector.set(fileData, offset)
 
 		// Compute the Skylink of this file.
-		let sectorRoot = blake2bMerkleRoot(baseSector)
+		let [sectorRoot, errBMR] = blake2bMerkleRoot(baseSector)
+		if (errBMR !== null) {
+			reject(addContextToErr(errBMR, "unable to create bitfield for skylink"))
+			return
+		}
 		let skylinkBytes = new Uint8Array(34)
 		let [bitfield, errSV1B] = skylinkV1Bitfield(totalSize)
 		if (errSV1B !== null) {
 			reject(addContextToErr(errSV1B, "unable to create bitfield for skylink"))
 			return
 		}
-		skylinkBytes.set(0, bitfield)
-		skylinkBytes.set(2, sectorRoot)
+		skylinkBytes.set(bitfield, 0)
+		skylinkBytes.set(sectorRoot, 2)
 
 		// Build the header for the upload call.
 		let header = new Uint8Array(92)
@@ -265,7 +275,7 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 		offset += 7
 		header.set(skylinkPrefix, offset)
 		offset += 8
-		header.set(skylink, offset)
+		header.set(new TextEncoder().encode(skylink), offset)
 
 		// Build the full request body.
 		let reqBody = new Uint8Array((1 << 22) + 92)
@@ -279,11 +289,11 @@ function upload(fileData: Uin8Array, metadata: any): Promise<string> {
 			body: reqBody,
 		}
 		let portals = defaultPortalList
-		progressiveFetch(endpoint, fetchOpts, portals).then((result) => {
+		progressiveFetch(endpoint, fetchOpts, portals).then((result: progressiveFetchResult) => {
 			if (!result.success) {
 				reject("could not complete upload\n" + JSON.stringify(result.logs))
 			}
-			result.response.json().then((j) => {
+			result.response.json().then((j: any) => {
 				resolve(j)
 			})
 		})

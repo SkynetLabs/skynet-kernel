@@ -1,3 +1,6 @@
+import { addContextToErr } from "./err.js"
+import { blake2b } from "./blake2b.js"
+
 // blake2bProofStack is an abstraction for an in-progress Merkle tree. You need
 // at most one object in memory per height of the tree, otherwise objects can
 // be combined.
@@ -15,10 +18,14 @@ interface blake2bProofStack {
 const nu8 = new Uint8Array(0)
 
 // addSubtreeToBlake2bProofStack will add a subtree to a proof stack.
-function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8Array, subtreeHeight: number): Error {
+function addSubtreeToBlake2bProofStack(
+	ps: blake2bProofStack,
+	subtreeRoot: Uint8Array,
+	subtreeHeight: number
+): string | null {
 	// Input checking.
 	if (subtreeRoot.length !== 32) {
-		return new Error("cannot add subtree because root is wrong length")
+		return "cannot add subtree because root is wrong length"
 	}
 
 	// If the blake2bProofStack has no elements in it yet, add the subtree
@@ -34,9 +41,7 @@ function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8
 	// larger, the subtree cannot be added.
 	let maxHeight = ps.subtreeHeights[ps.subtreeHeights.length - 1]
 	if (subtreeHeight > maxHeight) {
-		return new Error(
-			`cannot add a subtree that is taller ${subtreeHeight} than the smallest ${maxHeight} subtree in the stack`
-		)
+		return `cannot add a subtree that is taller ${subtreeHeight} than the smallest ${maxHeight} subtree in the stack`
 	}
 
 	// If the new subtreeHeight is smaller than the max height, we can just
@@ -50,7 +55,7 @@ function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8
 	// If the new subtree is the same height as the smallest subtree, we
 	// have to pull the smallest subtree out, combine it with the new
 	// subtree, and push the result.
-	let oldSTR = ps.subtreeRoots.pop()
+	let oldSTR = <Uint8Array>ps.subtreeRoots.pop()
 	ps.subtreeHeights.pop() // We already have the height.
 	let combinedRoot = new Uint8Array(65)
 	combinedRoot[0] = 1
@@ -63,7 +68,7 @@ function addSubtreeToBlake2bProofStack(ps: blake2bProofStack, subtreeRoot: Uint8
 // addLeafBytesToBlake2bProofStack will add a leaf to a proof stack.
 function addLeafBytesToBlake2bProofStack(ps: blake2bProofStack, leafBytes: Uint8Array): string | null {
 	if (leafBytes.length !== 64) {
-		return new Error("blake2bProofStack expects leafByte objects to be exactly 64 bytes")
+		return "blake2bProofStack expects leafByte objects to be exactly 64 bytes"
 	}
 	let taggedBytes = new Uint8Array(65)
 	taggedBytes.set(leafBytes, 1)
@@ -81,9 +86,9 @@ function blake2bProofStackRoot(ps: blake2bProofStack): [Uint8Array, string | nul
 
 	// Algorithm is pretty basic, start with the final tree, and then add
 	// it to the previous tree. Repeat until there are no more trees.
-	let baseSubtreeRoot = ps.subtreeRoots.pop()
+	let baseSubtreeRoot = <Uint8Array>ps.subtreeRoots.pop()
 	while (ps.subtreeRoots.length !== 0) {
-		let nextSubtreeRoot = ps.subtreeRoots.pop()
+		let nextSubtreeRoot = <Uint8Array>ps.subtreeRoots.pop()
 		let combinedRoot = new Uint8Array(65)
 		combinedRoot[0] = 1
 		combinedRoot.set(baseSubtreeRoot, 1)
@@ -96,7 +101,7 @@ function blake2bProofStackRoot(ps: blake2bProofStack): [Uint8Array, string | nul
 // nextSubtreeHeight returns the height of the largest subtree that contains
 // 'start', contains no elements prior to 'start', and also does not contain
 // 'end'.
-function nextSubtreeHeight(start: number, end: number): [number, number, Error] {
+function nextSubtreeHeight(start: number, end: number): [number, number, string | null] {
 	// Input checking. We don't want start or end to be larger than 2^52
 	// because they start to lose precision.
 	let largestAllowed = 4500000000000000
@@ -104,13 +109,11 @@ function nextSubtreeHeight(start: number, end: number): [number, number, Error] 
 		return [
 			0,
 			0,
-			new Error(
-				`this library cannot work with Merkle trees that large (expected ${largestAllowed}, got ${start} and ${end}`
-			),
+			`this library cannot work with Merkle trees that large (expected ${largestAllowed}, got ${start} and ${end}`,
 		]
 	}
 	if (end <= start) {
-		return [0, 0, new Error(`end (${end}) must be strictly larger than start (${start})`)]
+		return [0, 0, `end (${end}) must be strictly larger than start (${start})`]
 	}
 
 	// Merkle trees have a nice mathematical property that the largest tree
@@ -163,28 +166,28 @@ function blake2bVerifySectorRangeProof(
 	rangeStart: number,
 	rangeEnd: number,
 	proof: Uint8Array
-): Error {
+): string | null {
 	// Verify the inputs.
 	if (root.length !== 32) {
-		return new Error("provided root is not a blake2b sector root")
+		return "provided root is not a blake2b sector root"
 	}
 	if (rangeEnd <= rangeStart) {
-		return new Error("provided has no data")
+		return "provided has no data"
 	}
 	if (rangeStart < 0) {
-		return new Error("cannot use negative ranges")
+		return "cannot use negative ranges"
 	}
 	if (rangeEnd > 4194304) {
-		return new Error("range is out of bounds")
+		return "range is out of bounds"
 	}
 	if (proof.length % 32 !== 0) {
-		return new Error("merkle proof has invalid length")
+		return "merkle proof has invalid length"
 	}
 	if (data.length !== rangeEnd - rangeStart) {
-		return new Error("data length does not match provided range")
+		return "data length does not match provided range"
 	}
 	if (data.length % 64 !== 0) {
-		return new Error("data must have a multiple of 64 bytes")
+		return "data must have a multiple of 64 bytes"
 	}
 
 	// We will consume proof elements until we get to the rangeStart of the
@@ -197,7 +200,7 @@ function blake2bVerifySectorRangeProof(
 	let proofOffset = 0
 	while (currentOffset < rangeStart) {
 		if (proof.length < proofOffset + 32) {
-			return new Error("merkle proof has insufficient data")
+			return "merkle proof has insufficient data"
 		}
 		let [height, size, errNST] = nextSubtreeHeight(currentOffset / 64, rangeStart / 64)
 		if (errNST !== null) {
@@ -228,7 +231,7 @@ function blake2bVerifySectorRangeProof(
 	let sectorEnd = 4194304
 	while (currentOffset < sectorEnd) {
 		if (proof.length < proofOffset + 32) {
-			return new Error("merkle proof has insufficient data")
+			return "merkle proof has insufficient data"
 		}
 		let [height, size, errNST] = nextSubtreeHeight(currentOffset / 64, sectorEnd / 64)
 		if (errNST !== null) {
