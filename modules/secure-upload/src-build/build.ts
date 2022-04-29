@@ -9,8 +9,12 @@ import {
 	taggedRegistryEntryKeys,
 	deriveRegistryEntryID,
 	resolverLink,
+	upload,
 } from "libkerneldev"
 import read from "read"
+
+// Helper variables to make it easier to return empty values alongside errors.
+let nu8 = new Uint8Array(0)
 
 // Add a newline for readability.
 console.log()
@@ -58,6 +62,17 @@ function readFile(fileName: string): [string, string | null] {
 		return [data, null]
 	} catch (err) {
 		return ["", "unable to read file: " + JSON.stringify(err)]
+	}
+}
+
+// readFileBinary is a wrapper for fs.readFileSync that handles the try-catch
+// for the caller.
+function readFileBinary(fileName: string): [Uint8Array, string | null] {
+	try {
+		let data = fs.readFileSync(fileName, null)
+		return [data, null]
+	} catch (err) {
+		return [nu8, "unable to read file: " + JSON.stringify(err)]
 	}
 }
 
@@ -228,7 +243,23 @@ function handlePassConfirm(password: string | null) {
 		}
 	}
 
-	// TODO: Upload the dist file
+	// Upload the module to Skynet.
+	let [distFile, errRF] = readFileBinary("dist/index.js")
+	if (errRF !== null) {
+		console.error("unable to read dist file for module")
+		process.exit(1)
+	}
+	let metadata = {
+		Filename: "index.js",
+	}
+	upload(distFile, metadata)
+	.then(result => {
+		console.log(result)
+	})
+	.catch(err => {
+		console.error("unable to upload file", err)
+		process.exit(1)
+	})
 
 	// TODO: Update the v2 skylink
 }

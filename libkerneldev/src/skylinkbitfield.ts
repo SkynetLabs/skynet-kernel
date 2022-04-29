@@ -31,7 +31,7 @@ function parseSkylinkBitfield(skylink: Uint8Array): [number, number, number, str
 
 	// Verify that the mode is valid, then fetch the mode.
 	bitfield = bitfield >> 2
-	if ((bitfield&255) === 255) {
+	if ((bitfield & 255) === 255) {
 		return [0, 0, 0, "provided skylink has an unrecognized version"]
 	}
 	let mode = 0
@@ -53,14 +53,14 @@ function parseSkylinkBitfield(skylink: Uint8Array): [number, number, number, str
 	let fetchSizeIncrement = 4096
 	let fetchSizeStart = 0
 	if (mode > 0) {
-		fetchSizeIncrement = fetchSizeIncrement << mode-1
-		fetchSizeStart = (1 << 15) << mode-1
+		fetchSizeIncrement = fetchSizeIncrement << (mode - 1)
+		fetchSizeStart = (1 << 15) << (mode - 1)
 	}
 
 	// The next three bits decide the fetchSize.
 	let fetchSizeBits = bitfield & 7
 	fetchSizeBits++ // semantic upstep, range should be [1,8] not [0,8).
-	let fetchSize = (fetchSizeBits * fetchSizeIncrement) + fetchSizeStart
+	let fetchSize = fetchSizeBits * fetchSizeIncrement + fetchSizeStart
 	bitfield = bitfield >> 3
 
 	// The remaining bits determine the offset.
@@ -92,13 +92,13 @@ function skylinkV1Bitfield(dataSize: number): [Uint8Array, string | null] {
 	let downloadNumber = 0
 	if (mode === 0) {
 		if (dataSize !== 0) {
-			downloadNumber = Math.floor((dataSize-1) / (1 << 12))
+			downloadNumber = Math.floor((dataSize - 1) / (1 << 12))
 		}
 	} else {
 		let step = 1 << (11 + mode)
 		let target = dataSize - (1 << (14 + mode))
 		if (target !== 0) {
-			downloadNumber = Math.floor((target-1) / step)
+			downloadNumber = Math.floor((target - 1) / step)
 		}
 	}
 

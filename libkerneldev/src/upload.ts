@@ -5,9 +5,6 @@ import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
 import { defaultPortalList } from "./defaultportals.js"
 import { skylinkV1Bitfield } from "./skylinkbitfield.js"
 
-// Helper variables for returning empty values alongside errors.
-const nu8 = new Uint8Array(0)
-
 // validateSkyfilePath checks whether the provided path is a valid path for a
 // file in a skylink.
 function validateSkyfilePath(path: string): string | null {

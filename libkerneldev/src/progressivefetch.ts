@@ -1,3 +1,5 @@
+import fetch from "node-fetch"
+
 // progressiveFetchResult lists the items that are returned after calling
 // progressiveFetch. The 'portal' field indicates the portal that returned the
 // provided response. 'responsesFailed' contains any responses from portals
@@ -53,7 +55,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
 
 	// Try sending the query to the portal.
 	fetch(query, pfm.fetchOpts)
-		.then((response) => {
+		.then((response: any) => {
 			// Check for a 5XX error.
 			if (!("status" in response) || typeof response.status !== "number") {
 				let newLog = "portal has returned invalid response\n" + JSON.stringify({ portal, query, response })
@@ -83,7 +85,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
 				logs: pfm.logs,
 			})
 		})
-		.catch((err) => {
+		.catch((err: any) => {
 			// This portal failed, try again with the next portal.
 			let newLog = "fetch returned an error" + JSON.stringify(err)
 			pfm.logs.push(newLog)
