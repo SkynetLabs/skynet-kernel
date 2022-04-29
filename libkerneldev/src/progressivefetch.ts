@@ -77,7 +77,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 			// Check the result against the verify function.
 			verifyFunction(response.clone()).then((errVF: string | null) => {
 				if (errVF !== null) {
-					let newLog = "verify function has returned an error: " + errVF
+					let newLog = "verify function has returned an error from portal "+portal+" - " + errVF
 					pfm.logs.push(newLog)
 					pfm.portalsFailed.push(portal)
 					pfm.responsesFailed.push(response)
