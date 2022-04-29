@@ -3,6 +3,7 @@ import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify }
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
 import { bufToHex } from "../src/encoding.js"
+import { validateSkyfilePath } from "../src/upload.js"
 
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
@@ -203,9 +204,32 @@ function TestRegistry(t: any) {
 	t.log("example resolver link:", rl)
 }
 
+// TestValidateSkyfilePath runs basic testing for the skyfile path validator.
+function TestValidateSkyfilePath(t: any) {
+	let paths = [
+		{ path: "test", expect: true },
+		{ path: "test/subpath", expect: true },
+		{ path: "", expect: false },
+		{ path: ".", expect: false },
+		{ path: "a//b", expect: false },
+		{ path: "a/./b", expect: false },
+		{ path: "a/../b", expect: false },
+	]
+	for (let i = 0; i < paths.length; i++) {
+		let err = validateSkyfilePath(paths[i].path)
+		if (err !== null && paths[i].expect === true) {
+			t.fail("expected path to succeed validation: ", paths[i].path)
+		}
+		if (err === null && paths[i].expect === false) {
+			t.fail("expected path to fail validation: ", paths[i].path)
+		}
+	}
+}
+
 runTest(TestGenerateSeedPhrase)
 runTest(TestEd25519)
 runTest(TestRegistry)
+runTest(TestValidateSkyfilePath)
 
 console.log()
 if (failed) {
