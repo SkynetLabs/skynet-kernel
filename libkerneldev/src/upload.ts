@@ -205,12 +205,23 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 			body: reqBody,
 		}
 		let portals = defaultPortalList
-		progressiveFetch(endpoint, fetchOpts, portals).then((result: progressiveFetchResult) => {
-			if (!result.success) {
-				reject("could not complete upload\n" + JSON.stringify(result.logs))
-			}
-			result.response.json().then((j: any) => {
-				resolve(j)
+		// Establish the function that verifies the result is correct.
+		let verifyFunction = function (response: Response): Promise<string | null> {
+			return new Promise((resolve) => {
+				response.json().then((j) => {
+					if (!("skylink" in j)) {
+						resolve("response is missing the skylink field\n" + JSON.stringify(j))
+					}
+					if (j.skylink !== skylink) {
+						resolve("wrong skylink was returned, expecting " + skylink + " but got " + j.skylink)
+					}
+					resolve(null)
+				})
+			})
+		}
+		progressiveFetch(endpoint, fetchOpts, portals, verifyFunction).then((result: progressiveFetchResult) => {
+			result.response.json().then((j) => {
+				resolve(j.skylink)
 			})
 		})
 	})

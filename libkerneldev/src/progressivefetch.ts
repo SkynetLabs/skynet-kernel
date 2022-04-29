@@ -32,7 +32,7 @@ interface progressiveFetchMidstate {
 // progressiveFetchHelper is the full progressiveFetch function, split out into
 // a helper because the inptus/api is more complicated but only necessary for
 // internal use.
-function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
+function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, verifyFunction: any) {
 	// If we run out of portals, return an error.
 	if (pfm.remainingPortals.length === 0) {
 		let newLog = "query failed because all portals have been tried\n" + JSON.stringify(pfm)
@@ -62,7 +62,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
 				pfm.logs.push(newLog)
 				pfm.portalsFailed.push(portal)
 				pfm.responsesFailed.push(response)
-				progressiveFetchHelper(pfm, resolve)
+				progressiveFetchHelper(pfm, resolve, verifyFunction)
 				return
 			}
 			if (response.status < 200 || response.status >= 300) {
@@ -70,19 +70,31 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
 				pfm.logs.push(newLog)
 				pfm.portalsFailed.push(portal)
 				pfm.responsesFailed.push(response)
-				progressiveFetchHelper(pfm, resolve)
+				progressiveFetchHelper(pfm, resolve, verifyFunction)
 				return
 			}
 
-			// Success! Return the response.
-			resolve({
-				success: true,
-				portal,
-				response,
-				portalsFailed: pfm.portalsFailed,
-				responsesFailed: pfm.responsesFailed,
-				remainingPortals: pfm.remainingPortals,
-				logs: pfm.logs,
+			// Check the result against the verify function.
+			verifyFunction(response.clone()).then((errVF: string | null) => {
+				if (errVF !== null) {
+					let newLog = "verify function has returned an error: " + errVF
+					pfm.logs.push(newLog)
+					pfm.portalsFailed.push(portal)
+					pfm.responsesFailed.push(response)
+					progressiveFetchHelper(pfm, resolve, verifyFunction)
+					return
+				}
+
+				// Success! Return the response.
+				resolve({
+					success: true,
+					portal,
+					response,
+					portalsFailed: pfm.portalsFailed,
+					responsesFailed: pfm.responsesFailed,
+					remainingPortals: pfm.remainingPortals,
+					logs: pfm.logs,
+				})
 			})
 		})
 		.catch((err: any) => {
@@ -91,7 +103,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
 			pfm.logs.push(newLog)
 			pfm.portalsFailed.push(portal)
 			pfm.responsesFailed.push(err)
-			progressiveFetchHelper(pfm, resolve)
+			progressiveFetchHelper(pfm, resolve, verifyFunction)
 			return
 		})
 }
@@ -123,7 +135,15 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any) {
 // portal, and we can't give a rogue portal the opportunity to interrupt our
 // user experience simply by returning a dishonest 404. So we need to keep
 // querying more portals and gain confidence that the 404 a truthful response.
-function progressiveFetch(endpoint: string, fetchOpts: any, portals: string[]): Promise<progressiveFetchResult> {
+//
+// TODO: Would be great if 'verifyFunction' could check the function signature
+// of the function being passed in, I don't know how to do this.
+function progressiveFetch(
+	endpoint: string,
+	fetchOpts: any,
+	portals: string[],
+	verifyFunction: any
+): Promise<progressiveFetchResult> {
 	return new Promise((resolve) => {
 		let pfm = {
 			endpoint,
@@ -133,7 +153,7 @@ function progressiveFetch(endpoint: string, fetchOpts: any, portals: string[]): 
 			responsesFailed: [],
 			logs: [],
 		}
-		progressiveFetchHelper(pfm, resolve)
+		progressiveFetchHelper(pfm, resolve, verifyFunction)
 	})
 }
 
