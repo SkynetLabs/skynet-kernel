@@ -3,6 +3,7 @@ import { encodeNumber, bufToB64 } from "./encoding.js"
 import { blake2bMerkleRoot } from "./merkle.js"
 import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
 import { defaultPortalList } from "./defaultportals.js"
+import { skylinkV1Bitfield } from "./skylinkbitfield.js"
 
 // Helper variables for returning empty values alongside errors.
 const nu8 = new Uint8Array(0)
@@ -24,9 +25,6 @@ function validateSkyfilePath(path: string): string | null {
 	}
 	if (path.startsWith("../")) {
 		return "metdata.Filename cannot start with ../"
-	}
-	if (path.startsWith("./")) {
-		return "metdata.Filename cannot start with ./"
 	}
 	if (path.startsWith("./")) {
 		return "metdata.Filename cannot start with ./"
@@ -101,85 +99,6 @@ function validateSkyfileMetadata(metadata: any): string | null {
 	}
 
 	return null
-}
-
-// skylinkV1Bitfield sets the bitfield of a V1 skylink. It assumes the version
-// is 1 and the offset is 0. It will determine the appropriate fetchSize from
-// the provided dataSize.
-function skylinkV1Bitfield(dataSize: number): [Uint8Array, string | null] {
-	// Check that the dataSize is not too large.
-	if (dataSize > 1 << 22) {
-		return [nu8, "dataSize must be less than the sector size"]
-	}
-
-	// Determine the mode for the file. The mode is determined by the
-	// dataSize.
-	let mode = 0
-	for (let i = 1 << 15; i < dataSize; i *= 2) {
-		mode += 1
-	}
-	// Determine the download number.
-	let downloadNumber = 0
-	if (mode === 0) {
-		downloadNumber = Math.floor(dataSize / (1 << 12))
-	} else {
-		let step = 1 << (11 + mode)
-		let target = dataSize - (1 << (14 + mode))
-		downloadNumber = Math.floor(target / step)
-	}
-
-	// Create the Uint8Array and fill it out.
-	let bitfield = new Uint8Array(2)
-	if (mode === 7) {
-		// 0 0 0 X X X 0 1|1 1 1 1 1 1 0 0
-		bitfield[0] = downloadNumber
-		bitfield[0] *= 4
-		bitfield[0] += 1
-		bitfield[1] = 4 + 8 + 16 + 32 + 64 + 128
-	}
-	if (mode === 6) {
-		// 0 0 0 0 X X X 0|1 1 1 1 1 1 0 0
-		bitfield[0] = downloadNumber
-		bitfield[0] *= 2
-		bitfield[1] = 4 + 8 + 16 + 32 + 64 + 128
-	}
-	if (mode === 5) {
-		// 0 0 0 0 0 X X X|0 1 1 1 1 1 0 0
-		bitfield[0] = downloadNumber
-		bitfield[1] = 4 + 8 + 16 + 32 + 64
-	}
-	if (mode === 4) {
-		// 0 0 0 0 0 0 X X|X 0 1 1 1 1 0 0
-		bitfield[0] = downloadNumber
-		bitfield[0] /= 2
-		bitfield[1] = (downloadNumber & 1) * 128
-		bitfield[1] += 4 + 8 + 16 + 32
-	}
-	if (mode === 3) {
-		// 0 0 0 0 0 0 0 X|X X 0 1 1 1 0 0
-		bitfield[0] = downloadNumber
-		bitfield[0] /= 4
-		bitfield[1] = (downloadNumber & 3) * 64
-		bitfield[1] += 4 + 8 + 16
-	}
-	if (mode === 2) {
-		// 0 0 0 0 0 0 0 0|X X X 0 1 1 0 0
-		bitfield[0] = 0
-		bitfield[1] = downloadNumber * 32
-		bitfield[1] += 4 + 8
-	}
-	if (mode === 1) {
-		// 0 0 0 0 0 0 0 0|0 X X X 0 1 0 0
-		bitfield[0] = 0
-		bitfield[1] = downloadNumber * 16
-		bitfield[1] += 4
-	}
-	if (mode === 0) {
-		// 0 0 0 0 0 0 0 0|0 0 X X X 0 0 0
-		bitfield[0] = 0
-		bitfield[1] = downloadNumber * 8
-	}
-	return [bitfield, null]
 }
 
 // upload will upload the provided fileData to Skynet using the provided
