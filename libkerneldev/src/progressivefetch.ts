@@ -81,11 +81,11 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 		.then((response: any) => {
 			// Check for a 5XX error.
 			if (!("status" in response) || typeof response.status !== "number") {
-				nextPortal(response, "portal has returned invalid response\n" + JSON.stringify({ portal, query, response }))
+				nextPortal(response, "portal has returned invalid response\n" + JSON.stringify({ portal, query }))
 				return
 			}
 			if (response.status < 200 || response.status >= 300) {
-				nextPortal(response, "portal has returned error status\n" + JSON.stringify({ portal, query, response }))
+				nextPortal(response, "portal has returned error status\n" + JSON.stringify({ portal, query }))
 				return
 			}
 

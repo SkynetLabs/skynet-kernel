@@ -1,7 +1,7 @@
 import { blake2b } from "./blake2b.js"
 import { defaultPortalList } from "./defaultportals.js"
 import { ed25519Keypair, ed25519Sign } from "./ed25519.js"
-import { encodeNumber, encodePrefixedBytes } from "./encoding.js"
+import { encodePrefixedBytes, encodeU64 } from "./encoding.js"
 import { bufToHex } from "./encoding.js"
 import { addContextToErr } from "./err.js"
 import { readRegistryEntry } from "./registryread.js"
@@ -48,13 +48,17 @@ function overwriteRegistryEntry(keypair: ed25519Keypair, datakey: Uint8Array, da
 		// return type.
 		readRegistryEntry(keypair.publicKey, datakey)
 			.then((result) => {
-				let revisionNumber: number
+				let revisionNumber: bigint
 				if (!result.exists) {
-					revisionNumber = 0
+					revisionNumber = 0n
 				} else {
-					revisionNumber = result.revision + 1
+					revisionNumber = result.revision + 1n
 				}
-				let encodedRevision = encodeNumber(revisionNumber)
+				let [encodedRevision, errU64] = encodeU64(revisionNumber)
+				if (errU64 !== null) {
+					reject(addContextToErr(errU64, "unable to encode revision number"))
+					return
+				}
 				// Compute the signature of the new registry entry.
 				let datakeyHex = bufToHex(datakey)
 				let [encodedData, errEPB] = encodePrefixedBytes(data)
@@ -80,7 +84,7 @@ function overwriteRegistryEntry(keypair: ed25519Keypair, datakey: Uint8Array, da
 						key: Array.from(keypair.publicKey),
 					},
 					datakey: datakeyHex,
-					revision: revisionNumber,
+					revision: Number(revisionNumber),
 					data: Array.from(data),
 					signature: Array.from(sig),
 				}

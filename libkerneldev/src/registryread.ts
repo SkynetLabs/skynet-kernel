@@ -1,7 +1,7 @@
 import { blake2b } from "./blake2b.js"
 import { defaultPortalList } from "./defaultportals.js"
 import { ed25519Verify } from "./ed25519.js"
-import { bufToHex, encodeNumber, encodePrefixedBytes, hexToBuf } from "./encoding.js"
+import { bufToHex, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js"
 import { addContextToErr } from "./err.js"
 import { progressiveFetch } from "./progressivefetch.js"
 
@@ -10,7 +10,7 @@ import { progressiveFetch } from "./progressivefetch.js"
 interface readRegistryEntryResult {
 	exists: boolean
 	data: Uint8Array
-	revision: number
+	revision: bigint
 }
 
 // Some helper consts to make returning empty values alongside an error easier.
@@ -21,14 +21,17 @@ function verifyRegistrySignature(
 	pubkey: Uint8Array,
 	datakey: Uint8Array,
 	data: Uint8Array,
-	revision: number,
+	revision: bigint,
 	sig: Uint8Array
 ): boolean {
 	let [encodedData, errEPB] = encodePrefixedBytes(data)
 	if (errEPB !== null) {
 		return false
 	}
-	let encodedRevision = encodeNumber(revision)
+	let [encodedRevision, errU64] = encodeU64(revision)
+	if (errU64 !== null) {
+		return false
+	}
 	let dataToVerify = new Uint8Array(32 + 8 + data.length + 8)
 	dataToVerify.set(datakey, 0)
 	dataToVerify.set(encodedData, 32)
@@ -63,7 +66,7 @@ function verifyRegReadResp(response: Response, result: any, pubkey: Uint8Array, 
 	) {
 		return "portal response has an invalid format"
 	}
-	let revision = <number>result.revision
+	let revision = BigInt(result.revision)
 
 	// Attempt to decode the hex values of the results.
 	let [data, err1] = hexToBuf(result.data)
@@ -141,7 +144,7 @@ function readRegistryEntry(pubkey: Uint8Array, datakey: Uint8Array): Promise<rea
 						resolve({
 							exists: true,
 							data: j.data,
-							revision: j.revision,
+							revision: BigInt(j.revision),
 						})
 					})
 					.catch((err: any) => {
@@ -156,7 +159,7 @@ function readRegistryEntry(pubkey: Uint8Array, datakey: Uint8Array): Promise<rea
 					resolve({
 						exists: false,
 						data: nu8,
-						revision: 0,
+						revision: 0n,
 					})
 					return
 				}

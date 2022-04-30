@@ -1,5 +1,5 @@
 import { defaultPortalList } from "./defaultportals.js"
-import { bufToB64, encodeNumber } from "./encoding.js"
+import { bufToB64, encodeU64 } from "./encoding.js"
 import { addContextToErr } from "./err.js"
 import { blake2bMerkleRoot } from "./merkle.js"
 import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
@@ -123,13 +123,25 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 		let offset = 0
 		layoutBytes[offset] = 1 // Set the Version
 		offset += 1
-		let filesizeBytes = encodeNumber(fileData.length)
+		let [filesizeBytes, errU641] = encodeU64(BigInt(fileData.length))
+		if (errU641 !== null) {
+			reject(addContextToErr(errU641, "unable to encode fileData length"))
+			return
+		}
 		layoutBytes.set(filesizeBytes, offset)
 		offset += 8
-		let mdSizeBytes = encodeNumber(metadataBytes.length)
+		let [mdSizeBytes, errU642] = encodeU64(BigInt(metadataBytes.length))
+		if (errU642 !== null) {
+			reject(addContextToErr(errU642, "unable to encode metadata bytes length"))
+			return
+		}
 		layoutBytes.set(mdSizeBytes, offset)
 		offset += 8
-		let fanoutSizeBytes = encodeNumber(0)
+		let [fanoutSizeBytes, errU643] = encodeU64(0n)
+		if (errU643 !== null) {
+			reject(addContextToErr(errU643, "unable to encode fanout bytes length"))
+			return
+		}
 		layoutBytes.set(fanoutSizeBytes, offset)
 		offset += 8
 		layoutBytes[offset] = 0 // Set the fanout data pieces
@@ -174,11 +186,23 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 
 		// Build the header for the upload call.
 		let header = new Uint8Array(92)
-		let headerMetadataPrefix = encodeNumber(15)
+		let [headerMetadataPrefix, errU644] = encodeU64(15n)
+		if (errU644 !== null) {
+			reject(addContextToErr(errU644, "unable to encode header metadata length"))
+			return
+		}
 		let headerMetadata = new TextEncoder().encode("Skyfile Backup\n")
-		let versionPrefix = encodeNumber(7)
+		let [versionPrefix, errU645] = encodeU64(7n)
+		if (errU645 !== null) {
+			reject(addContextToErr(errU645, "unable to encode version prefix length"))
+			return
+		}
 		let version = new TextEncoder().encode("v1.5.5\n")
-		let skylinkPrefix = encodeNumber(46)
+		let [skylinkPrefix, errU646] = encodeU64(46n)
+		if (errU646 !== null) {
+			reject(addContextToErr(errU646, "unable to encode skylink length"))
+			return
+		}
 		let skylink = bufToB64(skylinkBytes)
 		offset = 0
 		header.set(headerMetadataPrefix, offset)

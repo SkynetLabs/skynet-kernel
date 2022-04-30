@@ -1,9 +1,9 @@
+import { blake2b } from "./blake2b.js"
+import { bufToB64, encodeU64 } from "./encoding.js"
+import { addContextToErr } from "./err.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
-import { blake2b } from "./blake2b.js"
 import { sha512 } from "./sha512.js"
-import { addContextToErr } from "./err.js"
-import { encodeNumber, bufToB64 } from "./encoding.js"
 
 // Define some empty values to make our return statements more concise.
 const nu8 = new Uint8Array(0)
@@ -94,7 +94,10 @@ function deriveRegistryEntryID(pubkey: Uint8Array, datakey: Uint8Array): [Uint8A
 	encoding[5] = "1".charCodeAt(0)
 	encoding[6] = "9".charCodeAt(0)
 	// Set the pubkey.
-	let encodedLen = encodeNumber(32)
+	let [encodedLen, errU64] = encodeU64(32n)
+	if (errU64 !== null) {
+		return [nu8, addContextToErr(errU64, "unable to encode pubkey length")]
+	}
 	encoding.set(encodedLen, 16)
 	encoding.set(pubkey, 16 + 8)
 	encoding.set(datakey, 16 + 8 + 32)

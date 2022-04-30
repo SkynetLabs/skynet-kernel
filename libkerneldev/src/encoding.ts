@@ -37,22 +37,10 @@ function bufToB64(buf: Uint8Array): string {
 	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 }
 
-// encodeNumber will take a number as input and return a corresponding
-// Uint8Array.
-function encodeNumber(num: number): Uint8Array {
-	let encoded = new Uint8Array(8)
-	for (let i = 0; i < encoded.length; i++) {
-		let byte = num & 0xff
-		encoded[i] = byte
-		num = num >> 8
-	}
-	return encoded
-}
-
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
 // that has the length prefixed as an 8 byte prefix. The input can be at most 4
 // GiB.
-let encodePrefixedBytes = function (bytes: Uint8Array): [Uint8Array, string | null] {
+function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, string | null] {
 	let len = bytes.length
 	if (len > 4294968295) {
 		return [nu8, "input is too large to be encoded"]
@@ -65,9 +53,30 @@ let encodePrefixedBytes = function (bytes: Uint8Array): [Uint8Array, string | nu
 	return [uint8Bytes, null]
 }
 
+// encodeU64 will encode a bigint in the range of a uint64 to an 8 byte
+// Uint8Array.
+function encodeU64(num: bigint): [Uint8Array, string | null] {
+	// Check the bounds on the bigint.
+	if (num < 0) {
+		return [nu8, "expected a positive integer"]
+	}
+	if (num > 18446744073709551615n) {
+		return [nu8, "expected a number no larger than a uint64"]
+	}
+
+	// Encode the bigint into a Uint8Array.
+	let encoded = new Uint8Array(8)
+	for (let i = 0; i < encoded.length; i++) {
+		let byte = Number(num & 0xffn)
+		encoded[i] = byte
+		num = num >> 8n
+	}
+	return [encoded, null]
+}
+
 // hexToBuf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
-let hexToBuf = function (hex: string): [Uint8Array, string | null] {
+function hexToBuf(hex: string): [Uint8Array, string | null] {
 	// Check that the length makes sense.
 	if (hex.length % 2 != 0) {
 		return [nu8, "input has incorrect length"]
@@ -114,4 +123,4 @@ var decodeNumber = function(buf: Uint8Array): [number, Error] {
 }
 */
 
-export { b64ToBuf, bufToHex, bufToB64, encodeNumber, encodePrefixedBytes, hexToBuf }
+export { b64ToBuf, bufToHex, bufToB64, encodePrefixedBytes, encodeU64, hexToBuf }
