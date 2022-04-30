@@ -6,12 +6,14 @@ import {
 	b64ToBuf,
 	deriveRegistryEntryID,
 	generateSeedPhrase,
-	overwriteRegistryEntry,
 	resolverLink,
 	sha512,
 	taggedRegistryEntryKeys,
-	upload,
 	validSeedPhrase,
+} from "libkernel"
+import {
+	overwriteRegistryEntry,
+	upload,
 } from "libkerneldev"
 import read from "read"
 
