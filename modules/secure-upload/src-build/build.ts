@@ -38,7 +38,7 @@ if (!fs.existsSync("build")) {
 // Determine the seed file.
 let seedFile: string
 if (process.argv[2] === "prod") {
-	seedFile = "build/module-skylink"
+	seedFile = "module-skylink"
 } else if (process.argv[2] === "dev") {
 	seedFile = "build/dev-seed"
 } else {
