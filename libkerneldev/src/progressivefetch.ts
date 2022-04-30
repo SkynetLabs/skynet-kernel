@@ -13,7 +13,8 @@ interface progressiveFetchResult {
 	portal: string
 	response: Response
 	portalsFailed: string[]
-	responsesFailed: Response[]
+	responsesFailed: Response[] // Can also be null
+	messagesFailed: string[]
 	remainingPortals: string[]
 	logs: string[]
 }
@@ -24,8 +25,9 @@ interface progressiveFetchMidstate {
 	endpoint: string
 	fetchOpts: any
 	portalsFailed: string[]
-	responsesFailed: Response[]
+	responsesFailed: Response[] // Can also be null
 	remainingPortals: string[]
+	messagesFailed: string[]
 	logs: string[]
 }
 
@@ -53,35 +55,44 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 	let portal = <string>pfm.remainingPortals.shift()
 	let query = "https://" + portal + pfm.endpoint
 
+	// Create a helper function for trying the next portal.
+	let nextPortal = function (response: Response | null, log: string) {
+		if (response !== null) {
+			response
+				.clone()
+				.text()
+				.then((t) => {
+					pfm.logs.push(log)
+					pfm.portalsFailed.push(portal)
+					pfm.responsesFailed.push(response)
+					pfm.messagesFailed.push(t)
+					progressiveFetchHelper(pfm, resolve, verifyFunction)
+				})
+		} else {
+			pfm.logs.push(log)
+			pfm.portalsFailed.push(portal)
+			pfm.responsesFailed.push(response as any)
+			pfm.messagesFailed.push("")
+			progressiveFetchHelper(pfm, resolve, verifyFunction)
+		}
+	}
 	// Try sending the query to the portal.
 	fetch(query, pfm.fetchOpts)
 		.then((response: any) => {
 			// Check for a 5XX error.
 			if (!("status" in response) || typeof response.status !== "number") {
-				let newLog = "portal has returned invalid response\n" + JSON.stringify({ portal, query, response })
-				pfm.logs.push(newLog)
-				pfm.portalsFailed.push(portal)
-				pfm.responsesFailed.push(response)
-				progressiveFetchHelper(pfm, resolve, verifyFunction)
+				nextPortal(response, "portal has returned invalid response\n" + JSON.stringify({ portal, query, response }))
 				return
 			}
 			if (response.status < 200 || response.status >= 300) {
-				let newLog = "portal has returned error status\n" + JSON.stringify({ portal, query, response })
-				pfm.logs.push(newLog)
-				pfm.portalsFailed.push(portal)
-				pfm.responsesFailed.push(response)
-				progressiveFetchHelper(pfm, resolve, verifyFunction)
+				nextPortal(response, "portal has returned error status\n" + JSON.stringify({ portal, query, response }))
 				return
 			}
 
 			// Check the result against the verify function.
 			verifyFunction(response.clone()).then((errVF: string | null) => {
 				if (errVF !== null) {
-					let newLog = "verify function has returned an error from portal " + portal + " - " + errVF
-					pfm.logs.push(newLog)
-					pfm.portalsFailed.push(portal)
-					pfm.responsesFailed.push(response)
-					progressiveFetchHelper(pfm, resolve, verifyFunction)
+					nextPortal(response, "verify function has returned an error from portal " + portal + " - " + errVF)
 					return
 				}
 
@@ -93,17 +104,14 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 					portalsFailed: pfm.portalsFailed,
 					responsesFailed: pfm.responsesFailed,
 					remainingPortals: pfm.remainingPortals,
+					messagesFailed: pfm.messagesFailed,
 					logs: pfm.logs,
 				})
 			})
 		})
 		.catch((err: any) => {
 			// This portal failed, try again with the next portal.
-			let newLog = "fetch returned an error\n" + JSON.stringify(err) + JSON.stringify(pfm.fetchOpts)
-			pfm.logs.push(newLog)
-			pfm.portalsFailed.push(portal)
-			pfm.responsesFailed.push(err)
-			progressiveFetchHelper(pfm, resolve, verifyFunction)
+			nextPortal(null, "fetch returned an error\n" + JSON.stringify(err) + JSON.stringify(pfm.fetchOpts))
 			return
 		})
 }
@@ -152,6 +160,7 @@ function progressiveFetch(
 			remainingPortals: portalsCopy,
 			portalsFailed: [],
 			responsesFailed: [],
+			messagesFailed: [],
 			logs: [],
 		}
 		progressiveFetchHelper(pfm, resolve, verifyFunction)
