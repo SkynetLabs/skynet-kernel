@@ -1,2 +1,8 @@
-export {init, newKernelQuery} from './init'
-export {testMessage, callModule, upload, padAndEncrypt} from './messages'
+export { blake2b } from "./blake2b.js"
+export { b64ToBuf } from "./encoding.js"
+export { addContextToErr } from "./err.js"
+export { init, newKernelQuery } from "./init"
+export { testMessage, callModule, upload, padAndEncrypt } from "./messages"
+export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "./registry.js"
+export { generateSeedPhrase, validSeedPhrase } from "./seed.js"
+export { sha512 } from "./sha512.js"

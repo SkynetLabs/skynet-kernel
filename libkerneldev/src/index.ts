@@ -1,7 +1,2 @@
-export { b64ToBuf } from "./encoding.js"
-export { addContextToErr } from "./err.js"
-export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "./registry.js"
 export { overwriteRegistryEntry } from "./registrywrite.js"
-export { generateSeedPhrase, validSeedPhrase } from "./seed.js"
-export { sha512 } from "./sha512.js"
 export { upload } from "./upload.js"

@@ -1,4 +1,5 @@
-import { log, logErr, composeErr, init, newKernelQuery } from './init'
+import { composeErr } from "./err.js"
+import { logErr, init, newKernelQuery } from "./init.js"
 
 const noBridge = "the bridge failed to initialize (do you have the Skynet browser extension?)"
 
@@ -16,51 +17,55 @@ export function testMessage(): Promise<string> {
 		// already happened, this will be a no-op that instantly
 		// resolves.
 		init()
-		.then(x => {
-			// Send a 'test' message to the kernel, which is a
-			// method with no parameters.
-			//
-			// The first return value of newKernelQuery is ignored
-			// because it is an update function that we can call if
-			// we wish to provide new information to the query via
-			// a 'queryUpdate'. The 'test' method does not support
-			// any queryUpdates.
-			//
-			// The second input of newKernelQuery is passed as
-			// null, it's usually a handler function to accept
-			// 'responseUpdate' messages from the kernel related to
-			// the query. The 'test' method doesn't have any
-			// 'responseUpdates', so there is no need to create an
-			// updateHandler.
-			let [_, query] = newKernelQuery({
-				method: "test",
-			}, null as any)
-			// We use nested promises instead of promise chaining
-			// because promise chaining didn't provide enough
-			// control over handling the error. We like wrapping
-			// our errors to help indicate exactly which part of
-			// the code has gone wrong, and that nuance gets lost
-			// with promise chaining.
-			query.then(response => {
-				if (!("version" in response)) {
-					resolve("kernel did not report a version")
-					return
-				}
-				resolve(response.version)
+			.then(() => {
+				// Send a 'test' message to the kernel, which is a
+				// method with no parameters.
+				//
+				// The first return value of newKernelQuery is ignored
+				// because it is an update function that we can call if
+				// we wish to provide new information to the query via
+				// a 'queryUpdate'. The 'test' method does not support
+				// any queryUpdates.
+				//
+				// The second input of newKernelQuery is passed as
+				// null, it's usually a handler function to accept
+				// 'responseUpdate' messages from the kernel related to
+				// the query. The 'test' method doesn't have any
+				// 'responseUpdates', so there is no need to create an
+				// updateHandler.
+				let [, query] = newKernelQuery(
+					{
+						method: "test",
+					},
+					null as any
+				)
+				// We use nested promises instead of promise chaining
+				// because promise chaining didn't provide enough
+				// control over handling the error. We like wrapping
+				// our errors to help indicate exactly which part of
+				// the code has gone wrong, and that nuance gets lost
+				// with promise chaining.
+				query
+					.then((response) => {
+						if (!("version" in response)) {
+							resolve("kernel did not report a version")
+							return
+						}
+						resolve(response.version)
+					})
+					.catch((err) => {
+						let cErr = composeErr("newKernelQuery failed", err)
+						reject(cErr)
+					})
 			})
-			.catch(err => {
-				let cErr = composeErr("newKernelQuery failed", err)
+			.catch((err) => {
+				// For some reason, the bridge is not available.
+				// Likely, this means that the user has not installed
+				// the browser extension.
+				let cErr = composeErr(noBridge, err)
+				logErr(cErr)
 				reject(cErr)
 			})
-		})
-		.catch(err => {
-			// For some reason, the bridge is not available.
-			// Likely, this means that the user has not installed
-			// the browser extension.
-			let cErr = composeErr(noBridge, err)
-			logErr(cErr)
-			reject(cErr)
-		})
 	})
 }
 
@@ -74,28 +79,32 @@ export function testMessage(): Promise<string> {
 export function callModule(module: string, method: string, data: any): Promise<any> {
 	return new Promise((resolve, reject) => {
 		init()
-		.then(x => {
-			let [_, query] = newKernelQuery({
-				method: "moduleCall",
-				data: {
-					module,
-					method,
-					data,
-				}
-			}, null as any)
-			query.then(response => {
-				resolve(response)
+			.then(() => {
+				let [, query] = newKernelQuery(
+					{
+						method: "moduleCall",
+						data: {
+							module,
+							method,
+							data,
+						},
+					},
+					null as any
+				)
+				query
+					.then((response) => {
+						resolve(response)
+					})
+					.catch((err) => {
+						let cErr = composeErr("moduleCall query to kernel failed", err)
+						reject(cErr)
+					})
 			})
-			.catch(err => {
-				let cErr = composeErr("moduleCall query to kernel failed", err)
-				reject(err)
+			.catch((err) => {
+				let cErr = composeErr(noBridge, err)
+				logErr(cErr)
+				reject(cErr)
 			})
-		})
-		.catch(err => {
-			let cErr = composeErr(noBridge, err)
-			logErr(cErr)
-			reject(cErr)
-		})
 	})
 }
 
@@ -109,28 +118,32 @@ export function callModule(module: string, method: string, data: any): Promise<a
 export function upload(filename: string, fileData: Uint8Array): Promise<string> {
 	return new Promise((resolve, reject) => {
 		init()
-		.then(x => {
-			let [_, query] = newKernelQuery({
-				method: "moduleCall",
-				data: {
-					module: "AQD1kFeJJhRnkgWGD-ws6V1QITQrHd2WX5pQnU78MM_o3Q",
-					method: "secureUpload",
-					data: {
-						filename,
-						fileData,
+			.then(() => {
+				let [, query] = newKernelQuery(
+					{
+						method: "moduleCall",
+						data: {
+							module: "AQD1kFeJJhRnkgWGD-ws6V1QITQrHd2WX5pQnU78MM_o3Q",
+							method: "secureUpload",
+							data: {
+								filename,
+								fileData,
+							},
+						},
 					},
-				},
-			}, null as any)
-			query.then(response => {
-				resolve(response.skylink)
+					null as any
+				)
+				query
+					.then((response) => {
+						resolve(response.skylink)
+					})
+					.catch((err) => {
+						reject(err)
+					})
 			})
-			.catch(err => {
-				reject(err)
+			.catch((x) => {
+				reject(x)
 			})
-		})
-		.catch(x => {
-			reject(x)
-		})
 	})
 }
 
@@ -144,25 +157,29 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 export function padAndEncrypt(filepath: string, fileData: Uint8Array): Promise<string> {
 	return new Promise((resolve, reject) => {
 		init()
-		.then(x => {
-			let [_, query] = newKernelQuery({
-				kernelMethod: "moduleCall",
-				module: "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ",
-				moduleMethod: "padAndEncrypt",
-				moduleInput: {
-					filepath,
-					fileData,
-				},
-			}, null as any)
-			query.then(response => {
-				resolve(response.output)
+			.then(() => {
+				let [, query] = newKernelQuery(
+					{
+						kernelMethod: "moduleCall",
+						module: "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ",
+						moduleMethod: "padAndEncrypt",
+						moduleInput: {
+							filepath,
+							fileData,
+						},
+					},
+					null as any
+				)
+				query
+					.then((response) => {
+						resolve(response.output)
+					})
+					.catch((response) => {
+						reject(response.err)
+					})
 			})
-			.catch(response => {
-				reject(response.err)
+			.catch((x) => {
+				reject(x)
 			})
-		})
-		.catch(x => {
-			reject(x)
-		})
 	})
 }
