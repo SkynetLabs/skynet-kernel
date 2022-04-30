@@ -2,19 +2,25 @@
 
 import * as fs from "fs"
 import {
-	generateSeedPhrase,
-	sha512,
 	addContextToErr,
-	validSeedPhrase,
-	taggedRegistryEntryKeys,
+	b64ToBuf,
 	deriveRegistryEntryID,
+	generateSeedPhrase,
+	overwriteRegistryEntry,
 	resolverLink,
+	sha512,
+	taggedRegistryEntryKeys,
 	upload,
+	validSeedPhrase,
 } from "libkerneldev"
 import read from "read"
 
 // Helper variables to make it easier to return empty values alongside errors.
-let nu8 = new Uint8Array(0)
+const nu8 = new Uint8Array(0)
+const nkp = {
+	publicKey: nu8,
+	secretKey: nu8,
+}
 
 // Add a newline for readability.
 console.log()
@@ -87,16 +93,26 @@ function writeFile(fileName: string, fileData: string): string | null {
 	}
 }
 
-// seedPhraseToRegistryLink will take a seedPhrase as input and convert it to
-// the registry link for the module.
-function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
+// seedPhraseToRegistryKeys will convert a seed phrase to the set of registry
+// keys that govern the registry entry where the module is published.
+function seedPhraseToRegistryKeys(seedPhrase: string): [any, Uint8Array, string | null] {
 	let [seed, errVSP] = validSeedPhrase(seedPhrase)
 	if (errVSP !== null) {
-		return ["", addContextToErr(errVSP, "unable to compute seed phrase")]
+		return [nkp, nu8, addContextToErr(errVSP, "unable to compute seed phrase")]
 	}
 	let [keypair, datakey, errTREK] = taggedRegistryEntryKeys(seed, "module-build", "module-key")
 	if (errTREK !== null) {
-		return ["", addContextToErr(errTREK, "unable to compute registry entry keys")]
+		return [nkp, nu8, addContextToErr(errTREK, "unable to compute registry entry keys")]
+	}
+	return [keypair, datakey, null]
+}
+
+// seedPhraseToRegistryLink will take a seedPhrase as input and convert it to
+// the registry link for the module.
+function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
+	let [keypair, datakey, errSPTRK] = seedPhraseToRegistryKeys(seedPhrase)
+	if (errSPTRK !== null) {
+		return ["", addContextToErr(errSPTRK, "unable to compute registry keys")]
 	}
 	let [entryID, errDREID] = deriveRegistryEntryID(keypair.publicKey, datakey)
 	if (errDREID !== null) {
@@ -201,7 +217,8 @@ function handlePassConfirm(password: string | null) {
 	// Load or verify the seed. If this is prod, the password is used to
 	// create and verify the seed. If this is dev, we just load the seed
 	// with no password.
-	let seedPhrase
+	let seedPhrase: string
+	let registryLink: string
 	if (process.argv[2] === "prod") {
 		// Generate the seed phrase from the password.
 		let [sp, errGSP] = generateSeedPhrase(password)
@@ -209,7 +226,8 @@ function handlePassConfirm(password: string | null) {
 			console.error("Unable to generate seed phrase: ", errGSP)
 			process.exit(1)
 		}
-		let [registryLink, errSPTRL] = seedPhraseToRegistryLink(sp)
+		let [rl, errSPTRL] = seedPhraseToRegistryLink(sp)
+		registryLink = rl
 		if (errSPTRL !== null) {
 			console.error("Unable to generate registry link:", errSPTRL)
 			process.exit(1)
@@ -230,17 +248,19 @@ function handlePassConfirm(password: string | null) {
 			console.error("unable to read seed phrase for dev command from disk")
 			process.exit(1)
 		}
-		let [registryLink, errSPTRL] = seedPhraseToRegistryLink(sp)
+		let [rl, errSPTRL] = seedPhraseToRegistryLink(sp)
+		registryLink = rl
 		if (errSPTRL !== null) {
 			console.error("Unable to generate registry link:", errSPTRL)
 			process.exit(1)
 		}
-		// Write the registry link to the module skylinkd dev file.
+		// Write the registry link to the module skylink dev file.
 		let errWF = writeFile("build/module-skylink-dev", registryLink)
 		if (errWF !== null) {
 			console.error("unable to write registry link file:", errWF)
 			process.exit(1)
 		}
+		seedPhrase = sp
 	}
 
 	// Upload the module to Skynet.
@@ -252,14 +272,31 @@ function handlePassConfirm(password: string | null) {
 	let metadata = {
 		Filename: "index.js",
 	}
+	console.log("Uploading module...")
 	upload(distFile, metadata)
 	.then(result => {
-		console.log(result)
+		console.log("Immutable Link for Module:", result)
+		console.log("Resolver Link for Module:", registryLink)
+		console.log("Updating module's registry entry...")
+		// Update the v2 skylink.
+		let [keypair, datakey, errSPTRK] = seedPhraseToRegistryKeys(seedPhrase)
+		if (errSPTRK !== null) {
+			return ["", addContextToErr(errSPTRK, "unable to compute registry keys")]
+		}
+		let [bufLink, errBTB] = b64ToBuf(result)
+		if (errBTB !== null) {
+			return ["", addContextToErr(errBTB, "unable to decode skylink")]
+		}
+		overwriteRegistryEntry(keypair, datakey, bufLink)
+		.then((result: any) => {
+			console.log("registry entry is updated")
+		})
+		.catch((err: any) => {
+			console.log("unable to update registry entry:", err)
+		})
 	})
 	.catch(err => {
 		console.error("unable to upload file", err)
 		process.exit(1)
 	})
-
-	// TODO: Update the v2 skylink
 }

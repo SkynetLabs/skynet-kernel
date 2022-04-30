@@ -77,7 +77,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 			// Check the result against the verify function.
 			verifyFunction(response.clone()).then((errVF: string | null) => {
 				if (errVF !== null) {
-					let newLog = "verify function has returned an error from portal "+portal+" - " + errVF
+					let newLog = "verify function has returned an error from portal " + portal + " - " + errVF
 					pfm.logs.push(newLog)
 					pfm.portalsFailed.push(portal)
 					pfm.responsesFailed.push(response)
@@ -99,7 +99,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 		})
 		.catch((err: any) => {
 			// This portal failed, try again with the next portal.
-			let newLog = "fetch returned an error" + JSON.stringify(err)
+			let newLog = "fetch returned an error\n" + JSON.stringify(err) + JSON.stringify(pfm.fetchOpts)
 			pfm.logs.push(newLog)
 			pfm.portalsFailed.push(portal)
 			pfm.responsesFailed.push(err)
@@ -144,11 +144,12 @@ function progressiveFetch(
 	portals: string[],
 	verifyFunction: any
 ): Promise<progressiveFetchResult> {
+	let portalsCopy = [...portals]
 	return new Promise((resolve) => {
 		let pfm = {
 			endpoint,
 			fetchOpts,
-			remainingPortals: portals,
+			remainingPortals: portalsCopy,
 			portalsFailed: [],
 			responsesFailed: [],
 			logs: [],

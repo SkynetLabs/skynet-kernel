@@ -1,8 +1,8 @@
+import { defaultPortalList } from "./defaultportals.js"
+import { bufToB64, encodeNumber } from "./encoding.js"
 import { addContextToErr } from "./err.js"
-import { encodeNumber, bufToB64 } from "./encoding.js"
 import { blake2bMerkleRoot } from "./merkle.js"
 import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
-import { defaultPortalList } from "./defaultportals.js"
 import { skylinkV1Bitfield } from "./skylinkbitfield.js"
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
@@ -208,21 +208,33 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 		// Establish the function that verifies the result is correct.
 		let verifyFunction = function (response: Response): Promise<string | null> {
 			return new Promise((resolve) => {
-				response.json().then((j) => {
-					if (!("skylink" in j)) {
-						resolve("response is missing the skylink field\n" + JSON.stringify(j))
-					}
-					if (j.skylink !== skylink) {
-						resolve("wrong skylink was returned, expecting " + skylink + " but got " + j.skylink)
-					}
-					resolve(null)
-				})
+				response
+					.json()
+					.then((j) => {
+						if (!("skylink" in j)) {
+							resolve("response is missing the skylink field\n" + JSON.stringify(j))
+							return
+						}
+						if (j.skylink !== skylink) {
+							resolve("wrong skylink was returned, expecting " + skylink + " but got " + j.skylink)
+							return
+						}
+						resolve(null)
+					})
+					.catch((err) => {
+						resolve(addContextToErr(err, "unable to read response body"))
+					})
 			})
 		}
 		progressiveFetch(endpoint, fetchOpts, portals, verifyFunction).then((result: progressiveFetchResult) => {
-			result.response.json().then((j) => {
-				resolve(j.skylink)
-			})
+			result.response
+				.json()
+				.then((j) => {
+					resolve(j.skylink)
+				})
+				.catch((err) => {
+					reject(addContextToErr(err, "unable to read response body, despite verification of response succeeding"))
+				})
 		})
 	})
 }
