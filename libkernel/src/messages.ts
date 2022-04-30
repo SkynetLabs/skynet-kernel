@@ -123,7 +123,7 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 					{
 						method: "moduleCall",
 						data: {
-							module: "AQD1kFeJJhRnkgWGD-ws6V1QITQrHd2WX5pQnU78MM_o3Q",
+							module: "AQBPTRusvKdVkFKz7mVaP8nCFxKEMBI3u59gd-Y9CiBarg",
 							method: "secureUpload",
 							data: {
 								filename,

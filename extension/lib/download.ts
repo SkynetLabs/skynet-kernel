@@ -46,14 +46,16 @@ var parseSkylinkBitfield = function(skylink: Uint8Array): [number, number, numbe
 	// Determine the offset and fetchSize increment.
 	let offsetIncrement = 4096 << mode
 	let fetchSizeIncrement = 4096
+	let fetchSizeStart = 0
 	if (mode > 0) {
-		fetchSizeIncrement = fetchSizeIncrement << mode-1
+		fetchSizeIncrement = fetchSizeIncrement << (mode - 1)
+		fetchSizeStart = (1 << 15) << (mode - 1)
 	}
 
 	// The next three bits decide the fetchSize.
 	let fetchSizeBits = bitfield & 7
 	fetchSizeBits++ // semantic upstep, range should be [1,8] not [0,8).
-	let fetchSize = fetchSizeBits * fetchSizeIncrement
+	let fetchSize = fetchSizeBits * fetchSizeIncrement + fetchSizeStart
 	bitfield = bitfield >> 3
 
 	// The remaining bits determine the offset.
