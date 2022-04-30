@@ -4,9 +4,14 @@
 //
 // secure-upload will use portal-dac to determine the user's portals.
 
-import { encodeNumber, bufToB64 } from "./lib/encode"
-import { addLeafBytesToBlake2bProofStack, blake2bProofStackRoot } from "./lib/blake2bmerkle"
-import { skylinkBitfield } from "./lib/skylinks"
+import {
+	addContextToErr,
+	addLeafBytesToBlake2bProofStack,
+	blake2bProofStackRoot,
+	bufToB64,
+	encodeU64,
+	skylinkV1Bitfield,
+} from "libkernel"
 import { progressiveFetch } from "./lib/progressivefetch"
 
 // TODO: Split progressiveFetch out into its own module. progressiveFetch will
@@ -16,7 +21,7 @@ import { progressiveFetch } from "./lib/progressivefetch"
 // on qualities like performance or price.
 
 // Create helper function for responding to a query with an error.
-function respondErr(event: MessageEvent, err: string) {
+function respondErr(event: MessageEvent, err: string | null) {
 	postMessage({
 		nonce: event.data.nonce,
 		method: "response",
@@ -64,24 +69,32 @@ function handleSecureUpload(event: MessageEvent) {
 	// important to enusre the module is byzantine fault tolerant.
 
 	// Compute the binary version of the metadata.
-	const metadataString = JSON.stringify({
+	let metadataString = JSON.stringify({
 		Filename: event.data.data.filename,
 		Length: event.data.data.fileData.length,
 	})
-	const metadataBytes = new TextEncoder().encode(metadataString)
+	let metadataBytes = new TextEncoder().encode(metadataString)
 
 	// Compute the binary
-	const layoutBytes = new Uint8Array(99)
+	let layoutBytes = new Uint8Array(99)
 	// Set the version.
 	let offset = 0
 	layoutBytes[offset] = 1
 	offset++
 	// Set the filesize.
-	const filesizeBytes = encodeNumber(event.data.data.fileData.length)
+	let [filesizeBytes, errEU641] = encodeU64(BigInt(event.data.data.fileData.length))
+	if (errEU641 !== null) {
+		respondErr(event, addContextToErr(errEU641, "unable to encode fileData length"))
+		return
+	}
 	layoutBytes.set(filesizeBytes, offset)
 	offset += 8
 	// Set the metadata size.
-	const mdSizeBytes = encodeNumber(metadataBytes.length)
+	let [mdSizeBytes, errEU642] = encodeU64(BigInt(metadataBytes.length))
+	if (errEU642 !== null) {
+		respondErr(event, addContextToErr(errEU642, "unable to encode metadata length"))
+		return
+	}
 	layoutBytes.set(mdSizeBytes, offset)
 	offset += 8
 	// Skip the fanout size and fanout data+parity pieces.
@@ -93,12 +106,12 @@ function handleSecureUpload(event: MessageEvent) {
 	// The rest is key data, which is deprecated.
 
 	// Build the base sector.
-	const totalSize = event.data.data.fileData.length + layoutBytes.length + metadataBytes.length
+	let totalSize = event.data.data.fileData.length + layoutBytes.length + metadataBytes.length
 	if (totalSize > 4194304) {
 		respondErr(event, "file is too large for secure-upload, only small files supported for now")
 		return
 	}
-	const baseSector = new Uint8Array(4194304 + 92)
+	let baseSector = new Uint8Array(4194304 + 92)
 	offset = 92
 	baseSector.set(layoutBytes, offset)
 	offset += layoutBytes.length
@@ -107,18 +120,18 @@ function handleSecureUpload(event: MessageEvent) {
 	baseSector.set(event.data.data.fileData, offset)
 
 	// Compute the merkle root of the base sector
-	const ps = {
+	let ps = {
 		subtreeRoots: <Uint8Array[]>[],
 		subtreeHeights: <number[]>[],
 	}
 	for (let i = 92; i < baseSector.length; i += 64) {
-		const errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i + 64))
+		let errALB = addLeafBytesToBlake2bProofStack(ps, baseSector.slice(i, i + 64))
 		if (errALB !== null) {
 			respondErr(event, "unable to build merkle root of file: " + errALB)
 			return
 		}
 	}
-	const [merkleRoot, errPSR] = blake2bProofStackRoot(ps)
+	let [merkleRoot, errPSR] = blake2bProofStackRoot(ps)
 	if (errPSR !== null) {
 		respondErr(event, "unable to finalize merkle root of file: " + errPSR)
 		return
@@ -126,22 +139,38 @@ function handleSecureUpload(event: MessageEvent) {
 
 	// Compute the bitfield, given that version is 1, the offset is zero,
 	// and the fetch size is at least totalSize.
-	const bitfield = skylinkBitfield(totalSize)
+	let [bitfield, errSV1B] = skylinkV1Bitfield(totalSize)
+	if (errSV1B !== null) {
+		respondErr(event, "unable to compute the skylinkV1Bitfield")
+		return
+	}
 
 	// Compute the skylink.
-	const bLink = new Uint8Array(34)
+	let bLink = new Uint8Array(34)
 	bLink.set(bitfield, 0)
 	bLink.set(merkleRoot, 2)
-	const skylink = bufToB64(bLink)
+	let skylink = bufToB64(bLink)
 
 	// Create the metadata header.
-	const lenPrefix1 = encodeNumber(15)
-	const str1 = new TextEncoder().encode("Skyfile Backup\n")
-	const lenPrefix2 = encodeNumber(7)
-	const str2 = new TextEncoder().encode("v1.5.5\n")
-	const lenPrefix3 = encodeNumber(46)
-	const str3 = new TextEncoder().encode(skylink)
-	const backupHeader = new Uint8Array(92)
+	let [lenPrefix1, errEU643] = encodeU64(15n)
+	if (errEU643 !== null) {
+		respondErr(event, addContextToErr(errEU643, "unable to encode prefix1 length"))
+		return
+	}
+	let str1 = new TextEncoder().encode("Skyfile Backup\n")
+	let [lenPrefix2, errEU644] = encodeU64(7n)
+	if (errEU644 !== null) {
+		respondErr(event, addContextToErr(errEU644, "unable to encode prefix1 length"))
+		return
+	}
+	let str2 = new TextEncoder().encode("v1.5.5\n")
+	let [lenPrefix3, errEU645] = encodeU64(46n)
+	if (errEU645 !== null) {
+		respondErr(event, addContextToErr(errEU645, "unable to encode prefix1 length"))
+		return
+	}
+	let str3 = new TextEncoder().encode(skylink)
+	let backupHeader = new Uint8Array(92)
 	offset = 0
 	backupHeader.set(lenPrefix1, offset)
 	offset += 8
@@ -159,11 +188,11 @@ function handleSecureUpload(event: MessageEvent) {
 	baseSector.set(backupHeader, 0)
 
 	// Do the POST request to /skynet/restore
-	const fetchOpts = {
+	let fetchOpts = {
 		method: "post",
 		body: baseSector,
 	}
-	const endpoint = "/skynet/restore"
+	let endpoint = "/skynet/restore"
 	progressiveFetch(endpoint, fetchOpts, ["siasky.net", "eu-ger-12.siasky.net", "dev1.siasky.dev"], null!, null!)
 		.then(() => {
 			// We are assuming that progressiveFetch

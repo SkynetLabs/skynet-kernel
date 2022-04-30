@@ -1,4 +1,4 @@
-import { generateSeedPhrase, validSeedPhrase } from "../src/seed.js"
+import { generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
@@ -58,24 +58,10 @@ function keypairsEqual(a: ed25519Keypair, b: ed25519Keypair): boolean {
 }
 
 // Smoke testing for generating a seed phrase.
-function TestGenerateSeedPhrase(t: any) {
-	// Generate two random seed phrases and check they are different.
-	let [phraseNullInput, err1] = generateSeedPhrase(null)
-	let [phraseNullInput2, err2] = generateSeedPhrase(null)
-	if (err1 !== null) {
-		t.fail(err1, "bad seed phase 1")
-		return
-	}
-	if (err2 !== null) {
-		t.fail(err2, "bad seed phrase 2")
-		return
-	}
-	if (phraseNullInput === phraseNullInput2) {
-		fail("null seed phrases match", phraseNullInput, "\n", phraseNullInput2)
-	}
-
-	let [phraseTestInput, err3] = generateSeedPhrase("Test")
-	let [phraseTestInput2, err4] = generateSeedPhrase("Test")
+function TestGenerateSeedPhraseDeterministic(t: any) {
+	let [phraseTestInput, err3] = generateSeedPhraseDeterministic("Test")
+	let [phraseTestInput2, err4] = generateSeedPhraseDeterministic("Test")
+	let [phraseTestInput3, err5] = generateSeedPhraseDeterministic("Test2")
 	if (err3 !== null) {
 		t.fail(err3, "bad seed phrase 3")
 		return
@@ -84,22 +70,25 @@ function TestGenerateSeedPhrase(t: any) {
 		t.fail(err4, "bad seed phrase 4")
 		return
 	}
+	if (err5 !== null) {
+		t.fail(err5, "bad seed phrase 4")
+		return
+	}
 	if (phraseTestInput !== phraseTestInput2) {
 		t.fail("test seed phrases don't match", phraseTestInput, "\n", phraseTestInput2)
 	}
+	if (phraseTestInput === phraseTestInput3) {
+		t.fail("test seed phrases shouldn't match", phraseTestInput, "\n", phraseTestInput3)
+	}
 
 	// Check that all of the seed phrases are valid.
-	let [x1, errVSP1] = validSeedPhrase(phraseNullInput)
-	let [x2, errVSP2] = validSeedPhrase(phraseNullInput2)
-	let [x3, errVSP3] = validSeedPhrase(phraseTestInput)
+	let [x1, errVSP1] = validSeedPhrase(phraseTestInput)
+	let [x2, errVSP2] = validSeedPhrase(phraseTestInput3)
 	if (errVSP1 !== null) {
 		t.fail("vsp1 is not a valid seed phrase")
 	}
 	if (errVSP2 !== null) {
 		t.fail("vsp2 is not a valid seed phrase")
-	}
-	if (errVSP3 !== null) {
-		t.fail("vsp3 is not a valid seed phrase")
 	}
 }
 
@@ -132,7 +121,7 @@ function TestRegistry(t: any) {
 		t.fail("expected error when using bad seed")
 	}
 
-	let [seedPhrase, errGSP] = generateSeedPhrase(null)
+	let [seedPhrase, errGSP] = generateSeedPhraseDeterministic("TestRegistry")
 	if (errGSP !== null) {
 		t.fail("could not get seed phrase")
 		return
@@ -301,7 +290,7 @@ function TestSkylinkV1Bitfield(t: any) {
 	}
 }
 
-runTest(TestGenerateSeedPhrase)
+runTest(TestGenerateSeedPhraseDeterministic)
 runTest(TestEd25519)
 runTest(TestRegistry)
 runTest(TestValidateSkyfilePath)

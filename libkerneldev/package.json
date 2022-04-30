@@ -1,6 +1,6 @@
 {
 	"name": "libkerneldev",
-	"version": "0.0.38",
+	"version": "0.0.39",
 	"description": "helper library for skynet kernel development",
 	"main": "dist/index.js",
 	"type": "module",
@@ -12,7 +12,7 @@
 		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
 		"lint": "npm run prettier && npm run eslint",
-		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/test.js",
+		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/src-test/test.js",
 		"prepare": "npm run lint && npm run test"
 	},
 	"author": "David Vorick",
@@ -23,7 +23,7 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
-		"libkernel": "^0.0.62",
+		"libkernel": "^0.0.64",
 		"node-fetch": "^3.2.4"
 	}
 }

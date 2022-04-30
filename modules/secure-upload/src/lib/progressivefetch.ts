@@ -1,5 +1,3 @@
-import { logErr } from "./log"
-
 // progressiveFetchResult defines the type returned by progressiveFetch.
 //
 // TODO: Do something more intelligent with the repsonse
@@ -48,12 +46,12 @@ export function progressiveFetch(
 		}
 
 		// Grab the portal and query.
-		const portal = <any>remainingPortals.shift()
-		const query = "http://" + portal + endpoint
+		let portal = <any>remainingPortals.shift()
+		let query = "http://" + portal + endpoint
 
 		// Define a helper function to try the next portal in the event
 		// of an error, then perform the fetch.
-		const nextPortal = function (errStr: string) {
+		let nextPortal = function (errStr: string) {
 			progressiveFetch(endpoint, fetchOpts, remainingPortals, first4XX, errStrs + " : " + errStr)
 				.then((output) => resolve(output))
 				.catch((err) => reject(err))
@@ -84,7 +82,7 @@ export function progressiveFetch(
 					// Define 'new4XX' as our first4XX response can
 					// call progressiveFetch.
 					//
-					const new4XX = {
+					let new4XX = {
 						portal,
 						response: "4xx",
 						remainingPortals,
@@ -105,7 +103,6 @@ export function progressiveFetch(
 			})
 			.catch((err) => {
 				// This portal failed, try again with the next portal.
-				logErr("got an err: " + err)
 				nextPortal(err)
 			})
 	})

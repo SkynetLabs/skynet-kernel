@@ -5,16 +5,13 @@ import {
 	addContextToErr,
 	b64ToBuf,
 	deriveRegistryEntryID,
-	generateSeedPhrase,
+	generateSeedPhraseDeterministic,
 	resolverLink,
 	sha512,
 	taggedRegistryEntryKeys,
 	validSeedPhrase,
 } from "libkernel"
-import {
-	overwriteRegistryEntry,
-	upload,
-} from "libkerneldev"
+import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libkerneldev"
 import read from "read"
 
 // Helper variables to make it easier to return empty values alongside errors.
@@ -59,7 +56,7 @@ if (process.argv[2] === "prod") {
 		handlePass(password)
 	})
 } else {
-	handlePass(null)
+	handlePass("")
 }
 
 // readFile is a wrapper for fs.readFileSync that handles the try-catch for the
@@ -132,7 +129,7 @@ function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
 // called with a null input. We need to structure the code this way because the
 // password reader is async and we can only access the password when using a
 // callback.
-function handlePass(password: string | null) {
+function handlePass(password: string) {
 	try {
 		// If we are running prod and the seed file does not exist, we
 		// need to confirm the password and also warn the user to use a
@@ -172,7 +169,7 @@ function handlePass(password: string | null) {
 // handlePassConfirm handles the full script after the confirmation password
 // has been provided. If not confirmation password is needed, this function
 // will be called anyway using the unconfirmed password as input.
-function handlePassConfirm(password: string | null) {
+function handlePassConfirm(password: string) {
 	// Create the seedFile if it does not exist. For dev we just save the
 	// seed to disk outright, because this is a dev build and therefore not
 	// security sensitive. Also the dev seed does not get pushed to the
@@ -185,7 +182,7 @@ function handlePassConfirm(password: string | null) {
 	// devices.
 	if (!fs.existsSync(seedFile) && process.argv[2] !== "prod") {
 		// Generate the seed phrase and write it to the file.
-		let [seedPhrase, errGSP] = generateSeedPhrase(null)
+		let [seedPhrase, errGSP] = generateSeedPhraseRandom()
 		if (errGSP !== null) {
 			console.error("Unable to generate seed phrase:", errGSP)
 			process.exit(1)
@@ -197,7 +194,7 @@ function handlePassConfirm(password: string | null) {
 		}
 	} else if (!fs.existsSync(seedFile) && process.argv[2] === "prod") {
 		// Generate the seed phrase.
-		let [seedPhrase, errGSP] = generateSeedPhrase(password)
+		let [seedPhrase, errGSP] = generateSeedPhraseDeterministic(password)
 		if (errGSP !== null) {
 			console.error("Unable to generate seed phrase:", errGSP)
 			process.exit(1)
@@ -223,7 +220,7 @@ function handlePassConfirm(password: string | null) {
 	let registryLink: string
 	if (process.argv[2] === "prod") {
 		// Generate the seed phrase from the password.
-		let [sp, errGSP] = generateSeedPhrase(password)
+		let [sp, errGSP] = generateSeedPhraseDeterministic(password)
 		if (errGSP !== null) {
 			console.error("Unable to generate seed phrase: ", errGSP)
 			process.exit(1)
@@ -276,29 +273,29 @@ function handlePassConfirm(password: string | null) {
 	}
 	console.log("Uploading module...")
 	upload(distFile, metadata)
-	.then(result => {
-		console.log("Immutable Link for Module:", result)
-		console.log("Resolver Link for Module:", registryLink)
-		console.log("Updating module's registry entry...")
-		// Update the v2 skylink.
-		let [keypair, datakey, errSPTRK] = seedPhraseToRegistryKeys(seedPhrase)
-		if (errSPTRK !== null) {
-			return ["", addContextToErr(errSPTRK, "unable to compute registry keys")]
-		}
-		let [bufLink, errBTB] = b64ToBuf(result)
-		if (errBTB !== null) {
-			return ["", addContextToErr(errBTB, "unable to decode skylink")]
-		}
-		overwriteRegistryEntry(keypair, datakey, bufLink)
-		.then((result: any) => {
-			console.log("registry entry is updated")
+		.then((result) => {
+			console.log("Immutable Link for Module:", result)
+			console.log("Resolver Link for Module:", registryLink)
+			console.log("Updating module's registry entry...")
+			// Update the v2 skylink.
+			let [keypair, datakey, errSPTRK] = seedPhraseToRegistryKeys(seedPhrase)
+			if (errSPTRK !== null) {
+				return ["", addContextToErr(errSPTRK, "unable to compute registry keys")]
+			}
+			let [bufLink, errBTB] = b64ToBuf(result)
+			if (errBTB !== null) {
+				return ["", addContextToErr(errBTB, "unable to decode skylink")]
+			}
+			overwriteRegistryEntry(keypair, datakey, bufLink)
+				.then((result: any) => {
+					console.log("registry entry is updated")
+				})
+				.catch((err: any) => {
+					console.log("unable to update registry entry:", err)
+				})
 		})
-		.catch((err: any) => {
-			console.log("unable to update registry entry:", err)
+		.catch((err) => {
+			console.error("unable to upload file", err)
+			process.exit(1)
 		})
-	})
-	.catch(err => {
-		console.error("unable to upload file", err)
-		process.exit(1)
-	})
 }

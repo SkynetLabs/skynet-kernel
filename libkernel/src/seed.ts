@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto"
 import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js"
 import { sha512 } from "./sha512.js"
 import { addContextToErr } from "./err.js"
@@ -7,6 +6,38 @@ import { addContextToErr } from "./err.js"
 const SEED_ENTROPY_WORDS = 13
 const SEED_CHECKSUM_WORDS = 2 // Not used, but left as documentation.
 const SEED_BYTES = 16
+
+// generateSeedPhraseDeterministic will generate and verify a seed phrase for
+// the user.
+function generateSeedPhraseDeterministic(password: string): [string, string | null] {
+	let u8 = new TextEncoder().encode(password)
+	let buf = sha512(u8)
+	let randNums = Uint16Array.from(buf)
+
+	// Generate the seed phrase from the randNums.
+	let seedWords = []
+	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
+		let wordIndex = randNums[i] % dictionary.length
+		seedWords.push(dictionary[wordIndex])
+	}
+
+	// Convert the seedWords to a seed.
+	let [seed, err1] = seedWordsToSeed(seedWords)
+	if (err1 !== null) {
+		return ["", err1]
+	}
+
+	// Compute the checksum.
+	let [checksumOne, checksumTwo, err2] = seedToChecksumWords(seed)
+	if (err2 !== null) {
+		return ["", err2]
+	}
+
+	// Assemble the final seed phrase and set the text field.
+	let allWords = [...seedWords, checksumOne, checksumTwo]
+	let seedPhrase = allWords.join(" ")
+	return [seedPhrase, null]
+}
 
 // seedToChecksumWords will compute the two checksum words for the provided
 // seed. The two return values are the two checksum words.
@@ -21,7 +52,7 @@ function seedToChecksumWords(seed: Uint8Array): [string, string, string | null] 
 	}
 
 	// Get the hash.
-	const h = sha512(seed)
+	let h = sha512(seed)
 
 	// Turn the hash into two words.
 	let word1 = h[0] << 8
@@ -39,23 +70,23 @@ function seedToChecksumWords(seed: Uint8Array): [string, string, string | null] 
 // as a Uint8Array.
 function validSeedPhrase(seedPhrase: string): [Uint8Array, string | null] {
 	// Create a helper function to make the below code more readable.
-	const prefix = function (s: string): string {
+	let prefix = function (s: string): string {
 		return s.slice(0, DICTIONARY_UNIQUE_PREFIX)
 	}
 
 	// Pull the seed into its respective parts.
-	const seedWordsAndChecksum = seedPhrase.split(" ")
-	const seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS)
-	const checksumOne = seedWordsAndChecksum[SEED_ENTROPY_WORDS]
-	const checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS + 1]
+	let seedWordsAndChecksum = seedPhrase.split(" ")
+	let seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS)
+	let checksumOne = seedWordsAndChecksum[SEED_ENTROPY_WORDS]
+	let checksumTwo = seedWordsAndChecksum[SEED_ENTROPY_WORDS + 1]
 
 	// Convert the seedWords to a seed.
-	const [seed, err1] = seedWordsToSeed(seedWords)
+	let [seed, err1] = seedWordsToSeed(seedWords)
 	if (err1 !== null) {
 		return [new Uint8Array(0), addContextToErr(err1, "unable to parse seed phrase")]
 	}
 
-	const [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed)
+	let [checksumOneVerify, checksumTwoVerify, err2] = seedToChecksumWords(seed)
 	if (err2 !== null) {
 		return [new Uint8Array(0), addContextToErr(err2, "could not compute checksum words")]
 	}
@@ -77,7 +108,7 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
 	}
 
 	// We are getting 16 bytes of entropy.
-	const bytes = new Uint8Array(SEED_BYTES)
+	let bytes = new Uint8Array(SEED_BYTES)
 	let curByte = 0
 	let curBit = 0
 	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
@@ -99,7 +130,7 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
 
 		// Iterate over the bits of the 10- or 8-bit word.
 		for (let j = 0; j < wordBits; j++) {
-			const bitSet = (word & (1 << (wordBits - j - 1))) > 0
+			let bitSet = (word & (1 << (wordBits - j - 1))) > 0
 
 			if (bitSet) {
 				bytes[curByte] |= 1 << (8 - curBit - 1)
@@ -117,48 +148,4 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
 	return [bytes, null]
 }
 
-// generateSeedPhrase will generate and verify a seed phrase for the user.
-function generateSeedPhrase(password: string | null): [string, string | null] {
-	let randNums
-	if (password === null) {
-		// Get the random numbers for the seed phrase. Typically, you need to
-		// have code that avoids bias by checking the random results and
-		// re-rolling the random numbers if the result is outside of the range
-		// of numbers that would produce no bias. Because the search space
-		// (1024) evenly divides the random number space (2^16), we can skip
-		// this step and just use a modulus instead. The result will have no
-		// bias, but only because the search space is a power of 2.
-		const buf = randomBytes(24)
-		randNums = Uint16Array.from(buf)
-	} else {
-		const u8 = new TextEncoder().encode(password)
-		const buf = sha512(u8)
-		randNums = Uint16Array.from(buf)
-	}
-
-	// Generate the seed phrase from the randNums.
-	const seedWords = []
-	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
-		const wordIndex = randNums[i] % dictionary.length
-		seedWords.push(dictionary[wordIndex])
-	}
-
-	// Convert the seedWords to a seed.
-	const [seed, err1] = seedWordsToSeed(seedWords)
-	if (err1 !== null) {
-		return ["", err1]
-	}
-
-	// Compute the checksum.
-	const [checksumOne, checksumTwo, err2] = seedToChecksumWords(seed)
-	if (err2 !== null) {
-		return ["", err2]
-	}
-
-	// Assemble the final seed phrase and set the text field.
-	const allWords = [...seedWords, checksumOne, checksumTwo]
-	const seedPhrase = allWords.join(" ")
-	return [seedPhrase, null]
-}
-
-export { generateSeedPhrase, seedToChecksumWords, validSeedPhrase, SEED_BYTES }
+export { generateSeedPhraseDeterministic, seedToChecksumWords, validSeedPhrase, SEED_BYTES }

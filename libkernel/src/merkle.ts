@@ -268,4 +268,4 @@ function blake2bMerkleRoot(data: Uint8Array): [Uint8Array, string | null] {
 	return blake2bProofStackRoot(ps)
 }
 
-export { blake2bVerifySectorRangeProof, blake2bMerkleRoot }
+export { addLeafBytesToBlake2bProofStack, blake2bVerifySectorRangeProof, blake2bMerkleRoot, blake2bProofStackRoot }
