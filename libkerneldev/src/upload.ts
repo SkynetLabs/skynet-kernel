@@ -1,9 +1,13 @@
+import {
+	addContextToErr,
+	blake2bMerkleRoot,
+	bufToB64,
+	encodeU64,
+	skylinkV1Bitfield,
+	validateSkyfileMetadata,
+} from "libkernel"
 import { defaultPortalList } from "./defaultportals.js"
-import { bufToB64, encodeU64 } from "./encoding.js"
-import { addContextToErr } from "./err.js"
-import { blake2bMerkleRoot } from "./merkle.js"
 import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
-import { skylinkV1Bitfield } from "./skylinkbitfield.js"
 
 // upload will upload the provided fileData to Skynet using the provided
 // metadata and then return the resulting skylink. Upload is a secure function
@@ -170,4 +174,4 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 	})
 }
 
-export { validateSkyfilePath, upload }
+export { upload }

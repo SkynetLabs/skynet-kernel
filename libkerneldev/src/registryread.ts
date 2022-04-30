@@ -1,8 +1,5 @@
-import { blake2b } from "./blake2b.js"
+import { addContextToErr, blake2b, bufToHex, ed25519Verify, encodePrefixedBytes, encodeU64, hexToBuf } from "libkernel"
 import { defaultPortalList } from "./defaultportals.js"
-import { ed25519Verify } from "./ed25519.js"
-import { bufToHex, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js"
-import { addContextToErr } from "./err.js"
 import { progressiveFetch } from "./progressivefetch.js"
 
 // readRegistryEntryResult defines fields that are important to processing a registry

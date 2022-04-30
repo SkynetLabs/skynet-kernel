@@ -1,9 +1,5 @@
-import { blake2b } from "./blake2b.js"
+import { addContextToErr, blake2b, bufToHex, ed25519Sign, encodePrefixedBytes, encodeU64 } from "libkernel"
 import { defaultPortalList } from "./defaultportals.js"
-import { ed25519Keypair, ed25519Sign } from "./ed25519.js"
-import { encodePrefixedBytes, encodeU64 } from "./encoding.js"
-import { bufToHex } from "./encoding.js"
-import { addContextToErr } from "./err.js"
 import { readRegistryEntry } from "./registryread.js"
 import { progressiveFetch } from "./progressivefetch.js"
 
@@ -29,7 +25,7 @@ function verifyRegistryWrite(response: Response): Promise<string | null> {
 // Improper use of this function has caused a large number of developers to
 // accidentally wipe critical user data, please avoid using this function for
 // any sort of incremental data.
-function overwriteRegistryEntry(keypair: ed25519Keypair, datakey: Uint8Array, data: Uint8Array): Promise<null> {
+function overwriteRegistryEntry(keypair: any, datakey: Uint8Array, data: Uint8Array): Promise<null> {
 	return new Promise((resolve, reject) => {
 		// Check that the data is small enough to fit in a registry
 		// entry. The actual limit for a type 2 entry is 90 bytes, but
