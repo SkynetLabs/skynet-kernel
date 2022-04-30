@@ -296,16 +296,9 @@ function TestSecureUpload() {
 	return kernel.upload("testUpload.txt", new TextEncoder().encode("test data"))
 }
 
-// TestPadAndEncrypt will use the padAndEncrypt function, which has the dual
-// purpose of testing encryption and seeing whether or not kernel
-// communications are working.
-function TestPadAndEncrypt() {
-	return kernel.padAndEncrypt("text.txt", new TextEncoder().encode("some file data"))
-}
-
-// TestMessageSpeedSequential1k will send ten thousand messages to the kernel
+// TestMsgSpeedSequential5k will send ten thousand messages to the kernel
 // sequentially.
-function TestMessageSpeedSequential1k() {
+function TestMsgSpeedSequential5k() {
 	// sendSequentialMessages is a helper function that will send a
 	// message, wait for the message to resolve, then call itself again
 	// with a lower 'remaining' value, exiting out when 'remaining' hits
@@ -325,16 +318,16 @@ function TestMessageSpeedSequential1k() {
 		})
 	}
 	return new Promise((resolve, reject) => {
-		sendSequentialMessages(1000, resolve, reject)
+		sendSequentialMessages(5000, resolve, reject)
 	})
 }
 
-// TestMessageSpeedParallel1k will send ten thousand messages to the kernel in
+// TestMsgSpeedParallel5k will send ten thousand messages to the kernel in
 // parallel.
-function TestMessageSpeedParallel1k() {
+function TestMsgSpeedParallel5k() {
 	return new Promise((resolve, reject) => {
 		let promises = []
-		for (let i = 0; i < 1000; i++) {
+		for (let i = 0; i < 5000; i++) {
 			promises.push(kernel.testMessage())
 		}
 		Promise.all(promises)
@@ -344,30 +337,6 @@ function TestMessageSpeedParallel1k() {
 		.catch(x => {
 			reject(x)
 		})
-	})
-}
-
-// TestPadAndEncryptSequential1k will use the padAndEncrypt function, which has the dual
-// purpose of testing encryption and seeing whether or not kernel
-// communications are working.
-function TestPadAndEncryptSequential1k() {
-	let sequentialPadAndEncrypt = function(remaining, resolve, reject) {
-		if (remaining === 0) {
-			resolve("all messages resolved")
-			return
-		}
-
-		let u8 = new TextEncoder().encode("some file data")
-		kernel.padAndEncrypt("test.txt", u8)
-		.then(x => {
-			sequentialPadAndEncrypt(remaining-1, resolve, reject)
-		})
-		.catch(x => {
-			reject(x)
-		})
-	}
-	return new Promise((resolve, reject) => {
-		sequentialPadAndEncrypt(1000, resolve, reject)
 	})
 }
 
@@ -429,13 +398,9 @@ const IndexPage = () => {
 			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
 			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
 		</main>
 	)
 }
 export default IndexPage
-/*
-			<TestCard name="TestPadAndEncrypt" test={TestPadAndEncrypt} turn={getTurn()} />
-			<TestCard name="TestMsgSpeedSequential1k" test={TestMessageSpeedSequential1k} turn={getTurn()} />
-			<TestCard name="TestMsgSpeedParallel1k" test={TestMessageSpeedParallel1k} turn={getTurn()} />
-			<TestCard name="TestPadAndEncryptSeq1k" test={TestPadAndEncryptSequential1k} turn={getTurn()} />
-*/
