@@ -46,7 +46,7 @@ function TestSendTestMessage() {
 // TestModuleHasSeed checks that the test module was given a seed by the
 // kernel. This is one of the fundamental priveledges of being a kernel module:
 // receiving a secure and unique seed for module-specific user data.
-let kernelTestSuite = "AQBs9h3GnpdpVk84zpCa-dVYh9T6b1oyCHq7JzoaA1JJAw"
+let kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
 function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(kernelTestSuite, "viewSeed", {})
@@ -244,7 +244,7 @@ function TestModuleHasErrors() {
 
 // Check whether any errors showed up in the helper module of the testing
 // module.
-let helperModule = "AQAnqy99JwNg5yJ29slKeAspVqLtC5QrAp_fPdjwNMF8kw"
+let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 function TestHelperModuleHasErrors() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(helperModule, "viewErrors", {})

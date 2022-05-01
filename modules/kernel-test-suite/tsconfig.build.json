@@ -1,0 +1,13 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"module": "esnext",
+		"moduleResolution": "node",
+		"allowSyntheticDefaultImports": true,
+		"declaration": true,
+		"outDir": "./dist-build",
+		"strict": true
+	},
+	"include": ["src-build"],
+	"exclude": ["node_modules", "**/__tests__/*"]
+}

@@ -5,7 +5,7 @@ export { b64ToBuf, bufToB64, bufToHex, encodePrefixedBytes, encodeU64, hexToBuf 
 export { addContextToErr, composeErr } from "./err.js"
 export { init, newKernelQuery } from "./init.js"
 export { addLeafBytesToBlake2bProofStack, blake2bMerkleRoot, blake2bProofStackRoot } from "./merkle.js"
-export { testMessage, callModule, upload, padAndEncrypt } from "./messages.js"
+export { testMessage, callModule, upload } from "./messages.js"
 export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "./registry.js"
 export { generateSeedPhraseDeterministic, validSeedPhrase } from "./seed.js"
 export { skylinkV1Bitfield } from "./skylinkbitfield.js"

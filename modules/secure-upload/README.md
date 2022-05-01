@@ -16,9 +16,12 @@ ignored.
 
 Input:
 
+Provide the name of the file you are uploading and the data for the file.
+Directory uploads are not supported by the secureUpload call.
+
 ```ts
 {
-	module: "AQD1kFeJJhRnkgWGD-ws6V1QITQrHd2WX5pQnU78MM_o3Q",
+	module: "AQAT_a0MzOInZoJzt1CwBM2U8oQ3GIfP5yKKJu8Un-SfNg",
 	method: "secureUpload",
 	data: {
 		filename: <string>,
@@ -34,6 +37,10 @@ Output:
 	skylink: <immutable skylink>,
 }
 ```
+
+The skylink that gets returned is the skylink of the file that was uploaded.
+secureUpload will verify the skylink locally, ensuring that the user receives a
+trustworthy skylink.
 
 ## Building
 

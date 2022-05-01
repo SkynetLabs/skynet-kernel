@@ -1,7 +1,7 @@
 {
-	"name": "secure-upload-module",
+	"name": "kernel-test-suite-module",
 	"version": "0.0.1",
-	"description": "skynet kernel module to securely upload files to skynet",
+	"description": "skynet kernel module to test the kernel's APIs",
 	"main": "index.js",
 	"scripts": {
 		"eslint": "eslint src --fix",
@@ -27,8 +27,5 @@
 		"typescript": "^4.6.3",
 		"webpack": "^5.71.0",
 		"webpack-cli": "^4.9.2"
-	},
-	"dependencies": {
-		"libkernel": "^0.0.67"
 	}
 }

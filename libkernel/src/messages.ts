@@ -123,7 +123,7 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 					{
 						method: "moduleCall",
 						data: {
-							module: "AQBPTRusvKdVkFKz7mVaP8nCFxKEMBI3u59gd-Y9CiBarg",
+							module: "AQAT_a0MzOInZoJzt1CwBM2U8oQ3GIfP5yKKJu8Un-SfNg",
 							method: "secureUpload",
 							data: {
 								filename,
@@ -139,43 +139,6 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 					})
 					.catch((err) => {
 						reject(err)
-					})
-			})
-			.catch((x) => {
-				reject(x)
-			})
-	})
-}
-
-// padAndEncrypt will take a filename and file data as input and return a
-// padded, encrypted version of the data that can be privately stored on
-// Skynet.
-//
-// TODO: Need to figure out how to handle the pubkey and the tweak as well.
-// Should padAndEncrypt be telling telling the caller what pubkey and tweak to
-// use? Should it outright handle everything? Not sure.
-export function padAndEncrypt(filepath: string, fileData: Uint8Array): Promise<string> {
-	return new Promise((resolve, reject) => {
-		init()
-			.then(() => {
-				let [, query] = newKernelQuery(
-					{
-						kernelMethod: "moduleCall",
-						module: "AQAs00kS6OKUd-FIWj9qdJLArCiEDMVgYBSkaetuTF-MsQ",
-						moduleMethod: "padAndEncrypt",
-						moduleInput: {
-							filepath,
-							fileData,
-						},
-					},
-					null as any
-				)
-				query
-					.then((response) => {
-						resolve(response.output)
-					})
-					.catch((response) => {
-						reject(response.err)
 					})
 			})
 			.catch((x) => {

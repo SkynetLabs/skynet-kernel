@@ -1,10 +1,10 @@
 // Define the state + methods that will grab the module's seed from the kernel.
 // This is pretty standard, most modules will have this.
-var seed: Uint8Array
-var resolveSeed: Function
-var rejectSeed: Function
-var seedReceived = false
-var blockForSeed = new Promise((resolve, reject) => {
+let seed: Uint8Array
+let resolveSeed: any
+let rejectSeed: any
+let seedReceived = false
+let blockForSeed = new Promise((resolve, reject) => {
 	resolveSeed = resolve
 	rejectSeed = reject
 })
@@ -20,7 +20,7 @@ function acceptSeed(event: MessageEvent) {
 	}
 	if (event.data.domain !== "root") {
 		errors.push("presentSeed called by non-root domain")
-		log("presentSeed called with non-root domain"+JSON.stringify(event.data))
+		log("presentSeed called with non-root domain" + JSON.stringify(event.data))
 		return
 	}
 
@@ -55,10 +55,10 @@ function acceptSeed(event: MessageEvent) {
 
 // Track any errors that come up during execution. This is non-standard, most
 // modules will not need to do this.
-var errors: string[] = []
+let errors: string[] = []
 
 // Define the testerModule that we use to help coordinate testing.
-const testerModule = "AQBs9h3GnpdpVk84zpCa-dVYh9T6b1oyCHq7JzoaA1JJAw"
+const testerModule = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
 
 // Create a helper function for logging. Most modules will have two helper
 // functions, 'log' and 'logErr', which will set the 'isErr' flag to false and
@@ -86,9 +86,9 @@ function respondErr(event: MessageEvent, err: string) {
 }
 
 // Set up the state required to make queries and handle responses.
-var queriesNonce = 0
-var queries = {} as any
-function newKernelQuery(method: string, data: any, handler: Function) {
+let queriesNonce = 0
+let queries = {} as any
+function newKernelQuery(method: string, data: any, handler: any) {
 	let nonce = queriesNonce
 	queriesNonce += 1
 	queries[nonce] = handler
@@ -100,7 +100,7 @@ function newKernelQuery(method: string, data: any, handler: Function) {
 }
 function handleResponse(event: MessageEvent) {
 	if (!(event.data.nonce in queries)) {
-		log("no open query found for provided nonce: "+JSON.stringify(event.data))
+		log("no open query found for provided nonce: " + JSON.stringify(event.data))
 		errors.push("module received response with no matching query")
 		return
 	}
@@ -114,23 +114,23 @@ function handleResponse(event: MessageEvent) {
 // working, so we expose the seed for this module.
 function handleViewSeed(event: MessageEvent) {
 	blockForSeed
-	.then(x => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				seed,
-			},
+		.then(() => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					seed,
+				},
+			})
 		})
-	})
-	.catch(err => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: "there was a problem when the seed was presented: "+err,
+		.catch((err) => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: "there was a problem when the seed was presented: " + err,
+			})
 		})
-	})
 }
 
 // handleViewTesterSeed makes a query to the tester module to grab its seed. It
@@ -144,7 +144,7 @@ function handleViewTesterSeed(event: MessageEvent) {
 		data: {},
 	}
 	// Perform the query.
-	newKernelQuery("moduleCall", data, function(inData: any) {
+	newKernelQuery("moduleCall", data, function (inData: any) {
 		handleViewSeedResponse(event, inData)
 	})
 }
@@ -157,7 +157,7 @@ function handleViewSeedResponse(event: MessageEvent, data: any) {
 		return
 	}
 	if (data.err !== null) {
-		let err = "tester module responded with an err: "+data.err
+		let err = "tester module responded with an err: " + data.err
 		errors.push(err)
 		respondErr(event, err)
 		return
@@ -180,9 +180,8 @@ function handleViewSeedResponse(event: MessageEvent, data: any) {
 	})
 }
 
-
 // onmessage receives messages from the kernel.
-onmessage = function(event: MessageEvent) {
+onmessage = function (event: MessageEvent) {
 	// Check that the kernel included a method in the message.
 	//
 	// NOTE: A typical kenrel module does not need to check that event.data
@@ -282,7 +281,7 @@ onmessage = function(event: MessageEvent) {
 
 	// Catch any unrecognized methods. The test suite will intentionally
 	// send nonsense method names.
-	respondErr(event, "unrecognized method sent to test module: "+JSON.stringify(event.data))
-	errors.push("received an unrecognized method: "+event.data.method)
+	respondErr(event, "unrecognized method sent to test module: " + JSON.stringify(event.data))
+	errors.push("received an unrecognized method: " + event.data.method)
 	return
 }

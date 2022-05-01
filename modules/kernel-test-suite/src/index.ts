@@ -3,11 +3,11 @@
 // private seed. Not all modules will require a private seed, especially if
 // they are using other modules (such as fsDAC and profileDAC) for shared
 // state.
-var seed: Uint8Array
-var resolveSeed: Function
-var rejectSeed: Function
-var seedReceived = false
-var blockForSeed = new Promise((resolve, reject) => {
+let seed: Uint8Array
+let resolveSeed: any
+let rejectSeed: any
+let seedReceived = false
+let blockForSeed = new Promise((resolve, reject) => {
 	resolveSeed = resolve
 	rejectSeed = reject
 })
@@ -15,7 +15,7 @@ var blockForSeed = new Promise((resolve, reject) => {
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
 // using another outside module.
-var helperModule = "AQDhKoOtI5PbzUEtwKM_qGzvfBCncevwTOiuBxKpV_ASig"
+let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 
 // Set up a list of errors that can be queried by a caller. This is a long
 // running list of errors that will grow over time as errors are encountered.
@@ -26,7 +26,7 @@ var helperModule = "AQDhKoOtI5PbzUEtwKM_qGzvfBCncevwTOiuBxKpV_ASig"
 // increase test coverage and make sure that every error is tracked in case the
 // kernel is dropping logging messages or is having other problems that will
 // cause errors to be silently missed within the test suite.
-var errors: string[] = []
+let errors: string[] = []
 
 // Create a helper function for logging.
 //
@@ -61,12 +61,12 @@ function respondErr(event: MessageEvent, err: string) {
 //
 // queriesNonce is a counter that ensures every query has a unique nonce, and
 // queries is a hashmap that maps nonces to their corresponding queries.
-var queriesNonce = 0
-var queries = {} as any
+let queriesNonce = 0
+let queries = {} as any
 
 // Create a helper function for sending queries directly to the kernel. If you
 // want to talk to a module, use newModuleQuery.
-function newKernelQuery(method: string, data: any, handler: Function) {
+function newKernelQuery(method: string, data: any, handler: any) {
 	let nonce = queriesNonce
 	queriesNonce += 1
 	queries[nonce] = handler
@@ -79,13 +79,13 @@ function newKernelQuery(method: string, data: any, handler: Function) {
 
 // handleResponse will take a response and match it to the correct query.
 function handleResponse(event: MessageEvent) {
-	 if (!(event.data.nonce in queries)) {
-		 log("no open query found for provided nonce: "+JSON.stringify(event.data))
-		 errors.push("module received response for nonce with no open query")
-		 return
-	 }
-	 queries[event.data.nonce](event.data)
-	 delete queries[event.data.nonce]
+	if (!(event.data.nonce in queries)) {
+		log("no open query found for provided nonce: " + JSON.stringify(event.data))
+		errors.push("module received response for nonce with no open query")
+		return
+	}
+	queries[event.data.nonce](event.data)
+	delete queries[event.data.nonce]
 }
 
 // handleTestResponse is the handler for a response to a 'test' query sent to
@@ -95,19 +95,19 @@ function handleResponse(event: MessageEvent) {
 // when we sent it a test message.
 function handleTestResponse(originalEvent: MessageEvent, kernelResponseData: any) {
 	if (!("err" in kernelResponseData) || !("data" in kernelResponseData)) {
-		errors.push("kernel response does not have the exptected fields: "+JSON.stringify(kernelResponseData))
-		respondErr(originalEvent, "kernel response did not have err and data fields: "+JSON.stringify(kernelResponseData))
+		errors.push("kernel response does not have the exptected fields: " + JSON.stringify(kernelResponseData))
+		respondErr(originalEvent, "kernel response did not have err and data fields: " + JSON.stringify(kernelResponseData))
 		return
 	}
 	if (kernelResponseData.err !== null) {
-		let err = "test call to kernel returned an error: "+kernelResponseData.err
+		let err = "test call to kernel returned an error: " + kernelResponseData.err
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (!("version" in kernelResponseData.data)) {
-		errors.push("kernel response to test message didn't include a version: "+JSON.stringify(kernelResponseData))
-		respondErr(originalEvent, "kernel response did not provide a version: "+JSON.stringify(kernelResponseData))
+		errors.push("kernel response to test message didn't include a version: " + JSON.stringify(kernelResponseData))
+		respondErr(originalEvent, "kernel response did not provide a version: " + JSON.stringify(kernelResponseData))
 		return
 	}
 
@@ -135,7 +135,7 @@ function acceptSeed(event: MessageEvent) {
 	}
 	if (event.data.domain !== "root") {
 		errors.push("presentSeed called by non-root domain")
-		log("presentSeed called with non-root domain"+JSON.stringify(event.data))
+		log("presentSeed called with non-root domain" + JSON.stringify(event.data))
 		return
 	}
 
@@ -172,23 +172,23 @@ function acceptSeed(event: MessageEvent) {
 // module.
 function handleViewSeed(event: MessageEvent) {
 	blockForSeed
-	.then(x => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				seed,
-			},
+		.then(() => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					seed,
+				},
+			})
 		})
-	})
-	.catch(err => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: "there was a problem when the seed was presented: "+err,
+		.catch((err) => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: "there was a problem when the seed was presented: " + err,
+			})
 		})
-	})
 }
 
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
@@ -200,31 +200,31 @@ function handleViewHelperSeed(event: MessageEvent) {
 		method: "viewSeed",
 		data: {},
 	}
-	newKernelQuery("moduleCall", outData, function(inData: any) {
+	newKernelQuery("moduleCall", outData, function (inData: any) {
 		handleViewHelperSeedResponse(event, inData)
 	})
 }
 function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
 	if (!("err" in data) || !("data" in data)) {
-		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
+		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (data.err !== null) {
-		let err = "helper module viewSeed call returned an error: "+data.err
+		let err = "helper module viewSeed call returned an error: " + data.err
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (!("seed" in data.data)) {
-		let err = "helper module response did not have data.seed field: "+JSON.stringify(data)
+		let err = "helper module response did not have data.seed field: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (data.data.seed.length !== 16) {
-		let err = "helper module seed is wrong size: "+JSON.stringify(data)
+		let err = "helper module seed is wrong size: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
@@ -233,37 +233,37 @@ function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
 	// Need to wait until the kernel has send us our seed to do a seed
 	// comparison.
 	blockForSeed
-	.then(x => {
-		let equal = true
-		for (let i = 0; i < 16; i++) {
-			if (seed[i] !== data.data.seed[i]) {
-				equal = false
-				break
+		.then(() => {
+			let equal = true
+			for (let i = 0; i < 16; i++) {
+				if (seed[i] !== data.data.seed[i]) {
+					equal = false
+					break
+				}
 			}
-		}
-		if (equal === true) {
-			let err = "helper module seed matches test module seed"
-			errors.push(err)
-			respondErr(originalEvent, err)
-			return
-		}
-		// Respond success.
-		postMessage({
-			nonce: originalEvent.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				message: "(success) helper seed does not match tester seed",
-			},
+			if (equal === true) {
+				let err = "helper module seed matches test module seed"
+				errors.push(err)
+				respondErr(originalEvent, err)
+				return
+			}
+			// Respond success.
+			postMessage({
+				nonce: originalEvent.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					message: "(success) helper seed does not match tester seed",
+				},
+			})
 		})
-	})
-	.catch(err => {
-		let helperSeedStr = JSON.stringify(data.data.seed)
-		let seedStr = JSON.stringify(seed)
-		errors.push("issue in getting seed from kernel: "+err+helperSeedStr+seedStr)
-		respondErr(originalEvent, "test module could not get seed: "+err)
-		return
-	})
+		.catch((err) => {
+			let helperSeedStr = JSON.stringify(data.data.seed)
+			let seedStr = JSON.stringify(seed)
+			errors.push("issue in getting seed from kernel: " + err + helperSeedStr + seedStr)
+			respondErr(originalEvent, "test module could not get seed: " + err)
+			return
+		})
 }
 
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
@@ -275,31 +275,31 @@ function handleViewOwnSeedThroughHelper(event: MessageEvent) {
 		method: "viewTesterSeed",
 		data: {},
 	}
-	newKernelQuery("moduleCall", outData, function(inData: any) {
+	newKernelQuery("moduleCall", outData, function (inData: any) {
 		handleViewTesterSeedResponse(event, inData)
 	})
 }
 function handleViewTesterSeedResponse(originalEvent: MessageEvent, data: any) {
 	if (!("err" in data) || !("data" in data)) {
-		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
+		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (data.err !== null) {
-		let err = "helper module returned an error: "+data.err
+		let err = "helper module returned an error: " + data.err
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (!("testerSeed" in data.data)) {
-		let err = "helper module response did not have data.testerSeed field: "+JSON.stringify(data)
+		let err = "helper module response did not have data.testerSeed field: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
 	}
 	if (data.data.testerSeed.length !== 16) {
-		let err = "helper module seed is wrong size: "+JSON.stringify(data)
+		let err = "helper module seed is wrong size: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(originalEvent, err)
 		return
@@ -308,37 +308,37 @@ function handleViewTesterSeedResponse(originalEvent: MessageEvent, data: any) {
 	// Need to wait until the kernel has send us our seed to do a seed
 	// comparison.
 	blockForSeed
-	.then(x => {
-		let equal = true
-		for (let i = 0; i < 16; i++) {
-			if (seed[i] !== data.data.testerSeed[i]) {
-				equal = false
-				break
+		.then(() => {
+			let equal = true
+			for (let i = 0; i < 16; i++) {
+				if (seed[i] !== data.data.testerSeed[i]) {
+					equal = false
+					break
+				}
 			}
-		}
-		if (equal === false) {
-			let err = "when our seed is viewed thorugh the helper, it does not match"
-			errors.push(err)
-			respondErr(originalEvent, err)
-			return
-		}
-		// Respond success.
-		postMessage({
-			nonce: originalEvent.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				message: "our seed as reported by the helper is correct",
-			},
+			if (equal === false) {
+				let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + data.data.testerSeed
+				errors.push(err)
+				respondErr(originalEvent, err)
+				return
+			}
+			// Respond success.
+			postMessage({
+				nonce: originalEvent.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					message: "our seed as reported by the helper module is correct",
+				},
+			})
 		})
-	})
-	.catch(err => {
-		let helperSeedStr = JSON.stringify(data.data.testerSeed)
-		let seedStr = JSON.stringify(seed)
-		errors.push("issue in getting seed from kernel: "+err+helperSeedStr+seedStr)
-		respondErr(originalEvent, "test module could not get seed: "+err)
-		return
-	})
+		.catch((err) => {
+			let helperSeedStr = JSON.stringify(data.data.testerSeed)
+			let seedStr = JSON.stringify(seed)
+			errors.push("issue in getting seed from kernel: " + err + helperSeedStr + seedStr)
+			respondErr(originalEvent, "test module could not get seed: " + err)
+			return
+		})
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
@@ -349,25 +349,25 @@ function handleTesterMirrorDomain(event: MessageEvent) {
 		method: "mirrorDomain",
 		data: {},
 	}
-	newKernelQuery("moduleCall", outData, function(inData: any) {
+	newKernelQuery("moduleCall", outData, function (inData: any) {
 		handleTesterMirrorDomainResponse(event, inData)
 	})
 }
 function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
 	if (!("err" in data) || !("data" in data)) {
-		let err = "helper module response did not have data+err fields: "+JSON.stringify(data)
+		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(event, err)
 		return
 	}
 	if (data.err !== null) {
-		let err = "helper module returned an error: "+data.err
+		let err = "helper module returned an error: " + data.err
 		errors.push(err)
 		respondErr(event, err)
 		return
 	}
 	if (!("domain" in data.data)) {
-		let err = "helper module response did not have data.domain field: "+JSON.stringify(data)
+		let err = "helper module response did not have data.domain field: " + JSON.stringify(data)
 		errors.push(err)
 		respondErr(event, err)
 		return
@@ -388,25 +388,25 @@ function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
 // somewhere in the client.
 function handleTestCORS(event: MessageEvent) {
 	fetch("https://siasky.net")
-	.then(response => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				url: response.url,
-			},
+		.then((response) => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					url: response.url,
+				},
+			})
 		})
-	})
-	.catch(errFetch => {
-		let err = "fetch request failed: "+errFetch
-		errors.push(err)
-		respondErr(event, err)
-	})
+		.catch((errFetch) => {
+			let err = "fetch request failed: " + errFetch
+			errors.push(err)
+			respondErr(event, err)
+		})
 }
 
 // onmessage receives messages from the kernel.
-onmessage = function(event: MessageEvent) {
+onmessage = function (event: MessageEvent) {
 	// Check that the kernel included a method in the message.
 	//
 	// NOTE: A typical kenrel module does not need to check that event.data
@@ -450,7 +450,6 @@ onmessage = function(event: MessageEvent) {
 		return
 	}
 
-
 	// Handle any responses to queries that we've made.
 	if (event.data.method === "response") {
 		handleResponse(event)
@@ -461,7 +460,7 @@ onmessage = function(event: MessageEvent) {
 	// This check isn't necessary for most modules. The domain is not
 	// provided on queryUpdate, responseUpdate, or response messages.
 	if (!("domain" in event.data)) {
-		log("received a message with no domain: "+JSON.stringify(event.data))
+		log("received a message with no domain: " + JSON.stringify(event.data))
 		errors.push("received a message with no domain")
 		respondErr(event, "received a message from kernel with no domain")
 		return
@@ -509,7 +508,7 @@ onmessage = function(event: MessageEvent) {
 	// Handle a request asking the module to send a test message to the
 	// kernel.
 	if (event.data.method === "sendTestToKernel") {
-		newKernelQuery("test", {}, function(data: any) {
+		newKernelQuery("test", {}, function (data: any) {
 			// The handler for the query needs the current event so
 			// that it knows how to form the response to the
 			// original query.
@@ -561,7 +560,7 @@ onmessage = function(event: MessageEvent) {
 
 	// Catch any unrecognized methods. The test suite will intentionally
 	// send nonsense method names.
-	respondErr(event, "unrecognized method was sent to test module: "+JSON.stringify(event.data))
-	errors.push("received an unrecognized method: "+event.data.method)
+	respondErr(event, "unrecognized method was sent to test module: " + JSON.stringify(event.data))
+	errors.push("received an unrecognized method: " + event.data.method)
 	return
 }
