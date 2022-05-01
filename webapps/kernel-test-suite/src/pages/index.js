@@ -1,10 +1,6 @@
 import * as React from "react"
 import * as kernel from "libkernel"
 
-// TODO: Ensure we've written tests to verify that the kernel is checking that
-// all standard module method fields are included. Namely, the kernel should
-// ensure that every moduleCall includes a method for the module.
-
 // Define a set of functions which facilitate executing the tests sequentially.
 // Each test is assigned a 'turn' and then will wait to begin execution until
 // all tests before it have completed.
