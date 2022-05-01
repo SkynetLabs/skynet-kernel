@@ -1,4 +1,4 @@
-import { composeErr } from "./err.js"
+import { addContextToErr, composeErr } from "./err.js"
 import { logErr, init, newKernelQuery } from "./init.js"
 
 const noBridge = "the bridge failed to initialize (do you have the Skynet browser extension?)"
@@ -54,8 +54,7 @@ export function testMessage(): Promise<string> {
 						resolve(response.version)
 					})
 					.catch((err) => {
-						let cErr = composeErr("newKernelQuery failed", err)
-						reject(cErr)
+						reject(addContextToErr(err, "newKernelQuery failed"))
 					})
 			})
 			.catch((err) => {
@@ -96,8 +95,7 @@ export function callModule(module: string, method: string, data: any): Promise<a
 						resolve(response)
 					})
 					.catch((err) => {
-						let cErr = composeErr("moduleCall query to kernel failed", err)
-						reject(cErr)
+						reject(addContextToErr(err, "moduleCall query to kernel failed"))
 					})
 			})
 			.catch((err) => {

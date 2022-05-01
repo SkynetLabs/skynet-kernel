@@ -112,7 +112,7 @@ declare var handleTest
 declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
-const kernelVersion = "v0.0.1"
+const kernelVersion = "v0.0.2"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
@@ -335,6 +335,11 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	if (!("method" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall without a method set for the module")
 		respondErr(event, messagePortal, isWorker, "no 'data.method' specified, module does not know what method to run")
+		return
+	}
+	if (typeof event.data.data.method !== "string") {
+		logErr("moduleCall", "recieved moduleCall with malformed method")
+		respondErr(event, messagePortal, isWorker, "'data.method' needs to be a string")
 		return
 	}
 	if (event.data.data.method === "presentSeed") {

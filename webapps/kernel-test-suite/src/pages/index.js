@@ -220,6 +220,20 @@ function TestTesterMirrorDomain() {
 	})
 }
 
+// Check that the kernel is rejecting moduleCall messages that don't include a
+// method field.
+function TestMethodFieldRequired() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, null, {})
+		.then(data => {
+			reject("expecting a call to the kernel with no method to fail")
+		})
+		.catch(err => {
+			resolve("kernel failed when there was a call with no method: "+err)
+		})
+	})
+}
+
 // TestModuleHasErrors asks the TestModule whether it has encountered any
 // errors during the test cycle.
 function TestModuleHasErrors() {
@@ -394,6 +408,7 @@ const IndexPage = () => {
 			<TestCard name="TestViewTesterSeedByHelper" test={TestViewTesterSeedByHelper} turn={getTurn()} />
 			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
 			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
