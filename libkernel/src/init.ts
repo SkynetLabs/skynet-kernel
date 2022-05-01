@@ -1,11 +1,11 @@
 // log provides a wrapper for console.log that prefixes 'libkernel'.
-export function log(...inputs: any) {
+function log(...inputs: any) {
 	console.log("[libkernel]", ...inputs)
 }
 
 // logErr provides a wrapper for console.error that prefixes '[libkernel]' to
 // the output.
-export function logErr(...inputs: any) {
+function logErr(...inputs: any) {
 	console.error("[libkernel]", ...inputs)
 }
 
@@ -72,7 +72,7 @@ let blockForBridge: Promise<string> = new Promise((resolve, reject) => {
 //
 // The first return value is a function that can be called to send a
 // 'queryUpdate' to the kernel for that nonce.
-export function newKernelQuery(data: any, update: any): [any, Promise<any>] {
+function newKernelQuery(data: any, update: any): [any, Promise<any>] {
 	let nonce = nextNonce
 	nextNonce++
 	let sendUpdate = function (data: any) {
@@ -171,7 +171,7 @@ function handleMessage(event: MessageEvent) {
 // safe to call init many times, and libkernel will call init before every
 // function call to ensure that everything works even if the user did not
 // explicitly call init.
-export function init(): Promise<string> {
+function init(): Promise<string> {
 	// Check if init has already happened.
 	if (initialized === true) {
 		return blockForBridge
@@ -201,3 +201,5 @@ export function init(): Promise<string> {
 	}, 2000)
 	return blockForBridge
 }
+
+export { init, log, logErr, newKernelQuery }

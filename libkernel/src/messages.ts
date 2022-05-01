@@ -9,7 +9,7 @@ const noBridge = "the bridge failed to initialize (do you have the Skynet browse
 //
 // NOTE: This is good reference code for people who are looking to extend
 // libkernel.
-export function testMessage(): Promise<string> {
+function testMessage(): Promise<string> {
 	// Retrun a promise that will resolve when a response is received from
 	// the kernel.
 	return new Promise((resolve, reject) => {
@@ -75,7 +75,7 @@ export function testMessage(): Promise<string> {
 // callModule can only be used for query-response communications, there is no
 // support for sending queryUpdate messages or receiving responseUpdate
 // messages. If you need those, use 'connectModule' instead.
-export function callModule(module: string, method: string, data: any): Promise<any> {
+function callModule(module: string, method: string, data: any): Promise<any> {
 	return new Promise((resolve, reject) => {
 		init()
 			.then(() => {
@@ -113,7 +113,7 @@ export function callModule(module: string, method: string, data: any): Promise<a
 //
 // NOTE: The largest allowed file is currently slightly less than 4 MiB
 // (roughly 500 bytes less)
-export function upload(filename: string, fileData: Uint8Array): Promise<string> {
+function upload(filename: string, fileData: Uint8Array): Promise<string> {
 	return new Promise((resolve, reject) => {
 		init()
 			.then(() => {
@@ -144,3 +144,5 @@ export function upload(filename: string, fileData: Uint8Array): Promise<string> 
 			})
 	})
 }
+
+export { callModule, testMessage, upload }

@@ -1,5 +1,12 @@
-import { addContextToErr, blake2b, bufToHex, ed25519Sign, encodePrefixedBytes, encodeU64 } from "libkernel"
-import { defaultPortalList } from "./defaultportals.js"
+import {
+	addContextToErr,
+	blake2b,
+	bufToHex,
+	defaultPortalList,
+	ed25519Sign,
+	encodePrefixedBytes,
+	encodeU64,
+} from "libkernel"
 import { readRegistryEntry } from "./registryread.js"
 import { progressiveFetch } from "./progressivefetch.js"
 
@@ -91,8 +98,7 @@ function overwriteRegistryEntry(keypair: any, datakey: Uint8Array, data: Uint8Ar
 				let endpoint = "/skynet/registry"
 
 				// Perform the fetch call.
-				let portals = defaultPortalList
-				progressiveFetch(endpoint, fetchOpts, portals, verifyRegistryWrite).then((result) => {
+				progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryWrite).then((result) => {
 					if (result.success === true) {
 						resolve(null)
 						return

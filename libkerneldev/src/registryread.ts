@@ -1,5 +1,13 @@
-import { addContextToErr, blake2b, bufToHex, ed25519Verify, encodePrefixedBytes, encodeU64, hexToBuf } from "libkernel"
-import { defaultPortalList } from "./defaultportals.js"
+import {
+	addContextToErr,
+	blake2b,
+	bufToHex,
+	defaultPortalList,
+	ed25519Verify,
+	encodePrefixedBytes,
+	encodeU64,
+	hexToBuf,
+} from "libkernel"
 import { progressiveFetch } from "./progressivefetch.js"
 
 // readRegistryEntryResult defines fields that are important to processing a registry
@@ -128,11 +136,10 @@ function readRegistryEntry(pubkey: Uint8Array, datakey: Uint8Array): Promise<rea
 		let pubkeyHex = bufToHex(pubkey)
 		let datakeyHex = bufToHex(datakey)
 		let endpoint = "/skynet/registry?publickey=ed25519%3A" + pubkeyHex + "&datakey=" + datakeyHex
-		let portals = defaultPortalList
 		let verifyFunc = function (response: Response): Promise<string | null> {
 			return verifyRegistryReadResponse(response, pubkey, datakey)
 		}
-		progressiveFetch(endpoint, {}, portals, verifyFunc).then((result: any) => {
+		progressiveFetch(endpoint, {}, defaultPortalList, verifyFunc).then((result: any) => {
 			// Check for a success.
 			if (result.success === true) {
 				result.response

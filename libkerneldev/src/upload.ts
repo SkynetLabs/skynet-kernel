@@ -2,11 +2,11 @@ import {
 	addContextToErr,
 	blake2bMerkleRoot,
 	bufToB64,
+	defaultPortalList,
 	encodeU64,
 	skylinkV1Bitfield,
 	validateSkyfileMetadata,
 } from "libkernel"
-import { defaultPortalList } from "./defaultportals.js"
 import { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
 
 // upload will upload the provided fileData to Skynet using the provided
@@ -139,7 +139,6 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 			method: "post",
 			body: reqBody,
 		}
-		let portals = defaultPortalList
 		// Establish the function that verifies the result is correct.
 		let verifyFunction = function (response: Response): Promise<string | null> {
 			return new Promise((resolve) => {
@@ -161,7 +160,7 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 					})
 			})
 		}
-		progressiveFetch(endpoint, fetchOpts, portals, verifyFunction).then((result: progressiveFetchResult) => {
+		progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyFunction).then((result: progressiveFetchResult) => {
 			result.response
 				.json()
 				.then((j) => {
