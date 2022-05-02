@@ -42,6 +42,12 @@ function TestSendTestMessage() {
 // TestModuleHasSeed checks that the test module was given a seed by the
 // kernel. This is one of the fundamental priveledges of being a kernel module:
 // receiving a secure and unique seed for module-specific user data.
+//
+// The full message flow here is:
+// 	webpage => bridge => background => 
+// 		kernel => test module ->
+// 		kernel ->
+// 	background -> bridge -> webpage
 let kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
 function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
@@ -59,6 +65,38 @@ function TestModuleHasSeed() {
 		})
 		.catch(err => {
 			reject(err)
+		})
+	})
+}
+
+// TestMissingModule checks that the kernel correctly handles a call to a
+// module that doesn't exist. For the module, we use the test module but with
+// the final character modified so that the hash doesn't actually point to
+// anything.
+let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3h"
+function TestMissingModule() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(moduleDoesNotExist, "viewSeed", {})
+		.then(data => {
+			reject("kernel is supposed to return an error")
+		})
+		.catch(err => {
+			resolve(err)
+		})
+	})
+}
+
+// TestMalformedModule checks that the kernel correctly handles a call to a
+// module that is using a malformed skylink.
+let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3"
+function TestMalformedModule() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(moduleDoesNotExist, "viewSeed", {})
+		.then(data => {
+			reject("kernel is supposed to return an error")
+		})
+		.catch(err => {
+			resolve(err)
 		})
 	})
 }
@@ -398,6 +436,8 @@ const IndexPage = () => {
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
+			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
 			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
 			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
 			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
