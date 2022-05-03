@@ -1,3 +1,5 @@
+import { addContextToErr } from "./err.js"
+
 // Helper consts to make it easy to return empty values alongside errors.
 const nu8 = new Uint8Array(0)
 
@@ -35,6 +37,30 @@ function bufToHex(buf: Uint8Array): string {
 function bufToB64(buf: Uint8Array): string {
 	let b64Str = btoa(String.fromCharCode.apply(null, <number[]>(<unknown>buf)))
 	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+// bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
+// will check for invalid characters.
+var bufToStr = function(buf: ArrayBuffer): [string, string | null] {
+	try {
+		let text = new TextDecoder("utf-8", {fatal: true}).decode(buf)
+		return [text, null]
+	} catch(err: any) {
+		return ["", addContextToErr(err.toString(), "unable to decode ArrayBuffer to string")]
+	}
+}
+
+// decodeNumber will take an 8 byte Uint8Array and decode it as a number.
+var decodeNumber = function(buf: Uint8Array): [bigint, string | null] {
+	if (buf.length !== 8) {
+		return [0n, "a number is expected to be 8 bytes"]
+	}
+	let num = 0n
+	for (let i = 7; i >= 0; i--) {
+		num *= 256n
+		num += BigInt(buf[i])
+	}
+	return [num, null]
 }
 
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
@@ -97,30 +123,4 @@ function hexToBuf(hex: string): [Uint8Array, string | null] {
 	return [u8, null]
 }
 
-/*
-// bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
-// will check for invalid characters.
-var bufToStr = function(buf: ArrayBuffer): [string, Error] {
-	try {
-		let text = new TextDecoder("utf-8", {fatal: true}).decode(buf)
-		return [text, null]
-	} catch(err) {
-		return [null, addContextToErr(err, "unable to decode ArrayBuffer to string")]
-	}
-}
-
-// decodeNumber will take an 8 byte Uint8Array and decode it as a number.
-var decodeNumber = function(buf: Uint8Array): [number, Error] {
-	if (buf.length !== 8) {
-		return [0, new Error("a number is expected to be 8 bytes")]
-	}
-	let num = 0
-	for (let i = 7; i >= 0; i--) {
-		num *= 256
-		num += buf[i]
-	}
-	return [num, null]
-}
-*/
-
-export { b64ToBuf, bufToHex, bufToB64, encodePrefixedBytes, encodeU64, hexToBuf }
+export { b64ToBuf, bufToHex, bufToB64, bufToStr, decodeNumber, encodePrefixedBytes, encodeU64, hexToBuf }

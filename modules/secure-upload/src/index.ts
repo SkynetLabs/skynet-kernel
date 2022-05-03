@@ -1,8 +1,6 @@
 // secure-upload is a module which will upload a file to Skynet. The skylink is
 // computed locally before uploading to ensure that the portal cannot modify
 // the data in the middle of the upload.
-//
-// secure-upload will use portal-dac to determine the user's portals.
 
 import {
 	addContextToErr,
@@ -27,7 +25,7 @@ function respondErr(event: MessageEvent, err: string | null) {
 
 // onmessage receives messages from the kernel. The kernel will ensure the
 // standard fields are all included.
-onmessage = function (event) {
+function onmessage(event) {
 	// Check for known methods.
 	if (event.data.method === "secureUpload") {
 		handleSecureUpload(event)

@@ -1,7 +1,7 @@
 import { blake2b } from "./blake2b.js"
-import { bufToB64, encodeU64 } from "./encoding.js"
+import { bufToB64, encodePrefixedBytes, encodeU64 } from "./encoding.js"
 import { addContextToErr } from "./err.js"
-import { ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
+import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Verify } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
 import { sha512 } from "./sha512.js"
 
@@ -120,4 +120,28 @@ function resolverLink(entryID: Uint8Array): [string, string | null] {
 	return [skylink, null]
 }
 
-export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink }
+// verifyRegistrySignature will verify the signature of a registry entry.
+function verifyRegistrySignature(
+	pubkey: Uint8Array,
+	datakey: Uint8Array,
+	data: Uint8Array,
+	revision: bigint,
+	sig: Uint8Array
+): boolean {
+	let [encodedData, errEPB] = encodePrefixedBytes(data)
+	if (errEPB !== null) {
+		return false
+	}
+	let [encodedRevision, errU64] = encodeU64(revision)
+	if (errU64 !== null) {
+		return false
+	}
+	let dataToVerify = new Uint8Array(32 + 8 + data.length + 8)
+	dataToVerify.set(datakey, 0)
+	dataToVerify.set(encodedData, 32)
+	dataToVerify.set(encodedRevision, 32 + 8 + data.length)
+	let sigHash = blake2b(dataToVerify)
+	return ed25519Verify(sigHash, sig, pubkey)
+}
+
+export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink, verifyRegistrySignature }

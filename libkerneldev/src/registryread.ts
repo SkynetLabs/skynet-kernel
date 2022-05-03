@@ -7,6 +7,7 @@ import {
 	encodePrefixedBytes,
 	encodeU64,
 	hexToBuf,
+	verifyRegistrySignature,
 } from "libkernel"
 import { progressiveFetch } from "./progressivefetch.js"
 
@@ -20,30 +21,6 @@ interface readRegistryEntryResult {
 
 // Some helper consts to make returning empty values alongside an error easier.
 const nu8 = new Uint8Array(0)
-
-// verifyRegistrySignature will verify the signature of a registry entry.
-function verifyRegistrySignature(
-	pubkey: Uint8Array,
-	datakey: Uint8Array,
-	data: Uint8Array,
-	revision: bigint,
-	sig: Uint8Array
-): boolean {
-	let [encodedData, errEPB] = encodePrefixedBytes(data)
-	if (errEPB !== null) {
-		return false
-	}
-	let [encodedRevision, errU64] = encodeU64(revision)
-	if (errU64 !== null) {
-		return false
-	}
-	let dataToVerify = new Uint8Array(32 + 8 + data.length + 8)
-	dataToVerify.set(datakey, 0)
-	dataToVerify.set(encodedData, 32)
-	dataToVerify.set(encodedRevision, 32 + 8 + data.length)
-	let sigHash = blake2b(dataToVerify)
-	return ed25519Verify(sigHash, sig, pubkey)
-}
 
 // verifyRegReadResp will check the response body of a registry read on a
 // portal. The first return value indicates whether the error that gets

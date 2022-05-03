@@ -1,4 +1,5 @@
 import { addContextToErr } from "./err.js"
+import { parseSkylinkBitfield } from "./skylinkbitfield.js"
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
 // file in a skylink.
@@ -93,4 +94,15 @@ function validateSkyfileMetadata(metadata: any): string | null {
 	return null
 }
 
-export { validateSkyfileMetadata, validateSkyfilePath }
+// validSkylink returns true if the provided Uint8Array is a valid skylink.
+// This is an alias for 'parseSkylinkBitfield', as both perform the same
+// validation.
+function validSkylink(skylink: Uint8Array): boolean {
+	let [version, offset, fetchSize, errPSB] = parseSkylinkBitfield(skylink)
+	if (errPSB !== null) {
+		return false
+	}
+	return true
+}
+
+export { validateSkyfileMetadata, validateSkyfilePath, validSkylink }

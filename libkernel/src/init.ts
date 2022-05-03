@@ -171,6 +171,10 @@ function handleMessage(event: MessageEvent) {
 // safe to call init many times, and libkernel will call init before every
 // function call to ensure that everything works even if the user did not
 // explicitly call init.
+//
+// If the init is successful, the promise will resolve with version of
+// libkernel that is active. If the init is not successful, it will reject with
+// an error.
 function init(): Promise<string> {
 	// Check if init has already happened.
 	if (initialized === true) {
