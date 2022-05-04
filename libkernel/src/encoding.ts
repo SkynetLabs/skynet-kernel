@@ -50,8 +50,8 @@ var bufToStr = function(buf: ArrayBuffer): [string, string | null] {
 	}
 }
 
-// decodeNumber will take an 8 byte Uint8Array and decode it as a number.
-var decodeNumber = function(buf: Uint8Array): [bigint, string | null] {
+// decodeBigint will take an 8 byte Uint8Array and decode it as a bigint.
+var decodeBigint = function(buf: Uint8Array): [bigint, string | null] {
 	if (buf.length !== 8) {
 		return [0n, "a number is expected to be 8 bytes"]
 	}
@@ -123,4 +123,4 @@ function hexToBuf(hex: string): [Uint8Array, string | null] {
 	return [u8, null]
 }
 
-export { b64ToBuf, bufToHex, bufToB64, bufToStr, decodeNumber, encodePrefixedBytes, encodeU64, hexToBuf }
+export { b64ToBuf, bufToHex, bufToB64, bufToStr, decodeBigint, encodePrefixedBytes, encodeU64, hexToBuf }

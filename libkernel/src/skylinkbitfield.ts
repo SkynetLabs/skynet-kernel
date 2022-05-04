@@ -4,10 +4,10 @@ const nu8 = new Uint8Array(0)
 
 // parseSkylinkBitfield parses a skylink bitfield and returns the corresponding
 // version, offset, and fetchSize.
-function parseSkylinkBitfield(skylink: Uint8Array): [number, number, number, string | null] {
+function parseSkylinkBitfield(skylink: Uint8Array): [bigint, bigint, bigint, string | null] {
 	// Validate the input.
 	if (skylink.length !== 34) {
-		return [0, 0, 0, "provided skylink has incorrect length"]
+		return [0n, 0n, 0n, "provided skylink has incorrect length"]
 	}
 
 	// Extract the bitfield.
@@ -17,22 +17,22 @@ function parseSkylinkBitfield(skylink: Uint8Array): [number, number, number, str
 	let version = (bitfield & 3) + 1
 	// Only versions 1 and 2 are recognized.
 	if (version !== 1 && version !== 2) {
-		return [0, 0, 0, "provided skylink has unrecognized version"]
+		return [0n, 0n, 0n, "provided skylink has unrecognized version"]
 	}
 
 	// If the skylink is set to version 2, we only recognize the link if
 	// the rest of the bits in the bitfield are empty.
 	if (version === 2) {
 		if ((bitfield & 3) !== bitfield) {
-			return [0, 0, 0, "provided skylink has unrecognized version"]
+			return [0n, 0n, 0n, "provided skylink has unrecognized version"]
 		}
-		return [version, 0, 0, null]
+		return [BigInt(version), 0n, 0n, null]
 	}
 
 	// Verify that the mode is valid, then fetch the mode.
 	bitfield = bitfield >> 2
 	if ((bitfield & 255) === 255) {
-		return [0, 0, 0, "provided skylink has an unrecognized version"]
+		return [0n, 0n, 0n, "provided skylink has an unrecognized version"]
 	}
 	let mode = 0
 	for (let i = 0; i < 8; i++) {
@@ -45,7 +45,7 @@ function parseSkylinkBitfield(skylink: Uint8Array): [number, number, number, str
 	}
 	// If the mode is greater than 7, this is not a valid v1 skylink.
 	if (mode > 7) {
-		return [0, 0, 0, "provided skylink has an invalid v1 bitfield"]
+		return [0n, 0n, 0n, "provided skylink has an invalid v1 bitfield"]
 	}
 
 	// Determine the offset and fetchSize increment.
@@ -66,21 +66,22 @@ function parseSkylinkBitfield(skylink: Uint8Array): [number, number, number, str
 	// The remaining bits determine the offset.
 	let offset = bitfield * offsetIncrement
 	if (offset + fetchSize > 1 << 22) {
-		return [0, 0, 0, "provided skylink has an invalid v1 bitfield"]
+		return [0n, 0n, 0n, "provided skylink has an invalid v1 bitfield"]
 	}
 
 	// Return what we learned.
-	return [version, offset, fetchSize, null]
+	return [BigInt(version), BigInt(offset), BigInt(fetchSize), null]
 }
 
 // skylinkV1Bitfield sets the bitfield of a V1 skylink. It assumes the version
 // is 1 and the offset is 0. It will determine the appropriate fetchSize from
 // the provided dataSize.
-function skylinkV1Bitfield(dataSize: number): [Uint8Array, string | null] {
+function skylinkV1Bitfield(dataSizeBI: bigint): [Uint8Array, string | null] {
 	// Check that the dataSize is not too large.
-	if (dataSize > 1 << 22) {
+	if (dataSizeBI > 1 << 22) {
 		return [nu8, "dataSize must be less than the sector size"]
 	}
+	let dataSize = Number(dataSizeBI)
 
 	// Determine the mode for the file. The mode is determined by the
 	// dataSize.

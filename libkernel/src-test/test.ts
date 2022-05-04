@@ -267,7 +267,7 @@ function TestSkylinkV1Bitfield(t: any) {
 	]
 
 	for (let i = 0; i < tests.length; i++) {
-		let [bitfield, errSVB] = skylinkV1Bitfield(tests[i].trial)
+		let [bitfield, errSVB] = skylinkV1Bitfield(BigInt(tests[i].trial))
 		if (errSVB !== null) {
 			t.fail("unable to create bitfield")
 			return
@@ -278,13 +278,13 @@ function TestSkylinkV1Bitfield(t: any) {
 			t.fail("parseSkylinkBitfield has failed on generated skylink", tests[i])
 			return
 		}
-		if (version !== 1) {
+		if (version !== 1n) {
 			t.fail("skylinkV1Bitfield is setting the wrong version", version, tests[i])
 		}
-		if (offset !== 0) {
+		if (offset !== 0n) {
 			t.fail("skylinkV1Bitfield is setting the wrong offset", offset, tests[i])
 		}
-		if (fetchSize !== tests[i].expect) {
+		if (fetchSize !== BigInt(tests[i].expect)) {
 			t.fail("the wrong fetchSize has been set", fetchSize, tests[i])
 		}
 	}

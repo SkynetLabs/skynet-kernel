@@ -133,7 +133,7 @@ function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array,
 	if (errPSB !== null) {
 		return [nu8, addContextToErr(errPSB, "final value returned by resolver link is not a valid skylink")]
 	}
-	if (version !== 1) {
+	if (version !== 1n) {
 		return [nu8, "final value returned by resolver link is not a v1 skylink"]
 	}
 
