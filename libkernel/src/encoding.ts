@@ -41,17 +41,17 @@ function bufToB64(buf: Uint8Array): string {
 
 // bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
 // will check for invalid characters.
-var bufToStr = function(buf: ArrayBuffer): [string, string | null] {
+function bufToStr(buf: ArrayBuffer): [string, string | null] {
 	try {
-		let text = new TextDecoder("utf-8", {fatal: true}).decode(buf)
+		let text = new TextDecoder("utf-8", { fatal: true }).decode(buf)
 		return [text, null]
-	} catch(err: any) {
+	} catch (err: any) {
 		return ["", addContextToErr(err.toString(), "unable to decode ArrayBuffer to string")]
 	}
 }
 
 // decodeBigint will take an 8 byte Uint8Array and decode it as a bigint.
-var decodeBigint = function(buf: Uint8Array): [bigint, string | null] {
+function decodeBigint(buf: Uint8Array): [bigint, string | null] {
 	if (buf.length !== 8) {
 		return [0n, "a number is expected to be 8 bytes"]
 	}

@@ -18,11 +18,7 @@ interface proofStack {
 const nu8 = new Uint8Array(0)
 
 // blake2bAddSubtreeToProofStack will add a subtree to a proof stack.
-function blake2bAddSubtreeToProofStack(
-	ps: proofStack,
-	subtreeRoot: Uint8Array,
-	subtreeHeight: bigint
-): string | null {
+function blake2bAddSubtreeToProofStack(ps: proofStack, subtreeRoot: Uint8Array, subtreeHeight: bigint): string | null {
 	// Input checking.
 	if (subtreeRoot.length !== 32) {
 		return "cannot add subtree because root is wrong length"

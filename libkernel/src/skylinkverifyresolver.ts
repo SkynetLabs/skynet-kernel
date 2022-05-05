@@ -18,7 +18,14 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
 	}
 
 	// Verify that all of the required fields are present in the proof.
-	if (!("data" in proof) || !("datakey" in proof) || !("publickey" in proof) || !("signature" in proof) || !("type" in proof) || !("revision" in proof)) {
+	if (
+		!("data" in proof) ||
+		!("datakey" in proof) ||
+		!("publickey" in proof) ||
+		!("signature" in proof) ||
+		!("type" in proof) ||
+		!("revision" in proof)
+	) {
 		return [nu8, "proof is malformed, fields are missing"]
 	}
 	if (!("algorithm" in proof.publickey) || !("key" in proof.publickey)) {
@@ -117,7 +124,7 @@ function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array,
 	// Check each proof in the chain, returning the final skylink.
 	for (let i = 0; i < proof.length; i++) {
 		let errVRLP
-		[skylink, errVRLP] = verifyResolverLinkProof(skylink, proof[i])
+		;[skylink, errVRLP] = verifyResolverLinkProof(skylink, proof[i])
 		if (errVRLP !== null) {
 			return [nu8, addContextToErr(errVRLP, "one of the resolution proofs is invalid")]
 		}

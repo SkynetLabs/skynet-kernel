@@ -30,7 +30,12 @@ const nu8 = new Uint8Array(0)
 // have as input, the portal is considered non-malicious. Any additional errors
 // we find after that can be considered malice or incompetence on the part of
 // the person who uploaded the file.
-function verifyDownload(root: Uint8Array, offset: bigint, fetchSize: bigint, buf: ArrayBuffer): [fileData: Uint8Array, portalAtFault: boolean, err: string | null] {
+function verifyDownload(
+	root: Uint8Array,
+	offset: bigint,
+	fetchSize: bigint,
+	buf: ArrayBuffer
+): [fileData: Uint8Array, portalAtFault: boolean, err: string | null] {
 	let u8 = new Uint8Array(buf)
 	// Input checking. If any of this is incorrect, its safe to blame the
 	// server because the skylink format fundamentally should enable these
@@ -84,7 +89,7 @@ function verifyDownload(root: Uint8Array, offset: bigint, fetchSize: bigint, buf
 	if (BigInt(skylinkData.length) < 99n + fileSize + mdSize + fanoutSize) {
 		return [nu8, false, "provided data is too short to contain the full skyfile"]
 	}
-	let fileData = skylinkData.slice(Number(99n+mdSize+fanoutSize), Number(99n+mdSize+fanoutSize+fileSize))
+	let fileData = skylinkData.slice(Number(99n + mdSize + fanoutSize), Number(99n + mdSize + fanoutSize + fileSize))
 	return [fileData, false, null]
 }
 

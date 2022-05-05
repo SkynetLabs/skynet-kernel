@@ -87,7 +87,7 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 			return
 		}
 		let skylinkBytes = new Uint8Array(34)
-		let [bitfield, errSV1B] = skylinkV1Bitfield(totalSize)
+		let [bitfield, errSV1B] = skylinkV1Bitfield(BigInt(totalSize))
 		if (errSV1B !== null) {
 			reject(addContextToErr(errSV1B, "unable to create bitfield for skylink"))
 			return

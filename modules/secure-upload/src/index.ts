@@ -25,7 +25,11 @@ function respondErr(event: MessageEvent, err: string | null) {
 
 // onmessage receives messages from the kernel. The kernel will ensure the
 // standard fields are all included.
-function onmessage(event) {
+//
+// The declaration of 'onmessage' is ignored by eslint because it doesn't like
+// that onmessage is never called but since it's a function and not a variable
+// I couldn't get the regexes to ignore the 'onmessage' declaration.
+onmessage = function (event: MessageEvent) {
 	// Check for known methods.
 	if (event.data.method === "secureUpload") {
 		handleSecureUpload(event)

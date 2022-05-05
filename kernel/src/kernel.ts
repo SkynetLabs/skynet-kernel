@@ -277,7 +277,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	}
 }
 
-// createMdoule will create a worker for the provided code.
+// createModule will create a worker for the provided code.
 //
 // TODO: Need to set up an onerror
 function createModule(workerCode: Uint8Array, domain: string): [module, string] {
@@ -392,6 +392,16 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		// TODO: Save the result to localStorage. Can't do that until
 		// subscriptions are in place so that localStorage can sync
 		// with any updates from the remote module.
+
+		// Check for a 404.
+		//
+		// NOTE: This is a side-effect of using the old version of
+		// progressiveFetch. When we switch to writing the kernel using
+		// libkernel, this check will change.
+		if (result.response.status === 404) {
+			respondErr(event, messagePortal, isWorker, "could not load module, received 404")
+			return
+		}
 
 		// Create a new module.
 		let [module, err] = createModule(result.fileData, moduleDomain)

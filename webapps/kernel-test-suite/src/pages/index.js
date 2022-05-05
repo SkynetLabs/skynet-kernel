@@ -73,12 +73,12 @@ function TestModuleHasSeed() {
 // module that doesn't exist. For the module, we use the test module but with
 // the final character modified so that the hash doesn't actually point to
 // anything.
-let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3h"
+let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo9no3XJpUydcDCjw7VJy8lG1MCZ3g"
 function TestMissingModule() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(moduleDoesNotExist, "viewSeed", {})
 		.then(data => {
-			reject("kernel is supposed to return an error")
+			reject("kernel is supposed to return an error:"+ JSON.stringify(data))
 		})
 		.catch(err => {
 			resolve(err)
@@ -88,10 +88,10 @@ function TestMissingModule() {
 
 // TestMalformedModule checks that the kernel correctly handles a call to a
 // module that is using a malformed skylink.
-let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3"
+let moduleMalformed = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3"
 function TestMalformedModule() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(moduleDoesNotExist, "viewSeed", {})
+		kernel.callModule(moduleMalformed, "viewSeed", {})
 		.then(data => {
 			reject("kernel is supposed to return an error")
 		})

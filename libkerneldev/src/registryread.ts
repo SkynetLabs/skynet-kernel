@@ -1,14 +1,4 @@
-import {
-	addContextToErr,
-	blake2b,
-	bufToHex,
-	defaultPortalList,
-	ed25519Verify,
-	encodePrefixedBytes,
-	encodeU64,
-	hexToBuf,
-	verifyRegistrySignature,
-} from "libkernel"
+import { addContextToErr, bufToHex, defaultPortalList, hexToBuf, verifyRegistrySignature } from "libkernel"
 import { progressiveFetch } from "./progressivefetch.js"
 
 // readRegistryEntryResult defines fields that are important to processing a registry
