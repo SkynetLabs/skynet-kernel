@@ -86,6 +86,10 @@ function handleSecureUpload(event: MessageEvent) {
 		respondErr(event, addContextToErr(errVSM, "upload is using invalid metadata"))
 		return
 	}
+
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify
+	// Note: Properties of non-array objects are not guaranteed to be stringified in any particular order.
+	// Do not rely on ordering of properties within the same object within the stringification.
 	let metadataBytes = new TextEncoder().encode(JSON.stringify(metadata))
 
 	// Build the layout of the skyfile.
@@ -93,6 +97,10 @@ function handleSecureUpload(event: MessageEvent) {
 	let offset = 0
 	layoutBytes[offset] = 1 // Set the Version
 	offset += 1
+
+	// that's a very go way to deal with errors, in javascript it's common to throw an error and let
+	// the consumer use try-catch instead of returning a response and error pair, also you wouldn't
+	// need to resort to naming the errors like errU641, errU642 errU643
 	let [filesizeBytes, errU641] = encodeU64(BigInt(fileData.length))
 	if (errU641 !== null) {
 		respondErr(event, addContextToErr(errU641, "unable to encode fileData length"))
@@ -120,6 +128,8 @@ function handleSecureUpload(event: MessageEvent) {
 	offset += 1
 	layoutBytes[offset + 7] = 1 // Set the cipher type
 	offset += 8
+
+	// this should never be the case, is this just a message used in development ?
 	if (offset + 64 !== 99) {
 		respondErr(event, "error when building the layout bytes, got wrong final offset")
 		return
@@ -131,7 +141,13 @@ function handleSecureUpload(event: MessageEvent) {
 		respondErr(event, "error when building the base sector: total sector is too large")
 		return
 	}
+	
+	// assign "1 << 22" to a variable like "sectorSize" or sth
 	let baseSector = new Uint8Array(1 << 22)
+
+	// use new variable instead, changing purpose of the variable just to reuse it
+	// should be avoided to avoid potential bugs; in fact, I would set layoutBytesOffset,
+	// metadataBytesOffset and fileDataOffset instead of incrementing the offset each time
 	offset = 0
 	baseSector.set(layoutBytes, offset)
 	offset += layoutBytes.length
@@ -154,6 +170,9 @@ function handleSecureUpload(event: MessageEvent) {
 	skylinkBytes.set(bitfield, 0)
 	skylinkBytes.set(sectorRoot, 2)
 
+	// some of those numbers (example but not limited to 7, 92 or 15 below) are not explained
+	// it would benefit readability to either assign them to a variable with verbose name or add comments
+
 	// Build the header for the upload call.
 	let header = new Uint8Array(92)
 	let [headerMetadataPrefix, errU644] = encodeU64(15n)
@@ -161,12 +180,19 @@ function handleSecureUpload(event: MessageEvent) {
 		respondErr(event, addContextToErr(errU644, "unable to encode header metadata length"))
 		return
 	}
+
+	// is "Skyfile Backup" text part of the header metadata? maybe create a separate function
+	// for that logic below ie. createHeaderMetadata - would help with readability
+
 	let headerMetadata = new TextEncoder().encode("Skyfile Backup\n")
 	let [versionPrefix, errU645] = encodeU64(7n)
 	if (errU645 !== null) {
 		respondErr(event, addContextToErr(errU645, "unable to encode version prefix length"))
 		return
 	}
+
+	// should that 1.5.5 be hardcoded? doesn't seem right
+
 	let version = new TextEncoder().encode("v1.5.5\n")
 	let [skylinkPrefix, errU646] = encodeU64(46n)
 	if (errU646 !== null) {
@@ -174,6 +200,9 @@ function handleSecureUpload(event: MessageEvent) {
 		return
 	}
 	let skylink = bufToB64(skylinkBytes)
+
+	// use new variable instead, changing purpose of the variable just to reuse it
+
 	offset = 0
 	header.set(headerMetadataPrefix, offset)
 	offset += 8
@@ -227,6 +256,9 @@ function handleSecureUpload(event: MessageEvent) {
 		}
 		result.response
 			.json()
+
+			// use meaningful variable names like data or responseData instead of j
+
 			.then((j: any) => {
 				postMessage({
 					nonce: event.data.nonce,
@@ -237,6 +269,9 @@ function handleSecureUpload(event: MessageEvent) {
 					},
 				})
 			})
+
+			// err is an "Error" instance
+
 			.catch((err: string) => {
 				respondErr(
 					event,
