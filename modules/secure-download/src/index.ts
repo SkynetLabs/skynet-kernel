@@ -6,12 +6,15 @@ import {
 	addContextToErr,
 	b64ToBuf,
 	defaultPortalList,
-	parseJSON,
 	parseSkylinkBitfield,
 	progressiveFetch,
 	validSkylink,
+	verifyDownload,
 	verifyResolverLinkProofs,
 } from "libkernel"
+
+// Helper consts to make it easier to return empty values alongside errors.
+const nu8 = new Uint8Array(0)
 
 // Create helper function for responding to a query with an error.
 function respondErr(event: MessageEvent, err: string | null) {
@@ -29,7 +32,7 @@ function parseJSON(json: string): [any, string | null] {
 	try {
 		let obj = JSON.parse(json)
 		return [obj, null]
-	} catch (err) {
+	} catch (err: any) {
 		return [{}, err.toString()]
 	}
 }
@@ -54,17 +57,35 @@ onmessage = function (event) {
 	return
 }
 
+// fileDataObj defines the fileData object that we use in
+// verifyDownloadResponse to return the fileData back to the caller.
+interface fileDataObj {
+	fileData: Uint8Array
+	err: string | null
+}
+
 // Establish the function that verifies the result is correct.
-function verifyDownloadResponse(response: Response, u8Link: Uint8Array): Promise<string | null> {
+//
+// The fileDataPtr input is an empty object that verifyDownloadResponse will
+// fill with the fileData. It basically allows the verify function to
+// communicate back to the caller. Note that the verify function might be
+// called multiple times in a row if early portals fail to retrieve the data,
+// but the verify function doesn't write to the fileDataPtr until it knows that
+// the download is final.
+function verifyDownloadResponse(
+	response: Response,
+	u8Link: Uint8Array,
+	fileDataPtr: fileDataObj
+): Promise<string | null> {
 	return new Promise((resolve) => {
 		if (response.status !== 200) {
-			resolve("unrecognized response status, expecting 200")
+			resolve("unrecognized response status " + response.status.toString() + ", expecting 200")
 			return
 		}
 
 		// Technically we already checked this error, but we check it again
 		// here anyway for good hygiene.
-		let [version, offset, fetchSize, errBF] = praseSkylinkBitfield(u8Link)
+		let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link)
 		if (errBF !== null) {
 			resolve(addContextToErr(errBF, "skylink bitfield could not be parsed"))
 			return
@@ -73,7 +94,7 @@ function verifyDownloadResponse(response: Response, u8Link: Uint8Array): Promise
 		// If this is a resolver skylink, we need to verify the resolver
 		// proofs. This conditional will update the value of 'u8Link' to be the
 		// value of the fully resolved link.
-		if (version === 2) {
+		if (version === 2n) {
 			// Verify the resolver proofs and update the link to the correct
 			// link.
 			let proofJSON = response.headers.get("skynet-proof")
@@ -82,46 +103,55 @@ function verifyDownloadResponse(response: Response, u8Link: Uint8Array): Promise
 				return
 			}
 			let [proof, errPJ] = parseJSON(proofJSON)
-			if (errPH !== null) {
+			if (errPJ !== null) {
 				resolve(addContextToErr(errPJ, "unable to parse resolver link proofs"))
 				return
 			}
 			// We need to update the u8Link in-place so that the rest of the
 			// function doesn't need special handling.
 			let errVRLP: string | null
-			[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
+			;[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
 			if (errVRLP !== null) {
 				resolve(addContextToErr(errVRLP, "unable to verify resolver link proofs"))
 				return
 			}
 
-			// We also need to update the prased bitfield, because the link has
+			// We also need to update the parsed bitfield, because the link has
 			// changed.
 			[version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link)
 			if (errBF !== null) {
 				resolve(addContextToErr(errBF, "fully resolved link has invalid bitfield"))
 				return
 			}
-			if (version !== 1) {
+			if (version !== 1n) {
 				resolve("fully resolved link does not have version 1")
 				return
 			}
 		}
 
-		response.arrayBuffer()
-		.then((buf) => {
-			let [, portalAtFault, errVD] = verifyDownload(u8Link.slice(2, 34), offset, fetchSize, buf)
-			if (errVD !== null && portalAtFault) {
-				resolve("received invalid download from portal")
-				return
-			}
-			// If the portal is not at fault, we tell progressiveFetch that the
-			// download was a success.
-			resolve(null)
-		})
-		.catch((err) => {
-			resolve(addContextToErr(err, "unable to read response body"))
-		})
+		response
+			.arrayBuffer()
+			.then((buf) => {
+				let [fileData, portalAtFault, errVD] = verifyDownload(u8Link.slice(2, 34), offset, fetchSize, buf)
+				if (errVD !== null && portalAtFault) {
+					resolve("received invalid download from portal")
+					return
+				}
+				if (errVD !== null) {
+					fileDataPtr.fileData = nu8
+					fileDataPtr.err = addContextToErr(errVD, "file is corrupt")
+				} else {
+					fileDataPtr.fileData = fileData
+					fileDataPtr.err = null
+				}
+				// If the portal is not at fault, we tell progressiveFetch that
+				// the download was a success. The caller will have to check
+				// the fileDataPtr
+				resolve(null)
+			})
+			.catch((err) => {
+				resolve(addContextToErr(err, "unable to read response body"))
+			})
 	})
 }
 
@@ -136,51 +166,39 @@ function handleSecureDownload(event: MessageEvent) {
 		respondErr(event, "filename is expected to be a string")
 		return
 	}
-	let [u8Link, err64] = b64ToBuf(skylink)
+	let [u8Link, err64] = b64ToBuf(event.data.data.skylink)
 	if (err64 !== null) {
-		repondErr(event, addContextToErr(err64, "unable to decode skylink"))
+		respondErr(event, addContextToErr(err64, "unable to decode skylink"))
 		return
 	}
-
-	// Verfiy the skylink and get the bitfield elements.
-	if (u8Link.length !== 34) {
-		respondErr(event, "provided skylink is not the correct length")
-		return
-	}
-	let [version, offset, fetchSize, errBF] = parseSkylinkBitfield(u8Link)
-	if (errBF !== null) {
-		respondErr(event, addContextToErr(errBF, "unable to decode skylink"))
+	if (!validSkylink(u8Link)) {
+		respondErr(event, "skylink " + event.data.data.skylink + " is not valid")
 		return
 	}
 
 	// Call progressiveFetch to perform the upload.
-	let endpoint = "/skynet/trustless/basesector/" + skylink
+	let endpoint = "/skynet/trustless/basesector/" + event.data.data.skylink
+	let fileDataPtr = { fileData: nu8, err: null }
 	let verifyFunction = function (response: Response): Promise<string | null> {
-		return verifyDownloadResponse(response, u8Link)
+		return verifyDownloadResponse(response, u8Link, fileDataPtr)
 	}
 	progressiveFetch(endpoint, null, defaultPortalList, verifyFunction).then((result: any) => {
-		result.response
-			.arrayBuffer()
-			.then((buf: any) => {
-				let [resonseData, errPSR] = parseSkylinkResponse(buf) // TODO: We don't actually know the resolved link.
-				if (errPSR !== null) {
-					respondErr(event, addContextToErr(errPSR, "unable to parse data from sector"))
-					return
-				}
-				postMessage({
-					nonce: event.data.nonce,
-					method: "response",
-					err: null,
-					data: {
-						fileData: responseData,
-					},
-				})
-			})
-			.catch((err: string) => {
-				respondErr(
-					event,
-					addContextToErr(err, "unable to read response body, despite verification success")
-				)
-			})
+		if (result.success !== true) {
+			let err = JSON.stringify(result.messagesFailed)
+			respondErr(event, addContextToErr(err, "unable to download file"))
+			return
+		}
+		if (fileDataPtr.err !== null) {
+			respondErr(event, addContextToErr(fileDataPtr.err, "file appears to be corrupt"))
+			return
+		}
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				fileData: fileDataPtr.fileData,
+			},
+		})
 	})
 }

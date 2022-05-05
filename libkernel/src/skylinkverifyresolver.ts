@@ -136,7 +136,7 @@ function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array,
 	if (skylink.length !== 34) {
 		return [nu8, "final value returned by the resolver link is not a skylink"]
 	}
-	let [version, x, xx, errPSB] = parseSkylinkBitfield(skylink)
+	let [version, , , errPSB] = parseSkylinkBitfield(skylink)
 	if (errPSB !== null) {
 		return [nu8, addContextToErr(errPSB, "final value returned by resolver link is not a valid skylink")]
 	}

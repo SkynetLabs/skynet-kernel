@@ -98,7 +98,10 @@ function validateSkyfileMetadata(metadata: any): string | null {
 // This is an alias for 'parseSkylinkBitfield', as both perform the same
 // validation.
 function validSkylink(skylink: Uint8Array): boolean {
-	let [version, offset, fetchSize, errPSB] = parseSkylinkBitfield(skylink)
+	if (skylink.length !== 34) {
+		return false
+	}
+	let [, , , errPSB] = parseSkylinkBitfield(skylink)
 	if (errPSB !== null) {
 		return false
 	}

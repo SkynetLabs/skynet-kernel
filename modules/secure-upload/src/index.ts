@@ -220,6 +220,11 @@ function handleSecureUpload(event: MessageEvent) {
 		})
 	}
 	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyFunction).then((result: any) => {
+		if (result.success !== true) {
+			let err = JSON.stringify(result.messagesFailed)
+			respondErr(event, addContextToErr(err, "unable to complete upload"))
+			return
+		}
 		result.response
 			.json()
 			.then((j: any) => {

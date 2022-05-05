@@ -336,12 +336,35 @@ function TestBasicCORS() {
 	})
 }
 
-// TestSecureUpload will upload a very basic file to Skynet using libkernel.
-//
-// TODO: Part of this test should be to download the file again and verify that
-// the filename and fileData came back correctly.
-function TestSecureUpload() {
-	return kernel.upload("testUpload.txt", new TextEncoder().encode("test data"))
+// TestSecureUploadAndDownload will upload a very basic file to Skynet using
+// libkernel. It will then download that skylink using libkernel.
+function TestSecureUploadAndDownload() {
+	return new Promise((resolve, reject) => {
+		let fileDataUp = new TextEncoder().encode("test data")
+		kernel.upload("testUpload.txt", fileDataUp)
+		.then(skylink => {
+			kernel.download(skylink)
+			.then(fileDataDown => {
+				if (fileDataUp.length !== fileDataDown.length) {
+					reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
+					return
+				}
+				for (let i = 0; i < fileDataUp.length; i++) {
+					if (fileDataUp[i] !== fileDataDown[i]) {
+						reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
+						return
+					}
+				}
+				resolve(skylink)
+			})
+			.catch(err => {
+				reject(err)
+			})
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
 }
 
 // TestMsgSpeedSequential5k will send ten thousand messages to the kernel
@@ -448,7 +471,7 @@ const IndexPage = () => {
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
-			<TestCard name="TestSecureUpload" test={TestSecureUpload} turn={getTurn()} />
+			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
 		</main>
