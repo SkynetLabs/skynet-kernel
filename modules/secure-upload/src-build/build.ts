@@ -1,6 +1,9 @@
 // This is the standard build script for a kernel module.
 
 import * as fs from "fs"
+
+// remove unused imports
+
 import {
 	addContextToErr,
 	b64ToBuf,
@@ -13,6 +16,12 @@ import {
 } from "libskynet"
 import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libkerneldev"
 import read from "read"
+
+// since variables in js are passed by reference, I wouldn't risk using an object
+// as a default for multiple functions, if even one would modify it, we would end
+// up with this generic object modified
+
+// use meaningful, verbose names instead of nu8 and nkp
 
 // Helper variables to make it easier to return empty values alongside errors.
 const nu8 = new Uint8Array(0)
@@ -113,6 +122,9 @@ function handlePass(password: string) {
 					console.error("passwords do not match")
 					process.exit(1)
 				}
+
+				// https://eslint.org/docs/rules/no-param-reassign
+
 				password = password + moduleSalt
 				handlePassConfirm(password)
 			})
@@ -144,6 +156,10 @@ function handlePassConfirm(password: string) {
 	// password when deploying the module. The shield does get pushed to
 	// the github repo so that the production module is the same on all
 	// devices.
+
+	// I would create a variable on top of the file and use it everywhere
+	// const isProduction = process.argv[2] === "prod"
+
 	if (!fs.existsSync(seedFile) && process.argv[2] !== "prod") {
 		// Generate the seed phrase and write it to the file.
 		let [seedPhrase, errGSP] = generateSeedPhraseRandom()
@@ -289,6 +305,14 @@ if (process.argv[2] === "prod") {
 	console.error("need to provide either 'dev' or 'prod' as an input")
 	process.exit(1)
 }
+
+// moduleSalt is used before it's defined (defined with let on line 313 while used in a function on
+// line 128 and 136 - this is possible because let hoists the variable but this is very bad practice
+// (because it's not well readable and it's easy to make mistake) - you can pass moduleSalt as a param
+// to function handlePass that would solve this issue
+// (note: I only noticed that by chance tbh because I didn't see any mention of moduleSalt in the last block)
+
+// this whole block of getting moduleSalt could be extracted into a separate function
 
 // If doing a prod deployment, check whether the salt file exists. If it does
 // not, create it.
