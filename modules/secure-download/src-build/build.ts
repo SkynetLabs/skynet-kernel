@@ -1,3 +1,6 @@
+// this file is duplicated (the same file is in modules/secure-upload/src-build)
+// copy the file to a higher directory to reuse it in different modules if needed
+
 // This is the standard build script for a kernel module.
 
 import * as fs from "fs"

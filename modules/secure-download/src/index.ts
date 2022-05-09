@@ -13,6 +13,9 @@ import {
 	verifyResolverLinkProofs,
 } from "libskynet"
 
+// nu8: objects are passed as reference so create a new one each time
+// otherwise something might overwrite the data
+
 // Helper consts to make it easier to return empty values alongside errors.
 const nu8 = new Uint8Array(0)
 
@@ -110,6 +113,9 @@ function verifyDownloadResponse(
 			// We need to update the u8Link in-place so that the rest of the
 			// function doesn't need special handling.
 			let errVRLP: string | null
+
+			// do not reuse function arguments by overwriting them, create new variables
+
 			;[u8Link, errVRLP] = verifyResolverLinkProofs(u8Link, proof)
 			if (errVRLP !== null) {
 				resolve(addContextToErr(errVRLP, "unable to verify resolver link proofs"))
@@ -134,6 +140,8 @@ function verifyDownloadResponse(
 			.then((buf) => {
 				let [fileData, portalAtFault, errVD] = verifyDownload(u8Link.slice(2, 34), offset, fetchSize, buf)
 				if (errVD !== null && portalAtFault) {
+					// you probably want to display what portal was at fault too
+
 					resolve("received invalid download from portal")
 					return
 				}
@@ -188,6 +196,10 @@ function handleSecureDownload(event: MessageEvent) {
 			respondErr(event, addContextToErr(err, "unable to download file"))
 			return
 		}
+
+		// relying on the reference to be changed is hard to debug, you should return the error
+		// from the function / reject promise
+
 		if (fileDataPtr.err !== null) {
 			respondErr(event, addContextToErr(fileDataPtr.err, "file appears to be corrupt"))
 			return
