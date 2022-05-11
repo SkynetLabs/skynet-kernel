@@ -1,5 +1,6 @@
 import { addContextToErr, composeErr } from "./err.js"
-import { logErr, init, newKernelQuery } from "./init.js"
+import { init, newKernelQuery } from "./init.js"
+import { logErr } from "./log.js"
 
 const noBridge = "the bridge failed to initialize (do you have the Skynet browser extension?)"
 
@@ -106,78 +107,4 @@ function callModule(module: string, method: string, data: any): Promise<any> {
 	})
 }
 
-// upload will take a filename and some file data and perform a secure upload
-// to Skynet. Secure in this case means that all data is verified before being
-// uploaded - the portal cannot lie about the skylink that it returns after
-// uploading the data.
-//
-// NOTE: The largest allowed file is currently slightly less than 4 MiB
-// (roughly 500 bytes less)
-function upload(filename: string, fileData: Uint8Array): Promise<string> {
-	return new Promise((resolve, reject) => {
-		init()
-			.then(() => {
-				let [, query] = newKernelQuery(
-					{
-						method: "moduleCall",
-						data: {
-							module: "AQAT_a0MzOInZoJzt1CwBM2U8oQ3GIfP5yKKJu8Un-SfNg",
-							method: "secureUpload",
-							data: {
-								filename,
-								fileData,
-							},
-						},
-					},
-					null as any
-				)
-				query
-					.then((response) => {
-						resolve(response.skylink)
-					})
-					.catch((err) => {
-						reject(err)
-					})
-			})
-			.catch((x) => {
-				reject(x)
-			})
-	})
-}
-
-// download will take a skylink and return the fileData for that skylink.
-//
-// NOTE: download currently only supports downloading files that fully fit into
-// the base sector.
-function download(skylink: string): Promise<Uint8Array> {
-	return new Promise((resolve, reject) => {
-		init()
-			.then(() => {
-				let [, query] = newKernelQuery(
-					{
-						method: "moduleCall",
-						data: {
-							module: "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw",
-							method: "secureDownload",
-							data: {
-								skylink,
-							},
-						},
-					},
-					null as any
-				)
-				query
-					.then((response) => {
-						resolve(response.fileData)
-					})
-					.catch((err) => {
-						reject(err)
-					})
-			})
-			.catch((err) => {
-				reject(err)
-			})
-	})
-}
-
-export { callModule, download, testMessage, upload }
+export { callModule, testMessage }

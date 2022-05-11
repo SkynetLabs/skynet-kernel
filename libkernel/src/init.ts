@@ -1,13 +1,4 @@
-// log provides a wrapper for console.log that prefixes 'libkernel'.
-function log(...inputs: any) {
-	console.log("[libkernel]", ...inputs)
-}
-
-// logErr provides a wrapper for console.error that prefixes '[libkernel]' to
-// the output.
-function logErr(...inputs: any) {
-	console.error("[libkernel]", ...inputs)
-}
+import { logErr } from "./log.js"
 
 // queryHandler is the data type that gets stored in the 'queries' map. There's
 // a resolve and reject function associated with a promise that is blocking
@@ -206,4 +197,4 @@ function init(): Promise<string> {
 	return blockForBridge
 }
 
-export { init, log, logErr, newKernelQuery }
+export { init, newKernelQuery }

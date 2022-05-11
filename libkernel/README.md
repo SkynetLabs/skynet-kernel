@@ -1,23 +1,17 @@
 # libkernel
 
-libkernel is a node module for web developers that would like to use the Skynet
-kernel in their applications, or would like to build modules for the Skynet
-kernel. It contains a bunch of helper functions and syntax sugar for
-interacting with the kernel itself, and it also contains a bunch of functions
-for dealing with Skynet objects such as skylinks.
+libkernel is a node module for web developers what would like to use Skynet in
+their applications. It creates a direct connection to the Skynet kernel and
+then provides helper methods for interacting with the kernel.
 
-libkernel for the time being should be considered highly unstable - there is
-ongoing discussion about whether the scope of libkernel is too broad and
-whether some of the Skynet related functions should be split out into their own
-libraries. Methods you depend on today may be gone or have altered APIs
-tomorrow, we hope to have libkernel in a stable place within the next 2-3
-weeks.
+A quirk of libkernel is that errors are of the type `string | null` rather than
+being type `Error`. This is because libkernel is frequently used in webworkers
+and other settings where errors need to be sent over postmessage, and the
+`Error` type is not suitable for postmessage.
 
-A particular quirk of libkernel is that errors are always of the type `string | null` rather than being of type `Error`. This is because libkernel is
-frequently used in webworkers and other settings where errors need to be
-serialized and send over postMessage, and the `Error` type is generally not
-suitable for this. We therefore use strings everywhere as errors, to ensure
-that libkernel can be used in all relevant places.
+libkernel is still being reviewed, but is expected to be stable. There may be a
+small number of breaking changes in the near future, and after that we will be
+providing strong compatibility promises around the libkernel API.
 
 ## Roadmap
 

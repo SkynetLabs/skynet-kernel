@@ -1,7 +1,7 @@
 {
-	"name": "libkernel",
-	"version": "0.0.75",
-	"description": "helper library to interact with skynet and the skynet kernel",
+	"name": "libskynet",
+	"version": "0.0.1",
+	"description": "helper library to interact with skynet's low level primitives",
 	"main": "dist/index.js",
 	"type": "module",
 	"types": "dist/index.d.js",
@@ -12,7 +12,7 @@
 		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
 		"lint": "npm run prettier && npm run eslint",
-		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/test.js",
+		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/src-test/test.js",
 		"prepare": "npm run lint && npm run test"
 	},
 	"author": "David Vorick",
@@ -21,8 +21,5 @@
 		"@typescript-eslint/eslint-plugin": "^5.19.0",
 		"eslint": "^8.13.0",
 		"prettier": "^2.6.2"
-	},
-	"dependencies": {
-		"libskynet": "^0.0.1"
 	}
 }
