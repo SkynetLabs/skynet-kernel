@@ -11,7 +11,7 @@ import {
 	progressiveFetch,
 	skylinkV1Bitfield,
 	validateSkyfileMetadata,
-} from "libkernel"
+} from "libskynet"
 
 // Create helper function for responding to a query with an error.
 function respondErr(event: MessageEvent, err: string | null) {

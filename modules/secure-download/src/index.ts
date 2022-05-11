@@ -11,7 +11,7 @@ import {
 	validSkylink,
 	verifyDownload,
 	verifyResolverLinkProofs,
-} from "libkernel"
+} from "libskynet"
 
 // Helper consts to make it easier to return empty values alongside errors.
 const nu8 = new Uint8Array(0)

@@ -406,7 +406,7 @@ function handleTestCORS(event: MessageEvent) {
 }
 
 // onmessage receives messages from the kernel.
-onmessage = function(event: MessageEvent) {
+onmessage = function (event: MessageEvent) {
 	// Check that the kernel included a method in the message.
 	//
 	// NOTE: A typical kenrel module does not need to check that event.data
