@@ -268,47 +268,45 @@ function TestMethodFieldRequired() {
 	})
 }
 
-// TestModuleHasErrors asks the TestModule whether it has encountered any
-// errors during the test cycle.
-function TestModuleHasErrors() {
+// TestResponseUpdates checks that modules can successfully send responseUpdate
+// messages.
+function TestResponseUpdates() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "viewErrors", {})
+		let progress = 0
+		let receiveUpdate = function(data) {
+			if (!("eventProgress" in data)) {
+				reject("eventProgress not provided in response")
+				return
+			}
+			if (data.eventProgress !== progress+25) {
+				// NOTE: event ordering is not actually guaranteed by the spec, but
+				// this is a situation where parallelism is low enough that the
+				// ordering should be okay.
+				reject("progress messages appear to be arriving out of order")
+				return
+			}
+			progress += 25
+		}
+		let [, query] = kernel.connectModule(kernelTestSuite, "testResponseUpdate", {}, receiveUpdate)
+		query
 		.then(data => {
-			if (!("errors" in data)) {
-				reject("viewErrors in test module did not return a data.errors")
+			if (progress !== 75) {
+				reject("response was received before responseUpdates were completed")
+				console.log("progress is:", progress)
 				return
 			}
-			if (data.errors.length !== 0) {
-				reject("test module has acculumated errors: " + JSON.stringify(data.errors))
+			if (!("eventProgress" in data)) {
+				reject("expecting response to contain eventProgress")
 				return
 			}
-			resolve("test module did not accumulate any errors")
+			if (data.eventProgress !== 100) {
+				reject("expecting response eventProgress to be 100")
+				return
+			}
+			resolve("received all messages in order and final message was a response")
 		})
 		.catch(err => {
-			reject(err)
-		})
-	})
-}
-
-// Check whether any errors showed up in the helper module of the testing
-// module.
-let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
-function TestHelperModuleHasErrors() {
-	return new Promise((resolve, reject) => {
-		kernel.callModule(helperModule, "viewErrors", {})
-		.then(data => {
-			if (!("errors" in data)) {
-				reject("viewErrors in helper module did not return a data.errors")
-				return
-			}
-			if (data.errors.length !== 0) {
-				reject("helper module has acculumated errors: " + JSON.stringify(data.errors))
-				return
-			}
-			resolve("helper module did not accumulate any errors")
-		})
-		.catch(err => {
-			reject(err)
+			reject(kernel.addContextToErr(err, "testResponseUpdate failed"))
 		})
 	})
 }
@@ -411,6 +409,51 @@ function TestMsgSpeedParallel5k() {
 	})
 }
 
+// TestModuleHasErrors asks the TestModule whether it has encountered any
+// errors during the test cycle.
+function TestModuleHasErrors() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "viewErrors", {})
+		.then(data => {
+			if (!("errors" in data)) {
+				reject("viewErrors in test module did not return a data.errors")
+				return
+			}
+			if (data.errors.length !== 0) {
+				reject("test module has acculumated errors: " + JSON.stringify(data.errors))
+				return
+			}
+			resolve("test module did not accumulate any errors")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
+// Check whether any errors showed up in the helper module of the testing
+// module.
+let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
+function TestHelperModuleHasErrors() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(helperModule, "viewErrors", {})
+		.then(data => {
+			if (!("errors" in data)) {
+				reject("viewErrors in helper module did not return a data.errors")
+				return
+			}
+			if (data.errors.length !== 0) {
+				reject("helper module has acculumated errors: " + JSON.stringify(data.errors))
+				return
+			}
+			resolve("helper module did not accumulate any errors")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestCard is a react component that runs a test and reports the result.
 function TestCard(props) {
 	const [testStatus, setTestStatus] = React.useState("test is waiting")
@@ -468,12 +511,13 @@ const IndexPage = () => {
 			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
 			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
 			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
-			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
-			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
 			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
+			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 		</main>
 	)
 }

@@ -383,6 +383,63 @@ function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
 	})
 }
 
+// handleTestResponseUpdate will respond to a query with three updates spaced
+// 200 milliseconds apart, and then finally respond with a full response to
+// close out the message. The value 'eventProgress' is used to distinguish what
+// order the responses are supposed to arrive in.
+function handleTestResponseUpdate(event: MessageEvent) {
+	blockForSeed
+		.then(() => {
+			setTimeout(() => {
+				postMessage({
+					nonce: event.data.nonce,
+					method: "responseUpdate",
+					err: null,
+					data: {
+						eventProgress: 25,
+					},
+				})
+			}, 200)
+			setTimeout(() => {
+				postMessage({
+					nonce: event.data.nonce,
+					method: "responseUpdate",
+					err: null,
+					data: {
+						eventProgress: 50,
+					},
+				})
+			}, 400)
+			setTimeout(() => {
+				postMessage({
+					nonce: event.data.nonce,
+					method: "responseUpdate",
+					err: null,
+					data: {
+						eventProgress: 75,
+					},
+				})
+			}, 600)
+			setTimeout(() => {
+				postMessage({
+					nonce: event.data.nonce,
+					method: "response",
+					err: null,
+					data: {
+						eventProgress: 100,
+					},
+				})
+			}, 800)
+		})
+		.catch((err) => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: "there was a problem when the seed was presented: " + err.toString(),
+			})
+		})
+}
+
 // handleTestCORS checks that the webworker is able to make webrequests to at
 // least one portal. If not, this indicates that CORS is not set up correctly
 // somewhere in the client.
@@ -536,6 +593,11 @@ onmessage = function (event: MessageEvent) {
 	// module established that the tester's domain was.
 	if (event.data.method === "testerMirrorDomain") {
 		handleTesterMirrorDomain(event)
+		return
+	}
+
+	if (event.data.method === "testResponseUpdate") {
+		handleTestResponseUpdate(event)
 		return
 	}
 

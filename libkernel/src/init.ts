@@ -62,7 +62,12 @@ let blockForBridge: Promise<string> = new Promise((resolve, reject) => {
 // the nonce and the resolve/reject upon receiving a response.
 //
 // The first return value is a function that can be called to send a
-// 'queryUpdate' to the kernel for that nonce.
+// 'queryUpdate' to the kernel for that nonce. The second input should be a
+// function that can be called when a 'responseUpdate' message is provided.
+//
+// NOTE: newKernelQuery will provide return values before learning that init
+// has succeeded or failed. If init fails, the query will implicitly fail as
+// well.
 function newKernelQuery(data: any, update: any): [any, Promise<any>] {
 	let nonce = nextNonce
 	nextNonce++
@@ -71,11 +76,13 @@ function newKernelQuery(data: any, update: any): [any, Promise<any>] {
 	}
 	let p = new Promise((resolve, reject) => {
 		queries[nonce] = { resolve, reject, update, handle: handleKernelResponse }
-		window.postMessage({
-			namespace,
-			method: "newKernelQuery",
-			nonce,
-			data,
+		init().then(() => {
+			window.postMessage({
+				namespace,
+				method: "newKernelQuery",
+				nonce,
+				data,
+			})
 		})
 	})
 	return [sendUpdate, p]

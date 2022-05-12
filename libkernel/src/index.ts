@@ -1,5 +1,5 @@
 export { download } from "./download.js"
 export { addContextToErr, composeErr } from "./err.js"
-export { init, newKernelQuery } from "./init.js"
-export { callModule, testMessage } from "./messages.js"
+export { init } from "./init.js"
+export { callModule, connectModule, testMessage } from "./messages.js"
 export { upload } from "./upload.js"

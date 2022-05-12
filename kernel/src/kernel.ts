@@ -474,6 +474,28 @@ handleMessage = function(event) {
 		handleModuleCall(event, event.source, domain, false)
 		return
 	}
+	if (event.data.method === "queryUpdate") {
+		// TODO: Add support for queryUpdate. This requires keeping a mapping
+		// from the nonce to the corresponding module call. Except that I don't
+		// think we actually have a way to do that because the incoming
+		// messages aren't namespaced. The kernel wasn't worried about repeat
+		// nonces because it just directly responds to the event. But we can't
+		// do that here because it's two separate events and we need some way
+		// to make sure parallel callers don't end up with the same nonce. I
+		// wonder if the kernel needs to respond to every call with a query
+		// update. Or maybe we need a new method called 'moduleSession' which
+		// opens a session to the module. But this is really only a problem
+		// here because module-to-module communication uses the kernel nonce.
+		//
+		// So I think what we can do is add an extra field to a moduleCall
+		// which will have the kernel respond with a session id (the kernel's
+		// nonce) that can be used to perform a query update.
+		//
+		// What I don't like about this solution is that it means skapps are
+		// once again doing something different than webworkers... I think?
+		respondErr(event, event.source, false, "queryUpdate not yet supported")
+		return
+	}
 	if (event.data.method === "requestOverride") {
 		handleSkynetKernelRequestOverride(event)
 		return

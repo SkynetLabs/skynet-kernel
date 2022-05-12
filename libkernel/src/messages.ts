@@ -107,4 +107,66 @@ function callModule(module: string, method: string, data: any): Promise<any> {
 	})
 }
 
-export { callModule, testMessage }
+// connectModule opens a "connection" to a module. When using 'callModule', all
+// communications have a single round trip. You send a single query message,
+// then you get a single response message. With 'connectModule', the caller has
+// the ability to send updates, and the receiver has the ability to send
+// updates.
+//
+// The general structure of the communication is the same. A query is created
+// on a module that specifies a particular method. When creating the query, a
+// 'receiveUpdate' method needs to be provided that will be called when the
+// module provides an update. recieveUpdate should have the form:
+//
+// function receiveUpdate(data: any) { ... }
+//
+// updates are not guaranteed to be provided in any particular order.
+//
+// The return value is a tuple of a 'sendUpdate' function and a promise. The
+// promise will resolve or reject when the query is complete. The sendUpdate
+// value is a function of the form:
+//
+// function sendUpdate(data: any) { ... }
+//
+// If the caller wishes to send an update to the module, they should use the
+// sendUpdate function.
+//
+// TODO: At the moment it's unclear that the sendUpdate function is being
+// created in a way that is guaranteed to be specific to this one caller,
+// because the nonces may not be unique. We need to work that through with the
+// kernel.
+function connectModule(module: string, method: string, data: any, receiveUpdate: any): [any, Promise<any>] {
+	// Create the kernel query.
+	let [sendUpdate, query] = newKernelQuery(
+		{
+			method: "moduleCall",
+			data: {
+				module,
+				method,
+				data,
+			},
+		},
+		receiveUpdate
+	)
+
+	let p = new Promise((resolve, reject) => {
+		init()
+			.then(() => {
+				query
+					.then((response) => {
+						resolve(response)
+					})
+					.catch((err) => {
+						reject(addContextToErr(err, "moduleCall query to kernel failed"))
+					})
+			})
+			.catch((err) => {
+				let cErr = composeErr(noBridge, err)
+				logErr(cErr)
+				reject(cErr)
+			})
+	})
+	return [sendUpdate, p]
+}
+
+export { callModule, connectModule, testMessage }
