@@ -20,6 +20,7 @@ function logHelper(isErr: boolean, ...inputs: any) {
 // JSON.stringify will be substituted with a placeholder string indicating that
 // the input could not be stringified.
 function log(...inputs: any) {
+	console.log(...inputs)
 	logHelper(false, ...inputs)
 }
 
@@ -28,6 +29,7 @@ function log(...inputs: any) {
 // stringified using JSON.stringify will be substituted with a placeholder
 // string indicating that the input could not be stringified.
 function logErr(...inputs: any) {
+	console.error(...inputs)
 	logHelper(true, ...inputs)
 }
 

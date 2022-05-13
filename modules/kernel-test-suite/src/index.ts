@@ -1,20 +1,6 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
-import { log, logErr, respondErr } from "libkmodule"
-
-// Define helper functions that will allow the worker to block until the seed
-// is received. This is going to be standard code in every module that needs a
-// private seed. Not all modules will require a private seed, especially if
-// they are using other modules (such as fsDAC and profileDAC) for shared
-// state.
-let seed: Uint8Array
-let resolveSeed: any
-let rejectSeed: any
-let seedReceived = false
-let blockForSeed = new Promise((resolve, reject) => {
-	resolveSeed = resolve
-	rejectSeed = reject
-})
+import { getSeed, handleMessage, log, logErr, respondErr } from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
@@ -107,20 +93,22 @@ function handleTestResponse(originalEvent: MessageEvent, kernelResponseData: any
 	})
 }
 
-// acceptSeed processes a 'presentSeed' method from the kernel.
-function acceptSeed(event: MessageEvent) {
+// handlePresentSeedExtraChecks processes a 'presentSeed' method from the
+// kernel. We perform extra checks that a normal module would not need to
+// perform to ensure that the kernel is filling out all of the expected fields.
+let seedReceived = false
+function checkPresentSeed(event: MessageEvent) {
 	// Check that the domain is the kernel. Note that the kernel will not
 	// allow external callers to use the 'presentSeed' function, so again
 	// this check is important for the testing module, but not otherwise.
 	if (!("domain" in event.data)) {
 		errors.push("presentSeed was called without providing a domain")
 		logErr("presentSeed called without providing a 'domain' field")
-		rejectSeed("provided seed way not 16 bytes")
 		return
 	}
 	if (event.data.domain !== "root") {
 		errors.push("presentSeed called by non-root domain")
-		logErr("presentSeed called with non-root domain" + JSON.stringify(event.data))
+		logErr("presentSeed called with non-root domain")
 		return
 	}
 
@@ -137,27 +125,25 @@ function acceptSeed(event: MessageEvent) {
 	if (!("seed" in event.data.data)) {
 		logErr("no 'seed' in event.data.data")
 		errors.push("presentSeed did not include a seed")
-		rejectSeed("no seed included in presentSeed")
 		return
 	}
-	// TODO: I don't know how to check if event.data.data.seed is
-	// a Uint8Array
+	if (!(event.data.data.seed instanceof Uint8Array)) {
+		logErr("seed is not a Uint8Array")
+		errors.push("seed is not a Uint8Array")
+		return
+	}
 	if (event.data.data.seed.length !== 16) {
 		logErr("seed is the wrong length")
 		errors.push("presentSeed did not provide a 16 byte seed")
-		rejectSeed("provided seed way not 16 bytes")
 		return
 	}
-	seed = event.data.data.seed
-	resolveSeed() // This resolves a promise.
-	return
 }
 
 // handleViewSeed responds to a query asking to see the specific seed for the
 // module.
 function handleViewSeed(event: MessageEvent) {
-	blockForSeed
-		.then(() => {
+	getSeed
+		.then((seed) => {
 			postMessage({
 				nonce: event.data.nonce,
 				method: "response",
@@ -179,26 +165,16 @@ function handleViewSeed(event: MessageEvent) {
 // handleTestLogging writes a bunch of logs to allow the operator to verify
 // that logging is working.
 function handleTestLogging(event: MessageEvent) {
-	blockForSeed
-		.then(() => {
-			log("this is a test log")
-			log("this", "is", "a", "multi-arg", "log")
-			log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
-			logErr("this is an intentional error from the kernel test suite module")
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: null,
-				data: {},
-			})
-		})
-		.catch((err) => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: "there was a problem when the seed was presented: " + err,
-			})
-		})
+	log("this is a test log")
+	log("this", "is", "a", "multi-arg", "log")
+	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
+	logErr("this is an intentional error from the kernel test suite module")
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err: null,
+		data: {},
+	})
 }
 
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
@@ -242,38 +218,30 @@ function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
 
 	// Need to wait until the kernel has send us our seed to do a seed
 	// comparison.
-	blockForSeed
-		.then(() => {
-			let equal = true
-			for (let i = 0; i < 16; i++) {
-				if (seed[i] !== data.data.seed[i]) {
-					equal = false
-					break
-				}
+	getSeed.then((seed: any) => {
+		let equal = true
+		for (let i = 0; i < 16; i++) {
+			if (seed[i] !== data.data.seed[i]) {
+				equal = false
+				break
 			}
-			if (equal === true) {
-				let err = "helper module seed matches test module seed"
-				errors.push(err)
-				respondErr(originalEvent, err)
-				return
-			}
-			// Respond success.
-			postMessage({
-				nonce: originalEvent.data.nonce,
-				method: "response",
-				err: null,
-				data: {
-					message: "(success) helper seed does not match tester seed",
-				},
-			})
-		})
-		.catch((err) => {
-			let helperSeedStr = JSON.stringify(data.data.seed)
-			let seedStr = JSON.stringify(seed)
-			errors.push("issue in getting seed from kernel: " + err + helperSeedStr + seedStr)
-			respondErr(originalEvent, "test module could not get seed: " + err)
+		}
+		if (equal === true) {
+			let err = "helper module seed matches test module seed"
+			errors.push(err)
+			respondErr(originalEvent, err)
 			return
+		}
+		// Respond success.
+		postMessage({
+			nonce: originalEvent.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				message: "(success) helper seed does not match tester seed",
+			},
 		})
+	})
 }
 
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
@@ -317,38 +285,30 @@ function handleViewTesterSeedResponse(originalEvent: MessageEvent, data: any) {
 
 	// Need to wait until the kernel has send us our seed to do a seed
 	// comparison.
-	blockForSeed
-		.then(() => {
-			let equal = true
-			for (let i = 0; i < 16; i++) {
-				if (seed[i] !== data.data.testerSeed[i]) {
-					equal = false
-					break
-				}
+	getSeed.then((seed: any) => {
+		let equal = true
+		for (let i = 0; i < 16; i++) {
+			if (seed[i] !== data.data.testerSeed[i]) {
+				equal = false
+				break
 			}
-			if (equal === false) {
-				let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + data.data.testerSeed
-				errors.push(err)
-				respondErr(originalEvent, err)
-				return
-			}
-			// Respond success.
-			postMessage({
-				nonce: originalEvent.data.nonce,
-				method: "response",
-				err: null,
-				data: {
-					message: "our seed as reported by the helper module is correct",
-				},
-			})
-		})
-		.catch((err) => {
-			let helperSeedStr = JSON.stringify(data.data.testerSeed)
-			let seedStr = JSON.stringify(seed)
-			errors.push("issue in getting seed from kernel: " + err + helperSeedStr + seedStr)
-			respondErr(originalEvent, "test module could not get seed: " + err)
+		}
+		if (equal === false) {
+			let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + data.data.testerSeed
+			errors.push(err)
+			respondErr(originalEvent, err)
 			return
+		}
+		// Respond success.
+		postMessage({
+			nonce: originalEvent.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				message: "our seed as reported by the helper module is correct",
+			},
 		})
+	})
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
@@ -398,56 +358,46 @@ function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
 // close out the message. The value 'eventProgress' is used to distinguish what
 // order the responses are supposed to arrive in.
 function handleTestResponseUpdate(event: MessageEvent) {
-	blockForSeed
-		.then(() => {
-			setTimeout(() => {
-				postMessage({
-					nonce: event.data.nonce,
-					method: "responseUpdate",
-					err: null,
-					data: {
-						eventProgress: 25,
-					},
-				})
-			}, 200)
-			setTimeout(() => {
-				postMessage({
-					nonce: event.data.nonce,
-					method: "responseUpdate",
-					err: null,
-					data: {
-						eventProgress: 50,
-					},
-				})
-			}, 400)
-			setTimeout(() => {
-				postMessage({
-					nonce: event.data.nonce,
-					method: "responseUpdate",
-					err: null,
-					data: {
-						eventProgress: 75,
-					},
-				})
-			}, 600)
-			setTimeout(() => {
-				postMessage({
-					nonce: event.data.nonce,
-					method: "response",
-					err: null,
-					data: {
-						eventProgress: 100,
-					},
-				})
-			}, 800)
+	setTimeout(() => {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "responseUpdate",
+			err: null,
+			data: {
+				eventProgress: 25,
+			},
 		})
-		.catch((err) => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: "there was a problem when the seed was presented: " + err.toString(),
-			})
+	}, 200)
+	setTimeout(() => {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "responseUpdate",
+			err: null,
+			data: {
+				eventProgress: 50,
+			},
 		})
+	}, 400)
+	setTimeout(() => {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "responseUpdate",
+			err: null,
+			data: {
+				eventProgress: 75,
+			},
+		})
+	}, 600)
+	setTimeout(() => {
+		postMessage({
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				eventProgress: 100,
+			},
+		})
+	}, 800)
 }
 
 // handleTestCORS checks that the webworker is able to make webrequests to at
@@ -476,11 +426,11 @@ function handleTestCORS(event: MessageEvent) {
 onmessage = function (event: MessageEvent) {
 	// Check that the kernel included a method in the message.
 	//
-	// NOTE: A typical kenrel module does not need to check that event.data
-	// contains a field called 'message', the kernel guarantees that the
-	// field will be there. This however is a module designed to test the
-	// kernel, so there are checks here to ensure that the kernel is
-	// properly following meeting its intended guarantees.
+	// NOTE: A typical kernel module does not need to check that event.data
+	// contains a field called 'message', the kernel guarantees that the field
+	// will be there. This however is a module designed to test the kernel, so
+	// there are checks here to ensure that the kernel is properly following
+	// meeting its intended guarantees.
 	if (!("method" in event.data)) {
 		errors.push("received a message with no method")
 		logErr("received a message with no method: " + JSON.stringify(event.data))
@@ -491,8 +441,7 @@ onmessage = function (event: MessageEvent) {
 	// purely because this is a testing module. Most modules will not need
 	// to include all of these checks.
 	if (event.data.method === "presentSeed") {
-		acceptSeed(event)
-		return
+		checkPresentSeed(event)
 	}
 
 	// Check that all of the required fields are present.
@@ -502,7 +451,7 @@ onmessage = function (event: MessageEvent) {
 	// sending them well formed messages. This module however is explicitly
 	// intended to check that the kernel is functioning correctly, so it
 	// does the checking here to ensure that there was no breaking change.
-	if (!("nonce" in event.data)) {
+	if (!("nonce" in event.data) && event.data.method !== "presentSeed") {
 		errors.push("received a message with no nonce")
 		logErr("received a message with no nonce")
 		// We can't call respondErr here because respondErr needs the
@@ -643,9 +592,8 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
-	// Catch any unrecognized methods. The test suite will intentionally
-	// send nonsense method names.
-	respondErr(event, "unrecognized method was sent to test module: " + JSON.stringify(event.data))
-	errors.push("received an unrecognized method: " + event.data.method)
+	// Pass what remains to the router.
+	handleMessage(event)
+
 	return
 }
