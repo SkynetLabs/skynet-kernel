@@ -1,16 +1,25 @@
 import { addContextToErr } from "./err.js"
 
+// nu8 - same remark as in previous files
+
 // Helper consts to make it easy to return empty values alongside errors.
 const nu8 = new Uint8Array(0)
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
 function b64ToBuf(b64: string): [Uint8Array, string | null] {
+	// Copied that regex to https://regex101.com/
+	// This hyphen is treated literally, which might be confusing for others.
+	// Consider escaping it or placing at the start or end of the class.
+
 	// Check that the final string is valid base64.
 	let b64regex = /^[0-9a-zA-Z-_/+=]*$/
 	if (!b64regex.test(b64)) {
 		return [nu8, "provided string is not valid base64"]
 	}
+
+	// use replaceAll instead of regex, it will be way faster
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replaceAll
 
 	// Swap any '-' characters for '+', and swap any '_' characters for '/'
 	// for use in the atob function.
@@ -29,6 +38,8 @@ function b64ToBuf(b64: string): [Uint8Array, string | null] {
 // bufToHex takes a Uint8Array as input and returns the hex encoding of those
 // bytes as a string.
 function bufToHex(buf: Uint8Array): string {
+	// you don't need to spread the array into new array to map over it
+
 	return [...buf].map((x) => x.toString(16).padStart(2, "0")).join("")
 }
 
@@ -36,6 +47,9 @@ function bufToHex(buf: Uint8Array): string {
 // no padding characters.
 function bufToB64(buf: Uint8Array): string {
 	let b64Str = btoa(String.fromCharCode.apply(null, <number[]>(<unknown>buf)))
+
+	// use replaceAll instead of regex, it will be way faster
+	// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replaceAll
 	return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
 }
 
@@ -103,10 +117,14 @@ function encodeU64(num: bigint): [Uint8Array, string | null] {
 // hexToBuf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
 function hexToBuf(hex: string): [Uint8Array, string | null] {
+	// always use strong comparison like === and !==
+
 	// Check that the length makes sense.
 	if (hex.length % 2 != 0) {
 		return [nu8, "input has incorrect length"]
 	}
+
+	// create util function isHexEncodedString or sth
 
 	// Check that all of the characters are legal.
 	let match = /[0-9A-Fa-f]*/g

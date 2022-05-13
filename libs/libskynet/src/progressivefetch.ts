@@ -62,6 +62,8 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 				.then((t) => {
 					pfm.logs.push(log)
 					pfm.portalsFailed.push(portal)
+					// why do you need all full response objects in history ?
+
 					pfm.responsesFailed.push(response)
 					pfm.messagesFailed.push(t)
 					progressiveFetchHelper(pfm, resolve, verifyFunction)
@@ -82,6 +84,8 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 				nextPortal(response, "portal has returned invalid response\n" + JSON.stringify({ portal, query }))
 				return
 			}
+
+			// you can use response.ok: https://developer.mozilla.org/en-US/docs/Web/API/Response/ok
 			if (response.status < 200 || response.status >= 300) {
 				nextPortal(response, "portal has returned error status\n" + JSON.stringify({ portal, query }))
 				return

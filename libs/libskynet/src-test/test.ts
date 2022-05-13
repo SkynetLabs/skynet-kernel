@@ -1,3 +1,5 @@
+// use jest
+
 import { generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"

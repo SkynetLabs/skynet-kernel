@@ -36,6 +36,9 @@ function verifyDownload(
 	fetchSize: bigint,
 	buf: ArrayBuffer
 ): [fileData: Uint8Array, portalAtFault: boolean, err: string | null] {
+	// you should be able to get away with using byteLength and slice
+	// method of ArrayBuffer without copying the data to Uint8Array
+
 	let u8 = new Uint8Array(buf)
 	// Input checking. If any of this is incorrect, its safe to blame the
 	// server because the skylink format fundamentally should enable these
@@ -71,6 +74,9 @@ function verifyDownload(
 	// layout contain the exact size of the fanout. To get the offset of
 	// the fileData, we need to extract the sizes of the metadata and
 	// fanout, and then add those values to 99 to get the fileData offset.
+
+	// create a skylink data slicing function, there's at least 2 places it is used
+
 	let fileSizeBytes = skylinkData.slice(1, 9)
 	let mdSizeBytes = skylinkData.slice(9, 17)
 	let fanoutSizeBytes = skylinkData.slice(17, 25)

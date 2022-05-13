@@ -1,3 +1,5 @@
+// is this library copied over from somewhere?
+
 import { addContextToErr } from "./err.js"
 import { sha512internal } from "./sha512.js"
 

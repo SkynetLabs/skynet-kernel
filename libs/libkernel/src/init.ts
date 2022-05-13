@@ -23,6 +23,8 @@ let queries: any = new Object()
 // the bridge is working. This needs to be declared before the remaining bridge
 // variables because they need to reference it as a handler.
 function handleBridgeResponse(resolve: any, reject: any, data: any) {
+	// where does bridgeExists come from ? I can't seem a case where it would become true
+
 	// Check whether the timeout for the bridge has already fired. If so,
 	// log that the bridge is available but late.
 	if (bridgeExists === false) {
@@ -102,6 +104,8 @@ function queryUpdate(nonce: number, data: any) {
 // handleKernelResponse will parse the kernel's response from the bridge and
 // resolve/reject the promise associated with the nonce.
 function handleKernelResponse(resolve: any, reject: any, data: any) {
+	// reject is unhandled
+	
 	resolve(data)
 }
 

@@ -12,6 +12,8 @@ const nu8 = new Uint8Array(0)
 // provided skylink. If the proof is correct and the signature matches, the
 // data will be returned. The returned link will be a verified skylink.
 function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, string | null] {
+	// are we not supporting base32 skylinks here yet ?
+
 	// Verify the presented skylink is formatted correctly.
 	if (skylink.length !== 34) {
 		return [nu8, "skylink is malformed, expecting 34 bytes"]
