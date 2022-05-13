@@ -38,11 +38,37 @@ onmessage = handleMessage
 
 ## Seed Management
 
-After a module starts up, the kernel will always send the module its using a
-method called 'presentSeed'. This happens asynchronously, which means that the
-seed can only be made available thorugh a promise. If you are using
-`handleMessage`, libkmodule will automatically receive the seed and then
-resolve a promise which returns the seed.
+If you are using `handleMessage`, you can get the seed by calling
+`libkmodule.getSeed`. `getSeed` is a promise which returns the seed when it
+becomes available. The module receives the seed from the kernel over
+postMessage, which is why the seed can only be made available in a promise.
+Here is some example code to fetch the seed:
+
+```ts
+import { getSeed, handleMessage } from "libkmodule"
+
+onmessage = handleMessage
+
+getSeed.then(seed => {
+	// do something with the seed
+})
+```
+
+`getSeed` can also be called inside of handlers:
+
+```ts
+import { addHandler, getSeed, handleMessage } from "libkmodule"
+
+// handleSomeMethod handles a call to "someMethod".
+function handleSomeMethod(data: any) {
+	getSeed.then(seed => {
+		// do stuff
+	})
+}
+addHandler("someMethod", handleSomeMethod)
+
+onmessage = handleMessage
+```
 
 ## Advanced Techniques
 
