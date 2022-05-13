@@ -1,0 +1,12 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"declaration": true,
+		"module": "esnext",
+		"forceConsistentCasingInFileNames": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"outDir": "./dist-test"
+	},
+	"include": ["src-test/**/*"]
+}

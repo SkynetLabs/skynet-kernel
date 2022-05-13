@@ -64,8 +64,7 @@ function respondErr(event: MessageEvent, err: string) {
 let queriesNonce = 0
 let queries = {} as any
 
-// Create a helper function for sending queries directly to the kernel. If you
-// want to talk to a module, use newModuleQuery.
+// Create a helper function for sending queries directly to the kernel.
 function newKernelQuery(method: string, data: any, handler: any) {
 	let nonce = queriesNonce
 	queriesNonce += 1
@@ -79,11 +78,20 @@ function newKernelQuery(method: string, data: any, handler: any) {
 
 // handleResponse will take a response and match it to the correct query.
 function handleResponse(event: MessageEvent) {
+	// Ignore any responseUpdate messages until we have a function that tests
+	// those from inside of a module.
+	if (event.data.method === "responseUpdate") {
+		return
+	}
+
+	// Look for the query with the corresponding nonce.
 	if (!(event.data.nonce in queries)) {
 		log("no open query found for provided nonce: " + JSON.stringify(event.data))
 		errors.push("module received response for nonce with no open query")
 		return
 	}
+	// Call the handler function using the provided data, then delete the query
+	// from the query map.
 	queries[event.data.nonce](event.data)
 	delete queries[event.data.nonce]
 }
@@ -508,9 +516,14 @@ onmessage = function (event: MessageEvent) {
 	}
 
 	// Handle any responses to queries that we've made.
-	if (event.data.method === "response") {
+	if (event.data.method === "response" || event.data.method === "responseUpdate") {
 		handleResponse(event)
 		return
+	}
+
+	// Handle any query updates.
+	if (event.data.method === "queryUpdate") {
+		handleQueryUpdate
 	}
 
 	// Like 'data', the kernel guarantees that a domain will be provided.

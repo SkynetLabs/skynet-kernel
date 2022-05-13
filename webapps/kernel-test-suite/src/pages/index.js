@@ -311,6 +311,28 @@ function TestResponseUpdates() {
 	})
 }
 
+// TestIgnoreResponseUpdates checks that you can safely use callModule on a
+// module method that provides response updates.
+function TestIgnoreResponseUpdates() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "testResponseUpdate", {})
+		.then(data => {
+			if (!("eventProgress" in data)) {
+				reject("expecting response to contain eventProgress")
+				return
+			}
+			if (data.eventProgress !== 100) {
+				reject("expecting response eventProgress to be 100")
+				return
+			}
+			resolve("received final message when calling testResponseUpdate using callModule")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestBasicCORS has the test module make a fetch request to a couple of
 // websites to check that CORS is not preventing workers from talking to the
 // network.
@@ -512,6 +534,7 @@ const IndexPage = () => {
 			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
 			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
 			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
 			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />

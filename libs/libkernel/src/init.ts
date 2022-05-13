@@ -135,7 +135,7 @@ function handleMessage(event: MessageEvent) {
 	if (event.data.method === "responseUpdate") {
 		let handler = queries[event.data.nonce]
 		if (!("update" in handler) || typeof handler.update !== "function") {
-			logErr("responseUpdate received, but no update method defined in handler")
+			log("responseUpdate received, but no update method defined in handler")
 			return
 		}
 		if (!("data" in event.data)) {
