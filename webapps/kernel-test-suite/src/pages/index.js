@@ -69,6 +69,21 @@ function TestModuleHasSeed() {
 	})
 }
 
+// TestModuleLogging checks that the test suite module is capable of logging.
+// This test requires looking in the console of the kernel to see that the log
+// was printed correctly.
+function TestModuleLogging() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "testLogging", {})
+		.then(data => {
+			resolve("test module has produced logs")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestMissingModule checks that the kernel correctly handles a call to a
 // module that doesn't exist. For the module, we use the test module but with
 // the final character modified so that the hash doesn't actually point to
@@ -524,6 +539,7 @@ const IndexPage = () => {
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
 			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
 			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
 			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />

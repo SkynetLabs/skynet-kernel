@@ -1,3 +1,7 @@
+// kernel-test-suite is a kernel module that facilitates integration testing.
+
+import { log, logErr, respondErr } from "libkmodule"
+
 // Define helper functions that will allow the worker to block until the seed
 // is received. This is going to be standard code in every module that needs a
 // private seed. Not all modules will require a private seed, especially if
@@ -27,33 +31,6 @@ let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 // kernel is dropping logging messages or is having other problems that will
 // cause errors to be silently missed within the test suite.
 let errors: string[] = []
-
-// Create a helper function for logging.
-//
-// Most modules will do logging of some form, though most modules will have
-// both a log and a logErr function, where 'isErr' is set to false in the
-// standard log function. For the test suite, if we feel a need to log
-// something at all it's because there was an error.
-function log(message: string) {
-	postMessage({
-		method: "log",
-		data: {
-			isErr: true,
-			message,
-		},
-	})
-}
-
-// Define a helper method for sending an error as a response. This is a
-// typical function that you will see in normal modules.
-function respondErr(event: MessageEvent, err: string) {
-	postMessage({
-		nonce: event.data.nonce,
-		method: "response",
-		err,
-		data: null,
-	})
-}
 
 // Define helper state for tracking the nonces of queries we open to the kernel
 // and to other modules. This is going to be standard code in every module that
@@ -86,7 +63,7 @@ function handleResponse(event: MessageEvent) {
 
 	// Look for the query with the corresponding nonce.
 	if (!(event.data.nonce in queries)) {
-		log("no open query found for provided nonce: " + JSON.stringify(event.data))
+		logErr("no open query found for provided nonce: " + JSON.stringify(event.data))
 		errors.push("module received response for nonce with no open query")
 		return
 	}
@@ -137,13 +114,13 @@ function acceptSeed(event: MessageEvent) {
 	// this check is important for the testing module, but not otherwise.
 	if (!("domain" in event.data)) {
 		errors.push("presentSeed was called without providing a domain")
-		log("presentSeed called without providing a 'domain' field")
+		logErr("presentSeed called without providing a 'domain' field")
 		rejectSeed("provided seed way not 16 bytes")
 		return
 	}
 	if (event.data.domain !== "root") {
 		errors.push("presentSeed called by non-root domain")
-		log("presentSeed called with non-root domain" + JSON.stringify(event.data))
+		logErr("presentSeed called with non-root domain" + JSON.stringify(event.data))
 		return
 	}
 
@@ -151,14 +128,14 @@ function acceptSeed(event: MessageEvent) {
 	// presentSeed call.
 	if (seedReceived === true) {
 		errors.push("presentSeed was called more than one time")
-		log("seedReceived is already true")
+		logErr("seedReceived is already true")
 		return
 	}
 	seedReceived = true
 
 	// Check that the kernel provided a well formatted seed.
 	if (!("seed" in event.data.data)) {
-		log("no 'seed' in event.data.data")
+		logErr("no 'seed' in event.data.data")
 		errors.push("presentSeed did not include a seed")
 		rejectSeed("no seed included in presentSeed")
 		return
@@ -166,7 +143,7 @@ function acceptSeed(event: MessageEvent) {
 	// TODO: I don't know how to check if event.data.data.seed is
 	// a Uint8Array
 	if (event.data.data.seed.length !== 16) {
-		log("seed is the wrong length")
+		logErr("seed is the wrong length")
 		errors.push("presentSeed did not provide a 16 byte seed")
 		rejectSeed("provided seed way not 16 bytes")
 		return
@@ -188,6 +165,31 @@ function handleViewSeed(event: MessageEvent) {
 				data: {
 					seed,
 				},
+			})
+		})
+		.catch((err) => {
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: "there was a problem when the seed was presented: " + err,
+			})
+		})
+}
+
+// handleTestLogging writes a bunch of logs to allow the operator to verify
+// that logging is working.
+function handleTestLogging(event: MessageEvent) {
+	blockForSeed
+		.then(() => {
+			log("this is a test log")
+			log("this", "is", "a", "multi-arg", "log")
+			log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
+			logErr("this is an intentional error from the kernel test suite module")
+			postMessage({
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {},
 			})
 		})
 		.catch((err) => {
@@ -481,7 +483,7 @@ onmessage = function (event: MessageEvent) {
 	// properly following meeting its intended guarantees.
 	if (!("method" in event.data)) {
 		errors.push("received a message with no method")
-		log("received a message with no method: " + JSON.stringify(event.data))
+		logErr("received a message with no method: " + JSON.stringify(event.data))
 		return
 	}
 	// Hande 'presentSeed', which gives the module a seed. Similar to
@@ -502,7 +504,7 @@ onmessage = function (event: MessageEvent) {
 	// does the checking here to ensure that there was no breaking change.
 	if (!("nonce" in event.data)) {
 		errors.push("received a message with no nonce")
-		log("received a message with no nonce")
+		logErr("received a message with no nonce")
 		// We can't call respondErr here because respondErr needs the
 		// nonce, and the nonce doesn't exist.
 		return
@@ -523,14 +525,15 @@ onmessage = function (event: MessageEvent) {
 
 	// Handle any query updates.
 	if (event.data.method === "queryUpdate") {
-		handleQueryUpdate
+		respondErr(event, "queryUpdates are not yet supported")
+		return
 	}
 
 	// Like 'data', the kernel guarantees that a domain will be provided.
 	// This check isn't necessary for most modules. The domain is not
 	// provided on queryUpdate, responseUpdate, or response messages.
 	if (!("domain" in event.data)) {
-		log("received a message with no domain: " + JSON.stringify(event.data))
+		logErr("received a message with no domain: " + JSON.stringify(event.data))
 		errors.push("received a message with no domain")
 		respondErr(event, "received a message from kernel with no domain")
 		return
@@ -551,6 +554,13 @@ onmessage = function (event: MessageEvent) {
 	// exist within an allow list of domains.
 	if (event.data.method === "viewSeed") {
 		handleViewSeed(event)
+		return
+	}
+
+	// testLogging is requesting that the test module write a bunch of logs, so
+	// that the operator can verify those logs made it into the kernel.
+	if (event.data.method === "testLogging") {
+		handleTestLogging(event)
 		return
 	}
 
