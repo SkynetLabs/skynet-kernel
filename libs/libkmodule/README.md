@@ -70,6 +70,9 @@ addHandler("someMethod", handleSomeMethod)
 onmessage = handleMessage
 ```
 
+You can call `getSeed` as many times as you want, once the seed is available
+`getSeed` will resolve immediately for all callers.
+
 ## Advanced Techniques
 
 We generally recommend against using these advanced techniques, as it usually
