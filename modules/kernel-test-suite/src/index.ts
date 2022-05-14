@@ -191,23 +191,23 @@ async function handleViewHelperSeed(x: any, accept: any, reject: any) {
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
 // It asks the helper module to ask the tester module (ourself) for its seed.
 // If all goes well, the helper module should respond with our seed.
-async function handleViewOwnSeedThroughHelper(event: MessageEvent) {
+async function handleViewOwnSeedThroughHelper(x: any, accept: any, reject: any) {
 	let [resp, err] = await callModule(helperModule, "viewTesterSeed", {})
 	if (err !== null) {
-		respondErr(event, err)
+		reject(err)
 		return
 	}
 
 	if (!("testerSeed" in resp)) {
 		let err = "helper module response did not have data.testerSeed field: " + tryStringify(resp)
 		errors.push(err)
-		respondErr(event, err)
+		reject(err)
 		return
 	}
 	if (resp.testerSeed.length !== 16) {
 		let err = "helper module seed is wrong size: " + tryStringify(resp)
 		errors.push(err)
-		respondErr(event, err)
+		reject(err)
 		return
 	}
 
@@ -224,43 +224,29 @@ async function handleViewOwnSeedThroughHelper(event: MessageEvent) {
 	if (equal === false) {
 		let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + resp.testerSeed
 		errors.push(err)
-		respondErr(event, err)
+		reject(err)
 		return
 	}
-	// Respond success.
-	postMessage({
-		nonce: event.data.nonce,
-		method: "response",
-		err: null,
-		data: {
-			message: "our seed as reported by the helper module is correct",
-		},
-	})
+	accept({ message: "our seed as reported by the helper module is correct" })
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
 // module will call 'mirrorDomain' on the helper module and return the result.
-async function handleTesterMirrorDomain(event: MessageEvent) {
+async function handleTesterMirrorDomain(data: any, accept: any, reject: any) {
 	let [resp, err] = await callModule(helperModule, "mirrorDomain", {})
 	if (err !== null) {
-		respondErr(event, err)
+		errors.push(err)
+		reject(err)
+		return
 	}
 
 	if (!("domain" in resp)) {
 		let err = "helper module response did not have data.domain field: " + tryStringify(resp)
 		errors.push(err)
-		respondErr(event, err)
+		reject(err)
 		return
 	}
-	// Respond with the domain.
-	postMessage({
-		nonce: event.data.nonce,
-		method: "response",
-		err: null,
-		data: {
-			domain: resp.domain,
-		},
-	})
+	accept({ domain: resp.domain })
 }
 
 // handleTestResponseUpdate will respond to a query with three updates spaced
@@ -313,23 +299,22 @@ function handleTestResponseUpdate(event: MessageEvent) {
 // handleTestCORS checks that the webworker is able to make webrequests to at
 // least one portal. If not, this indicates that CORS is not set up correctly
 // somewhere in the client.
-function handleTestCORS(event: MessageEvent) {
+function handleTestCORS(data: any, accept: any, reject: any) {
 	fetch("https://siasky.net")
 		.then((response) => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: null,
-				data: {
-					url: response.url,
-				},
-			})
+			accept({ url: response.url })
 		})
 		.catch((errFetch) => {
 			let err = "fetch request failed: " + errFetch
 			errors.push(err)
-			respondErr(event, err)
+			reject(err)
 		})
+}
+
+// handleViewErrors will return the set of errors that have accumulated during
+// testing.
+function handleViewErrors(data: any, accept: any) {
+	accept({ errors })
 }
 
 // Add handlers for various test functions.
@@ -344,6 +329,10 @@ addHandler("viewSeed", handleViewSeed)
 addHandler("testLogging", handleTestLogging)
 addHandler("viewHelperSeed", handleViewHelperSeed)
 addHandler("sendTestToKernel", handleSendTestToKernel)
+addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
+addHandler("viewErrors", handleViewErrors)
+addHandler("testerMirrorDomain", handleTesterMirrorDomain)
+addHandler("testCORS", handleTestCORS)
 
 // onmessage receives messages from the kernel.
 onmessage = function (event: MessageEvent) {
@@ -389,12 +378,6 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
-	// Handle any query updates.
-	if (event.data.method === "queryUpdate") {
-		respondErr(event, "queryUpdates are not yet supported")
-		return
-	}
-
 	// Like 'data', the kernel guarantees that a domain will be provided.
 	// This check isn't necessary for most modules. The domain is not
 	// provided on queryUpdate, responseUpdate, or response messages.
@@ -404,17 +387,6 @@ onmessage = function (event: MessageEvent) {
 		logErr("received a message with no domain: " + tryStringify(event.data))
 		errors.push("received a message with no domain")
 		respondErr(event, "received a message from kernel with no domain")
-		return
-	}
-
-	// Create a method to view our own seed as seen by the helper. This
-	// results in communication that goes:
-	//
-	// webapp => tester module => helper module => tester module -> helper
-	// module -> tester module -> webapp, which demonstrates that an extra
-	// level of communication is still working.
-	if (event.data.method === "viewOwnSeedThroughHelper") {
-		handleViewOwnSeedThroughHelper(event)
 		return
 	}
 
@@ -432,35 +404,8 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
-	// testerMirrorDomain will have the tester call 'mirrorDomain' on the
-	// helper module, and then the tester will return whatever the helper
-	// module established that the tester's domain was.
-	if (event.data.method === "testerMirrorDomain") {
-		handleTesterMirrorDomain(event)
-		return
-	}
-
 	if (event.data.method === "testResponseUpdate") {
 		handleTestResponseUpdate(event)
-		return
-	}
-
-	if (event.data.method === "testCORS") {
-		handleTestCORS(event)
-		return
-	}
-
-	// Create a method to share all of the errors that the module has
-	// detected.
-	if (event.data.method === "viewErrors") {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				errors,
-			},
-		})
 		return
 	}
 
