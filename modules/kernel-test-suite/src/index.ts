@@ -1,6 +1,6 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
-import { getSeed, handleMessage, log, logErr, respondErr } from "libkmodule"
+import { addHandler, getSeed, handleMessage, log, logErr, respondErr } from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
@@ -141,107 +141,76 @@ function checkPresentSeed(event: MessageEvent) {
 
 // handleViewSeed responds to a query asking to see the specific seed for the
 // module.
-function handleViewSeed(event: MessageEvent) {
-	getSeed
-		.then((seed) => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: null,
-				data: {
-					seed,
-				},
-			})
-		})
-		.catch((err) => {
-			postMessage({
-				nonce: event.data.nonce,
-				method: "response",
-				err: "there was a problem when the seed was presented: " + err,
-			})
-		})
+async function handleViewSeed(data: any, accept: any) {
+	let seed = await getSeed
+	accept({ seed: seed })
 }
 
 // handleTestLogging writes a bunch of logs to allow the operator to verify
 // that logging is working.
-function handleTestLogging(event: MessageEvent) {
+function handleTestLogging(event: MessageEvent, accept: any) {
 	log("this is a test log")
 	log("this", "is", "a", "multi-arg", "log")
 	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
 	logErr("this is an intentional error from the kernel test suite module")
-	postMessage({
-		nonce: event.data.nonce,
-		method: "response",
-		err: null,
-		data: {},
-	})
+	accept({})
 }
 
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
 // module for its seed and then compares the helper module's seed to its own
 // seed.
-function handleViewHelperSeed(event: MessageEvent) {
+async function handleViewHelperSeed(data: any, accept: any, reject: any) {
 	let outData = {
 		module: helperModule,
 		method: "viewSeed",
 		data: {},
 	}
 	newKernelQuery("moduleCall", outData, function (inData: any) {
-		handleViewHelperSeedResponse(event, inData)
+		handleViewHelperSeedResponse(accept, reject, inData)
 	})
 }
-function handleViewHelperSeedResponse(originalEvent: MessageEvent, data: any) {
+async function handleViewHelperSeedResponse(accept: any, reject: any, data: any) {
+	// Perform input verification on the data coming in.
 	if (!("err" in data) || !("data" in data)) {
 		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
 		errors.push(err)
-		respondErr(originalEvent, err)
+		reject(err)
 		return
 	}
 	if (data.err !== null) {
 		let err = "helper module viewSeed call returned an error: " + data.err
 		errors.push(err)
-		respondErr(originalEvent, err)
+		reject(err)
 		return
 	}
 	if (!("seed" in data.data)) {
 		let err = "helper module response did not have data.seed field: " + JSON.stringify(data)
 		errors.push(err)
-		respondErr(originalEvent, err)
+		reject(err)
 		return
 	}
 	if (data.data.seed.length !== 16) {
 		let err = "helper module seed is wrong size: " + JSON.stringify(data)
 		errors.push(err)
-		respondErr(originalEvent, err)
+		reject(err)
 		return
 	}
 
-	// Need to wait until the kernel has send us our seed to do a seed
-	// comparison.
-	getSeed.then((seed: any) => {
-		let equal = true
-		for (let i = 0; i < 16; i++) {
-			if (seed[i] !== data.data.seed[i]) {
-				equal = false
-				break
-			}
+	let seed = <Uint8Array>await getSeed
+	let equal = true
+	for (let i = 0; i < 16; i++) {
+		if (seed[i] !== data.data.seed[i]) {
+			equal = false
+			break
 		}
-		if (equal === true) {
-			let err = "helper module seed matches test module seed"
-			errors.push(err)
-			respondErr(originalEvent, err)
-			return
-		}
-		// Respond success.
-		postMessage({
-			nonce: originalEvent.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				message: "(success) helper seed does not match tester seed",
-			},
-		})
-	})
+	}
+	if (equal === true) {
+		let err = "helper module seed matches test module seed"
+		errors.push(err)
+		reject(err)
+		return
+	}
+	accept({ message: "(success) helper seed does not match tester seed" })
 }
 
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
@@ -488,40 +457,17 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
-	// Create a method that exposes the seed to any caller.
+	// Add handlers for all of the various test functions.
 	//
-	// NOTE: Standard modules are not expected to expose their seed. These
-	// APIs are available to *all* other modules, and the value of having a
-	// module specific seed is that no other module knows what that seed
-	// is. This is a testing module, and the test suite needs to see that a
-	// seed was received and that it makes sense, so we expose the seed.
-	//
-	// There are cases where it makes sense for a module to expose its
-	// seed. For example, there can be use cases where multiple modules all
-	// want to share one seed, and so you'll have an authorization module
-	// in the middle that exposes the seed, but only to other modules that
-	// exist within an allow list of domains.
-	if (event.data.method === "viewSeed") {
-		handleViewSeed(event)
-		return
-	}
-
-	// testLogging is requesting that the test module write a bunch of logs, so
-	// that the operator can verify those logs made it into the kernel.
-	if (event.data.method === "testLogging") {
-		handleTestLogging(event)
-		return
-	}
-
-	// Create a method that calls 'viewSeed' on a helper module. The helper
-	// module will be revealing its own seed, and we will compare that seed
-	// with our own to make sure that the kernel isn't giving out the same
-	// seed to different modules. This test also helps to confirm that
-	// cross module communication is working.
-	if (event.data.method === "viewHelperSeed") {
-		handleViewHelperSeed(event)
-		return
-	}
+	// NOTE: most of these are for testing only and are not recommended methods
+	// that should be implemented on a normal module. For example, 'viewSeed'
+	// exposes the module's seed to anyone that calls into the module. But the
+	// module's seed is supposed to be protected and should never be exposed
+	// over the API normally. We make an exception here because this module is
+	// used for testing purposes.
+	addHandler("viewSeed", handleViewSeed)
+	addHandler("testLogging", handleTestLogging)
+	addHandler("viewHelperSeed", handleViewHelperSeed)
 
 	// Create a method to view our own seed as seen by the helper. This
 	// results in communication that goes:

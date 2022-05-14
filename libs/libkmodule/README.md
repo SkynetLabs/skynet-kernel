@@ -49,7 +49,7 @@ import { getSeed, handleMessage } from "libkmodule"
 
 onmessage = handleMessage
 
-getSeed.then(seed => {
+getSeed.then((seed) => {
 	// do something with the seed
 })
 ```
@@ -61,7 +61,7 @@ import { addHandler, getSeed, handleMessage } from "libkmodule"
 
 // handleSomeMethod handles a call to "someMethod".
 function handleSomeMethod(data: any) {
-	getSeed.then(seed => {
+	getSeed.then((seed) => {
 		// do stuff
 	})
 }

@@ -7,6 +7,11 @@ let getSeed = new Promise((resolve) => {
 
 // handlePresentSeed will accept a seed from the kernel and unblock any method
 // that is waiting for the seed.
+//
+// NOTE: "presentSeed" is not expected to provide a response, therefore the
+// 'accept' and 'reject' inputs are omitted. This omission only applies to the
+// "presentSeed" method, and therefore this is not a good example for how other
+// handlers should be implemented.
 function handlePresentSeed(data: any) {
 	resolveSeed(data.seed)
 }
