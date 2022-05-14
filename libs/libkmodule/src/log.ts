@@ -1,11 +1,17 @@
-import { composeErr } from "./err.js"
+import { tryStringify } from "./stringify.js"
 
 // logHelper is a helper function that runs the code for both log and logErr.
 // It takes a boolean indiciating whether the log should be an error, and then
 // it stringifies all of the reamining inputs and sends them to the kernel in a
 // log message.
 function logHelper(isErr: boolean, ...inputs: any) {
-	let message = composeErr(...inputs)
+	let message = ""
+	for (let i = 0; i < inputs.length; i++) {
+		if (i !== 0) {
+			message += "\n"
+		}
+		message += tryStringify(inputs[i])
+	}
 	postMessage({
 		method: "log",
 		data: {

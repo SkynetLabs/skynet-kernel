@@ -63,8 +63,14 @@ function handleMessage(event: MessageEvent) {
 		respondErr(event, err)
 	}
 
+	// Try to handle the message. If an exception is thrown by the handler,
+	// catch the error and respond with that error.
+	//
+	// NOTE: Throwing exceptions is considered bad practice, this code is only
+	// here because the practice is so common throughout javascript and we want
+	// to make sure developer code works without developers getting too
+	// frustrated.
 	try {
-		// Try to handle the message
 		router[event.data.method](event.data.data, accept, reject)
 	} catch (err: any) {
 		// Convert the thrown error and log it. We know that strErr is a string
