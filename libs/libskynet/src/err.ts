@@ -1,14 +1,20 @@
+import { tryStringify } from "./stringify.js"
+
 // addContextToErr is a helper function that standardizes the formatting of
 // adding context to an error. Within the world of go we discovered that being
 // persistent about layering context onto errors is helpful when debugging,
 // even though it often creates rather verbose error messages.
 //
 // addContextToErr will return null if the input err is null.
+//
+// NOTE: To protect against accidental situations where an Error type or some
+// other type is provided instead of a string, we wrap both of the inputs with
+// tryStringify before returning them. This prevents runtime failures.
 function addContextToErr(err: string | null, context: string): string | null {
 	if (err === null) {
 		return null
 	}
-	return context + ": " + err
+	return tryStringify(context) + ": " + tryStringify(err)
 }
 
 // composeErr takes a series of inputs and composes them into a single string.
@@ -17,26 +23,21 @@ function addContextToErr(err: string | null, context: string): string | null {
 //
 // Any object that cannot be stringified will be skipped, though an error will
 // be logged.
-function composeErr(...inputs: any): string {
+function composeErr(...inputs: any): string | null {
 	let result = ""
+	let resultEmpty = true
 	for (let i = 0; i < inputs.length; i++) {
-		// Prepend a newline if this isn't the first element.
-		if (i !== 0) {
-			result += "\n"
-		}
-		// Strings can be added without modification.
-		if (typeof inputs[i] === "string") {
-			result += inputs[i]
+		if (inputs[i] === null) {
 			continue
 		}
-		// Everything else needs to be stringified, log an error if it
-		// fails.
-		try {
-			let str = JSON.stringify(inputs[i])
-			result += str
-		} catch (err: any) {
-			result += "unable to stringify object: " + err.toString()
+		if (resultEmpty) {
+			result += "\n"
+			resultEmpty = false
 		}
+		result += tryStringify(inputs[i])
+	}
+	if (resultEmpty) {
+		return null
 	}
 	return result
 }

@@ -1,11 +1,14 @@
 import { addContextToErr, respondErr } from "./err.js"
 import { logErr } from "./log.js"
+import { handleQueryUpdate, handleResponse, handleResponseUpdate } from "./queries.js"
 import { handlePresentSeed } from "./seed.js"
 import { tryStringify } from "./stringify.js"
 
 // Create a router which will persist state
 let router = {} as any
 router["presentSeed"] = handlePresentSeed
+router["queryUpdate"] = handleQueryUpdate
+router["responseUpdate"] = handleResponseUpdate
 
 // addHandler will add a new handler to the router to process specific methods.
 function addHandler(method: string, handler: any) {
@@ -15,6 +18,12 @@ function addHandler(method: string, handler: any) {
 // handleMessage is the standard handler for messages. It catches all standard
 // methods like 'presentSeed' and 'response'.
 function handleMessage(event: MessageEvent) {
+	// Special handling for "response" messages.
+	if (event.data.method === "response") {
+		handleResponse(event)
+		return
+	}
+
 	// Make sure we have a handler for this object.
 	if (!Object.prototype.hasOwnProperty.call(router, event.data.method)) {
 		respondErr(event, "unrecognized method '" + event.data.method + "'")

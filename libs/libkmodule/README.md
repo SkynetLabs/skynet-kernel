@@ -40,9 +40,12 @@ onmessage = handleMessage
 
 If you are using `handleMessage`, you can get the seed by calling
 `libkmodule.getSeed`. `getSeed` is a promise which returns the seed when it
-becomes available. The module receives the seed from the kernel over
-postMessage, which is why the seed can only be made available in a promise.
-Here is some example code to fetch the seed:
+becomes available. You can call `getSeed` as many times as you want, it will
+always return the correct seed.
+
+The seed needs to be presented asynchronously because the module does not
+receive the seed until after startup, and it receives its seed from the kernel.
+Here is some example code retrieving the seed:
 
 ```ts
 import { getSeed, handleMessage } from "libkmodule"
@@ -70,8 +73,20 @@ addHandler("someMethod", handleSomeMethod)
 onmessage = handleMessage
 ```
 
-You can call `getSeed` as many times as you want, once the seed is available
-`getSeed` will resolve immediately for all callers.
+Using async/await:
+
+```ts
+import { addHandler, getSeed, handleMessage } from "libkmodule"
+
+// handleSomeMethod handles a call to "someMethod".
+async function handleSomeMethod(data: any) {
+	let seed = await getSeed
+	// do stuff
+}
+addHandler("someMethod", handleSomeMethod)
+
+onmessage = handleMessage
+```
 
 ## Advanced Techniques
 

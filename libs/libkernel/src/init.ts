@@ -70,7 +70,7 @@ let blockForBridge: Promise<string> = new Promise((resolve, reject) => {
 // well.
 function newKernelQuery(data: any, update: any): [any, Promise<any>] {
 	let nonce = nextNonce
-	nextNonce++
+	nextNonce += 1
 	let sendUpdate = function (data: any) {
 		queryUpdate(nonce, data)
 	}

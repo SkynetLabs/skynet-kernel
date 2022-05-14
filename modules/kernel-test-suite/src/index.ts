@@ -1,6 +1,6 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
-import { addHandler, getSeed, handleMessage, log, logErr, respondErr } from "libkmodule"
+import { addHandler, callModule, getSeed, handleMessage, log, logErr, respondErr, tryStringify } from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
@@ -17,47 +17,6 @@ let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 // kernel is dropping logging messages or is having other problems that will
 // cause errors to be silently missed within the test suite.
 let errors: string[] = []
-
-// Define helper state for tracking the nonces of queries we open to the kernel
-// and to other modules. This is going to be standard code in every module that
-// needs to communicate with the kernel or with other modules.
-//
-// queriesNonce is a counter that ensures every query has a unique nonce, and
-// queries is a hashmap that maps nonces to their corresponding queries.
-let queriesNonce = 0
-let queries = {} as any
-
-// Create a helper function for sending queries directly to the kernel.
-function newKernelQuery(method: string, data: any, handler: any) {
-	let nonce = queriesNonce
-	queriesNonce += 1
-	queries[nonce] = handler
-	postMessage({
-		method,
-		nonce,
-		data,
-	})
-}
-
-// handleResponse will take a response and match it to the correct query.
-function handleResponse(event: MessageEvent) {
-	// Ignore any responseUpdate messages until we have a function that tests
-	// those from inside of a module.
-	if (event.data.method === "responseUpdate") {
-		return
-	}
-
-	// Look for the query with the corresponding nonce.
-	if (!(event.data.nonce in queries)) {
-		logErr("no open query found for provided nonce: " + JSON.stringify(event.data))
-		errors.push("module received response for nonce with no open query")
-		return
-	}
-	// Call the handler function using the provided data, then delete the query
-	// from the query map.
-	queries[event.data.nonce](event.data)
-	delete queries[event.data.nonce]
-}
 
 // handleTestResponse is the handler for a response to a 'test' query sent to
 // the kernel. The originalEvent input is the event associated with the
@@ -156,50 +115,66 @@ function handleTestLogging(event: MessageEvent, accept: any) {
 	accept({})
 }
 
+// handleSendTestToKernel handles a call to "sendTestToKernel". It sends a test
+// message to the kernel and then checks that it properly receives the
+// response.
+//
+// TODO: Actually libkmodule doesn't expose any way for us to send this message to the kernel
+async function handleSendTestToKernel(x: any, accept: any, reject: any) {
+	/* - original implementation
+	// Handle a request asking the module to send a test message to the
+	// kernel.
+	if (event.data.method === "sendTestToKernel") {
+		newKernelQuery("test", {}, function (data: any) {
+			// The handler for the query needs the current event so
+			// that it knows how to form the response to the
+			// original query.
+			handleTestResponse(event, data)
+		})
+		return
+	}
+   */
+	reject("no longer implemented")
+}
+
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
 // module for its seed and then compares the helper module's seed to its own
 // seed.
-async function handleViewHelperSeed(data: any, accept: any, reject: any) {
-	let outData = {
-		module: helperModule,
-		method: "viewSeed",
-		data: {},
-	}
-	newKernelQuery("moduleCall", outData, function (inData: any) {
-		handleViewHelperSeedResponse(accept, reject, inData)
-	})
-}
-async function handleViewHelperSeedResponse(accept: any, reject: any, data: any) {
-	// Perform input verification on the data coming in.
-	if (!("err" in data) || !("data" in data)) {
-		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
-		errors.push(err)
-		reject(err)
-		return
-	}
-	if (data.err !== null) {
-		let err = "helper module viewSeed call returned an error: " + data.err
-		errors.push(err)
-		reject(err)
-		return
-	}
-	if (!("seed" in data.data)) {
-		let err = "helper module response did not have data.seed field: " + JSON.stringify(data)
-		errors.push(err)
-		reject(err)
-		return
-	}
-	if (data.data.seed.length !== 16) {
-		let err = "helper module seed is wrong size: " + JSON.stringify(data)
+async function handleViewHelperSeed(x: any, accept: any, reject: any) {
+	// Perform the module call.
+	let [resp, err] = await callModule(helperModule, "viewSeed", {})
+	if (err !== null) {
+		logErr("error when using callModule to viewSeed on the helper module", err)
 		errors.push(err)
 		reject(err)
 		return
 	}
 
+	// Check that the return value contains a seed.
+	if (!("seed" in resp)) {
+		let err = "helper module response did not have seed field: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+	if (!(resp.seed instanceof Uint8Array)) {
+		let err = "helper module seed is wrong type: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+	if (resp.seed.length !== 16) {
+		let err = "helper module seed is wrong size: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+
+	// Check that the seed is well formed
 	let seed = <Uint8Array>await getSeed
 	let equal = true
 	for (let i = 0; i < 16; i++) {
-		if (seed[i] !== data.data.seed[i]) {
+		if (seed[i] !== resp.seed[i]) {
 			equal = false
 			break
 		}
@@ -216,97 +191,63 @@ async function handleViewHelperSeedResponse(accept: any, reject: any, data: any)
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
 // It asks the helper module to ask the tester module (ourself) for its seed.
 // If all goes well, the helper module should respond with our seed.
-function handleViewOwnSeedThroughHelper(event: MessageEvent) {
-	let outData = {
-		module: helperModule,
-		method: "viewTesterSeed",
-		data: {},
-	}
-	newKernelQuery("moduleCall", outData, function (inData: any) {
-		handleViewTesterSeedResponse(event, inData)
-	})
-}
-function handleViewTesterSeedResponse(originalEvent: MessageEvent, data: any) {
-	if (!("err" in data) || !("data" in data)) {
-		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
-		errors.push(err)
-		respondErr(originalEvent, err)
+async function handleViewOwnSeedThroughHelper(event: MessageEvent) {
+	let [resp, err] = await callModule(helperModule, "viewTesterSeed", {})
+	if (err !== null) {
+		respondErr(event, err)
 		return
 	}
-	if (data.err !== null) {
-		let err = "helper module returned an error: " + data.err
+
+	if (!("testerSeed" in resp)) {
+		let err = "helper module response did not have data.testerSeed field: " + tryStringify(resp)
 		errors.push(err)
-		respondErr(originalEvent, err)
+		respondErr(event, err)
 		return
 	}
-	if (!("testerSeed" in data.data)) {
-		let err = "helper module response did not have data.testerSeed field: " + JSON.stringify(data)
+	if (resp.testerSeed.length !== 16) {
+		let err = "helper module seed is wrong size: " + tryStringify(resp)
 		errors.push(err)
-		respondErr(originalEvent, err)
-		return
-	}
-	if (data.data.testerSeed.length !== 16) {
-		let err = "helper module seed is wrong size: " + JSON.stringify(data)
-		errors.push(err)
-		respondErr(originalEvent, err)
+		respondErr(event, err)
 		return
 	}
 
 	// Need to wait until the kernel has send us our seed to do a seed
 	// comparison.
-	getSeed.then((seed: any) => {
-		let equal = true
-		for (let i = 0; i < 16; i++) {
-			if (seed[i] !== data.data.testerSeed[i]) {
-				equal = false
-				break
-			}
+	let seed = <Uint8Array>await getSeed
+	let equal = true
+	for (let i = 0; i < 16; i++) {
+		if (seed[i] !== resp.testerSeed[i]) {
+			equal = false
+			break
 		}
-		if (equal === false) {
-			let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + data.data.testerSeed
-			errors.push(err)
-			respondErr(originalEvent, err)
-			return
-		}
-		// Respond success.
-		postMessage({
-			nonce: originalEvent.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				message: "our seed as reported by the helper module is correct",
-			},
-		})
+	}
+	if (equal === false) {
+		let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + resp.testerSeed
+		errors.push(err)
+		respondErr(event, err)
+		return
+	}
+	// Respond success.
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err: null,
+		data: {
+			message: "our seed as reported by the helper module is correct",
+		},
 	})
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
 // module will call 'mirrorDomain' on the helper module and return the result.
-function handleTesterMirrorDomain(event: MessageEvent) {
-	let outData = {
-		module: helperModule,
-		method: "mirrorDomain",
-		data: {},
-	}
-	newKernelQuery("moduleCall", outData, function (inData: any) {
-		handleTesterMirrorDomainResponse(event, inData)
-	})
-}
-function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
-	if (!("err" in data) || !("data" in data)) {
-		let err = "helper module response did not have data+err fields: " + JSON.stringify(data)
-		errors.push(err)
+async function handleTesterMirrorDomain(event: MessageEvent) {
+	let [resp, err] = await callModule(helperModule, "mirrorDomain", {})
+	if (err !== null) {
 		respondErr(event, err)
-		return
 	}
-	if (data.err !== null) {
-		let err = "helper module returned an error: " + data.err
-		errors.push(err)
-		respondErr(event, err)
-		return
-	}
-	if (!("domain" in data.data)) {
-		let err = "helper module response did not have data.domain field: " + JSON.stringify(data)
+
+	if (!("domain" in resp)) {
+		let err = "helper module response did not have data.domain field: " + tryStringify(resp)
 		errors.push(err)
 		respondErr(event, err)
 		return
@@ -317,7 +258,7 @@ function handleTesterMirrorDomainResponse(event: MessageEvent, data: any) {
 		method: "response",
 		err: null,
 		data: {
-			domain: data.data.domain,
+			domain: resp.domain,
 		},
 	})
 }
@@ -391,6 +332,19 @@ function handleTestCORS(event: MessageEvent) {
 		})
 }
 
+// Add handlers for various test functions.
+//
+// NOTE: most of these are for testing only and are not recommended methods
+// that should be implemented on a normal module. For example, 'viewSeed'
+// exposes the module's seed to anyone that calls into the module. But the
+// module's seed is supposed to be protected and should never be exposed over
+// the API normally. We make an exception here because this module is used for
+// testing purposes.
+addHandler("viewSeed", handleViewSeed)
+addHandler("testLogging", handleTestLogging)
+addHandler("viewHelperSeed", handleViewHelperSeed)
+addHandler("sendTestToKernel", handleSendTestToKernel)
+
 // onmessage receives messages from the kernel.
 onmessage = function (event: MessageEvent) {
 	// Check that the kernel included a method in the message.
@@ -402,7 +356,7 @@ onmessage = function (event: MessageEvent) {
 	// meeting its intended guarantees.
 	if (!("method" in event.data)) {
 		errors.push("received a message with no method")
-		logErr("received a message with no method: " + JSON.stringify(event.data))
+		logErr("received a message with no method: " + tryStringify(event.data))
 		return
 	}
 	// Hande 'presentSeed', which gives the module a seed. Similar to
@@ -435,12 +389,6 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
-	// Handle any responses to queries that we've made.
-	if (event.data.method === "response" || event.data.method === "responseUpdate") {
-		handleResponse(event)
-		return
-	}
-
 	// Handle any query updates.
 	if (event.data.method === "queryUpdate") {
 		respondErr(event, "queryUpdates are not yet supported")
@@ -450,24 +398,14 @@ onmessage = function (event: MessageEvent) {
 	// Like 'data', the kernel guarantees that a domain will be provided.
 	// This check isn't necessary for most modules. The domain is not
 	// provided on queryUpdate, responseUpdate, or response messages.
-	if (!("domain" in event.data)) {
-		logErr("received a message with no domain: " + JSON.stringify(event.data))
+	let isResponse = event.data.method === "response"
+	let isResponseUpdate = event.data.method === "responseUpdate"
+	if (!("domain" in event.data) && !isResponse && !isResponseUpdate) {
+		logErr("received a message with no domain: " + tryStringify(event.data))
 		errors.push("received a message with no domain")
 		respondErr(event, "received a message from kernel with no domain")
 		return
 	}
-
-	// Add handlers for all of the various test functions.
-	//
-	// NOTE: most of these are for testing only and are not recommended methods
-	// that should be implemented on a normal module. For example, 'viewSeed'
-	// exposes the module's seed to anyone that calls into the module. But the
-	// module's seed is supposed to be protected and should never be exposed
-	// over the API normally. We make an exception here because this module is
-	// used for testing purposes.
-	addHandler("viewSeed", handleViewSeed)
-	addHandler("testLogging", handleTestLogging)
-	addHandler("viewHelperSeed", handleViewHelperSeed)
 
 	// Create a method to view our own seed as seen by the helper. This
 	// results in communication that goes:
@@ -477,18 +415,6 @@ onmessage = function (event: MessageEvent) {
 	// level of communication is still working.
 	if (event.data.method === "viewOwnSeedThroughHelper") {
 		handleViewOwnSeedThroughHelper(event)
-		return
-	}
-
-	// Handle a request asking the module to send a test message to the
-	// kernel.
-	if (event.data.method === "sendTestToKernel") {
-		newKernelQuery("test", {}, function (data: any) {
-			// The handler for the query needs the current event so
-			// that it knows how to form the response to the
-			// original query.
-			handleTestResponse(event, data)
-		})
 		return
 	}
 
