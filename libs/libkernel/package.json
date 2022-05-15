@@ -13,14 +13,16 @@
 		"prettier": "prettier --write .",
 		"lint": "npm run prettier && npm run eslint",
 		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/test.js",
-		"prepare": "npm run lint && npm run test"
+		"prepare": "npm run lint && npm run test",
+		"docs": "npx typedoc /src/index.ts"
 	},
 	"author": "David Vorick",
 	"devDependencies": {
 		"@types/node": "^17.0.23",
 		"@typescript-eslint/eslint-plugin": "^5.19.0",
 		"eslint": "^8.13.0",
-		"prettier": "^2.6.2"
+		"prettier": "^2.6.2",
+		"typedoc": "^0.22.15"
 	},
 	"dependencies": {
 		"libskynet": "^0.0.1"

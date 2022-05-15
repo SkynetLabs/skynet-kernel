@@ -2,10 +2,25 @@ import { addContextToErr, composeErr } from "./err.js"
 import { init, newKernelQuery } from "./init.js"
 import { logErr } from "./log.js"
 
-// download will take a skylink and return the fileData for that skylink.
-//
-// NOTE: download currently only supports downloading files that fully fit into
-// the base sector.
+/**
+ * download will take a skylink and return the fileData for that skylink.
+ *
+ * @remarks
+ * download currently only supports downloading files that fully fit into
+ * the base sector.
+ *
+ * @param skylink Skylink to be downloaded
+ * @returns Promise that resolves to the binary fileData
+ *
+ * @example
+ * ```ts
+ * download('AQC5gTfpTI-4DV9C5_k7VDTuXa5_DVbGsNbf4FG2SkCBpg')
+ * 	.then( (data)=>{ console.log(data) } )
+ * 	.catch( (error) => { console.error(error) });
+ * ```
+ *
+ * @public
+ */
 function download(skylink: string): Promise<Uint8Array> {
 	return new Promise((resolve, reject) => {
 		init()

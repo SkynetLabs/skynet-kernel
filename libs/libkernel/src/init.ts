@@ -1,10 +1,12 @@
-import { logErr } from "./log.js"
+import { log, logErr } from "./log.js"
 
-// queryHandler is the data type that gets stored in the 'queries' map. There's
-// a resolve and reject function associated with a promise that is blocking
-// until the query is complete, and then there's an 'update' function which
-// gets called if the query receives a 'responseUpdate', as well as a 'handle'
-// function which gets called when the query receives a 'response'.
+/**
+ * queryHandler is the data type that gets stored in the 'queries' map. There's
+ * a resolve and reject function associated with a promise that is blocking
+ * until the query is complete, and then there's an 'update' function which
+ * gets called if the query receives a 'responseUpdate', as well as a 'handle'
+ * function which gets called when the query receives a 'response'.
+ */
 interface queryHandler {
 	resolve: any
 	reject: any
@@ -165,14 +167,22 @@ function handleMessage(event: MessageEvent) {
 	handler.handle(handler.resolve, handler.reject, event.data.data)
 }
 
-// init will add an event listener for messages from the kernel bridge. It is
-// safe to call init many times, and libkernel will call init before every
-// function call to ensure that everything works even if the user did not
-// explicitly call init.
-//
-// If the init is successful, the promise will resolve with version of
-// libkernel that is active. If the init is not successful, it will reject with
-// an error.
+/**
+ * init will add an event listener for messages from the kernel bridge.
+ *
+ * @remarks
+ * It is safe to call init many times, and libkernel will call init before every
+ * function call to ensure that everything works even if the user did not
+ * explicitly call init.
+ *
+ * If the init is successful, the promise will resolve with version of
+ * libkernel that is active. If the init is not successful, it will reject with
+ * an error.
+ *
+ * @returns A promise resolving to the version of libkernel that is active.
+ *
+ * @public
+ */
 function init(): Promise<string> {
 	// Check if init has already happened.
 	if (initialized === true) {
