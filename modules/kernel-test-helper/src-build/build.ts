@@ -10,7 +10,7 @@ import {
 	sha512,
 	taggedRegistryEntryKeys,
 	validSeedPhrase,
-} from "libkernel"
+} from "libskynet"
 import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libkerneldev"
 import read from "read"
 

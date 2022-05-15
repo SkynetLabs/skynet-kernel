@@ -8,6 +8,11 @@ import { tryStringify } from "./stringify.js"
 let queriesNonce = 0
 let queries = {} as any
 
+// Define an empty function because the linter does not like when you use '() => {}'
+let emptyFn = function () {
+	return
+}
+
 // callModule is a generic function to call a module. It will return whatever
 // response is provided by the module.
 //
@@ -23,7 +28,7 @@ function callModule(module: string, method: string, data: any): Promise<[any, st
 	}
 	// We omit the 'receiveUpdate' function because this is a no-op. If the
 	// value is not defined, newKernelQuery will place in a no-op for us.
-	let [, query] = newKernelQuery("moduleCall", moduleCallData)
+	let [, query] = newKernelQuery("moduleCall", moduleCallData, emptyFn)
 	return query
 }
 
@@ -57,14 +62,14 @@ function handleResponse(event: MessageEvent) {
 //
 // TODO: Implement this.
 function handleResponseUpdate(event: MessageEvent) {
-	return
+	return event
 }
 
 // handleQueryUpdate currently discards all queryUpdates.
 //
 // TODO: Implement this.
 function handleQueryUpdate(event: MessageEvent) {
-	return
+	return event
 }
 
 // newKernelQuery will send a postMessage to the kernel, handling details like
@@ -82,12 +87,12 @@ function newKernelQuery(method: any, data: any, receiveUpdate: any): [any, Promi
 	queriesNonce += 1
 	let sendUpdate = function (updateData: any) {
 		// TODO: Implement
-		return
+		return updateData
 	}
 
 	// Check that receiveUpdate is set.
 	if (receiveUpdate === null || receiveUpdate === undefined) {
-		receiveUpdate = function(){}
+		receiveUpdate = emptyFn
 	}
 
 	// Establish the query in the queries map and then send the query to the

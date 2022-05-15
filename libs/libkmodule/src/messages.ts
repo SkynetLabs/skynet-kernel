@@ -70,8 +70,12 @@ function handleMessage(event: MessageEvent) {
 	// here because the practice is so common throughout javascript and we want
 	// to make sure developer code works without developers getting too
 	// frustrated.
+	//
+	// NOTE: The final argument contains a set of extra fields about the call,
+	// for example providing the domain of the caller. We used an object for
+	// this final field so that it could be extended later.
 	try {
-		router[event.data.method](event.data.data, accept, reject)
+		router[event.data.method](event.data.data, accept, reject, { domain: event.data.domain })
 	} catch (err: any) {
 		// Convert the thrown error and log it. We know that strErr is a string
 		// because tryStringify must return a string, and addContextToErr only

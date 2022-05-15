@@ -75,21 +75,9 @@ function checkPresentSeed(event: MessageEvent) {
 	}
 }
 
-// handleViewSeed responds to a query asking to see the specific seed for the
-// module.
-async function handleViewSeed(data: any, accept: any) {
-	let seed = await getSeed
-	accept({ seed: seed })
-}
-
-// handleTestLogging writes a bunch of logs to allow the operator to verify
-// that logging is working.
-function handleTestLogging(event: MessageEvent, accept: any) {
-	log("this is a test log")
-	log("this", "is", "a", "multi-arg", "log")
-	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
-	logErr("this is an intentional error from the kernel test suite module")
-	accept({})
+// handleMirrorDomain handles a call to mirrorDomain.
+function handleMirrorDomain(data: any, accept: any, reject: any, metadata: any) {
+	accept({ domain: metadata.domain })
 }
 
 // handleSendTestToKernel handles a call to "sendTestToKernel". It sends a test
@@ -118,97 +106,29 @@ async function handleSendTestToKernel(x: any, accept: any, reject: any) {
 	accept({ kernelVersion: resp.version })
 }
 
-// handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
-// module for its seed and then compares the helper module's seed to its own
-// seed.
-async function handleViewHelperSeed(x: any, accept: any, reject: any) {
-	// Perform the module call.
-	let [resp, err] = await callModule(helperModule, "viewSeed", {})
-	if (err !== null) {
-		logErr("error when using callModule to viewSeed on the helper module", err)
-		errors.push(err)
-		reject(err)
-		return
-	}
-
-	// Check that the return value contains a seed.
-	if (!("seed" in resp)) {
-		let err = "helper module response did not have seed field: " + tryStringify(resp)
-		errors.push(err)
-		reject(err)
-		return
-	}
-	if (!(resp.seed instanceof Uint8Array)) {
-		let err = "helper module seed is wrong type: " + tryStringify(resp)
-		errors.push(err)
-		reject(err)
-		return
-	}
-	if (resp.seed.length !== 16) {
-		let err = "helper module seed is wrong size: " + tryStringify(resp)
-		errors.push(err)
-		reject(err)
-		return
-	}
-
-	// Check that the seed is well formed
-	let seed = <Uint8Array>await getSeed
-	let equal = true
-	for (let i = 0; i < 16; i++) {
-		if (seed[i] !== resp.seed[i]) {
-			equal = false
-			break
-		}
-	}
-	if (equal === true) {
-		let err = "helper module seed matches test module seed"
-		errors.push(err)
-		reject(err)
-		return
-	}
-	accept({ message: "(success) helper seed does not match tester seed" })
+// handleTestCORS checks that the webworker is able to make webrequests to at
+// least one portal. If not, this indicates that CORS is not set up correctly
+// somewhere in the client.
+function handleTestCORS(data: any, accept: any, reject: any) {
+	fetch("https://siasky.net")
+		.then((response) => {
+			accept({ url: response.url })
+		})
+		.catch((errFetch) => {
+			let err = "fetch request failed: " + errFetch
+			errors.push(err)
+			reject(err)
+		})
 }
 
-// handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
-// It asks the helper module to ask the tester module (ourself) for its seed.
-// If all goes well, the helper module should respond with our seed.
-async function handleViewOwnSeedThroughHelper(x: any, accept: any, reject: any) {
-	let [resp, err] = await callModule(helperModule, "viewTesterSeed", {})
-	if (err !== null) {
-		reject(err)
-		return
-	}
-
-	if (!("testerSeed" in resp)) {
-		let err = "helper module response did not have data.testerSeed field: " + tryStringify(resp)
-		errors.push(err)
-		reject(err)
-		return
-	}
-	if (resp.testerSeed.length !== 16) {
-		let err = "helper module seed is wrong size: " + tryStringify(resp)
-		errors.push(err)
-		reject(err)
-		return
-	}
-
-	// Need to wait until the kernel has send us our seed to do a seed
-	// comparison.
-	let seed = <Uint8Array>await getSeed
-	let equal = true
-	for (let i = 0; i < 16; i++) {
-		if (seed[i] !== resp.testerSeed[i]) {
-			equal = false
-			break
-		}
-	}
-	if (equal === false) {
-		let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + resp.testerSeed
-		errors.push(err)
-		reject(err)
-		return
-	}
-	accept({ message: "our seed as reported by the helper module is correct" })
+// handleTestLogging writes a bunch of logs to allow the operator to verify
+// that logging is working.
+function handleTestLogging(event: MessageEvent, accept: any) {
+	log("this is a test log")
+	log("this", "is", "a", "multi-arg", "log")
+	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
+	logErr("this is an intentional error from the kernel test suite module")
+	accept({})
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
@@ -277,19 +197,104 @@ function handleTestResponseUpdate(event: MessageEvent) {
 	}, 800)
 }
 
-// handleTestCORS checks that the webworker is able to make webrequests to at
-// least one portal. If not, this indicates that CORS is not set up correctly
-// somewhere in the client.
-function handleTestCORS(data: any, accept: any, reject: any) {
-	fetch("https://siasky.net")
-		.then((response) => {
-			accept({ url: response.url })
-		})
-		.catch((errFetch) => {
-			let err = "fetch request failed: " + errFetch
-			errors.push(err)
-			reject(err)
-		})
+// handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
+// module for its seed and then compares the helper module's seed to its own
+// seed.
+async function handleViewHelperSeed(x: any, accept: any, reject: any) {
+	// Perform the module call.
+	let [resp, err] = await callModule(helperModule, "viewSeed", {})
+	if (err !== null) {
+		logErr("error when using callModule to viewSeed on the helper module", err)
+		errors.push(err)
+		reject(err)
+		return
+	}
+
+	// Check that the return value contains a seed.
+	if (!("seed" in resp)) {
+		let err = "helper module response did not have seed field: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+	if (!(resp.seed instanceof Uint8Array)) {
+		let err = "helper module seed is wrong type: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+	if (resp.seed.length !== 16) {
+		let err = "helper module seed is wrong size: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+
+	// Check that the seed is well formed
+	let seed = <Uint8Array>await getSeed
+	let equal = true
+	for (let i = 0; i < 16; i++) {
+		if (seed[i] !== resp.seed[i]) {
+			equal = false
+			break
+		}
+	}
+	if (equal === true) {
+		let err = "helper module seed matches test module seed"
+		errors.push(err)
+		reject(err)
+		return
+	}
+	accept({ message: "(success) helper seed does not match tester seed" })
+}
+
+// handleViewSeed responds to a query asking to see the specific seed for the
+// module.
+async function handleViewSeed(data: any, accept: any) {
+	let seed = await getSeed
+	accept({ seed: seed })
+}
+
+// handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
+// It asks the helper module to ask the tester module (ourself) for its seed.
+// If all goes well, the helper module should respond with our seed.
+async function handleViewOwnSeedThroughHelper(x: any, accept: any, reject: any) {
+	let [resp, err] = await callModule(helperModule, "viewTesterSeed", {})
+	if (err !== null) {
+		reject(err)
+		return
+	}
+
+	if (!("testerSeed" in resp)) {
+		let err = "helper module response did not have data.testerSeed field: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+	if (resp.testerSeed.length !== 16) {
+		let err = "helper module seed is wrong size: " + tryStringify(resp)
+		errors.push(err)
+		reject(err)
+		return
+	}
+
+	// Need to wait until the kernel has send us our seed to do a seed
+	// comparison.
+	let seed = <Uint8Array>await getSeed
+	let equal = true
+	for (let i = 0; i < 16; i++) {
+		if (seed[i] !== resp.testerSeed[i]) {
+			equal = false
+			break
+		}
+	}
+	if (equal === false) {
+		let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + resp.testerSeed
+		errors.push(err)
+		reject(err)
+		return
+	}
+	accept({ message: "our seed as reported by the helper module is correct" })
 }
 
 // handleViewErrors will return the set of errors that have accumulated during
@@ -306,16 +311,21 @@ function handleViewErrors(data: any, accept: any) {
 // module's seed is supposed to be protected and should never be exposed over
 // the API normally. We make an exception here because this module is used for
 // testing purposes.
-addHandler("viewSeed", handleViewSeed)
-addHandler("testLogging", handleTestLogging)
-addHandler("viewHelperSeed", handleViewHelperSeed)
+addHandler("mirrorDomain", handleMirrorDomain)
 addHandler("sendTestToKernel", handleSendTestToKernel)
+addHandler("testCORS", handleTestCORS)
+addHandler("testLogging", handleTestLogging)
+addHandler("testerMirrorDomain", handleTesterMirrorDomain)
+addHandler("viewHelperSeed", handleViewHelperSeed)
+addHandler("viewSeed", handleViewSeed)
 addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
 addHandler("viewErrors", handleViewErrors)
-addHandler("testerMirrorDomain", handleTesterMirrorDomain)
-addHandler("testCORS", handleTestCORS)
 
-// onmessage receives messages from the kernel.
+// onmessage receives messages from the kernel. Note that most onmessage
+// functions will be a lot simpler, but because this is a test module we're
+// doing input checking on the responses of the kernel to ensure the kernel is
+// behaving correctly. Most modules can skip all of these checks because the
+// kernel does guarantee that these fields will be correct.
 onmessage = function (event: MessageEvent) {
 	// Check that the kernel included a method in the message.
 	//
@@ -371,20 +381,6 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
-	// Check for the 'mirrorDomain' method, which just informs the caller
-	// what domain the kernel has assigned to them.
-	if (event.data.method === "mirrorDomain") {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				domain: event.data.domain,
-			},
-		})
-		return
-	}
-
 	if (event.data.method === "testResponseUpdate") {
 		handleTestResponseUpdate(event)
 		return
@@ -392,6 +388,4 @@ onmessage = function (event: MessageEvent) {
 
 	// Pass what remains to the router.
 	handleMessage(event)
-
-	return
 }
