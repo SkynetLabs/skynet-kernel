@@ -21,13 +21,9 @@ function callModule(module: string, method: string, data: any): Promise<[any, st
 		method,
 		data,
 	}
-	// Create a no-op function as the receiveUpdate function as callModule does
-	// not support receiving updates.
-	let receiveUpdate = function () {
-		// TODO: Implement
-		return
-	}
-	let [, query] = newKernelQuery("moduleCall", moduleCallData, receiveUpdate)
+	// We omit the 'receiveUpdate' function because this is a no-op. If the
+	// value is not defined, newKernelQuery will place in a no-op for us.
+	let [, query] = newKernelQuery("moduleCall", moduleCallData)
 	return query
 }
 
@@ -78,6 +74,9 @@ function handleQueryUpdate(event: MessageEvent) {
 // function that can be called to provide a 'queryUpdate' and the final return
 // value is a promise that gets resolved when a 'response' is sent that closes
 // out the query.
+//
+// NOTE: Typically developers should not use this function. Instead use
+// 'callModule' or 'connectModule'.
 function newKernelQuery(method: any, data: any, receiveUpdate: any): [any, Promise<[any, string | null]>] {
 	let nonce = queriesNonce
 	queriesNonce += 1
@@ -85,6 +84,14 @@ function newKernelQuery(method: any, data: any, receiveUpdate: any): [any, Promi
 		// TODO: Implement
 		return
 	}
+
+	// Check that receiveUpdate is set.
+	if (receiveUpdate === null || receiveUpdate === undefined) {
+		receiveUpdate = function(){}
+	}
+
+	// Establish the query in the queries map and then send the query to the
+	// kernel.
 	let p = new Promise((resolve) => {
 		queries[nonce] = { resolve, receiveUpdate }
 		postMessage({
@@ -96,4 +103,4 @@ function newKernelQuery(method: any, data: any, receiveUpdate: any): [any, Promi
 	return [sendUpdate, p as any]
 }
 
-export { callModule, handleQueryUpdate, handleResponse, handleResponseUpdate }
+export { callModule, handleQueryUpdate, handleResponse, handleResponseUpdate, newKernelQuery }

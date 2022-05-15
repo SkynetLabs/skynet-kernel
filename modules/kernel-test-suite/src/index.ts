@@ -1,6 +1,17 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
-import { addHandler, callModule, getSeed, handleMessage, log, logErr, respondErr, tryStringify } from "libkmodule"
+import {
+	addContextToErr,
+	addHandler,
+	callModule,
+	getSeed,
+	handleMessage,
+	log,
+	logErr,
+	newKernelQuery,
+	respondErr,
+	tryStringify,
+} from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
@@ -17,40 +28,6 @@ let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 // kernel is dropping logging messages or is having other problems that will
 // cause errors to be silently missed within the test suite.
 let errors: string[] = []
-
-// handleTestResponse is the handler for a response to a 'test' query sent to
-// the kernel. The originalEvent input is the event associated with the
-// original query that asked this module to send a test message to the kernel.
-// The kernelResponseData is the data that the kernel provided as a response
-// when we sent it a test message.
-function handleTestResponse(originalEvent: MessageEvent, kernelResponseData: any) {
-	if (!("err" in kernelResponseData) || !("data" in kernelResponseData)) {
-		errors.push("kernel response does not have the exptected fields: " + JSON.stringify(kernelResponseData))
-		respondErr(originalEvent, "kernel response did not have err and data fields: " + JSON.stringify(kernelResponseData))
-		return
-	}
-	if (kernelResponseData.err !== null) {
-		let err = "test call to kernel returned an error: " + kernelResponseData.err
-		errors.push(err)
-		respondErr(originalEvent, err)
-		return
-	}
-	if (!("version" in kernelResponseData.data)) {
-		errors.push("kernel response to test message didn't include a version: " + JSON.stringify(kernelResponseData))
-		respondErr(originalEvent, "kernel response did not provide a version: " + JSON.stringify(kernelResponseData))
-		return
-	}
-
-	// Respond with a success.
-	postMessage({
-		nonce: originalEvent.data.nonce,
-		method: "response",
-		err: null,
-		data: {
-			kernelVersion: kernelResponseData.data.version,
-		},
-	})
-}
 
 // handlePresentSeedExtraChecks processes a 'presentSeed' method from the
 // kernel. We perform extra checks that a normal module would not need to
@@ -118,23 +95,27 @@ function handleTestLogging(event: MessageEvent, accept: any) {
 // handleSendTestToKernel handles a call to "sendTestToKernel". It sends a test
 // message to the kernel and then checks that it properly receives the
 // response.
-//
-// TODO: Actually libkmodule doesn't expose any way for us to send this message to the kernel
 async function handleSendTestToKernel(x: any, accept: any, reject: any) {
-	/* - original implementation
-	// Handle a request asking the module to send a test message to the
-	// kernel.
-	if (event.data.method === "sendTestToKernel") {
-		newKernelQuery("test", {}, function (data: any) {
-			// The handler for the query needs the current event so
-			// that it knows how to form the response to the
-			// original query.
-			handleTestResponse(event, data)
-		})
+	// When performing a kernel query, we don't need to provide a function to
+	// handle responseUpdates because we don't care about them. Typically this
+	// is abstracted more, but this is a special case where we need to call
+	// 'test' on the kernel itself and therefore can't use 'callModule'.
+	let emptyFn = function () {
 		return
 	}
-   */
-	reject("no longer implemented")
+	let [, queryPromise] = newKernelQuery("test", {}, emptyFn)
+	let [resp, err] = await queryPromise
+	if (err !== null) {
+		errors.push(<string>addContextToErr(err, "received error when performing 'test' method on kernel"))
+		reject(err)
+		return
+	}
+	if (!("version" in resp)) {
+		errors.push("kernel response to test message didn't include a version:", tryStringify(resp))
+		reject("no version provided by kernel 'test' method")
+		return
+	}
+	accept({ kernelVersion: resp.version })
 }
 
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
