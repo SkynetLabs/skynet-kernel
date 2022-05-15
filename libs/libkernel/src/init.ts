@@ -1,12 +1,10 @@
 import { log, logErr } from "./log.js"
 
-/**
- * queryHandler is the data type that gets stored in the 'queries' map. There's
- * a resolve and reject function associated with a promise that is blocking
- * until the query is complete, and then there's an 'update' function which
- * gets called if the query receives a 'responseUpdate', as well as a 'handle'
- * function which gets called when the query receives a 'response'.
- */
+// queryHandler is the data type that gets stored in the 'queries' map. There's
+// a resolve and reject function associated with a promise that is blocking
+// until the query is complete, and then there's an 'update' function which
+// gets called if the query receives a 'responseUpdate', as well as a 'handle'
+// function which gets called when the query receives a 'response'.
 interface queryHandler {
 	resolve: any
 	reject: any
