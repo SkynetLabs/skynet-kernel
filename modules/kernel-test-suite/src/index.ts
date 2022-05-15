@@ -75,6 +75,68 @@ function checkPresentSeed(event: MessageEvent) {
 	}
 }
 
+// callModulePerformanceSequential will run the 'viewSeed' method on the helper
+// module the provided number of times in series.
+async function handleCallModulePerformanceSequential(input: any, accept: any, reject: any) {
+	// Check that a proper number of iterations was provided.
+	if (!("iterations" in input)) {
+		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
+		reject("input is expected to have an 'iterations' value")
+		return
+	}
+	if (typeof input.iterations !== "number") {
+		errors.push("callModulePerformanceSequential called but iterations was not of type 'number'")
+		reject("iterations needs to be a number")
+		return
+	}
+
+	// perform a 'viewSeed' call on the helper module the specified number of
+	// times sequentially.
+	for (let i = 0; i < input.iterations; i++) {
+		let [, err] = await callModule(helperModule, "viewSeed", {})
+		if (err !== null) {
+			logErr("error when using callModule to viewSeed on the helper module", err)
+			errors.push(err)
+			reject(err)
+			return
+		}
+	}
+	accept({ message: "helper module calls complete" })
+}
+
+// callModulePerformanceParallel will run the 'viewSeed' method on the helper
+// module the provided number of times in parallel.
+function handleCallModulePerformanceParallel(input: any, accept: any, reject: any) {
+	// Check that a proper number of iterations was provided.
+	if (!("iterations" in input)) {
+		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
+		reject("input is expected to have an 'iterations' value")
+		return
+	}
+	if (typeof input.iterations !== "number") {
+		errors.push("callModulePerformanceSequential called but iterations was not of type 'number'")
+		reject("iterations needs to be a number")
+		return
+	}
+
+	// perform a 'viewSeed' call on the helper module the specified number of
+	// times in parallel.
+	let promises = []
+	for (let i = 0; i < input.iterations; i++) {
+		promises.push(callModule(helperModule, "viewSeed", {}))
+	}
+	Promise.all(promises).then((results) => {
+		for (let i = 0; i < results.length; i++) {
+			if (results[i][1] !== null) {
+				logErr("got an error in the parallel callModule test", results[i][1])
+				reject("parallel callModule test failed: " + results[i][1])
+				return
+			}
+		}
+		accept({ message: "helper module calls complete" })
+	})
+}
+
 // handleMirrorDomain handles a call to mirrorDomain.
 function handleMirrorDomain(data: any, accept: any, reject: any, metadata: any) {
 	accept({ domain: metadata.domain })
@@ -311,6 +373,8 @@ function handleViewErrors(data: any, accept: any) {
 // module's seed is supposed to be protected and should never be exposed over
 // the API normally. We make an exception here because this module is used for
 // testing purposes.
+addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential)
+addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel)
 addHandler("mirrorDomain", handleMirrorDomain)
 addHandler("sendTestToKernel", handleSendTestToKernel)
 addHandler("testCORS", handleTestCORS)

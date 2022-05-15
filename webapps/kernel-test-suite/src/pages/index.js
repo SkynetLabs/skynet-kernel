@@ -428,6 +428,20 @@ function TestMsgSpeedSequential5k() {
 	})
 }
 
+// TestModuleSpeedSequential5k will have the tester module perform five
+// thousand sequential messages on the helper module.
+function TestModuleSpeedSequential20k() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "callModulePerformanceSequential", {iterations: 20000})
+		.then(data => {
+			resolve("sequential messages succeeded")
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestMsgSpeedParallel5k will send ten thousand messages to the kernel in
 // parallel.
 function TestMsgSpeedParallel5k() {
@@ -442,6 +456,20 @@ function TestMsgSpeedParallel5k() {
 		})
 		.catch(x => {
 			reject(x)
+		})
+	})
+}
+
+// TestModuleSpeedParallel5k will have the tester module perform five
+// thousand sequential messages on the helper module.
+function TestModuleSpeedParallel20k() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "callModulePerformanceParallel", {iterations: 20000})
+		.then(data => {
+			resolve("sequential messages succeeded")
+		})
+		.catch(err => {
+			reject(err)
 		})
 	})
 }
@@ -554,7 +582,9 @@ const IndexPage = () => {
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
 			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedSequential20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
 			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 		</main>
