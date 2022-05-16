@@ -55,14 +55,16 @@ function handleBackgroundMessage(data) {
 	})
 
 	// Check that an error was included.
-	if (!("err" in data)) {
-		query["err"] = "kernel did not include an err field in response"
-		window.postMessage(query)
-		return
-	}
-	query["err"] = data.err
 	if ("data" in data) {
 		query["data"] = data.data
+	}
+	if (data.method === "response") {
+		if (!("err" in data)) {
+			query["err"] = "kernel did not include an err field in response"
+			window.postMessage(query)
+			return
+		}
+		query["err"] = data.err
 	}
 	window.postMessage(query)
 }

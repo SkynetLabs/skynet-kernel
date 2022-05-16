@@ -81,12 +81,10 @@ function handleMessage(event: MessageEvent) {
 
 	// Define the function that will allow the handler to send an update.
 	let sendUpdate = function (updateData: any) {
-		// TODO: change kernel to not expect an err field.
 		postMessage({
 			method: "responseUpdate",
 			nonce: event.data.nonce,
 			data: updateData,
-			err: null,
 		})
 	}
 

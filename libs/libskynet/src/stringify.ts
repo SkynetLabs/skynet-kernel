@@ -5,19 +5,23 @@
 // set the return value to "[stringify failed]".
 function tryStringify(obj: any): string {
 	// Parse the error into a string.
-	let str: string
 	if (typeof obj === "string") {
-		str = obj
-	} else if (typeof obj.toString === "function") {
-		str = obj.toString()
-	} else {
-		try {
-			str = JSON.stringify(obj)
-		} catch {
-			str = "[stringify failed]"
-		}
+		return obj
 	}
-	return str
+
+	// Check if the object has a custom toString and use that if so.
+	let hasToString = typeof obj.toString === "function"
+	if (hasToString && obj.toString !== Object.prototype.toString) {
+		return obj.toString()
+	}
+
+	// If the object does not have a custom toString, attempt to perform a
+	// JSON.stringify.
+	try {
+		return JSON.stringify(obj)
+	} catch {
+		return "[stringify failed]"
+	}
 }
 
 export { tryStringify }

@@ -244,26 +244,41 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
 
-	// Check that the required fields and rules are met.
-	if (!("err" in event.data) || !("data" in event.data)) {
-		logErr("workerMessage", "responses and updates from worker need to have an err and data field")
-		// TODO: shut down the worker for being buggy.
-		return
-	}
-	let errNull = event.data.err === null
-	let dataNull = event.data.data === null
-	if (errNull === dataNull) {
-		logErr("workerMessage", "exactly one of err and data must be null")
+	// Check that the data field is present.
+	if (!("data" in event.data)) {
+		logErr("workerMessage", "responses and updates from worker need to have a data field")
 		// TODO: shut down the worker for being buggy.
 		return
 	}
 
-	// Pass the message to the original caller.
+	// Check that the err field is being used correctly for response messages.
+	if (isResponse) {
+		// Check that the err field exists.
+		if (!("err" in event.data)) {
+			logErr("workerMessage", "responses from worker need to have an err field")
+			// TODO: shut down the worker for being buggy
+			return
+		}
+
+		// Check that exactly one of 'err' and 'data' are null.
+		let errNull = event.data.err === null
+		let dataNull = event.data.data === null
+		if (errNull === dataNull) {
+			logErr("workerMessage", "exactly one of err and data must be null")
+			// TODO: shut down the worker for being buggy.
+			return
+		}
+	}
+
+	// Pass the message to the original caller. Only response messages should
+	// have the err field set.
 	let msg = {
 		nonce: sourceNonce,
 		method: event.data.method,
-		err: event.data.err,
 		data: event.data.data,
+	}
+	if (isResponse) {
+		msg["err"] = event.data.err
 	}
 	if (sourceIsWorker === true) {
 		source.postMessage(msg)
