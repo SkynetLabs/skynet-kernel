@@ -13,6 +13,57 @@ let emptyFn = function () {
 	return
 }
 
+// handleResponseUpdate attempts to find the corresponding query using the
+// nonce and then calls the corresponding receiveUpdate function.
+//
+// Because response and responseUpdate messages are sent asynchronously, it's
+// completely possible that a responseUpdate is received after the query has
+// been closed out by a response. We therefore just ignore any messages that
+// can't be matched to a nonce.
+function handleResponseUpdate(event: MessageEvent) {
+	// Ignore this message if there is no corresponding query, the query may
+	// have been closed out and this message was just processed late.
+	if (!(event.data.nonce in queries)) {
+		return
+	}
+
+	// Pass the update along to the corresponding receiveUpdate function.
+	queries[event.data.nonce].receiveUpdate(event.data.data)
+}
+
+// handleQueryUpdate currently discards all queryUpdates.
+//
+// TODO: Implement this.
+function handleQueryUpdate(event: MessageEvent) {
+	return event
+}
+
+// handleResponse will take a response and match it to the correct query.
+//
+// NOTE: The kernel guarantees that an err field and a data field and a nonce
+// field will be present in any message that gets sent using the "response"
+// method.
+function handleResponse(event: MessageEvent) {
+	// Look for the query with the corresponding nonce.
+	if (!(event.data.nonce in queries)) {
+		logErr("no open query found for provided nonce: " + tryStringify(event.data.data))
+		return
+	}
+
+	// Check if the response is an error.
+	if (event.data.err !== null) {
+		logErr("there's an error in the data")
+		queries[event.data.nonce].resolve([{}, event.data.err])
+		delete queries[event.data.nonce]
+		return
+	}
+
+	// Call the handler function using the provided data, then delete the query
+	// from the query map.
+	queries[event.data.nonce].resolve([event.data.data, null])
+	delete queries[event.data.nonce]
+}
+
 // callModule is a generic function to call a module. It will return whatever
 // response is provided by the module.
 //
@@ -82,57 +133,6 @@ function connectModule(
 	return newKernelQuery("moduleCall", moduleCallData, receiveUpdate)
 }
 
-// handleResponse will take a response and match it to the correct query.
-//
-// NOTE: The kernel guarantees that an err field and a data field and a nonce
-// field will be present in any message that gets sent using the "response"
-// method.
-function handleResponse(event: MessageEvent) {
-	// Look for the query with the corresponding nonce.
-	if (!(event.data.nonce in queries)) {
-		logErr("no open query found for provided nonce: " + tryStringify(event.data.data))
-		return
-	}
-
-	// Check if the response is an error.
-	if (event.data.err !== null) {
-		logErr("there's an error in the data")
-		queries[event.data.nonce].resolve([{}, event.data.err])
-		delete queries[event.data.nonce]
-		return
-	}
-
-	// Call the handler function using the provided data, then delete the query
-	// from the query map.
-	queries[event.data.nonce].resolve([event.data.data, null])
-	delete queries[event.data.nonce]
-}
-
-// handleResponseUpdate attempts to find the corresponding query using the
-// nonce and then calls the corresponding receiveUpdate function.
-//
-// Because response and responseUpdate messages are sent asynchronously, it's
-// completely possible that a responseUpdate is received after the query has
-// been closed out by a response. We therefore just ignore any messages that
-// can't be matched to a nonce.
-function handleResponseUpdate(event: MessageEvent) {
-	// Ignore this message if there is no corresponding query, the query may
-	// have been closed out and this message was just processed late.
-	if (!(event.data.nonce in queries)) {
-		return
-	}
-
-	// Pass the update along to the corresponding receiveUpdate function.
-	queries[event.data.nonce].receiveUpdate(event.data.data, event.data.err)
-}
-
-// handleQueryUpdate currently discards all queryUpdates.
-//
-// TODO: Implement this.
-function handleQueryUpdate(event: MessageEvent) {
-	return event
-}
-
 // newKernelQuery will send a postMessage to the kernel, handling details like
 // the nonce. The first input value is the data that should be sent to the
 // kernel. The second input value is an update function that should be called
@@ -150,11 +150,10 @@ function newKernelQuery(
 ): [sendUpdate: any, response: Promise<[responseData: any, err: string | null]>] {
 	let nonce = queriesNonce
 	queriesNonce += 1
-	let sendUpdate = function (updateData: any, updateErr: string | null) {
+	let sendUpdate = function (updateData: any) {
 		postMessage({
-			method: "responseUpdate",
+			method: "queryUpdate",
 			nonce,
-			err: updateErr,
 			data: updateData,
 		})
 	}

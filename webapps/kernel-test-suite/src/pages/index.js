@@ -57,6 +57,7 @@ function TestModuleHasSeed() {
 				reject("viewSeed in test module did not return a data.seed")
 				return
 			}
+			console.log(data)
 			if (data.seed.length !== 16) {
 				reject("viewSeed in test module returned a seed with a non-standard length")
 				return

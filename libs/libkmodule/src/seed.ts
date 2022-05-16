@@ -1,3 +1,5 @@
+import { activeQuery } from "./messages.js"
+
 // Define a set of helper variables that track whether the seed has been
 // received by the kernel yet.
 let resolveSeed: any
@@ -12,8 +14,8 @@ let getSeed = new Promise((resolve) => {
 // 'accept' and 'reject' inputs are omitted. This omission only applies to the
 // "presentSeed" method, and therefore this is not a good example for how other
 // handlers should be implemented.
-function handlePresentSeed(data: any) {
-	resolveSeed(data.seed)
+function handlePresentSeed(aq: activeQuery) {
+	resolveSeed(aq.callerInput.seed)
 }
 
 export { getSeed, handlePresentSeed }

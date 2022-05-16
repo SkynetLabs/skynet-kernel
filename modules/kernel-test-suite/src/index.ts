@@ -77,75 +77,75 @@ function checkPresentSeed(event: MessageEvent) {
 
 // callModulePerformanceSequential will run the 'viewSeed' method on the helper
 // module the provided number of times in series.
-async function handleCallModulePerformanceSequential(input: any, accept: any, reject: any) {
+async function handleCallModulePerformanceSequential(activeQuery: any) {
 	// Check that a proper number of iterations was provided.
-	if (!("iterations" in input)) {
+	if (!("iterations" in activeQuery.callerInput)) {
 		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
-		reject("input is expected to have an 'iterations' value")
+		activeQuery.reject("input is expected to have an 'iterations' value")
 		return
 	}
-	if (typeof input.iterations !== "number") {
+	if (typeof activeQuery.callerInput.iterations !== "number") {
 		errors.push("callModulePerformanceSequential called but iterations was not of type 'number'")
-		reject("iterations needs to be a number")
+		activeQuery.reject("iterations needs to be a number")
 		return
 	}
 
 	// perform a 'viewSeed' call on the helper module the specified number of
 	// times sequentially.
-	for (let i = 0; i < input.iterations; i++) {
+	for (let i = 0; i < activeQuery.callerInput.iterations; i++) {
 		let [, err] = await callModule(helperModule, "viewSeed", {})
 		if (err !== null) {
 			logErr("error when using callModule to viewSeed on the helper module", err)
 			errors.push(err)
-			reject(err)
+			activeQuery.reject(err)
 			return
 		}
 	}
-	accept({ message: "helper module calls complete" })
+	activeQuery.accept({ message: "helper module calls complete" })
 }
 
 // callModulePerformanceParallel will run the 'viewSeed' method on the helper
 // module the provided number of times in parallel.
-function handleCallModulePerformanceParallel(input: any, accept: any, reject: any) {
+function handleCallModulePerformanceParallel(activeQuery: any) {
 	// Check that a proper number of iterations was provided.
-	if (!("iterations" in input)) {
+	if (!("iterations" in activeQuery.callerInput)) {
 		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
-		reject("input is expected to have an 'iterations' value")
+		activeQuery.reject("input is expected to have an 'iterations' value")
 		return
 	}
-	if (typeof input.iterations !== "number") {
+	if (typeof activeQuery.callerInput.iterations !== "number") {
 		errors.push("callModulePerformanceSequential called but iterations was not of type 'number'")
-		reject("iterations needs to be a number")
+		activeQuery.reject("iterations needs to be a number")
 		return
 	}
 
 	// perform a 'viewSeed' call on the helper module the specified number of
 	// times in parallel.
 	let promises = []
-	for (let i = 0; i < input.iterations; i++) {
+	for (let i = 0; i < activeQuery.callerInput.iterations; i++) {
 		promises.push(callModule(helperModule, "viewSeed", {}))
 	}
 	Promise.all(promises).then((results) => {
 		for (let i = 0; i < results.length; i++) {
 			if (results[i][1] !== null) {
 				logErr("got an error in the parallel callModule test", results[i][1])
-				reject("parallel callModule test failed: " + results[i][1])
+				activeQuery.reject("parallel callModule test failed: " + results[i][1])
 				return
 			}
 		}
-		accept({ message: "helper module calls complete" })
+		activeQuery.accept({ message: "helper module calls complete" })
 	})
 }
 
 // handleMirrorDomain handles a call to mirrorDomain.
-function handleMirrorDomain(data: any, accept: any, reject: any, metadata: any) {
-	accept({ domain: metadata.domain })
+function handleMirrorDomain(activeQuery: any) {
+	activeQuery.accept({ domain: activeQuery.domain })
 }
 
 // handleSendTestToKernel handles a call to "sendTestToKernel". It sends a test
 // message to the kernel and then checks that it properly receives the
 // response.
-async function handleSendTestToKernel(x: any, accept: any, reject: any) {
+async function handleSendTestToKernel(activeQuery: any) {
 	// When performing a kernel query, we don't need to provide a function to
 	// handle responseUpdates because we don't care about them. Typically this
 	// is abstracted more, but this is a special case where we need to call
@@ -157,118 +157,90 @@ async function handleSendTestToKernel(x: any, accept: any, reject: any) {
 	let [resp, err] = await queryPromise
 	if (err !== null) {
 		errors.push(<string>addContextToErr(err, "received error when performing 'test' method on kernel"))
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 	if (!("version" in resp)) {
 		errors.push("kernel response to test message didn't include a version:", tryStringify(resp))
-		reject("no version provided by kernel 'test' method")
+		activeQuery.reject("no version provided by kernel 'test' method")
 		return
 	}
-	accept({ kernelVersion: resp.version })
+	activeQuery.accept({ kernelVersion: resp.version })
 }
 
 // handleTestCORS checks that the webworker is able to make webrequests to at
 // least one portal. If not, this indicates that CORS is not set up correctly
 // somewhere in the client.
-function handleTestCORS(data: any, accept: any, reject: any) {
+function handleTestCORS(activeQuery: any) {
 	fetch("https://siasky.net")
 		.then((response) => {
-			accept({ url: response.url })
+			activeQuery.accept({ url: response.url })
 		})
 		.catch((errFetch) => {
 			let err = "fetch request failed: " + errFetch
 			errors.push(err)
-			reject(err)
+			activeQuery.reject(err)
 		})
 }
 
 // handleTestLogging writes a bunch of logs to allow the operator to verify
 // that logging is working.
-function handleTestLogging(event: MessageEvent, accept: any) {
+function handleTestLogging(activeQuery: any) {
 	log("this is a test log")
 	log("this", "is", "a", "multi-arg", "log")
 	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
 	logErr("this is an intentional error from the kernel test suite module")
-	accept({})
+	activeQuery.accept({})
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
 // module will call 'mirrorDomain' on the helper module and return the result.
-async function handleTesterMirrorDomain(data: any, accept: any, reject: any) {
+async function handleTesterMirrorDomain(activeQuery: any) {
 	let [resp, err] = await callModule(helperModule, "mirrorDomain", {})
 	if (err !== null) {
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 
 	if (!("domain" in resp)) {
 		let err = "helper module response did not have data.domain field: " + tryStringify(resp)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
-	accept({ domain: resp.domain })
+	activeQuery.accept({ domain: resp.domain })
 }
 
 // handleTestResponseUpdate will respond to a query with three updates spaced
 // 200 milliseconds apart, and then finally respond with a full response to
 // close out the message. The value 'eventProgress' is used to distinguish what
 // order the responses are supposed to arrive in.
-function handleTestResponseUpdate(event: MessageEvent) {
+function handleTestResponseUpdate(activeQuery: any) {
 	setTimeout(() => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "responseUpdate",
-			err: null,
-			data: {
-				eventProgress: 25,
-			},
-		})
+		activeQuery.sendUpdate({ eventProgress: 25 })
 	}, 200)
 	setTimeout(() => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "responseUpdate",
-			err: null,
-			data: {
-				eventProgress: 50,
-			},
-		})
+		activeQuery.sendUpdate({ eventProgress: 50 })
 	}, 400)
 	setTimeout(() => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "responseUpdate",
-			err: null,
-			data: {
-				eventProgress: 75,
-			},
-		})
+		activeQuery.sendUpdate({ eventProgress: 75 })
 	}, 600)
 	setTimeout(() => {
-		postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				eventProgress: 100,
-			},
-		})
+		activeQuery.accept({ eventProgress: 100 })
 	}, 800)
 }
 
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
 // module for its seed and then compares the helper module's seed to its own
 // seed.
-async function handleViewHelperSeed(x: any, accept: any, reject: any) {
+async function handleViewHelperSeed(activeQuery: any) {
 	// Perform the module call.
 	let [resp, err] = await callModule(helperModule, "viewSeed", {})
 	if (err !== null) {
 		logErr("error when using callModule to viewSeed on the helper module", err)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 
@@ -276,19 +248,19 @@ async function handleViewHelperSeed(x: any, accept: any, reject: any) {
 	if (!("seed" in resp)) {
 		let err = "helper module response did not have seed field: " + tryStringify(resp)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 	if (!(resp.seed instanceof Uint8Array)) {
 		let err = "helper module seed is wrong type: " + tryStringify(resp)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 	if (resp.seed.length !== 16) {
 		let err = "helper module seed is wrong size: " + tryStringify(resp)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 
@@ -304,39 +276,39 @@ async function handleViewHelperSeed(x: any, accept: any, reject: any) {
 	if (equal === true) {
 		let err = "helper module seed matches test module seed"
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
-	accept({ message: "(success) helper seed does not match tester seed" })
+	activeQuery.accept({ message: "(success) helper seed does not match tester seed" })
 }
 
 // handleViewSeed responds to a query asking to see the specific seed for the
 // module.
-async function handleViewSeed(data: any, accept: any) {
+async function handleViewSeed(activeQuery: any) {
 	let seed = await getSeed
-	accept({ seed: seed })
+	activeQuery.accept({ seed: seed })
 }
 
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
 // It asks the helper module to ask the tester module (ourself) for its seed.
 // If all goes well, the helper module should respond with our seed.
-async function handleViewOwnSeedThroughHelper(x: any, accept: any, reject: any) {
+async function handleViewOwnSeedThroughHelper(activeQuery: any) {
 	let [resp, err] = await callModule(helperModule, "viewTesterSeed", {})
 	if (err !== null) {
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 
 	if (!("testerSeed" in resp)) {
 		let err = "helper module response did not have data.testerSeed field: " + tryStringify(resp)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 	if (resp.testerSeed.length !== 16) {
 		let err = "helper module seed is wrong size: " + tryStringify(resp)
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
 
@@ -353,16 +325,16 @@ async function handleViewOwnSeedThroughHelper(x: any, accept: any, reject: any) 
 	if (equal === false) {
 		let err = "when our seed is viewed thorugh the helper, it does not match\n" + seed + "\n" + resp.testerSeed
 		errors.push(err)
-		reject(err)
+		activeQuery.reject(err)
 		return
 	}
-	accept({ message: "our seed as reported by the helper module is correct" })
+	activeQuery.accept({ message: "our seed as reported by the helper module is correct" })
 }
 
 // handleViewErrors will return the set of errors that have accumulated during
 // testing.
-function handleViewErrors(data: any, accept: any) {
-	accept({ errors })
+function handleViewErrors(activeQuery: any) {
+	activeQuery.accept({ errors })
 }
 
 // Add handlers for various test functions.
@@ -380,6 +352,7 @@ addHandler("sendTestToKernel", handleSendTestToKernel)
 addHandler("testCORS", handleTestCORS)
 addHandler("testLogging", handleTestLogging)
 addHandler("testerMirrorDomain", handleTesterMirrorDomain)
+addHandler("testResponseUpdate", handleTestResponseUpdate)
 addHandler("viewHelperSeed", handleViewHelperSeed)
 addHandler("viewSeed", handleViewSeed)
 addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
@@ -442,11 +415,6 @@ onmessage = function (event: MessageEvent) {
 		logErr("received a message with no domain: " + tryStringify(event.data))
 		errors.push("received a message with no domain")
 		respondErr(event, "received a message from kernel with no domain")
-		return
-	}
-
-	if (event.data.method === "testResponseUpdate") {
-		handleTestResponseUpdate(event)
 		return
 	}
 

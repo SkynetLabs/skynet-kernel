@@ -4,11 +4,19 @@ import { handleQueryUpdate, handleResponse, handleResponseUpdate } from "./queri
 import { handlePresentSeed } from "./seed.js"
 import { tryStringify } from "./stringify.js"
 
+// activeQuery is an object that gets provided to the handler of a query which
+// contains all the necessary means of interacting with the query.
+interface activeQuery {
+	callerInput: any
+	accept: any
+	reject: any
+	sendUpdate: any
+	domain: string
+}
+
 // Create a router which will persist state
 let router = {} as any
 router["presentSeed"] = handlePresentSeed
-router["queryUpdate"] = handleQueryUpdate
-router["responseUpdate"] = handleResponseUpdate
 
 // addHandler will add a new handler to the router to process specific methods.
 function addHandler(method: string, handler: any) {
@@ -19,8 +27,16 @@ function addHandler(method: string, handler: any) {
 // methods like 'presentSeed' and 'response'.
 function handleMessage(event: MessageEvent) {
 	// Special handling for "response" messages.
+	if (event.data.method === "queryUpdate") {
+		handleQueryUpdate(event)
+		return
+	}
 	if (event.data.method === "response") {
 		handleResponse(event)
+		return
+	}
+	if (event.data.method === "responseUpdate") {
+		handleResponseUpdate(event)
 		return
 	}
 
@@ -63,6 +79,17 @@ function handleMessage(event: MessageEvent) {
 		respondErr(event, err)
 	}
 
+	// Define the function that will allow the handler to send an update.
+	let sendUpdate = function (updateData: any) {
+		// TODO: change kernel to not expect an err field.
+		postMessage({
+			method: "responseUpdate",
+			nonce: event.data.nonce,
+			data: updateData,
+			err: null,
+		})
+	}
+
 	// Try to handle the message. If an exception is thrown by the handler,
 	// catch the error and respond with that error.
 	//
@@ -75,7 +102,14 @@ function handleMessage(event: MessageEvent) {
 	// for example providing the domain of the caller. We used an object for
 	// this final field so that it could be extended later.
 	try {
-		router[event.data.method](event.data.data, accept, reject, { domain: event.data.domain })
+		let activeQuery: activeQuery = {
+			callerInput: event.data.data,
+			accept,
+			reject,
+			sendUpdate,
+			domain: event.data.domain,
+		}
+		router[event.data.method](activeQuery)
 	} catch (err: any) {
 		// Convert the thrown error and log it. We know that strErr is a string
 		// because tryStringify must return a string, and addContextToErr only
@@ -92,4 +126,4 @@ function handleMessage(event: MessageEvent) {
 	}
 }
 
-export { addHandler, handleMessage }
+export { activeQuery, addHandler, handleMessage }
