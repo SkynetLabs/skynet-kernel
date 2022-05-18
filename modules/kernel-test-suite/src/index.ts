@@ -11,7 +11,6 @@ import {
 	log,
 	logErr,
 	newKernelQuery,
-	respondErr,
 	tryStringify,
 } from "libkmodule"
 
@@ -473,7 +472,7 @@ onmessage = function (event: MessageEvent) {
 	// provided by the kernel, most modules don't need this check.
 	if (!("data" in event.data)) {
 		errors.push("received a message with no data")
-		respondErr(event, "received a message with no data")
+		logErr("received a message with no data")
 		return
 	}
 
@@ -487,7 +486,6 @@ onmessage = function (event: MessageEvent) {
 	if (!("domain" in event.data) && !isResponseMsg) {
 		logErr("received a message with no domain: " + tryStringify(event.data))
 		errors.push("received a message with no domain")
-		respondErr(event, "received a message from kernel with no domain")
 		return
 	}
 

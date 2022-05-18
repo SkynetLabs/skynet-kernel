@@ -1,4 +1,4 @@
-export { addContextToErr, composeErr, respondErr } from "./err.js"
+export { addContextToErr, composeErr } from "./err.js"
 export { log, logErr } from "./log.js"
 export { addHandler, addHandlerOptionsDefault, addHandlerOptionsReceiveUpdates, handleMessage } from "./messages.js"
 export { callModule, connectModule, newKernelQuery } from "./queries.js"

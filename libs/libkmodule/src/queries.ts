@@ -10,6 +10,8 @@ type receiveUpdateFn = (data: any) => void
 let queriesNonce = 0
 let queries = {} as any
 
+// incomingQueries is a map that connects queries coming from the kernel to the
+// set of information needed to process queryUpdate messages.
 let incomingQueries = {} as any
 
 // Define an empty function because the linter does not like when you use `() => {}`
