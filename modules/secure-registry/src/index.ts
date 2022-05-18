@@ -1,0 +1,289 @@
+// secure-registry is a module which allows the user to interact with the
+// registry. secure-registry will keep a subscription open for every registry
+// entry that it has ever successfully read or written. All responses from the
+// portal are verified 
+
+import {
+} from "libskynet"
+
+// Create a helper function for logging.
+function log(message: string) {
+	postMessage({
+		method: "log",
+		data: {
+			isErr: true,
+			message,
+		},
+	})
+}
+
+// Create helper function for responding to a query with an error.
+function respondErr(event: MessageEvent, err: string | null) {
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err,
+		data: null,
+	})
+}
+
+// Define a cache where we keep all of the latest values for all of the
+// registry entries that we know.
+var registryCache = {}
+
+// Open a websocket to the portal.
+//
+// TODO: need to extend the module so that it can talk to multiple portals.
+//
+// TODO: Need to change the catch block of the websocket creation to send a
+// message to the kernel that the module failed and should be terminated.
+// Either that or need to keep the module open but return errors to all of the
+// queries?
+var ws
+try {
+	ws = WebSocket("wss://siasky.net/skynet/registry/subscription")
+} catch (err) {
+	log("unable to open web socket: "+err.toString())
+	close()
+}
+ws.onclose = event: CloseEvent => {
+	// TODO: Need to open another ws, and need to make sure that new incoming
+	// messages will block until the new ws is open. Also need to make sure
+	// that any requests that failed in the meantime are caught and pointed at
+	// the new ws.
+}
+ws.onerror = event: Event => {
+	// TODO: Need to open another ws, and need to make sure that new incoming
+	// messages will block until the new ws is open. Also need to make sure
+	// that any requests that failed in the meantime are caught and pointed at
+	// the new ws.
+}
+ws.onopen = event: Event => {
+	// TODO: Need to resolve the promise that blocks messages from being
+	// handled until the websocket is open.
+}
+ws.onmessage = event: MessageEvent => {
+	// TODO: Need to update the internal maps and check if any queries are open
+	// that need a responseUpdate.
+}
+
+// onmessage receives messages from the kernel. The kernel will ensure the
+// standard fields are all included.
+onmessage = function (event: MessageEvent) {
+	// Check for known methods.
+	if (event.data.method === "registryRead") {
+		handleRegistryRead(event)
+		return
+	}
+
+	// Check for 'presentSeed', which we currently ignore but it's not an
+	// unrecognized method.
+	if (event.data.method === "presentSeed") {
+		return
+	}
+
+	// The kernelMethod was not recognized.
+	respondErr(event, "unrecognized method: " + event.data.method)
+	return
+}
+
+// handleRegistryRead will handle a call to registry read.
+function handleRegistryRead(event: MessageEvent) {
+	// Check for the two required fields: pubkey and datakey.
+	if (!("pubkey" in event.data.data)) {
+		respondErr(event, "missing pubkey from method data")
+		return
+	}
+	if (!(event.data.data.pubkey instanceof Uint8Array)) {
+		respondErr(event, "pubkey is not a Uint8Array")
+		return
+	}
+	if (!("datakey" in event.data.data)) {
+		respondErr(event, "missing pubkey from method data")
+		return
+	}
+	if (!(event.data.data.datakey instanceof Uint8Array)) {
+		respondErr(event, "datakey is not a Uint8Array")
+		return
+	}
+
+	////////////////////////
+
+	// Convert the postmessage inputs into more usable variables.
+	let fileData = event.data.data.fileData
+	let metadata = {
+		Filename: event.data.data.filename,
+		Length: event.data.data.fileData.length,
+	}
+
+	// Check that this is a small file.
+	if (fileData.length > 4 * 1000 * 1000) {
+		respondErr(event, "currently only small uploads are supported, please use less than 4 MB")
+		return
+	}
+
+	// Encode the metadata after checking that it is valid.
+	let errVSM = validateSkyfileMetadata(metadata)
+	if (errVSM !== null) {
+		respondErr(event, addContextToErr(errVSM, "upload is using invalid metadata"))
+		return
+	}
+	let metadataBytes = new TextEncoder().encode(JSON.stringify(metadata))
+
+	// Build the layout of the skyfile.
+	let layoutBytes = new Uint8Array(99)
+	let offset = 0
+	layoutBytes[offset] = 1 // Set the Version
+	offset += 1
+	let [filesizeBytes, errU641] = encodeU64(BigInt(fileData.length))
+	if (errU641 !== null) {
+		respondErr(event, addContextToErr(errU641, "unable to encode fileData length"))
+		return
+	}
+	layoutBytes.set(filesizeBytes, offset)
+	offset += 8
+	let [mdSizeBytes, errU642] = encodeU64(BigInt(metadataBytes.length))
+	if (errU642 !== null) {
+		respondErr(event, addContextToErr(errU642, "unable to encode metadata bytes length"))
+		return
+	}
+	layoutBytes.set(mdSizeBytes, offset)
+	offset += 8
+	let [fanoutSizeBytes, errU643] = encodeU64(0n)
+	if (errU643 !== null) {
+		respondErr(event, addContextToErr(errU643, "unable to encode fanout bytes length"))
+		return
+	}
+	layoutBytes.set(fanoutSizeBytes, offset)
+	offset += 8
+	layoutBytes[offset] = 0 // Set the fanout data pieces
+	offset += 1
+	layoutBytes[offset] = 0 // Set the fanout parity pieces
+	offset += 1
+	layoutBytes[offset + 7] = 1 // Set the cipher type
+	offset += 8
+	if (offset + 64 !== 99) {
+		respondErr(event, "error when building the layout bytes, got wrong final offset")
+		return
+	}
+
+	// Build the base sector.
+	let totalSize = layoutBytes.length + metadataBytes.length + fileData.length
+	if (totalSize > 1 << 22) {
+		respondErr(event, "error when building the base sector: total sector is too large")
+		return
+	}
+	let baseSector = new Uint8Array(1 << 22)
+	offset = 0
+	baseSector.set(layoutBytes, offset)
+	offset += layoutBytes.length
+	baseSector.set(metadataBytes, offset)
+	offset += metadataBytes.length
+	baseSector.set(fileData, offset)
+
+	// Compute the Skylink of this file.
+	let [sectorRoot, errBMR] = blake2bMerkleRoot(baseSector)
+	if (errBMR !== null) {
+		respondErr(event, addContextToErr(errBMR, "unable to create bitfield for skylink"))
+		return
+	}
+	let skylinkBytes = new Uint8Array(34)
+	let [bitfield, errSV1B] = skylinkV1Bitfield(totalSize)
+	if (errSV1B !== null) {
+		respondErr(event, addContextToErr(errSV1B, "unable to create bitfield for skylink"))
+		return
+	}
+	skylinkBytes.set(bitfield, 0)
+	skylinkBytes.set(sectorRoot, 2)
+
+	// Build the header for the upload call.
+	let header = new Uint8Array(92)
+	let [headerMetadataPrefix, errU644] = encodeU64(15n)
+	if (errU644 !== null) {
+		respondErr(event, addContextToErr(errU644, "unable to encode header metadata length"))
+		return
+	}
+	let headerMetadata = new TextEncoder().encode("Skyfile Backup\n")
+	let [versionPrefix, errU645] = encodeU64(7n)
+	if (errU645 !== null) {
+		respondErr(event, addContextToErr(errU645, "unable to encode version prefix length"))
+		return
+	}
+	let version = new TextEncoder().encode("v1.5.5\n")
+	let [skylinkPrefix, errU646] = encodeU64(46n)
+	if (errU646 !== null) {
+		respondErr(event, addContextToErr(errU646, "unable to encode skylink length"))
+		return
+	}
+	let skylink = bufToB64(skylinkBytes)
+	offset = 0
+	header.set(headerMetadataPrefix, offset)
+	offset += 8
+	header.set(headerMetadata, offset)
+	offset += 15
+	header.set(versionPrefix, offset)
+	offset += 8
+	header.set(version, offset)
+	offset += 7
+	header.set(skylinkPrefix, offset)
+	offset += 8
+	header.set(new TextEncoder().encode(skylink), offset)
+
+	// Build the full request body.
+	let reqBody = new Uint8Array((1 << 22) + 92)
+	reqBody.set(header, 0)
+	reqBody.set(baseSector, 92)
+
+	// Call progressiveFetch to perform the upload.
+	let endpoint = "/skynet/restore"
+	let fetchOpts = {
+		method: "post",
+		body: reqBody,
+	}
+	// Establish the function that verifies the result is correct.
+	let verifyFunction = function (response: Response): Promise<string | null> {
+		return new Promise((resolve) => {
+			response
+				.json()
+				.then((j) => {
+					if (!("skylink" in j)) {
+						resolve("response is missing the skylink field\n" + JSON.stringify(j))
+						return
+					}
+					if (j.skylink !== skylink) {
+						resolve("wrong skylink was returned, expecting " + skylink + " but got " + j.skylink)
+						return
+					}
+					resolve(null)
+				})
+				.catch((err) => {
+					resolve(addContextToErr(err, "unable to read response body"))
+				})
+		})
+	}
+	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyFunction).then((result: any) => {
+		if (result.success !== true) {
+			let err = JSON.stringify(result.messagesFailed)
+			respondErr(event, addContextToErr(err, "unable to complete upload"))
+			return
+		}
+		result.response
+			.json()
+			.then((j: any) => {
+				postMessage({
+					nonce: event.data.nonce,
+					method: "response",
+					err: null,
+					data: {
+						skylink: j.skylink,
+					},
+				})
+			})
+			.catch((err: string) => {
+				respondErr(
+					event,
+					addContextToErr(err, "unable to read response body, despite verification of response succeeding")
+				)
+			})
+	})
+}
