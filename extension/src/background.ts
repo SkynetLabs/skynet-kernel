@@ -244,6 +244,12 @@ function handleKernelResponse(event) {
 		return
 	}
 
+	// TODO: Currently queryUpdates and the responseNonce set of messages
+	// aren't supported by skapps.
+	if (method === "responseNonce") {
+		return
+	}
+
 	// The only other methods we are expecting from the kernel are
 	// 'response' and 'responseUpdate'.
 	if (method !== "response" && method !== "responseUpdate") {

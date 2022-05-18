@@ -239,7 +239,6 @@ function handleTestResponseUpdate(activeQuery: any) {
 async function handleUpdateTest(activeQuery: any) {
 	// Track whether or not 'reject' or 'accept' has already been called.
 	let resolved = false
-	logErr("received call to 'updateTest'")
 
 	// Create the function that will receive responseUpdate messages from the
 	// helper module. It will receive 'progress' values in the order of '1',
@@ -247,7 +246,6 @@ async function handleUpdateTest(activeQuery: any) {
 	let sendUpdate: any
 	let expectedProgress = 1
 	let receiveUpdate = function (data: any) {
-		logErr("received an update from the helper module")
 		// Need to write code to ensure that we are only rejecting once.
 		// libkmodule will protect us against this, but it's still considered
 		// an error the handle this incorrectly.
@@ -279,7 +277,6 @@ async function handleUpdateTest(activeQuery: any) {
 		}
 
 		// Send the helper module an update with an increased progress.
-		logErr("Sending an update to the helper module")
 		sendUpdate({ progress: data.progress + 1 })
 		expectedProgress += 2
 	}
@@ -287,11 +284,9 @@ async function handleUpdateTest(activeQuery: any) {
 	// Create the query and grab the ability to send updates.
 	let [sendUpdateFn, respPromise] = connectModule(helperModule, "updateTest", { progress: 0 }, receiveUpdate)
 	sendUpdate = sendUpdateFn
-	logErr("called connectModule")
 
 	// Block for the final response, where progress should be equal to 9.
 	let [resp, err] = await respPromise
-	logErr("received a response")
 	if (err !== null) {
 		activeQuery.reject(addContextToErr(err, "received an error from the helper module in handleUpdateTest"))
 		resolved = true
@@ -304,7 +299,6 @@ async function handleUpdateTest(activeQuery: any) {
 	}
 	activeQuery.accept("successfully sent and received updates")
 	resolved = true
-	logErr("accepted the query")
 }
 
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper

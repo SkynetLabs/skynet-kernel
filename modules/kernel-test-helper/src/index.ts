@@ -49,7 +49,6 @@ function handleUpdateTest(activeQuery: any) {
 
 	// Send a responseUpdate that increments the progress counter, and
 	// establish what progress we expect when the caller sends a query update.
-	logErr("helper is sending the first update")
 	activeQuery.sendUpdate({ progress: 1 })
 	let expectedProgress = 2
 
@@ -57,7 +56,6 @@ function handleUpdateTest(activeQuery: any) {
 	// has already been resolved to avoid sending multiple response messages.
 	let resolved = false
 	let receiveUpdate = function (update: any) {
-		logErr("helper module received the query update")
 		// Ensure that we are not sending repeat responses.
 		if (resolved) {
 			logErr("handleUpdateTest received an update after already resolving")
@@ -89,7 +87,6 @@ function handleUpdateTest(activeQuery: any) {
 			resolved = true
 			return
 		}
-		logErr("helper module is sending another responseUpdate")
 		activeQuery.sendUpdate({ progress: expectedProgress + 1 })
 		expectedProgress += 2
 	}
