@@ -11,14 +11,31 @@ import {
 import { handlePresentSeed } from "./seed.js"
 import { tryStringify } from "./stringify.js"
 
-// activeQuery is an object that gets provided to the handler of a query which
-// contains all the necessary means of interacting with the query.
+// activeQuery is an object that gets provided to the handler of a query and
+// contains all necessary elements for interacting with the query.
 interface activeQuery {
+	// callerInput is arbitrary input provided by the caller that is not
+	// checked by the kernel. Modules should verify the callerInput before
+	// using any fields.
 	callerInput: any
+
+	// accept and reject are functions that will send response messages
+	// that close out the query. accept can take an arbitrary object as
+	// input, reject should always be a string.
 	accept: any
 	reject: any
-	sendUpdate: any
+
+	// domain is a field provided by the kernel that informs the module who
+	// the caller is. The module can use the domain to make access control
+	// decisions, and determine if a particular caller should be allowed to
+	// use a particular API.
 	domain: string
+
+	// sendUpdate is used for sending responseUpdate messages to the
+	// caller. These messages can contain arbitrary information.
+	// setReceiveUpdate is part of a handshake that needs to be performed
+	// to receive queryUpdates from the caller.
+	sendUpdate: any
 	setReceiveUpdate: any
 }
 
