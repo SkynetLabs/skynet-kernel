@@ -1,6 +1,4 @@
-import { addContextToErr, composeErr } from "./err.js"
 import { init, newKernelQuery } from "./init.js"
-import { logErr } from "./log.js"
 
 // download will take a skylink and return the fileData for that skylink.
 //

@@ -37,8 +37,6 @@
 
 // TODO: Rename all of the 'test' methods to 'version' methods.
 
-// TODO: Need to add support for QueryUpdate messages.
-
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
 // preferred portals. This process is independent of the full process, which we
 // need to marry to the bootstrap process.
@@ -121,6 +119,7 @@ interface openQuery {
 	isWorker: boolean;
 	domain: string;
 	source: any;
+	dest: any;
 	nonce: number;
 }
 var queriesNonce = 0
@@ -225,6 +224,13 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		return
 	}
 
+	// Check that the data field is present.
+	if (!("data" in event.data)) {
+		logErr("workerMessage", "responses and updates from worker need to have a data field")
+		// TODO: shut down the worker for being buggy.
+		return
+	}
+
 	// Grab the query information so that we can properly relay the worker
 	// response to the original caller.
 	if (!(event.data.nonce in queries)) {
@@ -240,14 +246,33 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// TODO: Shut down the worker for being buggy.
 		return
 	}
-	let sourceIsWorker = queries[event.data.nonce].isWorker
-	let sourceNonce = queries[event.data.nonce].nonce
-	let source = queries[event.data.nonce].source
 
-	// Check that the data field is present.
-	if (!("data" in event.data)) {
-		logErr("workerMessage", "responses and updates from worker need to have a data field")
-		// TODO: shut down the worker for being buggy.
+	// TODO: Need to add password checking for response and responseUpdate
+	// methods too.
+	if (isQueryUpdate) {
+		if (!("password" in event.data)) {
+			logErr("workerMessage", "worker did not include a password with their queryUpdate")
+			// TODO: shut down the worker for being buggy.
+			return
+		}
+		// TODO: This needs to be swapped out for a proper password system.
+		if (event.data.password !== "abc") {
+			logErr("workerMessage", "worker used incorrect password when making a queryUpdate")
+			return
+		}
+
+		// Check that the module still exists before sending a queryUpdate to
+		// the module.
+		let dest = queries[event.data.nonce].dest
+		if (!(dest in modules)) {
+			logErr("workerMessage", "worker is sending queryUpdate to module that was killed")
+			return
+		}
+		modules[dest].worker.postMessage({
+			nonce: event.data.nonce,
+			method: event.data.method,
+			data: event.data.data,
+		})
 		return
 	}
 
@@ -270,25 +295,29 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		}
 	}
 
-	// Pass the message to the original caller. Only response messages should
+	// Pass the response to the original caller. Only response messages should
 	// have the err field set.
+	let sourceIsWorker = queries[event.data.nonce].isWorker
+	let sourceNonce = queries[event.data.nonce].nonce
+	let source = queries[event.data.nonce].source
 	let msg = {
 		nonce: sourceNonce,
 		method: event.data.method,
 		data: event.data.data,
 	}
+	// For responses only, set an error and close out the query by deleting it
+	// from the query map.
 	if (isResponse) {
+		logErr("dropping a certain nonce", event.data.nonce, event.data)
 		msg["err"] = event.data.err
+		delete queries[event.data.nonce]
+	} else {
+		logErr("sending non-response message", msg)
 	}
 	if (sourceIsWorker === true) {
 		source.postMessage(msg)
 	} else {
 		source.postMessage(msg, source.origin)
-	}
-
-	// For responses only, close out the query.
-	if (event.data.method === "response") {
-		delete queries[event.data.nonce]
 	}
 }
 
@@ -372,24 +401,55 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	let finalModule = event.data.data.module // Can change with overrides.
 	let moduleDomain = event.data.data.module // Does not change with overrides.
 
-	// Define a helper function to create a new query to the module.
+	// Define a helper function to create a new query to the module. It will
+	// both open a query on the module and also send an update message to the
+	// caller with the kernel nonce for this query so that the caller can
+	// perform query updates.
 	let newModuleQuery = function(module: module) {
-		// Before doing anything, we need to wait for the worker to
-		// finish startup.
+		// Get the nonce for this query and create the query object in the
+		// query set.
 		let nonce = queriesNonce
 		queriesNonce += 1
 		queries[nonce] = {
 			isWorker,
 			domain: callerDomain,
 			source: messagePortal,
+			dest: moduleDomain,
 			nonce: event.data.nonce,
 		}
+
+		// Send the message to the worker to start the query.
 		module.worker.postMessage({
 			nonce: nonce,
 			domain: callerDomain,
 			method: event.data.data.method,
 			data: event.data.data.data,
 		})
+
+		// TODO: We need to transform this into a more secure password. We can
+		// do that by keeping 16 bytes of entropy in the header of the kernel,
+		// and then using hashes to transform the entropy into passwords. We
+		// transform the entropy into a password by using the nonce as a salt.
+		// This means that someone who knows a string of password and nonce
+		// combinations has no ability to guess what the password is for other
+		// nonces.
+		let password = "abc"
+
+		// Send a message to the caller containing the kernel nonce for this
+		// query.
+		let msg = {
+			nonce: event.data.nonce,
+			method: "responseNonce",
+			data: {
+				nonce,
+				password,
+			}
+		}
+		if (isWorker) {
+			messagePortal.postMessage(msg)
+		} else {
+			messagePortal.postMessage(msg, event.origin)
+		}
 	}
 
 	// Check the worker pool to see if this module is already running.
@@ -490,24 +550,15 @@ handleMessage = function(event) {
 		return
 	}
 	if (event.data.method === "queryUpdate") {
-		// TODO: Add support for queryUpdate. This requires keeping a mapping
-		// from the nonce to the corresponding module call. Except that I don't
-		// think we actually have a way to do that because the incoming
-		// messages aren't namespaced. The kernel wasn't worried about repeat
-		// nonces because it just directly responds to the event. But we can't
-		// do that here because it's two separate events and we need some way
-		// to make sure parallel callers don't end up with the same nonce. I
-		// wonder if the kernel needs to respond to every call with a query
-		// update. Or maybe we need a new method called 'moduleSession' which
-		// opens a session to the module. But this is really only a problem
-		// here because module-to-module communication uses the kernel nonce.
-		//
-		// So I think what we can do is add an extra field to a moduleCall
-		// which will have the kernel respond with a session id (the kernel's
-		// nonce) that can be used to perform a query update.
-		//
-		// What I don't like about this solution is that it means skapps are
-		// once again doing something different than webworkers... I think?
+		if (!("password" in event.data)) {
+			respondErr(event, event.source, false, "need to provide a password with the queryUpdate")
+			return
+		}
+		// TODO: Switch to checking the actual password scheme.
+		if (event.data.password !== "abc") {
+			respondErr(event, event.source, false, "password is incorrect")
+			return
+		}
 		respondErr(event, event.source, false, "queryUpdate not yet supported")
 		return
 	}

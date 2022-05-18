@@ -327,6 +327,20 @@ function TestResponseUpdates() {
 	})
 }
 
+// TestModuleUpdateQuery checks that modules can successfully send queryUpdate
+// and responseUpdate messages.
+function TestModuleUpdateQuery() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(kernelTestSuite, "updateTest", {})
+		.then(response => {
+			resolve(response)
+		})
+		.catch(err => {
+			reject(err)
+		})
+	})
+}
+
 // TestIgnoreResponseUpdates checks that you can safely use callModule on a
 // module method that provides response updates.
 function TestIgnoreResponseUpdates() {
@@ -579,11 +593,12 @@ const IndexPage = () => {
 			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
 			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
 			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestModuleUpdateQuery" test={TestModuleUpdateQuery} turn={getTurn()} />
 			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
 			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
 			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
-			<TestCard name="TestModuleSpeedSequential20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedSeq20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
 			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
 			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
 			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />

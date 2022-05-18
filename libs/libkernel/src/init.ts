@@ -120,6 +120,10 @@ function handleMessage(event: MessageEvent) {
 		logErr("received message targeting our namespace with malformed method", event.data)
 		return
 	}
+	if (event.data.method === "responseNonce") {
+		// Ignore repsonseNonce messages, we will add support for those later.
+		return
+	}
 	if (event.data.method !== "response" && event.data.method !== "responseUpdate") {
 		// We don't log here because that would catch outbound messages
 		// from ourself.
@@ -135,7 +139,7 @@ function handleMessage(event: MessageEvent) {
 	if (event.data.method === "responseUpdate") {
 		let handler = queries[event.data.nonce]
 		if (!("update" in handler) || typeof handler.update !== "function") {
-			log("responseUpdate received, but no update method defined in handler")
+			logErr("responseUpdate received, but no update method defined in handler")
 			return
 		}
 		if (!("data" in event.data)) {

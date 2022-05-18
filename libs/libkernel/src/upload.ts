@@ -1,6 +1,4 @@
-import { addContextToErr, composeErr } from "./err.js"
 import { init, newKernelQuery } from "./init.js"
-import { logErr } from "./log.js"
 
 // upload will take a filename and some file data and perform a secure upload
 // to Skynet. Secure in this case means that all data is verified before being

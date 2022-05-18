@@ -3,7 +3,9 @@
 import {
 	addContextToErr,
 	addHandler,
+	addHandlerOptionsDefault,
 	callModule,
+	connectModule,
 	getSeed,
 	handleMessage,
 	log,
@@ -231,6 +233,80 @@ function handleTestResponseUpdate(activeQuery: any) {
 	}, 800)
 }
 
+// handleUpdateTest handles a call to the method "updateTest", which triggers a
+// communication between the test module and the helper module that makes use
+// of both 'responseUpdate' messages and also 'queryUpdate' messages.
+async function handleUpdateTest(activeQuery: any) {
+	// Track whether or not 'reject' or 'accept' has already been called.
+	let resolved = false
+	logErr("received call to 'updateTest'")
+
+	// Create the function that will receive responseUpdate messages from the
+	// helper module. It will receive 'progress' values in the order of '1',
+	// '3', '5', '7'. Only 4 updates should be received total.
+	let sendUpdate: any
+	let expectedProgress = 1
+	let receiveUpdate = function (data: any) {
+		logErr("received an update from the helper module")
+		// Need to write code to ensure that we are only rejecting once.
+		// libkmodule will protect us against this, but it's still considered
+		// an error the handle this incorrectly.
+		if (resolved) {
+			return
+		}
+
+		// Check that the 'progress' value is well formed.
+		if (!("progress" in data)) {
+			activeQuery.reject("expecting 'progress' field: " + tryStringify(data))
+			resolved = true
+			return
+		}
+		if (typeof data.progress !== "number") {
+			activeQuery.reject("expecting 'progress' to be a number: " + tryStringify(data))
+			resolved = true
+			return
+		}
+		if (expectedProgress !== data.progress) {
+			let str = tryStringify(data) + "::" + tryStringify(expectedProgress)
+			activeQuery.reject("progress has wrong value: " + str)
+			resolved = true
+			return
+		}
+		if (data.progress > 7) {
+			activeQuery.reject("progress is larger than 7, expecting response now")
+			resolved = true
+			return
+		}
+
+		// Send the helper module an update with an increased progress.
+		logErr("Sending an update to the helper module")
+		sendUpdate({ progress: data.progress + 1 })
+		expectedProgress += 2
+	}
+
+	// Create the query and grab the ability to send updates.
+	let [sendUpdateFn, respPromise] = connectModule(helperModule, "updateTest", { progress: 0 }, receiveUpdate)
+	sendUpdate = sendUpdateFn
+	logErr("called connectModule")
+
+	// Block for the final response, where progress should be equal to 9.
+	let [resp, err] = await respPromise
+	logErr("received a response")
+	if (err !== null) {
+		activeQuery.reject(addContextToErr(err, "received an error from the helper module in handleUpdateTest"))
+		resolved = true
+		return
+	}
+	if (resp.progress !== 9) {
+		activeQuery.reject("expecting to get { progress: 9 } but instead got " + tryStringify(resp))
+		resolved = true
+		return
+	}
+	activeQuery.accept("successfully sent and received updates")
+	resolved = true
+	logErr("accepted the query")
+}
+
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
 // module for its seed and then compares the helper module's seed to its own
 // seed.
@@ -345,18 +421,19 @@ function handleViewErrors(activeQuery: any) {
 // module's seed is supposed to be protected and should never be exposed over
 // the API normally. We make an exception here because this module is used for
 // testing purposes.
-addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential)
-addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel)
-addHandler("mirrorDomain", handleMirrorDomain)
-addHandler("sendTestToKernel", handleSendTestToKernel)
-addHandler("testCORS", handleTestCORS)
-addHandler("testLogging", handleTestLogging)
-addHandler("testerMirrorDomain", handleTesterMirrorDomain)
-addHandler("testResponseUpdate", handleTestResponseUpdate)
-addHandler("viewHelperSeed", handleViewHelperSeed)
-addHandler("viewSeed", handleViewSeed)
-addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
-addHandler("viewErrors", handleViewErrors)
+addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential, addHandlerOptionsDefault)
+addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel, addHandlerOptionsDefault)
+addHandler("mirrorDomain", handleMirrorDomain, addHandlerOptionsDefault)
+addHandler("sendTestToKernel", handleSendTestToKernel, addHandlerOptionsDefault)
+addHandler("testCORS", handleTestCORS, addHandlerOptionsDefault)
+addHandler("testLogging", handleTestLogging, addHandlerOptionsDefault)
+addHandler("testerMirrorDomain", handleTesterMirrorDomain, addHandlerOptionsDefault)
+addHandler("testResponseUpdate", handleTestResponseUpdate, addHandlerOptionsDefault)
+addHandler("updateTest", handleUpdateTest, addHandlerOptionsDefault)
+addHandler("viewHelperSeed", handleViewHelperSeed, addHandlerOptionsDefault)
+addHandler("viewSeed", handleViewSeed, addHandlerOptionsDefault)
+addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper, addHandlerOptionsDefault)
+addHandler("viewErrors", handleViewErrors, addHandlerOptionsDefault)
 
 // onmessage receives messages from the kernel. Note that most onmessage
 // functions will be a lot simpler, but because this is a test module we're
@@ -411,7 +488,9 @@ onmessage = function (event: MessageEvent) {
 	// provided on queryUpdate, responseUpdate, or response messages.
 	let isResponse = event.data.method === "response"
 	let isResponseUpdate = event.data.method === "responseUpdate"
-	if (!("domain" in event.data) && !isResponse && !isResponseUpdate) {
+	let isResponseNonce = event.data.method === "responseNonce"
+	let isResponseMsg = isResponse || isResponseUpdate || isResponseNonce
+	if (!("domain" in event.data) && !isResponseMsg) {
 		logErr("received a message with no domain: " + tryStringify(event.data))
 		errors.push("received a message with no domain")
 		respondErr(event, "received a message from kernel with no domain")
