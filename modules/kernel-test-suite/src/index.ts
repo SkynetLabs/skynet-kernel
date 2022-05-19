@@ -3,7 +3,6 @@
 import {
 	addContextToErr,
 	addHandler,
-	addHandlerOptionsDefault,
 	callModule,
 	connectModule,
 	getSeed,
@@ -414,19 +413,19 @@ function handleViewErrors(activeQuery: any) {
 // module's seed is supposed to be protected and should never be exposed over
 // the API normally. We make an exception here because this module is used for
 // testing purposes.
-addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential, addHandlerOptionsDefault)
-addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel, addHandlerOptionsDefault)
-addHandler("mirrorDomain", handleMirrorDomain, addHandlerOptionsDefault)
-addHandler("sendTestToKernel", handleSendTestToKernel, addHandlerOptionsDefault)
-addHandler("testCORS", handleTestCORS, addHandlerOptionsDefault)
-addHandler("testLogging", handleTestLogging, addHandlerOptionsDefault)
-addHandler("testerMirrorDomain", handleTesterMirrorDomain, addHandlerOptionsDefault)
-addHandler("testResponseUpdate", handleTestResponseUpdate, addHandlerOptionsDefault)
-addHandler("updateTest", handleUpdateTest, addHandlerOptionsDefault)
-addHandler("viewHelperSeed", handleViewHelperSeed, addHandlerOptionsDefault)
-addHandler("viewSeed", handleViewSeed, addHandlerOptionsDefault)
-addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper, addHandlerOptionsDefault)
-addHandler("viewErrors", handleViewErrors, addHandlerOptionsDefault)
+addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential)
+addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel)
+addHandler("mirrorDomain", handleMirrorDomain)
+addHandler("sendTestToKernel", handleSendTestToKernel)
+addHandler("testCORS", handleTestCORS)
+addHandler("testLogging", handleTestLogging)
+addHandler("testerMirrorDomain", handleTesterMirrorDomain)
+addHandler("testResponseUpdate", handleTestResponseUpdate)
+addHandler("updateTest", handleUpdateTest)
+addHandler("viewHelperSeed", handleViewHelperSeed)
+addHandler("viewSeed", handleViewSeed)
+addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
+addHandler("viewErrors", handleViewErrors)
 
 // onmessage receives messages from the kernel. Note that most onmessage
 // functions will be a lot simpler, but because this is a test module we're

@@ -1,8 +1,6 @@
 import {
 	addContextToErr,
 	addHandler,
-	addHandlerOptionsDefault,
-	addHandlerOptionsReceiveUpdates,
 	callModule,
 	getSeed,
 	handleMessage,
@@ -22,11 +20,11 @@ const testerModule = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
 onmessage = handleMessage
 
 // Add handlers for all of the methods that the helper supports.
-addHandler("mirrorDomain", handleMirrorDomain, addHandlerOptionsDefault)
-addHandler("updateTest", handleUpdateTest, addHandlerOptionsReceiveUpdates)
-addHandler("viewErrors", handleViewErrors, addHandlerOptionsDefault)
-addHandler("viewSeed", handleViewSeed, addHandlerOptionsDefault)
-addHandler("viewTesterSeed", handleViewTesterSeed, addHandlerOptionsDefault)
+addHandler("mirrorDomain", handleMirrorDomain)
+addHandler("updateTest", handleUpdateTest, { receiveUpdates: true })
+addHandler("viewErrors", handleViewErrors)
+addHandler("viewSeed", handleViewSeed)
+addHandler("viewTesterSeed", handleViewTesterSeed)
 
 // handleMirrorDomain returns the caller's domain to the caller.
 function handleMirrorDomain(activeQuery: any) {

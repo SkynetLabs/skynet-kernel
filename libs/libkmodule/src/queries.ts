@@ -1,7 +1,6 @@
 import { logErr } from "./log.js"
+import { dataFn } from "./messages.js"
 import { tryStringify } from "./stringify.js"
-
-type receiveUpdateFn = (data: any) => void
 
 // Define helper state for tracking the nonces of queries we open to the kernel
 // and to other modules. queriesNonce is a counter that ensures every query has
@@ -27,7 +26,7 @@ function clearIncomingQuery(nonce: number) {
 }
 
 // getSetReceiveUpdate returns a function that can be called to
-function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: receiveUpdateFn) => void {
+function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: dataFn) => void {
 	// Set up the promise that allows us to block until the handler has
 	// provided us its receiveUpdate function.
 	let updateReceived: (ret: any) => void
@@ -45,12 +44,21 @@ function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: receiveUpdate
 
 // handleQueryUpdate currently discards all queryUpdates.
 async function handleQueryUpdate(event: MessageEvent) {
-	// Check that this is a function which can receive queryUpdates.
+	// Check if there is a handler associated with this nonce.
 	if (!(event.data.nonce in incomingQueries)) {
 		// No need to log an error, we may have closed out this query before
 		// the update was received but after the update was sent.
 		return
 	}
+
+	// If the handler doesn't receive updates in the first place, ignore
+	// this message.
+	if (!("blockForReceiveUpdate" in incomingQueries[event.data.nonce])) {
+		return
+	}
+
+	// Block until the handler has provided a receiveUpdate function, than
+	// call receiveUpdate.
 	await incomingQueries[event.data.nonce].blockForReceiveUpdate
 	incomingQueries[event.data.nonce].receiveUpdate(event.data.data)
 }

@@ -11,6 +11,17 @@ import {
 import { handlePresentSeed } from "./seed.js"
 import { tryStringify } from "./stringify.js"
 
+// dataFn can take any object as input and has no return value.
+type dataFn = (data: any) => void
+
+// errFn must take a string as input, which will be relayed as an error. It has
+// no return value.
+type errFn = (err: string) => void
+
+// handlerFn takes an activeQuery as input and has no return value. The return
+// is expected to come in the form of calling aq.accept or aq.reject.
+type handlerFn = (aq: activeQuery) => void
+
 // activeQuery is an object that gets provided to the handler of a query and
 // contains all necessary elements for interacting with the query.
 interface activeQuery {
@@ -22,8 +33,8 @@ interface activeQuery {
 	// accept and reject are functions that will send response messages
 	// that close out the query. accept can take an arbitrary object as
 	// input, reject should always be a string.
-	accept: any
-	reject: any
+	accept: dataFn
+	reject: errFn
 
 	// domain is a field provided by the kernel that informs the module who
 	// the caller is. The module can use the domain to make access control
@@ -33,10 +44,13 @@ interface activeQuery {
 
 	// sendUpdate is used for sending responseUpdate messages to the
 	// caller. These messages can contain arbitrary information.
+	sendUpdate: dataFn
+
 	// setReceiveUpdate is part of a handshake that needs to be performed
-	// to receive queryUpdates from the caller.
-	sendUpdate: any
-	setReceiveUpdate: any
+	// to receive queryUpdates from the caller. It is a function that takes
+	// another function as input. The function provided as input is the
+	// function that will be called to process incoming queryUpdates.
+	setReceiveUpdate?: (receiveUpdate: dataFn) => void
 }
 
 // addHandlerOptions defines the set of possible options that can be provided
@@ -49,13 +63,13 @@ interface activeQuery {
 // 'receiveUpdate' function to the activeQuery object using the
 // activeQuery.setReceiveUpdate function.
 interface addHandlerOptions {
-	receiveUpdates: boolean
+	receiveUpdates?: boolean
 }
 
-// emptyFn is an empty function that does nothing, we do this because linter
-// does not allow us to create an empty function using '() => {}'
-let emptyFn = function () {
-	return
+// Set the default handler options so that they can be imported and used by
+// modules. This is syntactic sugar.
+const addHandlerDefaultOptions = {
+	receiveUpdates: false,
 }
 
 // Create a router which will route methods to their handlers. New handlers can
@@ -68,24 +82,21 @@ let emptyFn = function () {
 let router = {} as any
 router["presentSeed"] = { handler: handlePresentSeed, receiveUpdates: false }
 
-// Set the default handler options so that they can be imported and used by
-// modules. This is syntactic sugar.
-const addHandlerOptionsDefault = {
-	receiveUpdates: false,
-}
-
-// Set the handler options to enable receiving updates so that they can be
-// imported and used by modules. This is syntactic sugar.
-const addHandlerOptionsReceiveUpdates = {
-	receiveUpdates: true,
-}
-
 // addHandler will add a new handler to the router to process specific methods.
 //
 // NOTE: The 'queryUpdate', 'response', and 'responseUpdate' messages are all
 // handled before the router is considered, and therefore they cannot be
 // overwritten by calling 'addHandler'.
-function addHandler(method: string, handler: any, options: addHandlerOptions) {
+function addHandler(method: string, handler: handlerFn, options?: addHandlerOptions) {
+	// If options is undefined, use the default options.
+	if (options === undefined) {
+		options = addHandlerDefaultOptions
+	}
+
+	// Don't set the 'receiveUpdates' flag in the router if the provided
+	// options haven't enabled them.
+	//
+	// NOTE: options.receiveUpdates may be undefined.
 	if (options.receiveUpdates !== true) {
 		router[method] = { handler }
 		return
@@ -187,7 +198,6 @@ function handleMessage(event: MessageEvent) {
 			reject,
 			sendUpdate,
 			domain: event.data.domain,
-			setReceiveUpdate: emptyFn,
 		}
 		if (router[event.data.method].receiveUpdates) {
 			activeQuery.setReceiveUpdate = getSetReceiveUpdate(event)
@@ -209,4 +219,4 @@ function handleMessage(event: MessageEvent) {
 	}
 }
 
-export { activeQuery, addHandler, addHandlerOptionsDefault, addHandlerOptionsReceiveUpdates, handleMessage }
+export { activeQuery, addHandler, dataFn, handleMessage }
