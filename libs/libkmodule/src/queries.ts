@@ -2,14 +2,53 @@ import { logErr } from "./log.js"
 import { dataFn } from "./messages.js"
 import { tryStringify } from "./stringify.js"
 
-// Define helper state for tracking the nonces of queries we open to the kernel
-// and to other modules. queriesNonce is a counter that ensures every query has
-// a unique nonce, and queries is a hashmap that maps nonces to their
-// corresponding queries.
-let queriesNonce = 0
-let queries = {} as any
+// errTuple is a type that pairs a 'data' field with an 'err' field. libkmodule
+// prefers to use errTuples as return values instead of throwing or rejecting.
+// This is because libkmodule entirely avoids the try/catch/throw pattern and
+// does not have any throws in the whole API.
+//
+// Typically, an errTuple will have only one field filled out. If data is
+// returned, the err should be 'null'. If an error is returned, the data field
+// should generally be empty. Callers are expected to check the error before
+// they access any part of the data field.
+type errTuple = [data: any, err: string | null]
 
-// incomingQueries is a map that connects queries coming from the kernel to the
+// queryResolve defines the function that gets called to resolve a query. It's
+// the 'resolve' field of a promise that returns a tuple containing some data
+// and an err.
+type queryResolve = (et: errTuple) => void
+
+// queryMap defines the type for the queries map, which maps a nonce to the
+// outgoing query that the module made.
+interface queryMap {
+	[nonce: number]: {
+		resolve: queryResolve
+		receiveUpdate?: dataFn
+		kernelNonce?: number
+		kernelPassword?: string
+		kernelNonceReceived: dataFn
+	}
+}
+
+// queries is an object that tracks outgoing queries to the kernel. When making
+// a query, we assign a nonce to that query. All response and responseUpdate
+// messages for that query will make use of the nonce assigned here. When we
+// receive a response or responseUpdate message, we will use this map to locate
+// the original query that is associated with the response.
+//
+// The kernel provides security guarantees that all incoming response and
+// responseUpdate messages have nonces that are associated with the correct
+// query.
+//
+// queries is a hashmap where the nonce is the key and various query state
+// items are the values.
+//
+// NOTE: When sending out queryUpdate messages, the queries need to use the
+// nonce assigned by the kernel. The nonces in the 'queries' map will not work.
+let queriesNonce = 0
+let queries: queryMap = {}
+
+// incomingQueries is an object
 // set of information needed to process queryUpdate messages.
 let incomingQueries = {} as any
 
@@ -33,7 +72,7 @@ function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: dataFn) => vo
 	incomingQueries[event.data.nonce] = { blockForReceiveUpdate }
 	return function (receiveUpdate: dataFn) {
 		incomingQueries[event.data.nonce].receiveUpdate = receiveUpdate
-		updateReceived(undefined)
+		updateReceived()
 	}
 }
 
@@ -100,7 +139,7 @@ function handleResponseNonce(event: MessageEvent) {
 	}
 	queries[event.data.nonce]["kernelNonce"] = event.data.data.nonce
 	queries[event.data.nonce]["kernelPassword"] = event.data.data.password
-	queries[event.data.nonce].kernelNonceReceived(undefined)
+	queries[event.data.nonce].kernelNonceReceived()
 	return
 }
 
@@ -119,9 +158,10 @@ function handleResponseUpdate(event: MessageEvent) {
 	}
 
 	// Check whether a receiveUpdate function was set, and if so pass the
-	// update along.
-	if ("receiveUpdate" in queries[event.data.nonce]) {
-		queries[event.data.nonce].receiveUpdate(event.data.data)
+	// update along. To prevent typescript
+	let query = queries[event.data.nonce]
+	if (typeof query["receiveUpdate"] === "function") {
+		query.receiveUpdate(event.data.data)
 	}
 }
 
@@ -132,7 +172,7 @@ function handleResponseUpdate(event: MessageEvent) {
 // support for handling queryUpdate or responseUpdate messages - they will be
 // ignored if received. If you need those messages, use 'connectModule'
 // instead.
-function callModule(module: string, method: string, data: any): Promise<[responseData: any, err: string | null]> {
+function callModule(module: string, method: string, data: any): Promise<errTuple> {
 	let moduleCallData = {
 		module,
 		method,
@@ -181,7 +221,7 @@ function connectModule(
 	method: string,
 	data: any,
 	receiveUpdate: dataFn
-): [sendUpdate: dataFn, response: Promise<[responseData: any, err: string | null]>] {
+): [sendUpdate: dataFn, response: Promise<errTuple>] {
 	let moduleCallData = {
 		module,
 		method,
@@ -202,20 +242,23 @@ function connectModule(
 //
 // NOTE: Typically developers should not use this function. Instead use
 // 'callModule' or 'connectModule'.
+//
+// TODO: Should update this function so that the ability to send updates is
+// optional, that way we can skip the handshake with the kernel.
 function newKernelQuery(
 	method: string,
 	data: any,
 	receiveUpdate?: dataFn
-): [sendUpdate: dataFn, response: Promise<[responseData: any, err: string | null]>] {
+): [sendUpdate: dataFn, response: Promise<errTuple>] {
 	// Get the nonce for the query.
 	let nonce = queriesNonce
 	queriesNonce += 1
 
 	// Set up the promise that resovles when we have received the responseNonce
 	// from the kernel.
-	queries[nonce] = {}
+	let kernelNonceReceived: dataFn
 	let blockForKernelNonce = new Promise((resolve) => {
-		queries[nonce]["kernelNonceReceived"] = resolve
+		kernelNonceReceived = resolve
 	})
 
 	// Create the sendUpdate function, which allows the caller to send a
@@ -233,8 +276,11 @@ function newKernelQuery(
 
 	// Establish the query in the queries map and then send the query to the
 	// kernel.
-	let p = new Promise((resolve) => {
-		queries[nonce]["resolve"] = resolve
+	let p: Promise<errTuple> = new Promise((resolve) => {
+		queries[nonce] = {
+			resolve,
+			kernelNonceReceived,
+		}
 		if (receiveUpdate !== undefined) {
 			queries[nonce]["receiveUpdate"] = receiveUpdate
 		}
@@ -244,7 +290,7 @@ function newKernelQuery(
 			data,
 		})
 	})
-	return [sendUpdate, p as any]
+	return [sendUpdate, p]
 }
 
 export {

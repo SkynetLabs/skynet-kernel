@@ -1,12 +1,4 @@
-import {
-	addContextToErr,
-	addHandler,
-	callModule,
-	getSeed,
-	handleMessage,
-	logErr,
-	tryStringify,
-} from "libkmodule"
+import { addContextToErr, addHandler, callModule, getSeed, handleMessage, logErr, tryStringify } from "libkmodule"
 
 // Track any errors that come up during execution. This is non-standard, most
 // modules will not need to do this.

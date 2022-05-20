@@ -12,7 +12,7 @@ import { handlePresentSeed } from "./seed.js"
 import { tryStringify } from "./stringify.js"
 
 // dataFn can take any object as input and has no return value.
-type dataFn = (data: any) => void
+type dataFn = (data?: any) => void
 
 // errFn must take a string as input, which will be relayed as an error. It has
 // no return value.
@@ -66,6 +66,17 @@ interface addHandlerOptions {
 	receiveUpdates?: boolean
 }
 
+// queryRouter defines the hashmap that is used to route queries to their
+// respective handlers. The 'handler' field is the function that will be called
+// to process the query, and 'receiveUpdates' is a flag that indicates whether
+// or not queryUpdate messages should be processed.
+interface queryRouter {
+	[method: string]: {
+		handler: handlerFn
+		receiveUpdates: boolean
+	}
+}
+
 // Set the default handler options so that they can be imported and used by
 // modules. This is syntactic sugar.
 const addHandlerDefaultOptions = {
@@ -79,7 +90,7 @@ const addHandlerDefaultOptions = {
 // handleMessage implicitly handles 'queryUpdate' and 'responseUpdate' and
 // 'response' methods as well, but those don't go through the router because
 // special handling is required for those methods.
-let router = {} as any
+let router: queryRouter = {}
 router["presentSeed"] = { handler: handlePresentSeed, receiveUpdates: false }
 
 // addHandler will add a new handler to the router to process specific methods.
@@ -96,9 +107,10 @@ function addHandler(method: string, handler: handlerFn, options?: addHandlerOpti
 	// Don't set the 'receiveUpdates' flag in the router if the provided
 	// options haven't enabled them.
 	//
-	// NOTE: options.receiveUpdates may be undefined.
+	// NOTE: options.receiveUpdates may be undefined, that's why we
+	// explicitly set it to talse here.
 	if (options.receiveUpdates !== true) {
-		router[method] = { handler }
+		router[method] = { handler, receiveUpdates: false }
 		return
 	}
 	router[method] = { handler, receiveUpdates: true }
