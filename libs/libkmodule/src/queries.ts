@@ -13,11 +13,6 @@ let queries = {} as any
 // set of information needed to process queryUpdate messages.
 let incomingQueries = {} as any
 
-// Define an empty function because the linter does not like when you use `() => {}`
-let emptyFn = function () {
-	return
-}
-
 // clearIncomingQuery will clear a query with the provided nonce from the set
 // of incomingQueries. This method gets called when the response is either
 // accepted or rejected.
@@ -29,14 +24,14 @@ function clearIncomingQuery(nonce: number) {
 function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: dataFn) => void {
 	// Set up the promise that allows us to block until the handler has
 	// provided us its receiveUpdate function.
-	let updateReceived: (ret: any) => void
+	let updateReceived: dataFn
 	let blockForReceiveUpdate = new Promise((resolve) => {
 		updateReceived = resolve
 	})
 
 	// Add the blockForReceiveUpdate object to the queryUpdateRouter.
 	incomingQueries[event.data.nonce] = { blockForReceiveUpdate }
-	return function (receiveUpdate: any) {
+	return function (receiveUpdate: dataFn) {
 		incomingQueries[event.data.nonce].receiveUpdate = receiveUpdate
 		updateReceived(undefined)
 	}
@@ -123,8 +118,11 @@ function handleResponseUpdate(event: MessageEvent) {
 		return
 	}
 
-	// Pass the update along to the corresponding receiveUpdate function.
-	queries[event.data.nonce].receiveUpdate(event.data.data)
+	// Check whether a receiveUpdate function was set, and if so pass the
+	// update along.
+	if ("receiveUpdate" in queries[event.data.nonce]) {
+		queries[event.data.nonce].receiveUpdate(event.data.data)
+	}
 }
 
 // callModule is a generic function to call a module. It will return whatever
@@ -140,9 +138,7 @@ function callModule(module: string, method: string, data: any): Promise<[respons
 		method,
 		data,
 	}
-	// We omit the 'receiveUpdate' function because this is a no-op. If the
-	// value is not defined, newKernelQuery will place in a no-op for us.
-	let [, query] = newKernelQuery("moduleCall", moduleCallData, emptyFn)
+	let [, query] = newKernelQuery("moduleCall", moduleCallData)
 	return query
 }
 
@@ -184,8 +180,8 @@ function connectModule(
 	module: string,
 	method: string,
 	data: any,
-	receiveUpdate: any
-): [sendUpdate: any, response: Promise<[responseData: any, err: string | null]>] {
+	receiveUpdate: dataFn
+): [sendUpdate: dataFn, response: Promise<[responseData: any, err: string | null]>] {
 	let moduleCallData = {
 		module,
 		method,
@@ -207,10 +203,10 @@ function connectModule(
 // NOTE: Typically developers should not use this function. Instead use
 // 'callModule' or 'connectModule'.
 function newKernelQuery(
-	method: any,
+	method: string,
 	data: any,
-	receiveUpdate: any
-): [sendUpdate: any, response: Promise<[responseData: any, err: string | null]>] {
+	receiveUpdate?: dataFn
+): [sendUpdate: dataFn, response: Promise<[responseData: any, err: string | null]>] {
 	// Get the nonce for the query.
 	let nonce = queriesNonce
 	queriesNonce += 1
@@ -235,16 +231,13 @@ function newKernelQuery(
 		})
 	}
 
-	// Check that receiveUpdate is set.
-	if (receiveUpdate === null || receiveUpdate === undefined) {
-		receiveUpdate = emptyFn
-	}
-
 	// Establish the query in the queries map and then send the query to the
 	// kernel.
 	let p = new Promise((resolve) => {
 		queries[nonce]["resolve"] = resolve
-		queries[nonce]["receiveUpdate"] = receiveUpdate
+		if (receiveUpdate !== undefined) {
+			queries[nonce]["receiveUpdate"] = receiveUpdate
+		}
 		postMessage({
 			method,
 			nonce,
