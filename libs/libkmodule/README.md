@@ -207,7 +207,7 @@ import { addHandler, handleMessage } from "libkmodule"
 onmessage = handleMessage
 
 // handleSayHello will return a 'hello' message to the caller.
-function handleSomeMethod(aq: activeQuery) {
+function handleSayHello(aq: activeQuery) {
 	aq.accept("hello!")
 }
 
