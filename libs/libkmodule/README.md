@@ -433,6 +433,10 @@ methods [here](../../modules/secure-download/README.md).
 
 ###### TODO
 
+#### Sending Updates
+
+###### TODO
+
 ### Seed Management
 
 This only works if you have set `onmessage = handleMessage`.
