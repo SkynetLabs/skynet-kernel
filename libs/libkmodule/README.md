@@ -376,6 +376,8 @@ async function useSomeCall() {
 
 ### Querying Other Modules
 
+#### Basic Calls
+
 The simplest way to query another module is to use `callModule`. When using
 callModule, you provide the skylink of the module you wish to query, the method
 you wish to call on that module, and an object that represents the input to
@@ -396,8 +398,9 @@ For our first example, let's call 'secureDownload' on the download module:
 import { callModule } from "libkmodule"
 
 async function secureDownload(downloadLink: string) {
+	let exampleFile = "EABNMkgsbEk-kesO3pxH6N5utDhvIhDyACbacQDbWFmuTw"
 	let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw",
-	let [result, err] = callModule(downloadModule, "secureDownload", { skylink: downloadLink })
+	let [result, err] = callModule(downloadModule, "secureDownload", { skylink: exampleFile })
 	if (err !== null) {
 		console.error(err)
 		return
@@ -406,8 +409,29 @@ async function secureDownload(downloadLink: string) {
 }
 ```
 
+If you want to use `callModule` in a non-async context:
+
+```ts
+import { callModule } from "libkmodule"
+
+let exampleFile = "EABNMkgsbEk-kesO3pxH6N5utDhvIhDyACbacQDbWFmuTw"
+let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw"
+callModule(downloadModule, "secureDownload", { skylink: exampleFile })
+.then(([result, err]) => {
+	if (err !== null) {
+		console.error(err)
+		return
+	}
+	console.log("We downloaded a file of size", result.fileData.length)
+})
+```
+
 You can see the full documentation for the `secureDownload` module and its
 methods [here](../../modules/secure-download/README.md).
+
+#### Receiving Updates
+
+###### TODO
 
 ### Seed Management
 
