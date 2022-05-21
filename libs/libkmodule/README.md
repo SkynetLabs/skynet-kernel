@@ -407,7 +407,7 @@ async function secureDownload(downloadLink: string) {
 ```
 
 You can see the full documentation for the `secureDownload` module and its
-methods [here](../../modules/README.md).
+methods [here](../../modules/secure-download/README.md).
 
 ### Seed Management
 
