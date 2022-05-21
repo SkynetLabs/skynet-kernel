@@ -326,9 +326,88 @@ function handleSomeMethod(aq: activeQuery) {
 addHandler("sayHello", handleSayHello)
 ```
 
+### Error Handling
+
+libkmodule and the other Skynet core libraries depart significantly from
+idiomatic javascript in how they handle errors. The first major difference is
+that libkmodule prefers to return errors in a tuple rather than throw, which
+makes all errors explicit and immediate and eliminates any need to use the
+try/catch pattern. We largely view try/catch as an anti-pattern, and come from
+a background that has taught us that always handling errors immediately pays
+wonderful dividends.
+
+The second major difference is that our errors are always of type `string |
+null` rather than being of type `Error`. This is because the errors often need
+to be immediately sent over postMessage, and the `Error` type cannot be
+successfully sent over postMessage. The fact that we can't use the native
+`Error` type in many places reinforces our previously mentioned need to always
+handle errors immediately, because upon receiving an error you have much less
+information about the call stack.
+
+A very common return type is `Promise<errTuple>`. An `errTuple` is a
+`[data: any, err: string | null]`, which deconstructs into the return data of
+the method plus an error. Typically, if `err` is not `null`, then there will be
+no return data. And typically, if there is return data, then `err` will be
+`null`.
+
+Here is an example of a `Promise<errTuple>` in action:
+
+```ts
+function someCall(): Promise<errTuple> {
+	return new Promise((resolve) => {
+		if (someBoolean) {
+			resolve([someObj, null])
+			return
+		}
+		resolve([{}, "some error"])
+	 })
+}
+
+async function useSomeCall() {
+	let [value, err] = await someCall()
+	if (err !== null) {
+		// handle error
+		return
+	}
+
+	// There's no error, continue as normal.
+}
+```
+
 ### Querying Other Modules
 
-###### TODO
+The simplest way to query another module is to use `callModule`. When using
+callModule, you provide the skylink of the module you wish to query, the method
+you wish to call on that module, and an object that represents the input to
+that method. The return value of callModule is a `Promise<errTuple>` that
+resolves into the module's response.
+
+libkmodule does not have any way itself to know the expected type of the input,
+so the type is `any`. The expected input will depend on the module that is
+being called, and the method that is being used to call the module. A similar
+limitation holds for the output: the output is an `errTuple`, which is a tuple
+of some data and an err that can either be a string or null. And while
+libkmodule can handle the err, the data portion of the tuple will depend on the
+module being called and the method being used.
+
+For our first example, let's call 'secureDownload' on the download module:
+
+```ts
+import { callModule } from "libkmodule"
+
+async function secureDownload(downloadLink: string) {
+	let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw",
+	let [result, err] = callModule(downloadModule, "secureDownload", { skylink: downloadLink })
+	if (err !== null) {
+		console.error(err)
+		return
+	}
+	console.log("We downloaded a file of size", result.fileData.length)
+}
+```
+
+You can see the full documentation for the `secureDownload` module and its
+methods [here](../../modules/README.md).
 
 ### Seed Management
 
@@ -367,41 +446,6 @@ addHandler("someMethod", handleSomeMethod)
 
 onmessage = handleMessage
 ```
-
-### Error Handling
-
-libkmodule and the other Skynet core libraries depart significantly from
-idiomatic javascript in thow they handle errors. Because Skynet errors very
-frequently need to be sent over postMessage, all errors are of the form
-`string | null` as opposed to using the standard error type.
-
-Furthermore, none of the libkmodule functions have any throws. Instead, the
-functions will return errors in a tuple. When combined with the async/await
-pattern, it means a lot of the libkmodule functions have this return signature:
-`Promise<[any, string | null]>`
-
-You can interact with this code in the following manner:
-
-```ts
-async function useLibkmodule() {
-	let [value, err] = await libkmodule.someCall()
-	if (err !== null) {
-		// handle error
-		return
-	}
-
-	// There's no error, continue as normal.
-}
-```
-
-Though the pattern is unusual, it allows us to entirely avoid needing the
-try/catch pattern. This isn't the right place to talk about why try/catch is
-worth avoiding, but some of the main points include the fact that a throw can
-have objects of any type, throws aren't part of the call signature and
-therefore are often missed, programmers often avoid handling throws right away,
-and catch blocks have a completely different variable scope from try blocks.
-All of these factors make the try/catch pattern difficult to work with and
-worth avoiding.
 
 ### Unsafe Techniques
 

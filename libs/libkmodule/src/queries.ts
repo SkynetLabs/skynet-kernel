@@ -30,6 +30,17 @@ interface queryMap {
 	}
 }
 
+// incomingQueryMap defines the type for mapping incoming queries to the method
+// that can receive queryUpdates. To allow queryUpdate messages to be processed
+// in the same scope as the original query, we put a 'setReceiveUpdate'
+// function in the activeQuery object.
+//
+// blockForReceiveUpdate is a promise that will be resolved once the
+// receiveUpdate function has been set.
+interface incomingQueryMap {
+	[nonce: number]: Promise<dataFn>
+}
+
 // queries is an object that tracks outgoing queries to the kernel. When making
 // a query, we assign a nonce to that query. All response and responseUpdate
 // messages for that query will make use of the nonce assigned here. When we
@@ -50,7 +61,7 @@ let queries: queryMap = {}
 
 // incomingQueries is an object
 // set of information needed to process queryUpdate messages.
-let incomingQueries = {} as any
+let incomingQueries: incomingQueryMap = {}
 
 // clearIncomingQuery will clear a query with the provided nonce from the set
 // of incomingQueries. This method gets called when the response is either
@@ -59,42 +70,40 @@ function clearIncomingQuery(nonce: number) {
 	delete incomingQueries[nonce]
 }
 
-// getSetReceiveUpdate returns a function that can be called to
+// getSetReceiveUpdate returns a function called 'setReceiveUpdate' which can
+// be called to set the receiveUpdate function for the current query. All
+// queryUpdate messages that get received will block until setReceiveUpdate has
+// been called.
 function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: dataFn) => void {
-	// Set up the promise that allows us to block until the handler has
+	// Create the promise that allows us to block until the handler has
 	// provided us its receiveUpdate function.
 	let updateReceived: dataFn
-	let blockForReceiveUpdate = new Promise((resolve) => {
+	let blockForReceiveUpdate: Promise<dataFn> = new Promise((resolve) => {
 		updateReceived = resolve
 	})
 
 	// Add the blockForReceiveUpdate object to the queryUpdateRouter.
-	incomingQueries[event.data.nonce] = { blockForReceiveUpdate }
+	incomingQueries[event.data.nonce] = blockForReceiveUpdate
 	return function (receiveUpdate: dataFn) {
-		incomingQueries[event.data.nonce].receiveUpdate = receiveUpdate
-		updateReceived()
+		updateReceived(receiveUpdate)
 	}
 }
 
 // handleQueryUpdate currently discards all queryUpdates.
 async function handleQueryUpdate(event: MessageEvent) {
-	// Check if there is a handler associated with this nonce.
+	// Check whether the handler for this query wants to process
+	// receiveUpdate messages. This lookup may also fail if no handler
+	// exists for this nonce, which can happen if the queryUpdate message
+	// created concurrently with a response (which is not considered a bug
+	// or error).
 	if (!(event.data.nonce in incomingQueries)) {
-		// No need to log an error, we may have closed out this query before
-		// the update was received but after the update was sent.
-		return
-	}
-
-	// If the handler doesn't receive updates in the first place, ignore
-	// this message.
-	if (!("blockForReceiveUpdate" in incomingQueries[event.data.nonce])) {
 		return
 	}
 
 	// Block until the handler has provided a receiveUpdate function, than
 	// call receiveUpdate.
-	await incomingQueries[event.data.nonce].blockForReceiveUpdate
-	incomingQueries[event.data.nonce].receiveUpdate(event.data.data)
+	let receiveUpdate = await incomingQueries[event.data.nonce]
+	receiveUpdate(event.data.data)
 }
 
 // handleResponse will take a response and match it to the correct query.
@@ -172,7 +181,7 @@ function handleResponseUpdate(event: MessageEvent) {
 // support for handling queryUpdate or responseUpdate messages - they will be
 // ignored if received. If you need those messages, use 'connectModule'
 // instead.
-function callModule(module: string, method: string, data: any): Promise<errTuple> {
+function callModule(module: string, method: string, data?: any): Promise<errTuple> {
 	let moduleCallData = {
 		module,
 		method,
