@@ -198,7 +198,8 @@ import { addHandler, handleMessage } from "libkmodule"
 
 onmessage = handleMessage
 
-// handleSayHello will return a 'hello' message to the caller.
+// handleSayHello will return a 'hello' message to the caller. It is not
+// idiomatic code, see the next example for idiomatic code.
 function handleSayHello(aq: activeQuery) {
 	aq.accept("hello!")
 }
@@ -223,7 +224,7 @@ import { addHandler, handleMessage } from "libkmodule"
 onmessage = handleMessage
 
 // handleSayHello will return a 'hello' message to the caller.
-function handleSomeMethod(aq: activeQuery) {
+function handleSayHello(aq: activeQuery) {
 	aq.accept({ message: "hello!" })
 }
 
@@ -249,8 +250,9 @@ import { addHandler, handleMessage } from "libkmodule"
 
 onmessage = handleMessage
 
-// handleSayHello will return a 'hello' message to the caller.
-function handleSomeMethod(aq: activeQuery) {
+// handleSayHello will return a 'hello' message to the caller. If the caller
+// provides a name, it will use the name that was provided.
+function handleSayHello(aq: activeQuery) {
 	// If a name was provided by the caller, include the name in the hello
 	// message.
 	if ("name" in aq.callerInput) {
@@ -274,8 +276,10 @@ import { addHandler, handleMessage } from "libkmodule"
 
 onmessage = handleMessage
 
-// handleSayHello will return a 'hello' message to the caller.
-function handleSomeMethod(aq: activeQuery) {
+// handleSayHello will return a 'hello' message to the caller using the name
+// provided by the caller. It will return an error if the caller does not
+// provide a name.
+function handleSayHello(aq: activeQuery) {
 	// If a name was provided by the caller, include the name in the hello
 	// message.
 	if ("name" in aq.callerInput) {
@@ -304,8 +308,9 @@ import { addHandler, handleMessage } from "libkmodule"
 
 onmessage = handleMessage
 
-// handleSayHello will return a 'hello' message to the caller.
-function handleSomeMethod(aq: activeQuery) {
+// handleSayHello will return a 'hello' message to the caller. If the caller is
+// from 'specialapp.com', it will give a special message.
+function handleSayHello(aq: activeQuery) {
 	// If a name was provided by the caller, include the name in the hello
 	// message.
 	if (aq.domain === "specialapp.com") {
@@ -313,6 +318,38 @@ function handleSomeMethod(aq: activeQuery) {
 		return
 	}
 	aq.accept({ message: "hello!" })
+}
+
+addHandler("sayHello", handleSayHello)
+```
+
+Finally, there's a field in the activeQuery called `sendUpdate`. sendUpdate is
+a function that takes an arbitrary object as input, and it will relay that
+object to the caller as a responseUpdate. sendUpdate cannot be called after
+`accept` or `reject` have been called, but can be called an unlimited number of
+times prior to calling `accept` or `reject`.
+
+A common use of `sendUpdate` is to provide progress information about a task
+that might take a while to complete. For example, a large file upload might
+send continuous updates indicating how many bytes have been uploaded.
+
+You can send update with the following code:
+
+```ts
+import { addHandler, handleMessage } from "libkmodule"
+
+onmessage = handleMessage
+
+// handleSayHello will return a 'hello' message to the caller after waiting for
+// 400 milliseconds. After the first 200 milliseconds, it will send an update
+// stating that it will say hello soon.
+function handleSayHello(aq: activeQuery) {
+	setTimeout(() => {
+		aq.sendUpdate({ messsage: "I will say hello soon!" })
+	}, 200)
+	setTimeout(() => {
+		aq.accept({ message: "hello!" })
+	}, 400)
 }
 
 addHandler("sayHello", handleSayHello)
@@ -390,7 +427,7 @@ import { callModule } from "libkmodule"
 async function secureDownload(downloadLink: string) {
 	let exampleFile = "EABNMkgsbEk-kesO3pxH6N5utDhvIhDyACbacQDbWFmuTw"
 	let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw",
-	let [result, err] = callModule(downloadModule, "secureDownload", { skylink: exampleFile })
+	let [result, err] = await callModule(downloadModule, "secureDownload", { skylink: exampleFile })
 	if (err !== null) {
 		console.error(err)
 		return
@@ -457,17 +494,49 @@ addHandler("someMethod", handleSomeMethod)
 onmessage = handleMessage
 ```
 
-### Sending Respones Updates
-
-TODO
-
 ### Receiving Query Updates
 
-TODO
+Similar to how a module can provide 'responseUpdate' messages, the caller can
+provide 'queryUpdate' messages. If the handler is not explicitly configured to
+handle queryUpdates, the updates will be immediately discarded.
 
-### Sending Query Updates
+If your module wants to process queryUpdate messages, you need to set the
+`receiveUpdates` flag to true when calling addHandler. After that, your handler
+needs to call `setReceiveUpdate` once it receives the query.
 
-TODO
+By having the handler call `setReceiveUpdate` after the query is already open,
+the function that receives the update can share scope with the function that
+handles the original query.
+
+Note in the example code below that an optional argument has been added to
+'addHandler'. Also note that the update that is provided in receiveUpdate is
+arbitrary data, the handler needs to check that any expected fields exist and
+that the data is well formed.
+
+```ts
+import { addHandler, handleMessage } from "libkmodule"
+
+onmessage = handleMessage
+
+// handleSayHello will return a 'hello' message to the caller. It waits to
+// receive a queryUpdate before it says hello. The queryUpdate data should have
+// the form `{ sendUpdateNow: true }`
+function handleSayHello(aq: activeQuery) {
+	let message = "hello!"
+	aq.setReceiveUpdate((update: any) => {
+		if (update.sendUpdateNow !== true) {
+			reject("queryUpdate appears malformed")
+		}
+		accept({ message })
+	})
+}
+
+addHandler("sayHello", handleSayHello, { receiveUpdates: true })
+```
+
+### Sending queryUpdates and receiving responseUpdates
+
+TODO: talk about connectModule
 
 ### Unsafe Techniques
 
