@@ -7,179 +7,171 @@ other kernel modules.
 
 ## Background and Basics
 
-### Why Kernel Modules?
-
 A kernel module is a decentralized API that can be used by other Skynet
 programs. You can think of kernel modules as mini private servers that run in
-the user's cloud and provide APIs to the user's other programs. Similar to real
-private servers, the user's programs cannot access the private data or state of
-a kernel module, they can only access the data that is exposed through the
-module's public API.
+the user's secure cloud and provide APIs to the user's other programs. Similar
+to real private servers, the user's programs cannot access the private data or
+state of a kernel module, they can only access the data that is exposed through
+the module's public API.
 
 One example of a kernel module would be 'profileDAC', which creates an API that
-exposes the user's prefferred handle and preferred profile picutre. ProfileDAC
-is read-only, other programs on Skynet that want to make use of the user's
-profile picture and username are only able to read the user's preferences. A
-rogue consumer of the profileDAC API cannot maliciously modify the user's
-preferences.
+exposes the user's preferred username and profile picutre. profileDAC is
+read-only, meaning other modules can freely use profileDAC to access the user's
+profile picture but are unable to modify it.
 
-The main purpose of modules on Skynet is enable data sharing between
-applications in a way that is secure and prevents malicious programs from
-damaging the user's experience. Moduels can handle info like avatars, modules
-can create common filesystems between many applications, modules can manage a
-user's social graph, modules can manage content that the user has uplaoded to
-Skynet, and more.
+### Why Kernel Modules?
 
-The world created by Skynet modules is a world where a user can switch
-platforms without losing access to their friends, followers, or data. For
-example, a blogger will have all of their blogs sotred inside of a blog module,
-which allows the blogger to switch between platforms at any time without
-disrupting their reader's ability to read their content.
+Kernel modules enable data sharing between applications without requiring an
+external database or third party API. A profile picture is just one example of
+useful data that can be shared across applications. Other examples could
+include the elements of the user's social graph, or records of all the content
+that the user has posted.
 
-### Building Modules
+The centralized web keeps user data trapped in silos, which forces users to
+redefine their identity on every platform. Even when centralized platforms
+create APIs that can be used to access the common data, that API remains
+outside of the control of the user, and there is a risk that the API will be
+shut down at any time.
+
+Kernel modules create decentralized APIs. The data is always under the control
+of the user, and the APIs cannot be shut off unless the user explicitly
+consents to them being shut down. This makes these APIs much safer to build
+upon and compose for third party developers and entrepreneurs.
+
+By decentralizing user data through kernel modules, we can create an Internet
+where every piece of data is usable by every platform and every developer.
+
+### The Module Framework
 
 Kernel modules are webworkers that are hosted inside of the Skynet kernel's
-iframe. They do all of their communication with users through postMessage, and
-they handle all incoming messages using `onmessage`. libkmodule handles most of
-this for you using abstractions like `handleMessage`, `addHandler`,
-`callModule`, and `connectModule`.
+iframe. As a webworker, the module has access to its own private state, and it
+has access to network functions like `fetch` and `new WebSocket()`.
 
-Being webworkers, modules have full access to functions like `fetch` and
-`WebSocket()`, which allows modules to make calls to external APIs over the
-Internet. Especially in blockchain contexts, this is useful for doing things
-like talking to blockchain explorers or blockchain full nodes.
+Each module serves an API using postMessage. That API is directly connected to
+the kernel, and the kernel serves as a middleman between applications and
+modules. Because the kernel is in the middle, it can provide guarantees that
+all incoming messages are well formed and adhere to the kernel module
+specification.
 
-One of the major roles that modules play in the Skynet ecosystem is to provide
-trustless wrappers around otherwise untrusted APIs. A kernel module can do
-something like wrap a call to get a user's blockchain balance, and then perform
-SPV verification or even zero-knowledge proof verification to ensure that the
-external service is not being dishonest when it is returning a value to the
-caller. Moduels can also provide invisible/seamless failover options. If one
-API provider goes down, the module can failover to using another API provider
-and entirely hide the outage from the user, which makes user applications
-significantly more reliable.
+In addition to having access to network functions, modules can use the APIs of
+other modules. For example, one module may manage a user's Ethereum wallet, and
+another module may use the Ethereum wallet module to manage the user's NFTs.
 
-In addition to being able to call out to the open Internet, modules can make
-calls to other modules. It is common and encouraged for modules to chain
-together to complete a task. For example, the profileDAC manages the user's
-preferred avatar by storing the image file for the avatar on Skynet. But it
-doesn't perform the actual network calls itself, instead it uses the
-secure-upload and secure-download modules to store the file on Skynet.
-
-At startup, modules are provided a user seed that is unique to them. The kernel
-derives the seed from the user's main Skynet seed, and this allows a module to
-perform actions like create blockchain wallets for the user without having to
-worry that other modules will be able to access the user's funds.
-
-Finally, all calls to a module's API are accompanied by a domain. The module is
-told which domain or other module is performing the call, which allows modules
-to maintain access control. For example, profileDAC only allows certain
-external applications to modify the user's profile picture. When an application
-attempts to call 'updateProfilePicture' on profileDAC, profileDAC can check
-whether that application is allowed to update the user's profile picture before
-making any changes to the user's data.
+At startup, each module is provided with a unique seed from the kernel that was
+derived from the user's core seed. This seed is private to the module and is
+not known or knowable to any other module. This allows modules to safely create
+things like blockchain wallets for the user without having to request or know
+the user's root seed. The user can have a single seed for themselves, and then
+every single one of their applications can have a unique derivative seed for
+arbitrary use.
 
 ### The Query Model
 
-All API endpoints created by modules follow a query model. The caller makes a
-query to a module, then that query gets closed out with a response by the
-module. The query can be closed out successfully or unsuccessfully. If the
-query is closed out successfully, the module can return an arbitrary javascript
-object (as long as it can be serielized to JSON). If the query experiences an
-error or fails, the query must be closed out with a string response.
+All API endpoints are structured using a query model. A caller will make a
+query to a module, and then the module will respond to that query with a
+response.
 
-Queries can be long lasting, and can receive updates. The caller can send an
-update by send a 'queryUpdate' message, and the module can send an update by
-sending a 'responseUpdate' message.
+The query has two fields, a "method" field which has to be a string, and a
+"data" field which can be any JSON encodable object. The module will use the
+the 'method' field to determine what query is being made, and the 'data'
+contains all of the input to that query.
 
-If a queryUpdate is sent to a module that does not support queryUpdates, the
-update will be ignored. Similarly, if a responseUpdate is sent to a caller that
-doesn't support responseUpdates, the update will be ignored. Some modules
-implement APIs where the updates are mandatory, and other modules implement
-APIs where the updates are optional. A good example of an optional update is a
-upload progres update, where a module may be providing updates every few
-seconds that establish how much progress an upload has made. An example of
-mandatory updates would be an interactive protocol where a module may need to
-request things like signatures from the user.
+The response has a 'data' object as well as an error. The data object can be
+any JSON encodable object, and the err must be either a string or it must be
+null. Generally, if the err is not null, the data object is expected to be
+empty. Once a response has been made, the query is considered complete and no
+further messages can be made related to that query.
 
-Most APIs do not implement updates at all, and just have a straightforward
-query-response protocol. The APIs that do implement updates typically implement
-responseUpdates only, and the updates are completely optional for the caller.
-Only a few APIs have required updates or support queryUpdates.
+Before a response is made, both the caller and the module can send updates. If
+the caller sends an update, it is called a 'queryUpdate'. And if the module
+sends an update, it is called a 'responseUpdate'. Both the queryUpdate and the
+responseUpdate can contain only one field: the data field, which can be any
+JSON encodable object. Updates are optional. The caller and the module both can
+choose not to send or process updates.
 
-### Publishing and Deploying Modules
-
-All modules are loaded from Skynet using the Skynet registry. The example
-modules all have a build script which walks through the deployment process, but
-it essentially amounts to deterministically deriving a public key using a
-password, then publishing the module to the Skynet registry under that
-password.
-
-Modules are deployed to a decentralized environment using public keys and
-hashes. This means that there is no such thing as server-side ratelimiting. An
-attacker can attempt to brute-force a module's password at full speed. The
-module deployment process has a small key derivation function which slightly
-strengthens passwords, but most passwords need to be 60+ bits of entropy to
-provide material security against brute force attacks.
-
-Though decentralized management of modules means that security is more
-important, it also means that modules are censorship resistant and do not need
-to comply with centralized terms of service nor do they need to fear being
-deplatformed.
-
-Modules are always published under a public key, which gives the developer the
-ability to update the module and change the code at any time. This creates
-security surface area for an important ecosystem module to become compromised,
-either due to stolen keys or due to the developer going rogue.
-
-The kernel features two different protections against this security threat. The
-first protection is the ability to query a module using the hash of its code
-rather than using the pubkey of the module. By using the hash of a module, the
-caller can guarantee that they use a trusted version of the module even if the
-keys have been compromised or the developer has gone rogue.
-
-The second protection is called a 'kernel override'. The kernel stands as a
-middleman between all calls to modules, and therefore has the ability to
-intercept a call and route it to another module. For example, if one developer
-loses their keys to an attacker, they can re-publish their module under a new
-public key, and users can install a kernel override that will route all
-requests aimed at the old compromised module to the new uncompromised module.
-
-The kernel also has the ability to add overrides by default, and then only
-update a module after the user or a trusted maintainer has reviewed and
-approved the update.
-
-Because social protections exist that allow a user to defer receiving code
-until after the update has been reviewed, we typically recommend always using
-the pubkey version of a module. Kernel maintainers will identify critical
-modules and wrap them with extra protections. Best practice here is still
-evolving! The recommended course of action may change over the next few years.
+The module itself defines the API that states what the methods are, what inputs
+should be provided, and what responses will be made. To be useful, a module
+will either need to provide a human readable specification, or it will need to
+provide some sort of library for making use of the module.
 
 ### The Domain Model
 
-Every module exists in its own domain. The module will receive a seed from the
-kernel that is derived using the module's domain. If the module's domain
-changes, the seed that it receives will also change.
+Modules can be called by both webapps (often called Skapps if they use the
+Skynet kernel) and by other modules. Every caller has a domain, and that domain
+is provided to the module so that the module can perform access control with
+its API endpionts.
 
-When a module receives a call from another module, it can see the domain of the
-caller and then make decisions based on that domain. Some modules, like
-filesystem modules and caching modules, limit access to files or cache elements
-based on the domain. The domain essentially determines what data a module is
-allowed to save an access, and two modules with different domains will only be
-able to access shared data if an API has been created to share that data.
+For example, profileDAC is read-only for most callers, but the webapp
+'profiledac.hns' has read-write access. If a user wants to update their profile
+picture or change their username, they can navigate to 'profiledac.hns' to make
+the change.
 
-A module's domain is determined by how it is called. A module which is being
-accessed by its pubkey will have a different domain than a module which is
-being accessed by its code hash. For all practical purposes, a module accessed
-by its code hash is a **different** module than the same module being accessed
-by its pubkey, even though the APIs will be identical. The APIs are identical,
-but the data that populates the module will be different.
+For traditional webapps, the domain of the application is used as the domain
+within the skynet kernel. For example, if 'spotify.com' started using the
+kernel, it would have the domain 'spotify.com' within the kernel.
 
-Because the kernel has the ability to protect users from rogue updates, we
-recommend calling modules by using their pubkeys, rather than their code
-hashes. For contexts where security is super important and a module is too
-obscure to be overseen by kernel maintainers, we do recommend calling a module
-by its hash instead.
+For decentraliezd webapps, the domain of the application will be the resolved
+name of the application. For example, 'profiledac.hns' has an HNS name, and is
+potentially being accessed through a portal. That means the full webdomain of
+'profiledac.hns' might be 'profiledac.hns.siasky.net' or 'profiledac.hns.to'.
+The kernel will do its best to detect when an application is being resolved,
+and it will use the fully decentralized name of the application as the domain.
+Therefore, both 'profiledac.hns.siasky.net' and 'profiledac.hns.to' will have
+the domain 'profiledac.hns' when making queries to modules.
+
+Modules will be given a domain that matches their skylink. Skylinks are usually
+46 characters of base64 text, and are encodings of either the hash of the
+module code, or the hash of the developer public key. Skylinks that are hashes
+of public keys are called "resolver links", and skylinks that are hashes of
+file data are called "content links".
+
+If you load a module using its resolver link, the domain of that module will be
+its resolver link. It also means that the developer/maintainer of the module
+has the ability to update the code for the module at any time. This can be both
+good and bad, as updates can include performance improvements and new API
+endpoints, but updates could also be malicious updates that steal user data.
+
+Because modules are sandboxed, they can only steal user data that was
+previously trusted to that module specifically. Modules that go rogue can't
+steal the user's seed, and they can't access the private data of other modules.
+Furthermore, the kernel has multiple planned features which will protect users
+from modules going rogue.
+
+Best practice today is that all developers call modules using their resolver
+links. There are enough security features within the ecosystem to make this
+safe, even if module developers go rogue. Best practice is stil evolving, and
+may change significantly over the next year.
+
+### Publishing and Deploying Modules
+
+Modules are published by uploading their code to Skynet and then creating a
+Skylink for that code. The current standard for publishing modules is to create
+a password for the module. That password is used to derive a public key, and
+then that public key is used to publish updates to the module code.
+
+If you are using the standard module publication flow, you can publish a module
+by calling `npm run deploy`. If you have not published that module before, you
+will be prompted to create a password and confirm the password. If you have
+published that module before, you will only be prompted to supply the password
+for deploying the module.
+
+When first creating a password, two files get created in the module repository.
+The first file is a salt, which will be mixed with the password. The second
+file is the resolver Skylink of the module, which can be used to verify that
+the password is correct. Both the salt and the skylink will be published to the
+repository of the module, the password of course will not be published. As long
+as the password is secure, this publication process is secure.
+
+This publication process is fully decentralized. There is no central website or
+service that is managing the creation and deployment of modules. This is great
+for censorship resistance and overall security, but also means that there's no
+password recovery feature. If you lose the password to a module, your only
+recourse is to create a new public key and tell everyone to migrate to using
+the new module. The kernel has features which make migrating between modules
+reasonably painless.
+
+Like much of the rest of the Skynet ecosystem, best practice is evolving and
+may change significantly over the next year.
 
 ## Writing Code
 
@@ -376,8 +368,6 @@ async function useSomeCall() {
 
 ### Querying Other Modules
 
-#### Basic Calls
-
 The simplest way to query another module is to use `callModule`. When using
 callModule, you provide the skylink of the module you wish to query, the method
 you wish to call on that module, and an object that represents the input to
@@ -429,14 +419,6 @@ callModule(downloadModule, "secureDownload", { skylink: exampleFile })
 You can see the full documentation for the `secureDownload` module and its
 methods [here](../../modules/secure-download/README.md).
 
-#### Receiving Updates
-
-###### TODO
-
-#### Sending Updates
-
-###### TODO
-
 ### Seed Management
 
 This only works if you have set `onmessage = handleMessage`.
@@ -474,6 +456,18 @@ addHandler("someMethod", handleSomeMethod)
 
 onmessage = handleMessage
 ```
+
+### Sending Respones Updates
+
+TODO
+
+### Receiving Query Updates
+
+TODO
+
+### Sending Query Updates
+
+TODO
 
 ### Unsafe Techniques
 
