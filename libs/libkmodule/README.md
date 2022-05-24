@@ -606,6 +606,26 @@ If you need to make a breaking change, make that change by writing a new
 method. Leave the old method intact unless there is a serious vulnerability and
 it would be better to break applications than to leave the user vulnerable.
 
+### Performance Notes
+
+The first time that a user makes a call to a module, that module needs to be
+downloaded from Skynet. This usually takes less than one second, but a page
+that needs multiple modules can have a visible amount of initial overhead.
+
+Once the user has downloaded the module once, that module is saved locally and
+even kept in memory, meaning future accesses of that module will take under a
+millisecond. `callModule` is slightly more performant than `connectModule`, but
+even `connectModule` is less than 1 millisecond per update.
+
+Keep in mind that modules often call other modules. For example, the getsetjson
+module will call out to the registry module, and the registry module has a
+connection open to the portal module.
+
+The browser limits the kernel to having only 16 webworkers open at a time. This
+will have performance implications for modules, as it limits how many module
+calls can be made simultaneously. This limitation is currently under-explored
+but we have a wealth of ideas for managing it.
+
 ### Unsafe Techniques
 
 We recommend against using these techniques, but if you get stuck or really
