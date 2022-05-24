@@ -30,6 +30,6 @@
 	},
 	"dependencies": {
 		"libkernel": "^0.0.76",
-		"libkmodule": "^0.0.40"
+		"libkmodule": "^0.0.41"
 	}
 }

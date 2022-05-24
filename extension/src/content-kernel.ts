@@ -125,7 +125,6 @@ var processUserKernelDownload = function(output: downloadSkylinkResult): Promise
 			})
 
 			// Need to download and eval the default kernel.
-			// fetchAndEvalDefaultKernel()
 			downloadDefaultKernel()
 			.then(text => {
 				resolve(text)
@@ -199,7 +198,14 @@ var kernelDiscoveryFailed = function(err) {
 
 // evalKernel will call 'eval' on the provided kernel code.
 var evalKernel = function(kernel: string) {
-	eval(kernel)
+	// The eval will throw if the userSeed is not available. This shouldn't
+	// happen, but we catch the throw here anyway.
+	try {
+		eval(kernel)
+	} catch (err) {
+		logErr("kernel could not be loaded", err)
+		return
+	}
 	log("lifecycle", "user kernel successfully loaded")
 
 	// Only send a message indicating that the kernel was successfully

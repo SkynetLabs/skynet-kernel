@@ -38,7 +38,7 @@ interface queryMap {
 // blockForReceiveUpdate is a promise that will be resolved once the
 // receiveUpdate function has been set.
 interface incomingQueryMap {
-	[nonce: number]: Promise<dataFn>
+	[nonce: string]: Promise<dataFn>
 }
 
 // queries is an object that tracks outgoing queries to the kernel. When making
@@ -277,7 +277,6 @@ function newKernelQuery(
 			postMessage({
 				method: "queryUpdate",
 				nonce: queries[nonce].kernelNonce,
-				password: queries[nonce].kernelPassword,
 				data: updateData,
 			})
 		})
@@ -293,10 +292,12 @@ function newKernelQuery(
 		if (receiveUpdate !== undefined) {
 			queries[nonce]["receiveUpdate"] = receiveUpdate
 		}
+		let getKernelNonce = receiveUpdate !== null && receiveUpdate !== undefined
 		postMessage({
 			method,
 			nonce,
 			data,
+			getKernelNonce,
 		})
 	})
 	return [sendUpdate, p]

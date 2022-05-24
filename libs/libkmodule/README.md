@@ -402,8 +402,7 @@ try/catch pattern. We largely view try/catch as an anti-pattern, and come from
 a background that has taught us that always handling errors immediately pays
 wonderful dividends.
 
-The second major difference is that our errors are always of type `string |
-null` rather than being of type `Error`. This is because the errors often need
+The second major difference is that our errors are always of type `string | null` rather than being of type `Error`. This is because the errors often need
 to be immediately sent over postMessage, and the `Error` type cannot be
 successfully sent over postMessage. The fact that we can't use the native
 `Error` type in many places reinforces our previously mentioned need to always
@@ -426,7 +425,7 @@ function someCall(): Promise<errTuple> {
 			return
 		}
 		resolve([{}, "some error"])
-	 })
+	})
 }
 
 async function useSomeCall() {
@@ -480,8 +479,7 @@ import { callModule } from "libkmodule"
 
 let exampleFile = "EABNMkgsbEk-kesO3pxH6N5utDhvIhDyACbacQDbWFmuTw"
 let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw"
-callModule(downloadModule, "secureDownload", { skylink: exampleFile })
-.then(([result, err]) => {
+callModule(downloadModule, "secureDownload", { skylink: exampleFile }).then(([result, err]) => {
 	if (err !== null) {
 		console.error(err)
 		return

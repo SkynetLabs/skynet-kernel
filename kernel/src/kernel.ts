@@ -99,6 +99,7 @@
 // the others.
 declare var blake2b
 declare var downloadSkylink
+declare var encodeNumber
 declare var getUserSeed
 declare var defaultPortalList
 declare var preferredPortals
@@ -120,7 +121,7 @@ interface openQuery {
 	domain: string;
 	source: any;
 	dest: any;
-	nonce: number;
+	nonce: string;
 }
 var queriesNonce = 0
 var queries = {}
@@ -132,6 +133,22 @@ interface module {
 	domain: string;
 }
 var modules = {}
+
+// Grab the user's seed because we need it for kernel operations.
+let [rootSeed, errGSU] = getUserSeed()
+if (errGSU !== null) {
+	logErr("error", "unable to create worker because seed is unavailable", errGSU)
+	throw "unable to load user seed when loading kernel"
+}
+
+// Derive the active seed for this session. We define an active seed so that
+// the user has control over changing accounts later, they can "change
+// accounts" by switching up their active seed and then reloading all modules.
+let activeSeedSalt = new TextEncoder().encode("account:user")
+let activeSeedPreimage = new Uint8Array(rootSeed.length + activeSeedSalt.length)
+activeSeedPreimage.set(rootSeed, 0)
+activeSeedPreimage.set(activeSeedSalt, rootSeed.length)
+let activeSeed = blake2b(activeSeedPreimage).slice(0 ,16)
 
 // respondErr will send an error response to the caller that closes out the
 // query for the provided nonce. The gross extra inputs of 'messagePortal' and
@@ -247,20 +264,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		return
 	}
 
-	// TODO: Need to add password checking for response and responseUpdate
-	// methods too.
 	if (isQueryUpdate) {
-		if (!("password" in event.data)) {
-			logErr("workerMessage", "worker did not include a password with their queryUpdate")
-			// TODO: shut down the worker for being buggy.
-			return
-		}
-		// TODO: This needs to be swapped out for a proper password system.
-		if (event.data.password !== "abc") {
-			logErr("workerMessage", "worker used incorrect password when making a queryUpdate")
-			return
-		}
-
 		// Check that the module still exists before sending a queryUpdate to
 		// the module.
 		let dest = queries[event.data.nonce].dest
@@ -340,18 +344,11 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 		handleWorkerMessage(event, module)
 	}
 
-	// Grab the user's seed so we can make a unique module seed.
-	let [userSeed, errGSU] = getUserSeed()
-	if (errGSU !== null) {
-		logErr("createModule", "unable to create worker because seed is unavailable", errGSU)
-		return [null, addContextToErr(errGSU, "seed is unavailable")]
-	}
-
 	let path = "moduleSeedDerivation"+domain
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
 	moduleSeedPreimage.set(u8Path, 0)
-	moduleSeedPreimage.set(userSeed, u8Path.length)
+	moduleSeedPreimage.set(activeSeed, u8Path.length)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
 	module.worker.postMessage({
 		method: "presentSeed",
@@ -406,9 +403,18 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	// caller with the kernel nonce for this query so that the caller can
 	// perform query updates.
 	let newModuleQuery = function(module: module) {
-		// Get the nonce for this query and create the query object in the
-		// query set.
-		let nonce = queriesNonce
+		// Get the nonce for this query. The nonce is a
+		// cryptographically secure string derived from a number and
+		// the user's seed. We use 'kernelNonceSalt' as a salt to
+		// namespace the nonces and make sure other processes don't
+		// accidentally end up using the same hashes.
+		let nonceSalt = new TextEncoder().encode("kernelNonceSalt")
+		let nonceBytes = encodeNumber(queriesNonce)
+		let noncePreimage = new Uint8Array(nonceSalt.length + activeSeed.length + nonceBytes.length)
+		noncePreimage.set(nonceSalt, 0)
+		noncePreimage.set(activeSeed, nonceSalt.length)
+		noncePreimage.set(nonceBytes, nonceSalt.length+activeSeed.length)
+		let nonce = blake2b(noncePreimage)
 		queriesNonce += 1
 		queries[nonce] = {
 			isWorker,
@@ -426,29 +432,22 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 			data: event.data.data.data,
 		})
 
-		// TODO: We need to transform this into a more secure password. We can
-		// do that by keeping 16 bytes of entropy in the header of the kernel,
-		// and then using hashes to transform the entropy into passwords. We
-		// transform the entropy into a password by using the nonce as a salt.
-		// This means that someone who knows a string of password and nonce
-		// combinations has no ability to guess what the password is for other
-		// nonces.
-		let password = "abc"
-
-		// Send a message to the caller containing the kernel nonce for this
-		// query.
-		let msg = {
-			nonce: event.data.nonce,
-			method: "responseNonce",
-			data: {
-				nonce,
-				password,
+		// If the caller is asking for the kernel nonce for this query,
+		// send the kernel nonce. We don't always send the kernel nonce
+		// because messages have material overhead.
+		if (event.data.getKernelNonce === true) {
+			let msg = {
+				nonce: event.data.nonce,
+				method: "responseNonce",
+				data: {
+					nonce,
+				}
 			}
-		}
-		if (isWorker) {
-			messagePortal.postMessage(msg)
-		} else {
-			messagePortal.postMessage(msg, event.origin)
+			if (isWorker) {
+				messagePortal.postMessage(msg)
+			} else {
+				messagePortal.postMessage(msg, event.origin)
+			}
 		}
 	}
 
@@ -550,15 +549,6 @@ handleMessage = function(event) {
 		return
 	}
 	if (event.data.method === "queryUpdate") {
-		if (!("password" in event.data)) {
-			respondErr(event, event.source, false, "need to provide a password with the queryUpdate")
-			return
-		}
-		// TODO: Switch to checking the actual password scheme.
-		if (event.data.password !== "abc") {
-			respondErr(event, event.source, false, "password is incorrect")
-			return
-		}
 		respondErr(event, event.source, false, "queryUpdate not yet supported")
 		return
 	}
