@@ -323,17 +323,16 @@ function handleSayHello(aq: activeQuery) {
 addHandler("sayHello", handleSayHello)
 ```
 
-Finally, there's a field in the activeQuery called `sendUpdate`. sendUpdate is
-a function that takes an arbitrary object as input, and it will relay that
-object to the caller as a responseUpdate. sendUpdate cannot be called after
-`accept` or `reject` have been called, but can be called an unlimited number of
-times prior to calling `accept` or `reject`.
+There's a field in the activeQuery called `sendUpdate` which allows a module to
+send an update to a caller while it is processing a query. sendUpdate is a
+function that takes an arbitrary object as input, and it will relay that object
+to the caller as a responseUpdate. sendUpdate cannot be called after `accept`
+or `reject` have been called, but can be called an unlimited number of times
+prior to calling `accept` or `reject`.
 
 A common use of `sendUpdate` is to provide progress information about a task
 that might take a while to complete. For example, a large file upload might
 send continuous updates indicating how many bytes have been uploaded.
-
-You can send update with the following code:
 
 ```ts
 import { addHandler, handleMessage } from "libkmodule"
@@ -353,6 +352,44 @@ function handleSayHello(aq: activeQuery) {
 }
 
 addHandler("sayHello", handleSayHello)
+```
+
+Similar to how a module can provide 'responseUpdate' messages, the caller can
+provide 'queryUpdate' messages. If the handler is not explicitly configured to
+handle queryUpdates, the updates will be immediately discarded.
+
+If your module wants to process queryUpdate messages, you need to set the
+`receiveUpdates` flag to true when calling addHandler. After that, your handler
+needs to call `setReceiveUpdate` once it receives the query.
+
+By having the handler call `setReceiveUpdate` after the query is already open,
+the function that receives the update can share scope with the function that
+handles the original query.
+
+Note in the example code below that an optional argument has been added to
+'addHandler'. Also note that the update that is provided in receiveUpdate is
+arbitrary data, the handler needs to check that any expected fields exist and
+that the data is well formed.
+
+```ts
+import { addHandler, handleMessage } from "libkmodule"
+
+onmessage = handleMessage
+
+// handleSayHello will return a 'hello' message to the caller. It waits to
+// receive a queryUpdate before it says hello. The queryUpdate data should have
+// the form `{ sendUpdateNow: true }`
+function handleSayHello(aq: activeQuery) {
+	let message = "hello!"
+	aq.setReceiveUpdate((update: any) => {
+		if (update.sendUpdateNow !== true) {
+			reject("queryUpdate appears malformed")
+		}
+		accept({ message })
+	})
+}
+
+addHandler("sayHello", handleSayHello, { receiveUpdates: true })
 ```
 
 ### Error Handling
@@ -456,6 +493,61 @@ callModule(downloadModule, "secureDownload", { skylink: exampleFile })
 You can see the full documentation for the `secureDownload` module and its
 methods [here](../../modules/secure-download/README.md).
 
+If you want to send queryUpdates and/or receive responseUpdates, you need to
+use the method `connectModule` instead of using `callModule`. connectModule has
+one extra input and one extra output, both optional.
+
+The extra input is a `receiveUpdate` function which will get called any time
+that the module provides a responseUpdate. If no receiveUpdate function is
+provided (or if null is provided), responseUpdate messages will be discarded.
+The receiveUpdate function should take a single input which is an arbitrary
+object. The fields of the object will depend on the module and method.
+
+The extra output is a `sendUpdate` function which can be called to send a
+queryUpdate to the module. The sendUpdate function takes a single input which
+is an arbitrary data object. The fields of the object will depend on the module
+and method.
+
+```ts
+import { connectModule } from "libkmodule"
+
+// NOTE: While the previous example is actually using the full secure-download
+// module correctly and is code that can be used in production, this example
+// uses fictional updates to illustrate how to use 'connectModule'. There are
+// plans to extend the download module to support these updates, but those
+// plans are not yet implemented.
+async function performDownload(downloadLink: string) {
+	// Create a receiveUpdate function that will log the download progress
+	// to the console as the download progresses.
+	let receiveUpdate = function(update: any) {
+		console.log(update.downloadProgress)
+	}
+
+	// Perform the connectModule call, providing receiveUpdate as an input.
+	let exampleFileObj = { skylink: "EABNMkgsbEk-kesO3pxH6N5utDhvIhDyACbacQDbWFmuTw" }
+	let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw",
+	let [sendUpdate, responsePromise] = connectModule(downloadModule, "secureDownload", exampleFileObj, receiveUpdate)
+
+	// Set up a timer to cancel the download if the download does not
+	// complete within one second.
+	let completed = false
+	setTimeout(() => {
+		if (completed !== true) {
+			sendUpdate({ cancelDownload: true })
+		}
+	}, 1000)
+
+	// Block for the download to complete.
+	let [result, err] = await responsePromise
+	if (err !== null) {
+		console.error(err)
+		return
+	}
+	completed = true
+	console.log("We downloaded a file of size", result.fileData.length)
+}
+```
+
 ### Seed Management
 
 This only works if you have set `onmessage = handleMessage`.
@@ -494,49 +586,25 @@ addHandler("someMethod", handleSomeMethod)
 onmessage = handleMessage
 ```
 
-### Receiving Query Updates
+### Best Practices
 
-Similar to how a module can provide 'responseUpdate' messages, the caller can
-provide 'queryUpdate' messages. If the handler is not explicitly configured to
-handle queryUpdates, the updates will be immediately discarded.
+NOTE: Best practices are still evolving. Things that are considered good advice
+today may be considered unsafe or unwise in a few months when we have more real
+world experience.
 
-If your module wants to process queryUpdate messages, you need to set the
-`receiveUpdates` flag to true when calling addHandler. After that, your handler
-needs to call `setReceiveUpdate` once it receives the query.
+When publishing a module, maintain strict API compatibility. Your module is
+more like a mini-server than it is a software library. If you update your
+module and break compatibility, it will immediately break any applications that
+consume your module's API.
 
-By having the handler call `setReceiveUpdate` after the query is already open,
-the function that receives the update can share scope with the function that
-handles the original query.
+To maintain compatibility, use objects with named fields as the inputs and
+outputs of all of your methods. This allows you to add new fields when you
+update your module without breaking compatibility for old consumers of your
+API.
 
-Note in the example code below that an optional argument has been added to
-'addHandler'. Also note that the update that is provided in receiveUpdate is
-arbitrary data, the handler needs to check that any expected fields exist and
-that the data is well formed.
-
-```ts
-import { addHandler, handleMessage } from "libkmodule"
-
-onmessage = handleMessage
-
-// handleSayHello will return a 'hello' message to the caller. It waits to
-// receive a queryUpdate before it says hello. The queryUpdate data should have
-// the form `{ sendUpdateNow: true }`
-function handleSayHello(aq: activeQuery) {
-	let message = "hello!"
-	aq.setReceiveUpdate((update: any) => {
-		if (update.sendUpdateNow !== true) {
-			reject("queryUpdate appears malformed")
-		}
-		accept({ message })
-	})
-}
-
-addHandler("sayHello", handleSayHello, { receiveUpdates: true })
-```
-
-### Sending queryUpdates and receiving responseUpdates
-
-TODO: talk about connectModule
+If you need to make a breaking change, make that change by writing a new
+method. Leave the old method intact unless there is a serious vulnerability and
+it would be better to break applications than to leave the user vulnerable.
 
 ### Unsafe Techniques
 
