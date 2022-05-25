@@ -10,13 +10,7 @@ import {
 } from "./queries.js"
 import { handlePresentSeed } from "./seed.js"
 import { tryStringify } from "./stringify.js"
-
-// dataFn can take any object as input and has no return value.
-type dataFn = (data?: any) => void
-
-// errFn must take a string as input, which will be relayed as an error. It has
-// no return value.
-type errFn = (err: string) => void
+import { dataFn, errFn } from "libskynet"
 
 // handlerFn takes an activeQuery as input and has no return value. The return
 // is expected to come in the form of calling aq.accept or aq.reject.

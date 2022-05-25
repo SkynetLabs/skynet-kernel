@@ -1,17 +1,7 @@
 import { logErr } from "./log.js"
 import { dataFn } from "./messages.js"
 import { tryStringify } from "./stringify.js"
-
-// errTuple is a type that pairs a 'data' field with an 'err' field. libkmodule
-// prefers to use errTuples as return values instead of throwing or rejecting.
-// This is because libkmodule entirely avoids the try/catch/throw pattern and
-// does not have any throws in the whole API.
-//
-// Typically, an errTuple will have only one field filled out. If data is
-// returned, the err should be 'null'. If an error is returned, the data field
-// should generally be empty. Callers are expected to check the error before
-// they access any part of the data field.
-type errTuple = [data: any, err: string | null]
+import { errTuple } from "libskynet"
 
 // queryResolve defines the function that gets called to resolve a query. It's
 // the 'resolve' field of a promise that returns a tuple containing some data
@@ -25,8 +15,7 @@ interface queryMap {
 		resolve: queryResolve
 		receiveUpdate?: dataFn
 		kernelNonce?: number
-		kernelPassword?: string
-		kernelNonceReceived: dataFn
+		kernelNonceReceived?: dataFn
 	}
 }
 
@@ -147,7 +136,6 @@ function handleResponseNonce(event: MessageEvent) {
 		return
 	}
 	queries[event.data.nonce]["kernelNonce"] = event.data.data.nonce
-	queries[event.data.nonce]["kernelPassword"] = event.data.data.password
 	queries[event.data.nonce].kernelNonceReceived()
 	return
 }
@@ -263,13 +251,6 @@ function newKernelQuery(
 	let nonce = queriesNonce
 	queriesNonce += 1
 
-	// Set up the promise that resovles when we have received the responseNonce
-	// from the kernel.
-	let kernelNonceReceived: dataFn
-	let blockForKernelNonce = new Promise((resolve) => {
-		kernelNonceReceived = resolve
-	})
-
 	// Create the sendUpdate function, which allows the caller to send a
 	// queryUpdate. The update cannot actually be sent until the kernel has told us the responseNonce
 	let sendUpdate = function (updateData: any) {
@@ -285,14 +266,18 @@ function newKernelQuery(
 	// Establish the query in the queries map and then send the query to the
 	// kernel.
 	let p: Promise<errTuple> = new Promise((resolve) => {
-		queries[nonce] = {
-			resolve,
-			kernelNonceReceived,
-		}
-		if (receiveUpdate !== undefined) {
+		queries[nonce] = { resolve }
+		let getKernelNonce = receiveUpdate !== null && receiveUpdate !== undefined
+		if (getKernelNonce) {
+			// Set up the promise that resovles when we have received the responseNonce
+			// from the kernel.
+			let kernelNonceReceived: dataFn
+			let blockForKernelNonce = new Promise((resolve) => {
+				kernelNonceReceived = resolve
+			})
+			queries[nonce]["kernelNonceReceived"] = resolve
 			queries[nonce]["receiveUpdate"] = receiveUpdate
 		}
-		let getKernelNonce = receiveUpdate !== null && receiveUpdate !== undefined
 		postMessage({
 			method,
 			nonce,

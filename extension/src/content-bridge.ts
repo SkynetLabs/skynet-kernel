@@ -82,6 +82,7 @@ function handleTest(data) {
 		method: "response",
 		err: null,
 		data: {
+			bridgeReady: true,
 			version: "v0.0.1",
 		},
 	})

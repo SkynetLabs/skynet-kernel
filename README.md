@@ -167,7 +167,7 @@ full compatibility with your libraries and applications.
 
 ## Developing Kernel Modules
 
-See the README in the modules folder for an overview of how to develop kernel
+See [here](libs/libkmodule/README.md) for information on developing kernel
 modules.
 
 ## Sending Messages From a Webpage
