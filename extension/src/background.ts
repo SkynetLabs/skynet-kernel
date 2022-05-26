@@ -9,6 +9,10 @@ declare var browser
 var kernelReady
 var blockForKernel = new Promise(resolve => {kernelReady = resolve})
 
+// Create a blocking function to know the auth status of the kernel.
+var authStatusKnown
+var blockForAuthStatus = new Promise(resolve => {authStatusKnown = resolve})
+
 // composeErr takes a series of inputs and composes them into a single string.
 // Each element will be separated by a newline. If the input is not a string,
 // it will be transformed into a string with JSON.stringify.
@@ -95,6 +99,8 @@ function queryKernel(query) {
 // bridgeBridgeMessage and the related functions will receive and handle
 // messages coming from the bridge. Note that many instances of the bridge can
 // exist across many different web pages.
+//
+// TODO: Need to build infra to relay any authChange messages.
 function handleBridgeMessage(port: any, data: any, domain: string) {
 	// Input sanitization.
 	if (!("nonce" in data)) {
@@ -133,7 +139,20 @@ function bridgeListener(port) {
 	// control the data of a module is typically only granted to a single
 	// web domain.
 	let domain = new URL(port.sender.url).hostname
+
+	// Add a listener to grab messages that are sent over the port.
 	port.onMessage.addListener(function(data) { handleBridgeMessage(port, data, domain) })
+
+	// Send a message down the port containing the current auth status of
+	// the kernel.
+	blockForAuthStatus.then((userAuthorized) => {
+		port.postMessage({
+			method: "kernelAuthStatus",
+			data: {
+				userAuthorized,
+			},
+		})
+	})
 }
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onConnect.addListener(bridgeListener)
@@ -219,6 +238,9 @@ function handleKernelResponse(event) {
 
 	// If the kernel is reporting anything to indicate a change in auth
 	// status, reload the extension.
+	//
+	// TODO: Need to send a message to the bridge indicating that the auth
+	// status has changed.
 	if (method === "kernelAuthStatusChanged") {
 		console.log("received authStatusChanged signal, reloading the kernel")
 		reloadKernel()
@@ -235,12 +257,12 @@ function handleKernelResponse(event) {
 		return
 	}
 
-	// Ignore the auth status message, we don't care.
+	// Establish the auth status.
 	//
-	// TODO: We actually do care, because we need to know so that apps can
-	// ask the background what the auth status is. Need to extend the
-	// protocol a bit here.
+	// TODO: We don't have a stable protocol yet for a changing auth
+	// status.
 	if (method === "kernelAuthStatus") {
+		authStatusKnown(event.data.data.userAuthorized)
 		return
 	}
 

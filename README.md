@@ -305,8 +305,7 @@ The query message should have the form:
 
 ```ts
 window.postMessage({
-	namespace: <string>,
-	nonce: <number>,
+	nonce: <string>,
 	method: "test",
 })
 ```
@@ -315,7 +314,6 @@ The response from the bridge will have the form:
 
 ```ts
 window.postMessage({
-	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "response",
 	err: <string | null>,
@@ -343,8 +341,7 @@ The initial query should have the form:
 
 ```ts
 window.postMessage({data
-	namespace: <string>,
-	nonce: <number>,
+	nonce: <string>,
 	method: "newKernelQuery",
 	data: <any>,
 })
@@ -353,7 +350,6 @@ window.postMessage({data
 Any queryUpdate messages should have the form:
 
 ```ts
-	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "queryUpdate",
 	data: <any>,
@@ -362,10 +358,8 @@ Any queryUpdate messages should have the form:
 Any responseUpdate messages will have the form:
 
 ```ts
-	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
-	err: <string | null>,
 	data: <any>,
 ```
 
@@ -373,7 +367,6 @@ The final response will have the form:
 
 ```ts
 window.postMessage({
-	namespace: originalQuery.namespace,
 	nonce: originalQuery.nonce,
 	method: "response",
 	err: <string | null>,
@@ -415,7 +408,7 @@ The query message should have the form:
 
 ```ts
 kernelFrame.contentWindow.postMessage({
-	nonce: <number>,
+	nonce: <string>,
 	method: "test",
 }, "http://kernel.skynet")
 ```
@@ -455,7 +448,7 @@ The query message should have the form:
 
 ```ts
 kernelFrame.contentWindow.postMessage({
-	nonce: <number>,
+	nonce: <string>,
 	method: "proxyInfo",
 	data: {
 		url: <string>,
@@ -501,7 +494,7 @@ The request should have the form:
 
 ```ts
 kernelFrame.contentWindow.postMessage({
-	nonce: <number>,
+	nonce: <string>,
 	method: "getRequest",
 	data: {
 		url: <string>,
@@ -564,7 +557,7 @@ The message will have the form:
 
 ```ts
 kernelFrame.contentWindow.postMessage({
-	nonce: <number>,
+	nonce: <string>,
 	domain: <string>,
 	method: "moduleCall",
 	data: {
@@ -588,7 +581,6 @@ Any responseUpdate messages will have the form:
 ```ts
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
-	err: <string | null>,
 	data: <any>,
 ```
 
@@ -768,7 +760,6 @@ Any responseUpdate should have the form:
 postMessage({
 	nonce: originalQuery.nonce,
 	method: "responseUpdate",
-	err: <string | null>,
 	data: <any>,
 })
 ```

@@ -440,7 +440,7 @@ window.parent.postMessage({
 let [userSeed, errGSU] = getUserSeed()
 if (errGSU !== null) {
 	// Send a message indicating the auth status.
-	log("auth", "user is not logged in\n", errGSU)
+	log("auth", "user is not logged in", errGSU)
 	window.parent.postMessage({
 		method: "kernelAuthStatus",
 		data: {

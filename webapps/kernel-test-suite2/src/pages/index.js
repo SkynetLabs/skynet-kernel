@@ -28,7 +28,15 @@ function nextTest() {
 // the bridge script was loaded. If this fails, it either means the browser
 // extension is missing entirely or it means that something fundamental broke.
 function TestLibkernelInit() {
-	return kernel.init()
+	return new Promise((resolve, reject) => {
+		kernel.init().then((err) => {
+			if (err !== null) {
+				reject(err)
+			} else {
+				resolve("kernel loaded successfully")
+			}
+		})
+	})
 }
 
 /*
@@ -598,12 +606,28 @@ function TestCard(props) {
 	)
 }
 
+// LoginButton is a react component that allows the user to log into the
+// kernel. It is only displayed if there is an auth error.
+//
+// TODO: Ha maybe not.
+function LoginButton(props) {
+	let loginPopup = function() {
+		window.open("https://skt.us/auth.html", "_blank")
+	}
+	return (
+		<div>
+			<button text="login" style={{margin: "12px"}} onClick={loginPopup}>Login to Kernel</button>
+		</div>
+	)
+}
+
 // Establish the index page.
 const IndexPage = () => {
 	return (
 		<main>
 			<title>Libkernel Test Suite</title>
 			<h1>Running Tests</h1>
+			<LoginButton />
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 		</main>
 	)

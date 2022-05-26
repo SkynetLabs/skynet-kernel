@@ -7,6 +7,17 @@ export {}
 
 declare var browser
 
+// Create the promise that tracks the kernel auth status.
+var authStatusKnown
+var blockForAuthStatus = new Promise(resolve => {authStatusKnown = resolve})
+
+// Establish a system for matching queries with their responses. We need a map
+// that maps from a background nonce to a page nonce, and we need a map that
+// maps from a page nonce to a background nonce.
+var queriesNonce = 0
+var queries = new Object()
+var reverseQueries = new Object()
+
 // log provides a wrapper for console.log that prefixes '[libkernel]' to the
 // output.
 function log(...inputs: any) {
@@ -19,17 +30,34 @@ function logErr(...inputs: any) {
 	console.error("[skynet-bridge]", ...inputs)
 }
 
-// Establish a system for matching queries with their responses. We need a map
-// that maps from a background nonce to a page namespace+nonce, and we need a
-// map that maps from a page namespace+nonce to a background nonce.
-var queriesNonce = 0
-var queries = new Object()
-var reverseQueries = new Object()
-function pageNonceStr(nonce: number, namespace: string) { return nonce.toString()+"n"+namespace }
-
 // Create the handler for messages from the background page. The background
 // will be exclusively relaying messages from the bridge to the kernel.
 function handleBackgroundMessage(data) {
+	// Check for a method field.
+	if (!("method" in data)) {
+		logErr("received message from background with no method")
+		return
+	}
+	// Check for a data field.
+	if (!("data" in data)) {
+		logErr("received message from background with no data field")
+		return
+	}
+
+	// Check whether this is an auth message. If so, forward the auth
+	// message.
+	//
+	// TODO: Might need to check that we aren't receiving multiple auth
+	// status messages. Or if we are, we might need to handle it.
+	if (data.method === "kernelAuthStatus") {
+		if (!("userAuthorized" in data.data)) {
+			logErr("received kernelAuthStatus with no userAuthorized field")
+			return
+		}
+		authStatusKnown(data.data.userAuthorized)
+		return
+	}
+
 	// Check what query this message maps to.
 	if (!("nonce" in data)) {
 		logErr("received message from background with no nonce: "+JSON.stringify(data))
@@ -45,11 +73,9 @@ function handleBackgroundMessage(data) {
 	let info = queries[data.nonce]
 	if (data.method === "response") {
 		delete queries[data.nonce]
-		let pns = pageNonceStr(info.nonce, info.namespace)
-		delete reverseQueries[pns]
+		delete reverseQueries[info.nonce]
 	}
 	let query = ({
-		namespace: info.namespace,
 		nonce: info.nonce,
 		method: data.method,
 	})
@@ -72,12 +98,14 @@ function handleBackgroundMessage(data) {
 // script, otherwise we will open a port for every single webpage that the user
 // visits, whether it is a skynet page or not.
 var port
-var portOpen = false
+port = browser.runtime.connect()
+port.onMessage.addListener(handleBackgroundMessage)
 
 // handleTest will send a response indicating the bridge is alive.
 function handleTest(data) {
+	// Send a message indicating that the bridge is alive.
+	log("got a test message")
 	window.postMessage({
-		namespace: data.namespace,
 		nonce: data.nonce,
 		method: "response",
 		err: null,
@@ -86,22 +114,27 @@ function handleTest(data) {
 			version: "v0.0.1",
 		},
 	})
+
+	// Wait until the kernel auth status is known, then send a message with
+	// the kernel auth status.
+	log("blocking for auth status")
+	blockForAuthStatus.then(userAuthorized => {
+		log("sending auth status")
+		window.postMessage({
+			method: "kernelAuthStatus",
+			data: {
+				userAuthorized,
+			},
+		})
+	})
 }
 
 // handleKernelQuery handles messages sent by the page that are intended to
 // eventually reach the kernel.
 function handleKernelQuery(data) {
-	// Open the port if it is not already open.
-	if (portOpen === false) {
-		port = browser.runtime.connect()
-		port.onMessage.addListener(handleBackgroundMessage)
-		portOpen = true
-	}
-
 	// Check for a kernel query.
 	if (!("data" in data)) {
 		window.postMessage({
-			namespace: data.namespace,
 			nonce: data.nonce,
 			method: "response",
 			err: "missing data from newKernelQuery message: "+JSON.stringify(data),
@@ -115,11 +148,9 @@ function handleKernelQuery(data) {
 	queriesNonce++
 	data.data.nonce = nonce
 	queries[nonce] = {
-		namespace: data.namespace,
 		nonce: data.nonce,
 	}
-	let pns = pageNonceStr(data.nonce, data.namespace)
-	reverseQueries[pns] = nonce
+	reverseQueries[data.nonce] = nonce
 	port.postMessage(data.data)
 }
 
@@ -128,7 +159,6 @@ function handleQueryUpdate(data) {
 	// Helper function to report an error.
 	let postErr = function(err) {
 		window.postMessage({
-			namespace: data.namespace,
 			nonce: data.nonce,
 			method: "responseUpdate",
 			err,
@@ -141,12 +171,11 @@ function handleQueryUpdate(data) {
 	}
 
 	// Find the corresponding kernel query.
-	let pns = pageNonceStr(data.nonce, data.namespace)
-	if (!(pns in reverseQueries)) {
+	if (!(data.nonce in reverseQueries)) {
 		postErr("no open query for provided nonce")
 		return
 	}
-	let nonce = reverseQueries[data.pns]
+	let nonce = reverseQueries[data.nonce]
 
 	// Send the update to the kernel.
 	port.postMessage({
@@ -163,18 +192,13 @@ function handleMessage(event: MessageEvent) {
 	if (event.source !== window) {
 		return
 	}
-	// Check that a namespace was provided.
-	if (!("namespace" in event.data)) {
-		logErr("'newKernelQuery' requires a namespace\n", event.data)
-		return
-	}
 	// Check that a nonce and method were both provided.
 	if (!("nonce" in event.data) || !("method" in event.data)) {
 		return
 	}
 
 	// Switch on the method.
-	if (event.data.method === "test") {
+	if (event.data.method === "kernelBridgeTest") {
 		handleTest(event.data)
 		return
 	}
@@ -196,7 +220,6 @@ function handleMessage(event: MessageEvent) {
 	// Log and send an error if the method is not recognized.
 	logErr("bridge received message with unrecognized method\n", event.data)
 	window.postMessage({
-		namespace: event.data.namespace,
 		nonce: event.data.nonce,
 		method: "response",
 		err: "bridge received message with unrecoginzed method: "+JSON.stringify(event.data),

@@ -61,17 +61,52 @@ function nextNonce(): string {
 function handleMessage(event: MessageEvent) {
 	// Ignore all messages that aren't from approved kernel sources. The
 	// two approved sources are skt.us and
-	console.log("got message", event.data)
-	if (event.source !== window && event.origin !== "skt.us") {
-		console.log("unknown message", event.data)
+	console.log(event.data)
+	if (event.source !== window && event.origin !== "https://skt.us") {
 		return
 	}
-	console.log(event.data)
+
+	// Ignore any messages that don't have a method field.
+	if (!("method" in event.data) || !("data" in event.data)) {
+		console.log("got a message missing a method or data field", event.data)
+		return
+	}
+
+	// Ignore logging requests, because the kernel can call console.log
+	// successfully itself.
+	if (event.data.method === "log") {
+		return
+	}
+
+	// init is complete when the kernel sends us the auth status. If the
+	// user is logged in, report success, otherwise return an error
+	// indicating that the user is not logged in.
+	if (event.data.method === "kernelAuthStatus") {
+		if (initResolved === true) {
+			console.error("kernel sent an auth status message, but init is already finished")
+			return
+		}
+		if (event.data.data.userAuthorized) {
+			initResolved = true
+			initResolve(null)
+		} else {
+			initResolved = true
+			initResolve("user is not logged in")
+		}
+		return
+	}
+
+	// Check for an auth status change. If there was an auth change, we
+	// just reload the whole window.
+	if (event.data.method === "kernelAuthStatusChanged") {
+		window.location.reload()
+		return
+	}
 
 	// Check that the message sent has a nonce and a method. We don't log
 	// on failure because the message may have come from 'window', which
 	// will happen if the app has other messages being sent to the window.
-	if (!("nonce" in event.data) || !("method" in event.data)) {
+	if (!("nonce" in event.data)) {
 		return
 	}
 	// If we can't locate the nonce in the queries map, there is nothing to
@@ -79,9 +114,7 @@ function handleMessage(event: MessageEvent) {
 	if (!(event.data.nonce in queries)) {
 		return
 	}
-
-	// TODO: Need to handle the message that says the kernel is ready or
-	// has failed. This is also where we call 'initResolve'
+	queries[event.data.nonce].resolve([event.data.data, event.data.err])
 }
 
 // launchKernelFrame will launch the skt.us iframe that is used to connect to the
@@ -94,6 +127,16 @@ function launchKernelFrame() {
 	iframe.style.border = "0"
 	iframe.style.position = "absolute"
 	document.body.appendChild(iframe)
+
+	// Set a timer to fail the login process if the kernel doesn't load in
+	// time.
+	setTimeout(() => {
+		if (initResolved === true) {
+			return
+		}
+		initResolved = true
+		initResolve("tried to open kernel in iframe, but hit a timeout")
+	}, 18000)
 }
 
 // messageBridge will send a message to the bridge of the skynet extension to
@@ -138,7 +181,7 @@ function messageBridge() {
 	// whether the bridge exists.
 	window.postMessage({
 		nonce,
-		method: "kernelBridgeTest", // TODO: Need to update the extension code for this, extension looks for "test"
+		method: "kernelBridgeTest",
 	})
 
 	// Set a timeout, if we do not hear back from the bridge in 500
@@ -161,6 +204,7 @@ function messageBridge() {
 // init is a function that returns a promise which will resolve when
 // initialization is complete.
 let initialized: boolean
+let initResolved: boolean
 let initResolve: (err: error) => void
 let initPromise: Promise<error>
 function init(): Promise<error> {
