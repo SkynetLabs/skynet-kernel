@@ -39,7 +39,6 @@ function TestLibkernelInit() {
 	})
 }
 
-/*
 // TestSendTestMessage will send a test message to the kernel and check for the
 // result. If this fails it probably means the kernel failed to load for some
 // reason, though it could also mean that the page->bridge->background->kernel
@@ -48,6 +47,7 @@ function TestSendTestMessage() {
 	return kernel.testMessage()
 }
 
+/*
 // TestModuleHasSeed checks that the test module was given a seed by the
 // kernel. This is one of the fundamental priveledges of being a kernel module:
 // receiving a secure and unique seed for module-specific user data.
@@ -542,29 +542,6 @@ function TestHelperModuleHasErrors() {
 		})
 	})
 }
-			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
-			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
-			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
-			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
-			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
-			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
-			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
-			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
-			<TestCard name="TestViewTesterSeedByHelper" test={TestViewTesterSeedByHelper} turn={getTurn()} />
-			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
-			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
-			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
-			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
-			<TestCard name="TestModuleUpdateQuery" test={TestModuleUpdateQuery} turn={getTurn()} />
-			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
-			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
-			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
-			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
-			<TestCard name="TestModuleSpeedSeq20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
-			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
-			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
-			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
-			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
 */
 
 // TestCard is a react component that runs a test and reports the result.
@@ -629,7 +606,32 @@ const IndexPage = () => {
 			<h1>Running Tests</h1>
 			<LoginButton />
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
+			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 		</main>
 	)
 }
+/*
+			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
+			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
+			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
+			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
+			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
+			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
+			<TestCard name="TestViewTesterSeedByHelper" test={TestViewTesterSeedByHelper} turn={getTurn()} />
+			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
+			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestModuleUpdateQuery" test={TestModuleUpdateQuery} turn={getTurn()} />
+			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
+			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedSeq20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
+			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
+*/
 export default IndexPage

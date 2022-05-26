@@ -160,6 +160,7 @@ function respondErr(event: any, messagePortal: any, isWorker: boolean, err: stri
 	let message = {
 		nonce: event.data.nonce,
 		method: "response",
+		data: {},
 		err,
 	}
 	if (isWorker === true) {

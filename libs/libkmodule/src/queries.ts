@@ -1,4 +1,4 @@
-import { logErr } from "./log.js"
+import { log, logErr } from "./log.js"
 import { dataFn } from "./messages.js"
 import { tryStringify } from "./stringify.js"
 import { errTuple } from "libskynet"
@@ -131,12 +131,18 @@ function handleResponseNonce(event: MessageEvent) {
 		logErr("temp err: nonce could not be found")
 		return
 	}
-	if ("kernelNonce" in queries[event.data.nonce]) {
+	let query = queries[event.data.nonce]
+	if ("kernelNonce" in query) {
 		logErr("received two responseNonce messages for the same query nonce")
 		return
 	}
-	queries[event.data.nonce]["kernelNonce"] = event.data.data.nonce
-	queries[event.data.nonce].kernelNonceReceived()
+	if (typeof query["kernelNonceReceived"] !== "function") {
+		// We got a nonce even though one wasn't requested.
+		log("received nonce even though none was requested")
+		return
+	}
+	query["kernelNonce"] = event.data.data.nonce
+	query.kernelNonceReceived()
 	return
 }
 
@@ -253,14 +259,8 @@ function newKernelQuery(
 
 	// Create the sendUpdate function, which allows the caller to send a
 	// queryUpdate. The update cannot actually be sent until the kernel has told us the responseNonce
-	let sendUpdate = function (updateData: any) {
-		blockForKernelNonce.then(() => {
-			postMessage({
-				method: "queryUpdate",
-				nonce: queries[nonce].kernelNonce,
-				data: updateData,
-			})
-		})
+	let sendUpdate: dataFn = function () {
+		// do nothing.
 	}
 
 	// Establish the query in the queries map and then send the query to the
@@ -271,12 +271,19 @@ function newKernelQuery(
 		if (getKernelNonce) {
 			// Set up the promise that resovles when we have received the responseNonce
 			// from the kernel.
-			let kernelNonceReceived: dataFn
 			let blockForKernelNonce = new Promise((resolve) => {
-				kernelNonceReceived = resolve
+				queries[nonce]["kernelNonceReceived"] = resolve
 			})
-			queries[nonce]["kernelNonceReceived"] = resolve
 			queries[nonce]["receiveUpdate"] = receiveUpdate
+			sendUpdate = function (updateData: any) {
+				blockForKernelNonce.then(() => {
+					postMessage({
+						method: "queryUpdate",
+						nonce: queries[nonce].kernelNonce,
+						data: updateData,
+					})
+				})
+			}
 		}
 		postMessage({
 			method,

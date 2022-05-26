@@ -40,7 +40,7 @@ function handleBackgroundMessage(data) {
 	}
 	// Check for a data field.
 	if (!("data" in data)) {
-		logErr("received message from background with no data field")
+		logErr("received message from background with no data field", data)
 		return
 	}
 

@@ -225,4 +225,26 @@ function init(): Promise<error> {
 	return initPromise
 }
 
+// newKernelQuery opens a query to the kernel. Details like postMessage
+// communication and nonce handling are all abstracted away by newKernelQuery.
+//
+// The first arg is the method that is being called on the kernel, and the
+// second arg is the data that will be sent to the kernel as input to the
+// method.
+//
+// The thrid arg is an optional function that can be passed in to receive
+// responseUpdates to the query. Not every query will send responseUpdates, and
+// most responseUpdates can be ignored, but sometimes contain useful
+// information like download progress.
+//
+// The first output is a 'sendUpdate' function that can be called to send a
+// queryUpdate. The second output is a promise that will resolve when the query
+// receives a response message. Once the response message has been received, no
+// more updates can be sent or received.
+function newKernelQuery(
+	method: string,
+	data: any,
+	receiveUpdate?: dataFn
+): [sendUpdate: dataFn, response: Promise<errTuple>] {}
+
 export { init }

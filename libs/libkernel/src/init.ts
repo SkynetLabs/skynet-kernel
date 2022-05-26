@@ -15,7 +15,6 @@ interface queryHandler {
 // Establish a hashmap for matching queries to their responses by their nonces.
 // nextNonce needs to start at '1' because '0' is reserved for the bridgeTest
 // method performed at init.
-const namespace = "libkernel-v0"
 let nextNonce = 1
 let queries: any = new Object()
 
@@ -78,7 +77,6 @@ function newKernelQuery(data: any, update: any): [any, Promise<any>] {
 		queries[nonce] = { resolve, reject, update, handle: handleKernelResponse }
 		init().then(() => {
 			window.postMessage({
-				namespace,
 				method: "newKernelQuery",
 				nonce,
 				data,
@@ -92,7 +90,6 @@ function newKernelQuery(data: any, update: any): [any, Promise<any>] {
 // existing query.
 function queryUpdate(nonce: number, data: any) {
 	window.postMessage({
-		namespace,
 		method: "queryUpdate",
 		nonce,
 		data,
@@ -112,12 +109,7 @@ function handleMessage(event: MessageEvent) {
 	if (event.source !== window) {
 		return
 	}
-	// Check that this message is a response targeting libkernel.
-	if (event.data.namespace !== namespace) {
-		return
-	}
 	if (!("method" in event.data) || typeof event.data.method !== "string") {
-		logErr("received message targeting our namespace with malformed method", event.data)
 		return
 	}
 	if (event.data.method === "responseNonce") {
@@ -190,9 +182,8 @@ function init(): Promise<string> {
 	// Send a message checking if the bridge is alive and responding. The
 	// nonce '0' is kept available explicitly for this purpose.
 	window.postMessage({
-		namespace,
 		nonce: 0,
-		method: "test",
+		method: "kernelBridgeTest",
 	})
 	queries[0] = bridgeAvailable
 
