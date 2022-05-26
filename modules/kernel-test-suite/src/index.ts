@@ -153,7 +153,7 @@ async function handleSendTestToKernel(activeQuery: any) {
 	let emptyFn = function () {
 		return
 	}
-	let [, queryPromise] = newKernelQuery("test", {}, emptyFn)
+	let [, queryPromise] = newKernelQuery("test", {}, false, emptyFn)
 	let [resp, err] = await queryPromise
 	if (err !== null) {
 		errors.push(<string>addContextToErr(err, "received error when performing 'test' method on kernel"))

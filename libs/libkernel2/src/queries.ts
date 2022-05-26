@@ -245,6 +245,15 @@ function newKernelQuery(
 	method: string,
 	data: any,
 	receiveUpdate?: dataFn
-): [sendUpdate: dataFn, response: Promise<errTuple>] {}
+): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	// Default the sendUpdate function to doing nothing.
+	let sendUpdate: dataFn = () => {}
+
+	// Get a nonce for the query and add it to the query map.
+	let nonce = nextNonce()
+	let p: Promise<errTuple> = new Promise((resolve) => {
+		queries[nonce] = { resolve }
+	})
+}
 
 export { init }

@@ -181,7 +181,7 @@ function callModule(module: string, method: string, data?: any): Promise<errTupl
 		method,
 		data,
 	}
-	let [, query] = newKernelQuery("moduleCall", moduleCallData)
+	let [, query] = newKernelQuery("moduleCall", moduleCallData, false)
 	return query
 }
 
@@ -232,25 +232,30 @@ function connectModule(
 	}
 	// We omit the 'receiveUpdate' function because this is a no-op. If the
 	// value is not defined, newKernelQuery will place in a no-op for us.
-	return newKernelQuery("moduleCall", moduleCallData, receiveUpdate)
+	return newKernelQuery("moduleCall", moduleCallData, true, receiveUpdate)
 }
 
-// newKernelQuery will send a postMessage to the kernel, handling details like
-// the nonce. The first input value is the data that should be sent to the
-// kernel. The second input value is an update function that should be called
-// to process any 'responseUpdate' messages. The first return value is a
-// function that can be called to provide a 'queryUpdate' and the final return
-// value is a promise that gets resolved when a 'response' is sent that closes
-// out the query.
+// newKernelQuery creates a query to send to the kernel. It automatically
+// handles details like the nonces and the postMessage communicaations.
+//
+// The first input is the method being called on the kernel, and the second
+// input is the data being provided as input to the method.
+//
+// The third input is a boolean indicating whether or not you want to send
+// queryUpdates. There is a small amount of performance overhead associated
+// with sending updates (slightly under one millisecond) so we only set up the
+// ability to send updates if it is requested.
+//
+// The final input is an optional function that gets called when a
+// responseUpdate is received. If no fourth input is provided, responseUpdates
+// will be ignored.
 //
 // NOTE: Typically developers should not use this function. Instead use
 // 'callModule' or 'connectModule'.
-//
-// TODO: Should update this function so that the ability to send updates is
-// optional, that way we can skip the handshake with the kernel.
 function newKernelQuery(
 	method: string,
 	data: any,
+	sendUpdates: boolean,
 	receiveUpdate?: dataFn
 ): [sendUpdate: dataFn, response: Promise<errTuple>] {
 	// Get the nonce for the query.
@@ -259,38 +264,37 @@ function newKernelQuery(
 
 	// Create the sendUpdate function, which allows the caller to send a
 	// queryUpdate. The update cannot actually be sent until the kernel has told us the responseNonce
-	let sendUpdate: dataFn = function () {
-		// do nothing.
-	}
+	let sendUpdate: dataFn = () => {}
 
 	// Establish the query in the queries map and then send the query to the
 	// kernel.
 	let p: Promise<errTuple> = new Promise((resolve) => {
 		queries[nonce] = { resolve }
-		let getKernelNonce = receiveUpdate !== null && receiveUpdate !== undefined
-		if (getKernelNonce) {
-			// Set up the promise that resovles when we have received the responseNonce
-			// from the kernel.
-			let blockForKernelNonce = new Promise((resolve) => {
-				queries[nonce]["kernelNonceReceived"] = resolve
-			})
-			queries[nonce]["receiveUpdate"] = receiveUpdate
-			sendUpdate = function (updateData: any) {
-				blockForKernelNonce.then(() => {
-					postMessage({
-						method: "queryUpdate",
-						nonce: queries[nonce].kernelNonce,
-						data: updateData,
-					})
-				})
-			}
-		}
-		postMessage({
-			method,
-			nonce,
-			data,
-			getKernelNonce,
+	})
+	if (receiveUpdate !== null && receiveUpdate !== undefined) {
+		queries[nonce]["receiveUpdate"] = receiveUpdate
+	}
+	if (sendUpdates) {
+		// Set up the promise that resovles when we have received the responseNonce
+		// from the kernel.
+		let blockForKernelNonce = new Promise((resolve) => {
+			queries[nonce]["kernelNonceReceived"] = resolve
 		})
+		sendUpdate = function (updateData: any) {
+			blockForKernelNonce.then(() => {
+				postMessage({
+					method: "queryUpdate",
+					nonce: queries[nonce].kernelNonce,
+					data: updateData,
+				})
+			})
+		}
+	}
+	postMessage({
+		method,
+		nonce,
+		data,
+		getKernelNonce: sendUpdates,
 	})
 	return [sendUpdate, p]
 }
