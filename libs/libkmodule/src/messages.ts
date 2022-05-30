@@ -141,6 +141,10 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
+	// any specific reason why event.data.method in router wasn't used?
+	// are you worries a method could be not defined on object but the
+	// name would match a method of its prototype and execute anyway ?
+
 	// Make sure we have a handler for this object.
 	if (!Object.prototype.hasOwnProperty.call(router, event.data.method)) {
 		respondErr(event, "unrecognized method '" + event.data.method + "'")
@@ -185,6 +189,8 @@ function handleMessage(event: MessageEvent) {
 
 	// Define the function that will allow the handler to send an update.
 	let sendUpdate = function (updateData: any) {
+		// should we also check here if responded === false ?
+
 		postMessage({
 			method: "responseUpdate",
 			nonce: event.data.nonce,

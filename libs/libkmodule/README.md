@@ -82,6 +82,10 @@ null. Generally, if the err is not null, the data object is expected to be
 empty. Once a response has been made, the query is considered complete and no
 further messages can be made related to that query.
 
+// note: responseUpdate sounds weird since it's sent before a response is made
+// and since response is final, responseUpdate will never happen after response
+// - maybe a different name for responseUpdate ?
+
 Before a response is made, both the caller and the module can send updates. If
 the caller sends an update, it is called a 'queryUpdate'. And if the module
 sends an update, it is called a 'responseUpdate'. Both the queryUpdate and the
@@ -109,6 +113,12 @@ the change.
 For traditional webapps, the domain of the application is used as the domain
 within the skynet kernel. For example, if 'spotify.com' started using the
 kernel, it would have the domain 'spotify.com' within the kernel.
+
+// question: since kernel can't verify whether certain handshake domain serves
+// correct skylink, rogue portal operators could replace profiledac.hns with
+// malicious skylink and to kernel it would look valid, then code at that 
+// malicious skylink could contact kernel and potentially extract data from
+// the domain that it got access to - is this correct thinking?
 
 For decentraliezd webapps, the domain of the application will be the resolved
 name of the application. For example, 'profiledac.hns' has an HNS name, and is
@@ -162,6 +172,9 @@ the password is correct. Both the salt and the skylink will be published to the
 repository of the module, the password of course will not be published. As long
 as the password is secure, this publication process is secure.
 
+// "There is no central website" - aren't we deploying to a specific portal?
+// Should we note that health of the module depends on the portal policies?
+
 This publication process is fully decentralized. There is no central website or
 service that is managing the creation and deployment of modules. This is great
 for censorship resistance and overall security, but also means that there's no
@@ -213,6 +226,8 @@ activeQuery object. The activeQuery object contains a variety of inputs that
 can all be used to complete messages. At least for getting started, the most
 important elements of the activeQuery object are `accept`, `reject`, and
 `callerInput`.
+
+// question: sounds like "accept" could be called "resolve" like in promises
 
 `accept` is a function which will provide a successful response to the caller.
 Best practice is actually to return an object instead of a basic value like a
@@ -410,7 +425,7 @@ handle errors immediately, because upon receiving an error you have much less
 information about the call stack.
 
 A very common return type is `Promise<errTuple>`. An `errTuple` is a
-`[data: any, err: string | null]`, which deconstructs into the return data of
+`[data: any, err: string | null]`, which deconstructs into the return data ofd
 the method plus an error. Typically, if `err` is not `null`, then there will be
 no return data. And typically, if there is return data, then `err` will be
 `null`.
@@ -491,6 +506,8 @@ callModule(downloadModule, "secureDownload", { skylink: exampleFile }).then(([re
 You can see the full documentation for the `secureDownload` module and its
 methods [here](../../modules/secure-download/README.md).
 
+// Question: why two functions if extra params are optional ?
+
 If you want to send queryUpdates and/or receive responseUpdates, you need to
 use the method `connectModule` instead of using `callModule`. connectModule has
 one extra input and one extra output, both optional.
@@ -549,6 +566,9 @@ async function performDownload(downloadLink: string) {
 ### Seed Management
 
 This only works if you have set `onmessage = handleMessage`.
+
+// from user security, getSeed sounds like the module gets your seed, I would
+// suggest renaming it to something like deriveSeed or deriveModuleSeed (?)
 
 libkmodule provides a global promise named `getSeed` which will resolve to the
 unique seed for the module. The seed needs to be provided as a promise because

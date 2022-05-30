@@ -1,5 +1,7 @@
 import { activeQuery } from "./messages.js"
 
+// note: promises only resolve once so you will not be able to update the seed without refreshing
+
 // Define a set of helper variables that track whether the seed has been
 // received by the kernel yet.
 let resolveSeed: any

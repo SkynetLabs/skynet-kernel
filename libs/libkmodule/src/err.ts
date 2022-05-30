@@ -1,5 +1,6 @@
 import { addContextToErr, composeErr } from "libskynet"
 import { clearIncomingQuery } from "./queries.js"
+// no need to create stringify.js, just import tryStringify directly from libskynet
 import { tryStringify } from "./stringify.js"
 
 // respondErr will send an error to the kernel as a response to a moduleCall.

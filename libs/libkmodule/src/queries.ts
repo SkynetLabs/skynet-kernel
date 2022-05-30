@@ -169,6 +169,13 @@ function handleResponseUpdate(event: MessageEvent) {
 	// Check whether a receiveUpdate function was set, and if so pass the
 	// update along. To prevent typescript
 	let query = queries[event.data.nonce]
+
+	// If I understand correctly, receiveUpdate is an external function that
+	// is executed in context of query and it is allowed to modify it since
+	// receiveUpdate will have "this" variable reference set to query and
+	// will be able to change any props on that query. It seems like it might
+	// be undesirable behavior so I suggest calling the function like this:
+	// query.receiveUpdate.call(null, event.data.data) - this way context is null
 	if (typeof query["receiveUpdate"] === "function") {
 		query.receiveUpdate(event.data.data)
 	}
