@@ -74,8 +74,13 @@ let kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
 function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(kernelTestSuite, "viewSeed", {})
-		.then(data => {
+		.then(([data, err]) => {
+			if (err !== null) {
+				reject("viewSeed returned an error: ", err)
+				return
+			}
 			if (!("seed" in data)) {
+				console.log("returned data:", data)
 				reject("viewSeed in test module did not return a data.seed")
 				return
 			}

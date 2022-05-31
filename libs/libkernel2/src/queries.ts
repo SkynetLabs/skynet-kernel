@@ -346,4 +346,19 @@ function newKernelQuery(
 	return [sendUpdate, p]
 }
 
-export { init, newKernelQuery }
+// callModule is a generic function to call a module. It will return whatever
+// response is provided by the module.
+//
+// callModule can only be used for query-response communication, there is no
+// support for sending or receiving updates.
+function callModule(module: string, method: string, data?: any): Promise<errTuple> {
+	let moduleCallData = {
+		module,
+		method,
+		data,
+	}
+	let [, query] = newKernelQuery("moduleCall", moduleCallData, false)
+	return query
+}
+
+export { callModule, init, newKernelQuery }
