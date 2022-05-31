@@ -45,9 +45,7 @@ function TestLibkernelInit() {
 // communication path is broken in some way.
 function TestSendTestMessage() {
 	return new Promise((resolve, reject) => {
-		kernel.testMessage().then((errTuple) => {
-			let data = errTuple[0]
-			let err = errTuple[1]
+		kernel.testMessage().then(([data, err]) => {
 			if (err !== null) {
 				reject(err)
 				return

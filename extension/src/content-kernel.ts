@@ -57,6 +57,7 @@ var downloadDefaultKernel = function(): Promise<string> {
 		downloadSkylink(defaultKernelResolverLink)
 		.then(output => {
 			// Handle the success case.
+			console.log("downloading completed:", output)
 			if (output.response.status === 200) {
 				let [text, errBTS] = bufToStr(output.fileData)
 				if (errBTS !== null) {
@@ -437,10 +438,10 @@ window.parent.postMessage({
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
 // authentication.
-let [userSeed, errGSU] = getUserSeed()
-if (errGSU !== null) {
-	// Send a message indicating the auth status.
-	log("auth", "user is not logged in", errGSU)
+//
+// NOTE: Depending on which browser is being used we need to
+// requestStorageAccess.
+function authFailed() {
 	window.parent.postMessage({
 		method: "kernelAuthStatus",
 		data: {
@@ -450,7 +451,30 @@ if (errGSU !== null) {
 	}, window.parent.origin)
 	kernelLoaded()
 	kernelHasLoaded = true
+}
+if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess")) {
+	document.requestStorageAccess().then(() => {
+		let [userSeed, errGSU] = getUserSeed()
+		if (errGSU !== null) {
+			log("auth", "user is not logged in", errGSU)
+			authFailed()
+		} else {
+			log("auth", "user is logged in, attempting to load kernel")
+			loadSkynetKernel()
+		}
+	})
+	.catch((err) => {
+		log("auth" , "could not get access to localStorage", err)
+		authFailed()
+	})
 } else {
-	log("auth", "user is logged in, attempting to load kernel")
-	loadSkynetKernel()
+	let [userSeed, errGSU] = getUserSeed()
+	if (errGSU !== null) {
+		// Send a message indicating the auth status.
+		log("auth", "user is not logged in", errGSU)
+		authFailed()
+	} else {
+		log("auth", "user is logged in, attempting to load kernel")
+		loadSkynetKernel()
+	}
 }
