@@ -44,7 +44,21 @@ function TestLibkernelInit() {
 // reason, though it could also mean that the page->bridge->background->kernel
 // communication path is broken in some way.
 function TestSendTestMessage() {
-	return kernel.testMessage()
+	return new Promise((resolve, reject) => {
+		kernel.testMessage().then((errTuple) => {
+			let data = errTuple[0]
+			let err = errTuple[1]
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			if (!("version" in data)) {
+				reject("no version provided in return value")
+				return
+			}
+			resolve(data.version)
+		})
+	})
 }
 
 /*

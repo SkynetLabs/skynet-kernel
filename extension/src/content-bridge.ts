@@ -104,7 +104,6 @@ port.onMessage.addListener(handleBackgroundMessage)
 // handleTest will send a response indicating the bridge is alive.
 function handleTest(data) {
 	// Send a message indicating that the bridge is alive.
-	log("got a test message")
 	window.postMessage({
 		nonce: data.nonce,
 		method: "response",
@@ -117,9 +116,7 @@ function handleTest(data) {
 
 	// Wait until the kernel auth status is known, then send a message with
 	// the kernel auth status.
-	log("blocking for auth status")
 	blockForAuthStatus.then(userAuthorized => {
-		log("sending auth status")
 		window.postMessage({
 			method: "kernelAuthStatus",
 			data: {
@@ -132,7 +129,7 @@ function handleTest(data) {
 // handleKernelQuery handles messages sent by the page that are intended to
 // eventually reach the kernel.
 function handleKernelQuery(data) {
-	// Check for a kernel query.
+	// Check for a kernel query. We already checked that a nonce exists.
 	if (!("data" in data)) {
 		window.postMessage({
 			nonce: data.nonce,
@@ -145,7 +142,7 @@ function handleKernelQuery(data) {
 	// Grab a unique nonce for sending this message to the background and
 	// add it to the data.
 	let nonce = queriesNonce
-	queriesNonce++
+	queriesNonce += 1
 	data.data.nonce = nonce
 	queries[nonce] = {
 		nonce: data.nonce,
@@ -203,6 +200,7 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	if (event.data.method === "newKernelQuery") {
+		log("got a thing", event.data)
 		handleKernelQuery(event.data)
 		return
 	}

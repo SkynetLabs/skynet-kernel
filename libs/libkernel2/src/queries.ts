@@ -1,3 +1,6 @@
+// TODO: Change 'getKernelNonce' to 'sendKernelNonce'
+// TODO: Change 'kernelBridgeTest' to 'bridgeExistsTest'
+
 import { log, logErr } from "./log.js"
 import { bufToB64, dataFn, encodeU64, error, errTuple } from "libskynet"
 
@@ -72,9 +75,20 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Ignore logging requests, because the kernel can call console.log
-	// successfully itself.
+	// Handle logging messages.
 	if (event.data.method === "log") {
+		// We display the logging message if the kernel is a browser
+		// extension, so that the kernel's logs appear in the app
+		// console as well as the extension console. If the kernel is
+		// in an iframe, its logging messages will already be in the
+		// app console and therefore don't need to be displayed.
+		if (kernelOrigin === window.origin) {
+			if (event.data.data.isErr) {
+				console.error(event.data.data.message)
+			} else {
+				console.log(event.data.data.message)
+			}
+		}
 		return
 	}
 
@@ -114,7 +128,30 @@ function handleMessage(event: MessageEvent) {
 	if (!(event.data.nonce in queries)) {
 		return
 	}
-	queries[event.data.nonce].resolve([event.data.data, event.data.err])
+	let query = queries[event.data.nonce]
+
+	// Handle a response.
+	if (event.data.method === "response") {
+		queries[event.data.nonce].resolve([event.data.data, event.data.err])
+		return
+	}
+
+	// Handle a response update.
+	if (event.data.method === "responseUpdate") {
+		// If no update handler was provided, there is nothing to do.
+		if (typeof query.receiveUpdate !== "function") {
+			return
+		}
+		query.receiveUpdate(event.data.data)
+		return
+	}
+
+	// Ignore the 'test' method messages (those are sent from ourselves).
+	if (event.data.method === "test") {
+		return
+	}
+
+	// TODO: need to handle responseNonce.
 }
 
 // launchKernelFrame will launch the skt.us iframe that is used to connect to the
@@ -127,6 +164,8 @@ function launchKernelFrame() {
 	iframe.style.border = "0"
 	iframe.style.position = "absolute"
 	document.body.appendChild(iframe)
+	kernelSource = <Window>iframe.contentWindow
+	kernelOrigin = "https://skt.us"
 
 	// Set a timer to fail the login process if the kernel doesn't load in
 	// time.
@@ -142,7 +181,8 @@ function launchKernelFrame() {
 // messageBridge will send a message to the bridge of the skynet extension to
 // see if it exists. If it does not respond or if it responds with an error,
 // messageBridge will open an iframe to skt.us and use that as the kernel.
-let kernelSource: string
+let kernelSource: Window
+let kernelOrigin: string
 function messageBridge() {
 	// Establish the function that will handle the bridge's response.
 	let bridgeInitComplete = false
@@ -162,13 +202,13 @@ function messageBridge() {
 		let err = et[1]
 		if (err !== null) {
 			logErr("bridge exists but returned an error", err)
-			kernelSource = "skt.us"
 			launchKernelFrame()
 			return
 		}
 
 		// Bridge has responded successfully, and there's no error.
-		kernelSource = "bridge"
+		kernelSource = window
+		kernelOrigin = window.origin
 	})
 
 	// Add the handler to the queries map.
@@ -179,10 +219,13 @@ function messageBridge() {
 
 	// Send a message to the bridge of the browser extension to determine
 	// whether the bridge exists.
-	window.postMessage({
-		nonce,
-		method: "kernelBridgeTest",
-	})
+	window.postMessage(
+		{
+			nonce,
+			method: "kernelBridgeTest",
+		},
+		window.origin
+	)
 
 	// Set a timeout, if we do not hear back from the bridge in 500
 	// milliseconds we assume that the bridge is not available.
@@ -194,7 +237,6 @@ function messageBridge() {
 		}
 		bridgeInitComplete = true
 		log("browser extension not found, falling back to skt.us")
-		kernelSource = "skt.us"
 		launchKernelFrame()
 	}, 500)
 
@@ -212,6 +254,7 @@ function init(): Promise<error> {
 	if (initialized === true) {
 		return initPromise
 	}
+	initialized = true
 
 	// Run all of the init functions.
 	initNonce()
@@ -244,6 +287,7 @@ function init(): Promise<error> {
 function newKernelQuery(
 	method: string,
 	data: any,
+	sendUpdates: boolean,
 	receiveUpdate?: dataFn
 ): [sendUpdate: dataFn, response: Promise<errTuple>] {
 	// Default the sendUpdate function to doing nothing.
@@ -254,6 +298,52 @@ function newKernelQuery(
 	let p: Promise<errTuple> = new Promise((resolve) => {
 		queries[nonce] = { resolve }
 	})
+
+	// Add the update functions.
+	if (receiveUpdate !== null && receiveUpdate !== undefined) {
+		queries[nonce]["receiveUpdate"] = receiveUpdate
+	}
+	if (sendUpdates === true) {
+		let blockForKernelNonce = new Promise((resolve) => {
+			queries[nonce]["kernelNonceReceived"] = resolve
+		})
+		sendUpdate = function (updateData: any) {
+			blockForKernelNonce.then(() => {
+				kernelSource.postMessage(
+					{
+						method: "queryUpdate",
+						nonce: queries[nonce].kernelNonce,
+						data: updateData,
+					},
+					kernelOrigin
+				)
+			})
+		}
+	}
+
+	// The message structure needs to adjust based on whether we are
+	// talking directly to the kernel or whether we are talking to the
+	// background page.
+	let kernelMessage = {
+		method,
+		nonce,
+		data,
+		getKernelNonce: sendUpdates,
+	}
+	if (kernelOrigin === "https://skt.us") {
+		// Send a message formatted to go directly to the kernel.
+		kernelSource.postMessage(kernelMessage, kernelOrigin)
+	} else {
+		kernelSource.postMessage(
+			{
+				method: "newKernelQuery",
+				nonce,
+				data: kernelMessage,
+			},
+			kernelOrigin
+		)
+	}
+	return [sendUpdate, p]
 }
 
-export { init }
+export { init, newKernelQuery }
