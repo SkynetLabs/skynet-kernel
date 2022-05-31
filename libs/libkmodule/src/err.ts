@@ -1,6 +1,6 @@
 import { addContextToErr, composeErr } from "libskynet"
 import { clearIncomingQuery } from "./queries.js"
-import { tryStringify } from "./stringify.js"
+import { tryStringify } from "libskynet"
 
 // respondErr will send an error to the kernel as a response to a moduleCall.
 function respondErr(event: MessageEvent, err: string) {

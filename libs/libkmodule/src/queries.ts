@@ -1,7 +1,6 @@
 import { log, logErr } from "./log.js"
 import { dataFn } from "./messages.js"
-import { tryStringify } from "./stringify.js"
-import { errTuple } from "libskynet"
+import { errTuple, tryStringify } from "libskynet"
 
 // queryResolve defines the function that gets called to resolve a query. It's
 // the 'resolve' field of a promise that returns a tuple containing some data

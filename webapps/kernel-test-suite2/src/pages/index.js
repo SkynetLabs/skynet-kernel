@@ -61,7 +61,6 @@ function TestSendTestMessage() {
 	})
 }
 
-/*
 // TestModuleHasSeed checks that the test module was given a seed by the
 // kernel. This is one of the fundamental priveledges of being a kernel module:
 // receiving a secure and unique seed for module-specific user data.
@@ -93,6 +92,7 @@ function TestModuleHasSeed() {
 	})
 }
 
+/*
 // TestModuleLogging checks that the test suite module is capable of logging.
 // This test requires looking in the console of the kernel to see that the log
 // was printed correctly.
@@ -621,11 +621,11 @@ const IndexPage = () => {
 			<LoginButton />
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
+			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
 		</main>
 	)
 }
 /*
-			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
 			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
 			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
 			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />

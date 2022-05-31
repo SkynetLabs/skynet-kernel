@@ -9,8 +9,7 @@ import {
 	handleResponseUpdate,
 } from "./queries.js"
 import { handlePresentSeed } from "./seed.js"
-import { tryStringify } from "./stringify.js"
-import { dataFn, errFn } from "libskynet"
+import { dataFn, errFn, tryStringify } from "libskynet"
 
 // handlerFn takes an activeQuery as input and has no return value. The return
 // is expected to come in the form of calling aq.accept or aq.reject.
@@ -179,6 +178,11 @@ function handleMessage(event: MessageEvent) {
 
 	// Define the function that will allow the handler to send an update.
 	let sendUpdate = function (updateData: any) {
+		if (responded) {
+			let str = tryStringify(updateData)
+			logErr("sendUpdate called after response already sent: " + str)
+			return
+		}
 		postMessage({
 			method: "responseUpdate",
 			nonce: event.data.nonce,

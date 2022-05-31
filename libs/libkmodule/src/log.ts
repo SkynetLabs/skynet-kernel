@@ -1,4 +1,4 @@
-import { tryStringify } from "./stringify.js"
+import { tryStringify } from "libskynet"
 
 // logHelper is a helper function that runs the code for both log and logErr.
 // It takes a boolean indiciating whether the log should be an error, and then

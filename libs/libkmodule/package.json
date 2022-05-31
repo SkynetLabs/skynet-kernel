@@ -1,6 +1,6 @@
 {
 	"name": "libkmodule",
-	"version": "0.0.45",
+	"version": "0.0.46",
 	"description": "helper library to interact with the skynet kernel from a module",
 	"main": "dist/index.js",
 	"type": "module",
