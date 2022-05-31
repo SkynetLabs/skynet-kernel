@@ -452,7 +452,7 @@ function authFailed() {
 	kernelLoaded()
 	kernelHasLoaded = true
 }
-if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess")) {
+if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && window.parent.origin === "https://skt.us") {
 	document.requestStorageAccess().then(() => {
 		let [userSeed, errGSU] = getUserSeed()
 		if (errGSU !== null) {
