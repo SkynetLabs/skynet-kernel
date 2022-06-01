@@ -1,5 +1,5 @@
 import * as React from "react"
-import * as kernel from "libkernelalpha"
+import * as kernel from "libkernel"
 
 // Define a set of functions which facilitate executing the tests sequentially.
 // Each test is assigned a 'turn' and then will wait to begin execution until
