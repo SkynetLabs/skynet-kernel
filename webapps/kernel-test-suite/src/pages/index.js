@@ -1,5 +1,5 @@
 import * as React from "react"
-import * as kernel from "libkernel"
+import * as kernel from "libkernelalpha"
 
 // Define a set of functions which facilitate executing the tests sequentially.
 // Each test is assigned a 'turn' and then will wait to begin execution until
@@ -28,7 +28,15 @@ function nextTest() {
 // the bridge script was loaded. If this fails, it either means the browser
 // extension is missing entirely or it means that something fundamental broke.
 function TestLibkernelInit() {
-	return kernel.init()
+	return new Promise((resolve, reject) => {
+		kernel.init().then((err) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			resolve("kernel loaded successfully")
+		})
+	})
 }
 
 // TestSendTestMessage will send a test message to the kernel and check for the
@@ -36,7 +44,19 @@ function TestLibkernelInit() {
 // reason, though it could also mean that the page->bridge->background->kernel
 // communication path is broken in some way.
 function TestSendTestMessage() {
-	return kernel.testMessage()
+	return new Promise((resolve, reject) => {
+		kernel.testMessage().then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			if (!("version" in data)) {
+				reject("no version provided in return value")
+				return
+			}
+			resolve(data.version)
+		})
+	})
 }
 
 // TestModuleHasSeed checks that the test module was given a seed by the
@@ -51,21 +71,20 @@ function TestSendTestMessage() {
 let kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
 function TestModuleHasSeed() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "viewSeed", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "viewSeed", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject("viewSeed returned an error: ", err)
+				return
+			}
 			if (!("seed" in data)) {
 				reject("viewSeed in test module did not return a data.seed")
 				return
 			}
-			console.log(data)
 			if (data.seed.length !== 16) {
 				reject("viewSeed in test module returned a seed with a non-standard length")
 				return
 			}
 			resolve("viewSeed appears to have returned a standard seed")
-		})
-		.catch(err => {
-			reject(err)
 		})
 	})
 }
@@ -75,12 +94,12 @@ function TestModuleHasSeed() {
 // was printed correctly.
 function TestModuleLogging() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "testLogging", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "testLogging", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			resolve("test module has produced logs")
-		})
-		.catch(err => {
-			reject(err)
 		})
 	})
 }
@@ -92,12 +111,12 @@ function TestModuleLogging() {
 let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo9no3XJpUydcDCjw7VJy8lG1MCZ3g"
 function TestMissingModule() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(moduleDoesNotExist, "viewSeed", {})
-		.then(data => {
+		kernel.callModule(moduleDoesNotExist, "viewSeed", {}).then(([data, err]) => {
+			if (err !== null) {
+				resolve(err)
+				return
+			}
 			reject("kernel is supposed to return an error:"+ JSON.stringify(data))
-		})
-		.catch(err => {
-			resolve(err)
 		})
 	})
 }
@@ -107,12 +126,12 @@ function TestMissingModule() {
 let moduleMalformed = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3"
 function TestMalformedModule() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(moduleMalformed, "viewSeed", {})
-		.then(data => {
+		kernel.callModule(moduleMalformed, "viewSeed", {}).then(([data, err]) => {
+			if (err !== null) {
+				resolve(err)
+				return
+			}
 			reject("kernel is supposed to return an error")
-		})
-		.catch(err => {
-			resolve(err)
 		})
 	})
 }
@@ -126,16 +145,12 @@ function TestModulePresentSeed() {
 		let fakeSeed = new Uint8Array(16)
 		kernel.callModule(kernelTestSuite, "presentSeed", {
 			seed: fakeSeed,
-		})
-		.then(data => {
-			// The reject and resolve get flipped because we want
-			// to trigger an error.
+		}).then(([data, err]) => {
+			if (err !== null) {
+				resolve("received expected error: "+err)
+				return
+			}
 			reject("expecting an error for using a forbidden method")
-		})
-		.catch(err => {
-			// The reject and resolve get flipped because we want
-			// to trigger an error.
-			resolve("received expected error: "+err)
 		})
 	})
 }
@@ -153,16 +168,16 @@ function TestModulePresentSeed() {
 // 	background -> bridge -> webpage
 function TestModuleQueryKernel() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "sendTestToKernel", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "sendTestToKernel", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("kernelVersion" in data)) {
 				reject("expecting response to have a kernelVersion")
 				return
 			}
 			resolve(data.kernelVersion)
-		})
-		.catch(err => {
-			reject("callModule failed: "+err)
 		})
 	})
 }
@@ -178,16 +193,16 @@ function TestModuleQueryKernel() {
 // 	kernel -> background -> bridge -> webpage
 function TestModuleCheckHelperSeed() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "viewHelperSeed", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "viewHelperSeed", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("message" in data)) {
 				reject("expecting response to have a kernelVersion")
 				return
 			}
 			resolve(data.message)
-		})
-		.catch(err => {
-			reject("callModule failed: "+err)
 		})
 	})
 }
@@ -206,16 +221,16 @@ function TestModuleCheckHelperSeed() {
 // 	kernel -> background -> bridge -> webpage
 function TestViewTesterSeedByHelper() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "viewOwnSeedThroughHelper", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "viewOwnSeedThroughHelper", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("message" in data)) {
 				reject("expecting response to have a kernelVersion")
 				return
 			}
 			resolve(data.message)
-		})
-		.catch(err => {
-			reject("callModule failed: "+err)
 		})
 	})
 }
@@ -223,8 +238,11 @@ function TestViewTesterSeedByHelper() {
 // Check that the kernel is assigning the correct domain to the webpage.
 function TestMirrorDomain() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "mirrorDomain", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "mirrorDomain", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("domain" in data)) {
 				reject("mirrorDomain did not return a domain")
 				return
@@ -239,17 +257,17 @@ function TestMirrorDomain() {
 			}
 			resolve("got expected domain: "+data.domain)
 		})
-		.catch(err => {
-			reject(err)
-		})
 	})
 }
 
 // Check that the kernel is assigning the correct domain to other modules.
 function TestTesterMirrorDomain() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "testerMirrorDomain", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "testerMirrorDomain", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("domain" in data)) {
 				reject("testerMirrorDomain did not return a domain")
 				return
@@ -264,9 +282,6 @@ function TestTesterMirrorDomain() {
 			}
 			resolve("got expected domain: "+data.domain)
 		})
-		.catch(err => {
-			reject(err)
-		})
 	})
 }
 
@@ -274,12 +289,12 @@ function TestTesterMirrorDomain() {
 // method field.
 function TestMethodFieldRequired() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, null, {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, null, {}).then(([data, err]) => {
+			if (err !== null) {
+				resolve("kernel failed when there was a call with no method: "+err)
+				return
+			}
 			reject("expecting a call to the kernel with no method to fail")
-		})
-		.catch(err => {
-			resolve("kernel failed when there was a call with no method: "+err)
 		})
 	})
 }
@@ -304,8 +319,11 @@ function TestResponseUpdates() {
 			progress += 25
 		}
 		let [, query] = kernel.connectModule(kernelTestSuite, "testResponseUpdate", {}, receiveUpdate)
-		query
-		.then(data => {
+		query.then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (progress !== 75) {
 				reject("response was received before responseUpdates were completed")
 				console.log("progress is:", progress)
@@ -321,9 +339,6 @@ function TestResponseUpdates() {
 			}
 			resolve("received all messages in order and final message was a response")
 		})
-		.catch(err => {
-			reject(kernel.addContextToErr(err, "testResponseUpdate failed"))
-		})
 	})
 }
 
@@ -331,12 +346,12 @@ function TestResponseUpdates() {
 // and responseUpdate messages.
 function TestModuleUpdateQuery() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "updateTest", {})
-		.then(response => {
-			resolve(response)
-		})
-		.catch(err => {
-			reject(err)
+		kernel.callModule(kernelTestSuite, "updateTest", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			resolve(data)
 		})
 	})
 }
@@ -345,8 +360,11 @@ function TestModuleUpdateQuery() {
 // module method that provides response updates.
 function TestIgnoreResponseUpdates() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "testResponseUpdate", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "testResponseUpdate", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("eventProgress" in data)) {
 				reject("expecting response to contain eventProgress")
 				return
@@ -357,9 +375,6 @@ function TestIgnoreResponseUpdates() {
 			}
 			resolve("received final message when calling testResponseUpdate using callModule")
 		})
-		.catch(err => {
-			reject(err)
-		})
 	})
 }
 
@@ -368,8 +383,11 @@ function TestIgnoreResponseUpdates() {
 // network.
 function TestBasicCORS() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "testCORS", {})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "testCORS", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("url" in data)) {
 				reject("testCORS did not return a url")
 				return
@@ -380,9 +398,6 @@ function TestBasicCORS() {
 			}
 			resolve("CORS test passed for url: "+data.url)
 		})
-		.catch(err => {
-			reject(err)
-		})
 	})
 }
 
@@ -392,9 +407,22 @@ function TestSecureUploadAndDownload() {
 	return new Promise((resolve, reject) => {
 		let fileDataUp = new TextEncoder().encode("test data")
 		kernel.upload("testUpload.txt", fileDataUp)
-		.then(skylink => {
-			kernel.download(skylink)
-			.then(fileDataDown => {
+		.then(([data, err])=> {
+			if (err !== null) {
+				reject("upload failed: "+err)
+				return
+			}
+			if (!("skylink" in data)) {
+				reject("return value of upload had no skylink field")
+				return
+			}
+			let skylink = data.skylink
+			kernel.download(skylink).then(([ddata, derr])=> {
+				if (derr !== null) {
+					reject("download failed: "+derr)
+					return
+				}
+				let fileDataDown = ddata.fileData
 				if (fileDataUp.length !== fileDataDown.length) {
 					reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
 					return
@@ -407,12 +435,6 @@ function TestSecureUploadAndDownload() {
 				}
 				resolve(skylink)
 			})
-			.catch(err => {
-				reject(err)
-			})
-		})
-		.catch(err => {
-			reject(err)
 		})
 	})
 }
@@ -430,12 +452,12 @@ function TestMsgSpeedSequential5k() {
 			return
 		}
 
-		kernel.testMessage()
-		.then(x => {
+		kernel.testMessage().then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			sendSequentialMessages(remaining-1, resolve, reject)
-		})
-		.catch(x => {
-			reject(x)
 		})
 	}
 	return new Promise((resolve, reject) => {
@@ -447,12 +469,12 @@ function TestMsgSpeedSequential5k() {
 // thousand sequential messages on the helper module.
 function TestModuleSpeedSequential20k() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(kernelTestSuite, "callModulePerformanceSequential", {iterations: 20000})
-		.then(data => {
+		kernel.callModule(kernelTestSuite, "callModulePerformanceSequential", {iterations: 20000}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			resolve("sequential messages succeeded")
-		})
-		.catch(err => {
-			reject(err)
 		})
 	})
 }
@@ -467,9 +489,18 @@ function TestMsgSpeedParallel5k() {
 		}
 		Promise.all(promises)
 		.then(x => {
+			for (let i = 0; i < x.length; i++) {
+				let err = x[i][1]
+				if (err !== null) {
+					reject(err)
+					return
+				}
+			}
 			resolve("all messages reseolved")
 		})
 		.catch(x => {
+			// I don't believe there's any way for the above call
+			// to reject but we check anyway.
 			reject(x)
 		})
 	})
@@ -480,11 +511,12 @@ function TestMsgSpeedParallel5k() {
 function TestModuleSpeedParallel20k() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(kernelTestSuite, "callModulePerformanceParallel", {iterations: 20000})
-		.then(data => {
+		.then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			resolve("sequential messages succeeded")
-		})
-		.catch(err => {
-			reject(err)
 		})
 	})
 }
@@ -494,7 +526,11 @@ function TestModuleSpeedParallel20k() {
 function TestModuleHasErrors() {
 	return new Promise((resolve, reject) => {
 		kernel.callModule(kernelTestSuite, "viewErrors", {})
-		.then(data => {
+		.then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("errors" in data)) {
 				reject("viewErrors in test module did not return a data.errors")
 				return
@@ -505,9 +541,6 @@ function TestModuleHasErrors() {
 			}
 			resolve("test module did not accumulate any errors")
 		})
-		.catch(err => {
-			reject(err)
-		})
 	})
 }
 
@@ -516,8 +549,11 @@ function TestModuleHasErrors() {
 let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 function TestHelperModuleHasErrors() {
 	return new Promise((resolve, reject) => {
-		kernel.callModule(helperModule, "viewErrors", {})
-		.then(data => {
+		kernel.callModule(helperModule, "viewErrors", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
 			if (!("errors" in data)) {
 				reject("viewErrors in helper module did not return a data.errors")
 				return
@@ -527,9 +563,6 @@ function TestHelperModuleHasErrors() {
 				return
 			}
 			resolve("helper module did not accumulate any errors")
-		})
-		.catch(err => {
-			reject(err)
 		})
 	})
 }
@@ -573,12 +606,28 @@ function TestCard(props) {
 	)
 }
 
+// LoginButton is a react component that allows the user to log into the
+// kernel. It is only displayed if there is an auth error.
+//
+// TODO: Ha maybe not.
+function LoginButton(props) {
+	let loginPopup = function() {
+		window.open("https://skt.us/auth.html", "_blank")
+	}
+	return (
+		<div>
+			<button text="login" style={{margin: "12px"}} onClick={loginPopup}>Login to Kernel</button>
+		</div>
+	)
+}
+
 // Establish the index page.
 const IndexPage = () => {
 	return (
 		<main>
 			<title>Libkernel Test Suite</title>
 			<h1>Running Tests</h1>
+			<LoginButton />
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
 			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
@@ -606,4 +655,5 @@ const IndexPage = () => {
 		</main>
 	)
 }
+
 export default IndexPage
