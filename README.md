@@ -283,10 +283,11 @@ including any centralized web page, is able to contact the bridge and use it to
 communicate with the user's kernel. The vast majority of application calls will
 talk exclusively to the bridge.
 
-The only two methods of the bridge are 'test' and 'newKernelQuery'.  'test' is
-a simple handshake protocol that a webpage can perform to confirm that the
-bridge exists. 'newKernelQuery' will cause the bridge to open a new query with
-the kernel, forwarding all updates and responses.
+The only two methods of the bridge are 'kernelBridgeVersion' and
+'newKernelQuery'. 'kernelBridgeVersion' is a simple handshake protocol that a
+webpage can perform to confirm that the bridge exists. 'newKernelQuery' will
+cause the bridge to open a new query with the kernel, forwarding all updates
+and responses.
 
 Because multiple scripts on the same page may be trying to communicate with the
 bridge, and those scripts have no way to avoid nonce reuse, we namespace the
@@ -398,9 +399,9 @@ the bridge or background page. It should be noted that total savings are less
 than 1 millisecond per kernel query, and very few applications will actually
 benefit from opening their own kernel iframe.
 
-#### test
+#### version
 
-test is a method that is supported by both the bootloader and the full kernel.
+version is a method that is supported by both the bootloader and the full kernel.
 It can be used by callers to establish that the kernel has loaded and is ready
 for communication.
 
@@ -409,7 +410,7 @@ The query message should have the form:
 ```ts
 kernelFrame.contentWindow.postMessage({
 	nonce: <string>,
-	method: "test",
+	method: "version",
 }, "http://kernel.skynet")
 ```
 
@@ -546,7 +547,7 @@ callModule request to succeed.
 
 The message contains a 'domain' field which states which domain the calling
 application is in. If the message is being sent by a web page, the kernel will
-ignore this field and instead use the actual domain of the sender.  If the
+ignore this field and instead use the actual domain of the sender. If the
 message is being sent by a browser extension, the domain is trusted to be
 accurate. This does create a vulnerability where a user may install a rogue
 browser extension that could then impersonate any domain and gain unfair access

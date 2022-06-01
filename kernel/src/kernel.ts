@@ -35,8 +35,6 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
-// TODO: Rename all of the 'test' methods to 'version' methods.
-
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
 // preferred portals. This process is independent of the full process, which we
 // need to marry to the bootstrap process.
@@ -111,7 +109,7 @@ declare var handleTest
 declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
-const kernelVersion = "v0.0.2"
+const kernelVersion = "v0.1.0"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
@@ -513,12 +511,13 @@ handleMessage = function(event) {
 	// the kernel and the calling application.
 	//
 	// It was easier to inline the message than to abstract it.
-	if (event.data.method === "test") {
+	if (event.data.method === "version") {
 		event.source.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: null,
 			data: {
+				distribution: "SkynetLabs",
 				version: kernelVersion,
 			},
 		}, event.origin)
