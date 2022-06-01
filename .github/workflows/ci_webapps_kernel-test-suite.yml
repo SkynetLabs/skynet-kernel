@@ -1,0 +1,31 @@
+name: "CI - webapps/kernel-test-suite"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - webapps/kernel-test-suite/**
+
+defaults:
+  run:
+    working-directory: webapps/kernel-test-suite
+
+jobs:
+  check:
+    name: "Checks and Tests"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [14.x, 16.x, 18.x]
+
+    steps:
+      - name: NPM Lint and Tests ${{ matrix.node-version }}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm run lint
+      - run: npm run build
