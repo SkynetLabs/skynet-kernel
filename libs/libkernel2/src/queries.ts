@@ -147,6 +147,8 @@ function handleMessage(event: MessageEvent) {
 	}
 
 	// Ignore the 'test' method messages (those are sent from ourselves).
+	//
+	// TODO: We changed the name of this message.
 	if (event.data.method === "test") {
 		return
 	}
@@ -361,4 +363,20 @@ function callModule(module: string, method: string, data?: any): Promise<errTupl
 	return query
 }
 
-export { callModule, init, newKernelQuery }
+// connectModule is the standard function to send a query to a module that can
+// optionally send and optionally receive updates.
+function connectModule(
+	module: string,
+	method: string,
+	data: any,
+	receiveUpdate: dataFn
+): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	let moduleCallData = {
+		module,
+		method,
+		data,
+	}
+	return newKernelQuery("moduleCall", moduleCallData, true, receiveUpdate)
+}
+
+export { callModule, connectModule, init, newKernelQuery }

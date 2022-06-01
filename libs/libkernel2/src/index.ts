@@ -1,3 +1,5 @@
 export { addContextToErr, composeErr } from "./err.js"
+export { download } from "./messagedownload.js"
 export { testMessage } from "./messagetest.js"
-export { callModule, init } from "./queries.js"
+export { upload } from "./messageupload.js"
+export { callModule, connectModule, init } from "./queries.js"

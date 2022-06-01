@@ -1,6 +1,6 @@
 {
 	"name": "libkernelalpha",
-	"version": "0.0.102",
+	"version": "0.0.105",
 	"description": "helper library to interact with skynet and the skynet kernel",
 	"main": "dist/index.js",
 	"type": "module",
