@@ -101,15 +101,14 @@ var port
 port = browser.runtime.connect()
 port.onMessage.addListener(handleBackgroundMessage)
 
-// handleTest will send a response indicating the bridge is alive.
-function handleTest(data) {
+// handleVersion will send a response providing the version of the bridge.
+function handleVersion(data) {
 	// Send a message indicating that the bridge is alive.
 	window.postMessage({
 		nonce: data.nonce,
 		method: "response",
 		err: null,
 		data: {
-			bridgeReady: true,
 			version: "v0.0.1",
 		},
 	})
@@ -195,8 +194,8 @@ function handleMessage(event: MessageEvent) {
 	}
 
 	// Switch on the method.
-	if (event.data.method === "kernelBridgeTest") {
-		handleTest(event.data)
+	if (event.data.method === "kernelBridgeVersion") {
+		handleVersion(event.data)
 		return
 	}
 	if (event.data.method === "newKernelQuery") {

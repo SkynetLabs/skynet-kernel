@@ -1,5 +1,4 @@
 // TODO: Change 'getKernelNonce' to 'sendKernelNonce'
-// TODO: Change 'kernelBridgeTest' to 'bridgeExistsTest'
 
 import { log, logErr } from "./log.js"
 import { bufToB64, dataFn, encodeU64, error, errTuple } from "libskynet"
@@ -223,7 +222,7 @@ function messageBridge() {
 	window.postMessage(
 		{
 			nonce,
-			method: "kernelBridgeTest",
+			method: "kernelBridgeVersion",
 		},
 		window.origin
 	)
