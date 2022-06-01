@@ -294,7 +294,7 @@ messages. libkernel uses the namespace 'libkernel', other scripts that
 communicate with the bridge should take care to use namespaces that are not
 going to collide.
 
-#### kernelBridgeTest
+#### kernelBridgeVersion
 
 The 'kernelBridgeTest' method can be used to check that the bridge exists. The
 bridge usually responds within 10 milliseconds. If there is no response after
@@ -306,7 +306,7 @@ The query message should have the form:
 ```ts
 window.postMessage({
 	nonce: <string>,
-	method: "kernelBridgeTest",
+	method: "kernelBridgeVersion",
 })
 ```
 

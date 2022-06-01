@@ -32,9 +32,9 @@ function TestLibkernelInit() {
 		kernel.init().then((err) => {
 			if (err !== null) {
 				reject(err)
-			} else {
-				resolve("kernel loaded successfully")
+				return
 			}
+			resolve("kernel loaded successfully")
 		})
 	})
 }

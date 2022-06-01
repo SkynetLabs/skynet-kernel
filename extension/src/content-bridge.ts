@@ -200,7 +200,6 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 	if (event.data.method === "newKernelQuery") {
-		log("got a thing", event.data)
 		handleKernelQuery(event.data)
 		return
 	}

@@ -64,7 +64,6 @@ function nextNonce(): string {
 function handleMessage(event: MessageEvent) {
 	// Ignore all messages that aren't from approved kernel sources. The
 	// two approved sources are skt.us and
-	console.log(event.data)
 	if (event.source !== window && event.origin !== "https://skt.us") {
 		return
 	}
@@ -323,28 +322,31 @@ function newKernelQuery(
 		}
 	}
 
-	// The message structure needs to adjust based on whether we are
-	// talking directly to the kernel or whether we are talking to the
-	// background page.
-	let kernelMessage = {
-		method,
-		nonce,
-		data,
-		getKernelNonce: sendUpdates,
-	}
-	if (kernelOrigin === "https://skt.us") {
-		// Send a message formatted to go directly to the kernel.
-		kernelSource.postMessage(kernelMessage, kernelOrigin)
-	} else {
-		kernelSource.postMessage(
-			{
-				method: "newKernelQuery",
-				nonce,
-				data: kernelMessage,
-			},
-			kernelOrigin
-		)
-	}
+	// Block until init is complete, then send the query to the kernel.
+	init().then(() => {
+		// The message structure needs to adjust based on whether we are
+		// talking directly to the kernel or whether we are talking to the
+		// background page.
+		let kernelMessage = {
+			method,
+			nonce,
+			data,
+			getKernelNonce: sendUpdates,
+		}
+		if (kernelOrigin === "https://skt.us") {
+			// Send a message formatted to go directly to the kernel.
+			kernelSource.postMessage(kernelMessage, kernelOrigin)
+		} else {
+			kernelSource.postMessage(
+				{
+					method: "newKernelQuery",
+					nonce,
+					data: kernelMessage,
+				},
+				kernelOrigin
+			)
+		}
+	})
 	return [sendUpdate, p]
 }
 

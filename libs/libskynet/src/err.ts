@@ -31,8 +31,9 @@ function composeErr(...inputs: any): string | null {
 			continue
 		}
 		if (resultEmpty) {
-			result += "\n"
 			resultEmpty = false
+		} else {
+			result += "\n"
 		}
 		result += tryStringify(inputs[i])
 	}

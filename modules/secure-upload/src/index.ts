@@ -10,6 +10,7 @@ import {
 	encodeU64,
 	progressiveFetch,
 	skylinkV1Bitfield,
+	tryStringify,
 	validateSkyfileMetadata,
 } from "libskynet"
 
@@ -205,7 +206,7 @@ function handleSecureUpload(event: MessageEvent) {
 				.json()
 				.then((j) => {
 					if (!("skylink" in j)) {
-						resolve("response is missing the skylink field\n" + JSON.stringify(j))
+						resolve("response is missing the skylink field\n" + tryStringify(j))
 						return
 					}
 					if (j.skylink !== skylink) {
@@ -221,7 +222,7 @@ function handleSecureUpload(event: MessageEvent) {
 	}
 	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyFunction).then((result: any) => {
 		if (result.success !== true) {
-			let err = JSON.stringify(result.messagesFailed)
+			let err = tryStringify(result.messagesFailed)
 			respondErr(event, addContextToErr(err, "unable to complete upload"))
 			return
 		}
