@@ -39,13 +39,13 @@ function TestLibkernelInit() {
 	})
 }
 
-// TestSendTestMessage will send a test message to the kernel and check for the
+// TestGetKernelVersion will send a test message to the kernel and check for the
 // result. If this fails it probably means the kernel failed to load for some
 // reason, though it could also mean that the page->bridge->background->kernel
 // communication path is broken in some way.
-function TestSendTestMessage() {
+function TestGetKernelVersion() {
 	return new Promise((resolve, reject) => {
-		kernel.testMessage().then(([data, err]) => {
+		kernel.kernelVersion().then(([data, err]) => {
 			if (err !== null) {
 				reject(err)
 				return
@@ -452,7 +452,7 @@ function TestMsgSpeedSequential5k() {
 			return
 		}
 
-		kernel.testMessage().then(([data, err]) => {
+		kernel.kernelVersion().then(([data, err]) => {
 			if (err !== null) {
 				reject(err)
 				return
@@ -485,7 +485,7 @@ function TestMsgSpeedParallel5k() {
 	return new Promise((resolve, reject) => {
 		let promises = []
 		for (let i = 0; i < 5000; i++) {
-			promises.push(kernel.testMessage())
+			promises.push(kernel.kernelVersion())
 		}
 		Promise.all(promises)
 		.then(x => {
@@ -629,7 +629,7 @@ const IndexPage = () => {
 			<h1>Running Tests</h1>
 			<LoginButton />
 			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
-			<TestCard name="TestSendTestMessage" test={TestSendTestMessage} turn={getTurn()} />
+			<TestCard name="TestGetKernelVersion" test={TestGetKernelVersion} turn={getTurn()} />
 			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
 			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
 			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />

@@ -109,6 +109,7 @@ declare var handleTest
 declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
+const kernelDistro = "SkynetLabs"
 const kernelVersion = "v0.1.0"
 
 // Set up a system to track messages that are sent to workers and to connect
@@ -210,12 +211,13 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	}
 
 	// Check if ther worker is performing a test query.
-	if (event.data.method === "test") {
+	if (event.data.method === "version") {
 		module.worker.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: null,
 			data: {
+				distribution: kernelDistro,
 				version: kernelVersion,
 			},
 		})
@@ -517,7 +519,7 @@ handleMessage = function(event) {
 			method: "response",
 			err: null,
 			data: {
-				distribution: "SkynetLabs",
+				distribution: kernelDistro,
 				version: kernelVersion,
 			},
 		}, event.origin)
