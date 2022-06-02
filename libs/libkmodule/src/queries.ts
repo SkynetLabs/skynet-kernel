@@ -293,7 +293,7 @@ function newKernelQuery(
 		method,
 		nonce,
 		data,
-		getKernelNonce: sendUpdates,
+		sendKernelNonce: sendUpdates,
 	})
 	return [sendUpdate, p]
 }

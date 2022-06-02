@@ -192,7 +192,7 @@ var kernelDiscoveryFailed = function(err) {
 			userAuthorized: true,
 			err: err.message,
 		},
-	}, window.parent.origin)
+	}, "*")
 	kernelLoaded()
 	kernelHasLoaded = true
 }
@@ -218,7 +218,7 @@ var evalKernel = function(kernel: string) {
 				userAuthorized: true,
 				err: null,
 			},
-		}, window.parent.origin)
+		}, "*")
 		kernelLoaded()
 		kernelHasLoaded = true
 	}
@@ -424,7 +424,7 @@ var handleStorage = function(event: StorageEvent) {
 	// the auth status has changed.
 	if (event.key === "v1-seed" || event.key === null) {
 		authChangeMessageSent = true
-		window.parent.postMessage({method: "kernelAuthStatusChanged"}, window.parent.origin)
+		window.parent.postMessage({method: "kernelAuthStatusChanged"}, "*")
 	}
 }
 window.addEventListener("storage", event => (handleStorage(event)))
@@ -433,7 +433,7 @@ window.addEventListener("storage", event => (handleStorage(event)))
 window.parent.postMessage({
 	method: "kernelReady",
 	data: {},
-}, window.parent.origin)
+}, "*")
 
 // If the user seed is in local storage, we'll load the kernel. If the user seed
 // is not in local storage, we'll report that the user needs to perform
@@ -448,11 +448,11 @@ function authFailed() {
 			userAuthorized: false,
 			err: null,
 		},
-	}, window.parent.origin)
+	}, "*")
 	kernelLoaded()
 	kernelHasLoaded = true
 }
-if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && window.parent.origin === "https://skt.us") {
+if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && "*" === "https://skt.us") {
 	document.requestStorageAccess().then(() => {
 		let [userSeed, errGSU] = getUserSeed()
 		if (errGSU !== null) {

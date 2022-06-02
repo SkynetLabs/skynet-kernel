@@ -39,24 +39,28 @@ function TestLibkernelInit() {
   });
 }
 
-// TestSendTestMessage will send a test message to the kernel and check for the
+// TestGetKernelVersion will send a test message to the kernel and check for the
 // result. If this fails it probably means the kernel failed to load for some
 // reason, though it could also mean that the page->bridge->background->kernel
 // communication path is broken in some way.
-function TestSendTestMessage() {
-  return new Promise((resolve, reject) => {
-    kernel.testMessage().then(([data, err]) => {
-      if (err !== null) {
-        reject(err);
-        return;
-      }
-      if (!("version" in data)) {
-        reject("no version provided in return value");
-        return;
-      }
-      resolve(data.version);
-    });
-  });
+function TestGetKernelVersion() {
+	return new Promise((resolve, reject) => {
+		kernel.kernelVersion().then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			if (!("version" in data)) {
+				reject("no version provided in return value")
+				return
+			}
+			if (!("distribution" in data)) {
+				reject("no distribution provided in return value")
+				return
+			}
+			resolve(data.version+"-"+data.distribution)
+		})
+	})
 }
 
 // TestModuleHasSeed checks that the test module was given a seed by the
@@ -501,17 +505,17 @@ function TestMsgSpeedSequential5k() {
       return;
     }
 
-    kernel.testMessage().then(([data, err]) => {
-      if (err !== null) {
-        reject(err);
-        return;
-      }
-      sendSequentialMessages(remaining - 1, resolve, reject);
-    });
-  };
-  return new Promise((resolve, reject) => {
-    sendSequentialMessages(5000, resolve, reject);
-  });
+		kernel.kernelVersion().then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			sendSequentialMessages(remaining-1, resolve, reject)
+		})
+	}
+	return new Promise((resolve, reject) => {
+		sendSequentialMessages(5000, resolve, reject)
+	})
 }
 
 // TestModuleSpeedSequential5k will have the tester module perform five
@@ -535,28 +539,28 @@ function TestModuleSpeedSequential20k() {
 // TestMsgSpeedParallel5k will send ten thousand messages to the kernel in
 // parallel.
 function TestMsgSpeedParallel5k() {
-  return new Promise((resolve, reject) => {
-    let promises = [];
-    for (let i = 0; i < 5000; i++) {
-      promises.push(kernel.testMessage());
-    }
-    Promise.all(promises)
-      .then((x) => {
-        for (let i = 0; i < x.length; i++) {
-          let err = x[i][1];
-          if (err !== null) {
-            reject(err);
-            return;
-          }
-        }
-        resolve("all messages reseolved");
-      })
-      .catch((x) => {
-        // I don't believe there's any way for the above call
-        // to reject but we check anyway.
-        reject(x);
-      });
-  });
+	return new Promise((resolve, reject) => {
+		let promises = []
+		for (let i = 0; i < 5000; i++) {
+			promises.push(kernel.kernelVersion())
+		}
+		Promise.all(promises)
+		.then(x => {
+			for (let i = 0; i < x.length; i++) {
+				let err = x[i][1]
+				if (err !== null) {
+					reject(err)
+					return
+				}
+			}
+			resolve("all messages reseolved")
+		})
+		.catch(x => {
+			// I don't believe there's any way for the above call
+			// to reject but we check anyway.
+			reject(x)
+		})
+	})
 }
 
 // TestModuleSpeedParallel5k will have the tester module perform five
@@ -673,9 +677,7 @@ function TestCard(props) {
 }
 
 // LoginButton is a react component that allows the user to log into the
-// kernel. It is only displayed if there is an auth error.
-//
-// TODO: Ha maybe not.
+// kernel.
 function LoginButton(props) {
   let loginPopup = function () {
     window.open("https://skt.us/auth.html", "_blank");
@@ -691,129 +693,37 @@ function LoginButton(props) {
 
 // Establish the index page.
 const IndexPage = () => {
-  return (
-    <main>
-      <title>Libkernel Test Suite</title>
-      <h1>Running Tests</h1>
-      <LoginButton />
-      <TestCard
-        name="TestLibkernelInit"
-        test={TestLibkernelInit}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestSendTestMessage"
-        test={TestSendTestMessage}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleHasSeed"
-        test={TestModuleHasSeed}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleLogging"
-        test={TestModuleLogging}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleMissingModule"
-        test={TestMissingModule}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleMalformedModule"
-        test={TestMalformedModule}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModulePresentSeed"
-        test={TestModulePresentSeed}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleQueryKernel"
-        test={TestModuleQueryKernel}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleCheckHelperSeed"
-        test={TestModuleCheckHelperSeed}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestViewTesterSeedByHelper"
-        test={TestViewTesterSeedByHelper}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMirrorDomain"
-        test={TestMirrorDomain}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestTesterMirrorDomain"
-        test={TestTesterMirrorDomain}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMethodFieldRequired"
-        test={TestMethodFieldRequired}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestResponseUpdates"
-        test={TestResponseUpdates}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleUpdateQuery"
-        test={TestModuleUpdateQuery}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestIgnoreResponseUpdates"
-        test={TestIgnoreResponseUpdates}
-        turn={getTurn()}
-      />
-      <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
-      <TestCard
-        name="TestSecureUploadAndDownload"
-        test={TestSecureUploadAndDownload}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMsgSpeedSequential5k"
-        test={TestMsgSpeedSequential5k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleSpeedSeq20k"
-        test={TestModuleSpeedSequential20k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMsgSpeedParallel5k"
-        test={TestMsgSpeedParallel5k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleSpeedParallel20k"
-        test={TestModuleSpeedParallel20k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleHasErrors"
-        test={TestModuleHasErrors}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestHelperModuleHasErrors"
-        test={TestHelperModuleHasErrors}
-        turn={getTurn()}
-      />
-    </main>
-  );
-};
+	return (
+		<main>
+			<title>Libkernel Test Suite</title>
+			<h1>Running Tests</h1>
+			<LoginButton />
+			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
+			<TestCard name="TestGetKernelVersion" test={TestGetKernelVersion} turn={getTurn()} />
+			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
+			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
+			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
+			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
+			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
+			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
+			<TestCard name="TestViewTesterSeedByHelper" test={TestViewTesterSeedByHelper} turn={getTurn()} />
+			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
+			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestModuleUpdateQuery" test={TestModuleUpdateQuery} turn={getTurn()} />
+			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
+			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedSeq20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
+			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
+		</main>
+	)
+}
 
 export default IndexPage;

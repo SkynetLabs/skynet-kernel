@@ -35,8 +35,6 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
-// TODO: Rename all of the 'test' methods to 'version' methods.
-
 // TODO: The bootloader already has a bootstrap process for grabbing the user's
 // preferred portals. This process is independent of the full process, which we
 // need to marry to the bootstrap process.
@@ -111,7 +109,8 @@ declare var handleTest
 declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
-const kernelVersion = "v0.0.2"
+const kernelDistro = "SkynetLabs"
+const kernelVersion = "0.1.0"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
@@ -120,6 +119,7 @@ interface openQuery {
 	isWorker: boolean;
 	domain: string;
 	source: any;
+	origin: any;
 	dest: any;
 	nonce: string;
 }
@@ -212,12 +212,13 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	}
 
 	// Check if ther worker is performing a test query.
-	if (event.data.method === "test") {
+	if (event.data.method === "version") {
 		module.worker.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: null,
 			data: {
+				distribution: kernelDistro,
 				version: kernelVersion,
 			},
 		})
@@ -305,6 +306,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	let sourceIsWorker = queries[event.data.nonce].isWorker
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
+	let origin = queries[event.data.nonce].origin
 	let msg = {
 		nonce: sourceNonce,
 		method: event.data.method,
@@ -322,7 +324,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	if (sourceIsWorker === true) {
 		source.postMessage(msg)
 	} else {
-		source.postMessage(msg, source.origin)
+		source.postMessage(msg, origin)
 	}
 }
 
@@ -423,6 +425,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 			source: messagePortal,
 			dest: moduleDomain,
 			nonce: event.data.nonce,
+			origin: event.origin,
 		}
 
 		// Send the message to the worker to start the query.
@@ -436,7 +439,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		// If the caller is asking for the kernel nonce for this query,
 		// send the kernel nonce. We don't always send the kernel nonce
 		// because messages have material overhead.
-		if (event.data.getKernelNonce === true) {
+		if (event.data.sendKernelNonce === true) {
 			let msg = {
 				nonce: event.data.nonce,
 				method: "responseNonce",
@@ -513,12 +516,13 @@ handleMessage = function(event) {
 	// the kernel and the calling application.
 	//
 	// It was easier to inline the message than to abstract it.
-	if (event.data.method === "test") {
+	if (event.data.method === "version") {
 		event.source.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: null,
 			data: {
+				distribution: kernelDistro,
 				version: kernelVersion,
 			},
 		}, event.origin)

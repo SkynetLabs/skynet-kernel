@@ -84,6 +84,7 @@ done
 # this code around the same time that we pull the full kernel into its own git
 # repo.
 kernelV2skylink=$(skynet-utils generate-v2skylink kernel/kernel.js $seed)
+echo $kernelV2skylink
 fileD="kernel/kernel.js"
 fileO="extension/bundle/content-kernel.ts"
 importLine=$(grep -n "// transplant:::$fileD" $fileO | cut -f1 -d:)
