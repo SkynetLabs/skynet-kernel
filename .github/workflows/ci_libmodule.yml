@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
     paths:
-      - lib/libmodule/**
+      - libs/libmodule/**
 
 defaults:
   run:
