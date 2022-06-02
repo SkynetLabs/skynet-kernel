@@ -54,7 +54,11 @@ function TestGetKernelVersion() {
 				reject("no version provided in return value")
 				return
 			}
-			resolve(data.version)
+			if (!("distribution" in data)) {
+				reject("no distribution provided in return value")
+				return
+			}
+			resolve(data.version+"-"+data.distribution)
 		})
 	})
 }
