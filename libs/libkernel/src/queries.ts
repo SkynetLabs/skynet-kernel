@@ -67,6 +67,11 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
+	// Ignore the 'test' method messages (those are sent from ourselves).
+	if (event.data.method === "kernelBridgeVersion") {
+		return
+	}
+
 	// Ignore any messages that don't have a method field.
 	if (!("method" in event.data) || !("data" in event.data)) {
 		console.log("got a message missing a method or data field", event.data)
@@ -141,13 +146,6 @@ function handleMessage(event: MessageEvent) {
 			return
 		}
 		query.receiveUpdate(event.data.data)
-		return
-	}
-
-	// Ignore the 'test' method messages (those are sent from ourselves).
-	//
-	// TODO: We changed the name of this message.
-	if (event.data.method === "test") {
 		return
 	}
 

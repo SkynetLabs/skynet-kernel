@@ -611,9 +611,7 @@ function TestCard(props) {
 }
 
 // LoginButton is a react component that allows the user to log into the
-// kernel. It is only displayed if there is an auth error.
-//
-// TODO: Ha maybe not.
+// kernel.
 function LoginButton(props) {
 	let loginPopup = function() {
 		window.open("https://skt.us/auth.html", "_blank")
