@@ -436,7 +436,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		// If the caller is asking for the kernel nonce for this query,
 		// send the kernel nonce. We don't always send the kernel nonce
 		// because messages have material overhead.
-		if (event.data.getKernelNonce === true) {
+		if (event.data.sendKernelNonce === true) {
 			let msg = {
 				nonce: event.data.nonce,
 				method: "responseNonce",

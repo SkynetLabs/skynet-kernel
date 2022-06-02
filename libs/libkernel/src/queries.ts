@@ -1,5 +1,3 @@
-// TODO: Change 'getKernelNonce' to 'sendKernelNonce'
-
 import { log, logErr } from "./log.js"
 import { bufToB64, dataFn, encodeU64, error, errTuple } from "libskynet"
 
@@ -19,6 +17,7 @@ interface queryMap {
 	}
 }
 
+// Create the queryMap singleton.
 let queries: queryMap = {}
 
 // Define the nonce handling. nonceSeed is 16 random bytes that get generated
@@ -67,14 +66,8 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Ignore the 'test' method messages (those are sent from ourselves).
-	if (event.data.method === "kernelBridgeVersion") {
-		return
-	}
-
-	// Ignore any messages that don't have a method field.
+	// Ignore any messages that don't have a method and data field.
 	if (!("method" in event.data) || !("data" in event.data)) {
-		console.log("got a message missing a method or data field", event.data)
 		return
 	}
 
@@ -173,7 +166,7 @@ function launchKernelFrame() {
 		}
 		initResolved = true
 		initResolve("tried to open kernel in iframe, but hit a timeout")
-	}, 18000)
+	}, 24000)
 }
 
 // messageBridge will send a message to the bridge of the skynet extension to
@@ -328,7 +321,7 @@ function newKernelQuery(
 			method,
 			nonce,
 			data,
-			getKernelNonce: sendUpdates,
+			sendKernelNonce: sendUpdates,
 		}
 		if (kernelOrigin === "https://skt.us") {
 			// Send a message formatted to go directly to the kernel.
@@ -347,8 +340,13 @@ function newKernelQuery(
 	return [sendUpdate, p]
 }
 
-// callModule is a generic function to call a module. It will return whatever
-// response is provided by the module.
+// callModule is a generic function to call a module. The first input is the
+// module identifier (typically a skylink), the second input is the method
+// being called on the module, and the final input is optional and contains
+// input data to be passed to the module. The input data will depend on the
+// module and the method that is being called. The return value is an errTuple
+// that contains the module's response. The format of the response is an
+// arbitrary object whose fields depend on the module and method being called.
 //
 // callModule can only be used for query-response communication, there is no
 // support for sending or receiving updates.
@@ -363,7 +361,24 @@ function callModule(module: string, method: string, data?: any): Promise<errTupl
 }
 
 // connectModule is the standard function to send a query to a module that can
-// optionally send and optionally receive updates.
+// optionally send and optionally receive updates. The first three inputs match
+// the inputs of 'callModule', and the fourth input is a function that will be
+// called any time that the module sends a responseUpdate. The receiveUpdate
+// function should have the following signature:
+//
+// 	`function receiveUpdate(data: any)`
+//
+// The structure of the data will depend on the module and method that was
+// queried.
+//
+// The first return value is a 'sendUpdate' function that can be called to send
+// a queryUpdate to the module. The sendUpdate function has the same signature
+// as the receiveUpdate function, it's an arbitrary object whose fields depend
+// on the module and method being queried.
+//
+// The second return value is a promise that returns an errTuple. It will
+// resolve when the module sends a response message, and works the same as the
+// return value of callModule.
 function connectModule(
 	module: string,
 	method: string,
