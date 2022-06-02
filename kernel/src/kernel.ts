@@ -119,6 +119,7 @@ interface openQuery {
 	isWorker: boolean;
 	domain: string;
 	source: any;
+	origin: any;
 	dest: any;
 	nonce: string;
 }
@@ -305,6 +306,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	let sourceIsWorker = queries[event.data.nonce].isWorker
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
+	let origin = queries[event.data.nonce].origin
 	let msg = {
 		nonce: sourceNonce,
 		method: event.data.method,
@@ -322,7 +324,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	if (sourceIsWorker === true) {
 		source.postMessage(msg)
 	} else {
-		source.postMessage(msg, source.origin)
+		source.postMessage(msg, origin)
 	}
 }
 
@@ -423,6 +425,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 			source: messagePortal,
 			dest: moduleDomain,
 			nonce: event.data.nonce,
+			origin: event.origin,
 		}
 
 		// Send the message to the worker to start the query.
