@@ -259,87 +259,6 @@ function init(): Promise<error> {
 	return initPromise
 }
 
-// newKernelQuery opens a query to the kernel. Details like postMessage
-// communication and nonce handling are all abstracted away by newKernelQuery.
-//
-// The first arg is the method that is being called on the kernel, and the
-// second arg is the data that will be sent to the kernel as input to the
-// method.
-//
-// The thrid arg is an optional function that can be passed in to receive
-// responseUpdates to the query. Not every query will send responseUpdates, and
-// most responseUpdates can be ignored, but sometimes contain useful
-// information like download progress.
-//
-// The first output is a 'sendUpdate' function that can be called to send a
-// queryUpdate. The second output is a promise that will resolve when the query
-// receives a response message. Once the response message has been received, no
-// more updates can be sent or received.
-function newKernelQuery(
-	method: string,
-	data: any,
-	sendUpdates: boolean,
-	receiveUpdate?: dataFn
-): [sendUpdate: dataFn, response: Promise<errTuple>] {
-	// Default the sendUpdate function to doing nothing.
-	let sendUpdate: dataFn = () => {}
-
-	// Get a nonce for the query and add it to the query map.
-	let nonce = nextNonce()
-	let p: Promise<errTuple> = new Promise((resolve) => {
-		queries[nonce] = { resolve }
-	})
-
-	// Add the update functions.
-	if (receiveUpdate !== null && receiveUpdate !== undefined) {
-		queries[nonce]["receiveUpdate"] = receiveUpdate
-	}
-	if (sendUpdates === true) {
-		let blockForKernelNonce = new Promise((resolve) => {
-			queries[nonce]["kernelNonceReceived"] = resolve
-		})
-		sendUpdate = function (updateData: any) {
-			blockForKernelNonce.then(() => {
-				kernelSource.postMessage(
-					{
-						method: "queryUpdate",
-						nonce: queries[nonce].kernelNonce,
-						data: updateData,
-					},
-					kernelOrigin
-				)
-			})
-		}
-	}
-
-	// Block until init is complete, then send the query to the kernel.
-	init().then(() => {
-		// The message structure needs to adjust based on whether we are
-		// talking directly to the kernel or whether we are talking to the
-		// background page.
-		let kernelMessage = {
-			method,
-			nonce,
-			data,
-			sendKernelNonce: sendUpdates,
-		}
-		if (kernelOrigin === "https://skt.us") {
-			// Send a message formatted to go directly to the kernel.
-			kernelSource.postMessage(kernelMessage, kernelOrigin)
-		} else {
-			kernelSource.postMessage(
-				{
-					method: "newKernelQuery",
-					nonce,
-					data: kernelMessage,
-				},
-				kernelOrigin
-			)
-		}
-	})
-	return [sendUpdate, p]
-}
-
 // callModule is a generic function to call a module. The first input is the
 // module identifier (typically a skylink), the second input is the method
 // being called on the module, and the final input is optional and contains
@@ -391,6 +310,152 @@ function connectModule(
 		data,
 	}
 	return newKernelQuery("moduleCall", moduleCallData, true, receiveUpdate)
+}
+
+// newKernelQuery opens a query to the kernel. Details like postMessage
+// communication and nonce handling are all abstracted away by newKernelQuery.
+//
+// The first arg is the method that is being called on the kernel, and the
+// second arg is the data that will be sent to the kernel as input to the
+// method.
+//
+// The thrid arg is an optional function that can be passed in to receive
+// responseUpdates to the query. Not every query will send responseUpdates, and
+// most responseUpdates can be ignored, but sometimes contain useful
+// information like download progress.
+//
+// The first output is a 'sendUpdate' function that can be called to send a
+// queryUpdate. The second output is a promise that will resolve when the query
+// receives a response message. Once the response message has been received, no
+// more updates can be sent or received.
+function newKernelQuery(
+	method: string,
+	data: any,
+	sendUpdates: boolean,
+	receiveUpdate?: dataFn
+): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	// NOTE: The implementation here is gnarly, because I didn't want to use
+	// async/await (that decision should be left to the caller) and I also
+	// wanted this function to work correctly even if init() had not been
+	// called yet.
+	//
+	// This function returns a sendUpdate function along with a promise, so we
+	// can't simply wrap everything in a basic promise. The sendUpdate function
+	// has to block internally until all of the setup is complete, and then we
+	// can't send a query until all of the setup is complete, and the setup
+	// cylce has multiple dependencies and therefore we get a few promises that
+	// all depend on each other.
+
+	// Create a promise that will resolve once the nonce is available. We
+	// cannot get the nonce until init() is complete. getNonce therefore
+	// implies that init is complete.
+	let getNonce: Promise<string> = new Promise((resolve) => {
+		init().then(() => {
+			resolve(nextNonce())
+		})
+	})
+
+	// Two promises are being created at once here. Once is 'p', which will be
+	// returned to the caller of newKernelQuery and will be resolved when the
+	// kernel provides a 'response' message. The other is for internal use and
+	// will resolve once the query has been created.
+	let p!: Promise<errTuple>
+	let queryCreated: dataFn
+	let haveQueryCreated: Promise<string> = new Promise((resolve) => {
+		queryCreated = resolve
+		p = new Promise((resolve) => {
+			getNonce.then((nonce: string) => {
+				queries[nonce] = { resolve }
+				if (receiveUpdate !== null && receiveUpdate !== undefined) {
+					queries[nonce]["receiveUpdate"] = receiveUpdate
+				}
+				queryCreated(nonce)
+			})
+		})
+	})
+
+	// Create a promise that will be resolved once we are ready to receive the
+	// kernelNonce. We won't be ready to receive the kernel nonce until after
+	// the queries[nonce] object has been created.
+	let readyForKernelNonce!: dataFn
+	let getReadyForKernelNonce: Promise<void> = new Promise((resolve) => {
+		readyForKernelNonce = resolve
+	})
+	// Create the sendUpdate function. It defaults to doing nothing. After the
+	// sendUpdate function is ready to receive the kernelNonce, resolve the
+	// promise that blocks until the sendUpdate function is ready to receive
+	// the kernel nonce.
+	let sendUpdate: dataFn
+	if (sendUpdates !== true) {
+		sendUpdate = () => {}
+		readyForKernelNonce() // We won't get a kernel nonce, no reason to block.
+	} else {
+		// sendUpdate will send an update to the kernel. The update can't be
+		// sent until the kernel nonce is known. Create a promise that will
+		// resolve when the kernel nonce is known.
+		//
+		// This promise cannot itself be created until the queries[nonce]
+		// object has been created, so block for the query to be created.
+		let blockForKernelNonce = new Promise((resolve) => {
+			haveQueryCreated.then((nonce: string) => {
+				queries[nonce]["kernelNonceReceived"] = resolve
+				readyForKernelNonce()
+			})
+		})
+
+		// The sendUpdate function needs both the local nonce and also the
+		// kernel nonce. Block for both. Having the kernel nonce implies that
+		// the local nonce is ready, therefore start by blocking for the kernel
+		// nonce.
+		sendUpdate = function (updateData: any) {
+			blockForKernelNonce.then(() => {
+				haveQueryCreated.then((nonce: string) => {
+					kernelSource.postMessage(
+						{
+							method: "queryUpdate",
+							nonce: queries[nonce].kernelNonce,
+							data: updateData,
+						},
+						kernelOrigin
+					)
+				})
+			})
+		}
+	}
+
+	// Prepare to send the query to the kernel. The query cannot be sent until
+	// the queries object is created and also we are ready to receive the
+	// kernel nonce.
+	haveQueryCreated.then((nonce: string) => {
+		getReadyForKernelNonce.then(() => {
+			// There are two types of messages we can send depending on whether
+			// we are talking to skt.us or the background script.
+			let kernelMessage = {
+				method,
+				nonce,
+				data,
+				sendKernelNonce: sendUpdates,
+			}
+			let backgroundMessage = {
+				method: "newKernelQuery",
+				nonce,
+				data: kernelMessage,
+			}
+
+			// The message structure needs to adjust based on whether we are
+			// talking directly to the kernel or whether we are talking to the
+			// background page.
+			if (kernelOrigin === "https://skt.us") {
+				kernelSource.postMessage(kernelMessage, kernelOrigin)
+			} else {
+				kernelSource.postMessage(backgroundMessage, kernelOrigin)
+			}
+		})
+	})
+
+	// Return sendUpdate and the promise. sendUpdate is already set to block
+	// until all the necessary prereqs are complete.
+	return [sendUpdate, p]
 }
 
 export { callModule, connectModule, init, newKernelQuery }

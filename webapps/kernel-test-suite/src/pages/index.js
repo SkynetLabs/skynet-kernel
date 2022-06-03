@@ -382,6 +382,22 @@ function TestIgnoreResponseUpdates() {
 	})
 }
 
+/*
+// TestLibkernelQueryUpdates is a test to check that queryUpdates are working
+// when using libkernel.
+//
+// We call the module with some data that sets a counter to 1, then it responds
+//
+// TODO: ASDF FDSA WWOOGGIIEE
+function TestLibkernelQueryUpdates() {
+	return new Promise((resolve, reject) => {
+		let receiveUpdate = function() {
+		}
+		let [sendUpdate, responsePromise] = kernel.connectModule(kernelTestSuite, "testLibkernelQueryUpdate", { counter: 1 }, receiveUpdate)
+	})
+}
+*/
+
 // TestBasicCORS has the test module make a fetch request to a couple of
 // websites to check that CORS is not preventing workers from talking to the
 // network.
