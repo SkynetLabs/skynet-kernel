@@ -1,4 +1,5 @@
 import { activeQuery } from "./messages.js"
+import { b64ToBuf } from "libskynet"
 
 // Define a set of helper variables that track whether the seed has been
 // received by the kernel yet.
@@ -15,7 +16,10 @@ let getSeed = new Promise((resolve) => {
 // "presentSeed" method, and therefore this is not a good example for how other
 // handlers should be implemented.
 function handlePresentSeed(aq: activeQuery) {
-	resolveSeed(aq.callerInput.seed)
+	// Decode the seed from base64 - the kernel will not provide us with
+	// invalid base64 for the seed so we don't need to check the error here.
+	let [u8arraySeed] = b64ToBuf(aq.callerInput.seed)
+	resolveSeed(u8arraySeed)
 }
 
 export { getSeed, handlePresentSeed }

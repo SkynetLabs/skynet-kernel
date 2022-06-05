@@ -44,6 +44,10 @@ libkernel, and by other modules. This is high priority to fix.
 The extension will prevent the web browser from working at all if there is no
 Internet connection. This is medium priority to fix.
 
+When loaded in skt.us, the kernel will reveal information to third parties
+about the user's extension settings. This only happens if the user provided a
+seed to skt.us, but it's still a vulnerability that should be cleaned up.
+
 There are a bunch of other places in the code where things are done in strange
 or inefficient ways. The kernel is very much in a state of 'it started working
 so we stopped touching it for now', we will be going thorugh the kernel over
@@ -713,7 +717,7 @@ a resolver link or a content link) and the user's seed.
 	let path = "moduleSeedDerivation"+moduleResolverSkylink
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
-	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
+	let moduleSeed = bufToB64(blake2b(moduleSeedPreimage).slice(0, 16))
 ```
 
 The message will have the form:
@@ -722,7 +726,7 @@ The message will have the form:
 worker.postMessage({
 	method: "presentSeed",
 	data: {
-		seed: <Uint8Array>,
+		seed: <string>,
 	},
 })
 ```
