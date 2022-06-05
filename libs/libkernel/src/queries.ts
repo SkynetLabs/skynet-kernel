@@ -12,7 +12,6 @@ interface queryMap {
 	[nonce: string]: {
 		resolve: queryResolve
 		receiveUpdate?: dataFn
-		kernelNonce?: string
 		kernelNonceReceived?: dataFn
 	}
 }
@@ -143,17 +142,10 @@ function handleMessage(event: MessageEvent) {
 	}
 
 	// Handle a responseNonce.
-	//
-	// TODO: Might be able to just resolve the kernelNonceReceived promise with
-	// the nonce rather than having multiple fields.
 	if (event.data.method === "responseNonce") {
-		console.log("libkernel received responseNonce message", event.data)
 		let knr = queries[event.data.nonce].kernelNonceReceived
 		if (typeof knr === "function") {
-			queries[event.data.nonce].kernelNonce = event.data.data.nonce
-			knr()
-		} else {
-			console.error("received responseNonce msg but queries object has no nonce handler", queries)
+			knr(event.data.data.nonce)
 		}
 		return
 	}
@@ -435,7 +427,7 @@ function newKernelQuery(
 		//
 		// This promise cannot itself be created until the queries[nonce]
 		// object has been created, so block for the query to be created.
-		let blockForKernelNonce = new Promise((resolve) => {
+		let blockForKernelNonce: Promise<string> = new Promise((resolve) => {
 			haveQueryCreated.then((nonce: string) => {
 				queries[nonce]["kernelNonceReceived"] = resolve
 				readyForKernelNonce()
@@ -447,17 +439,15 @@ function newKernelQuery(
 		// the local nonce is ready, therefore start by blocking for the kernel
 		// nonce.
 		sendUpdate = function (updateData: any) {
-			blockForKernelNonce.then(() => {
-				haveQueryCreated.then((nonce: string) => {
-					kernelSource.postMessage(
-						{
-							method: "queryUpdate",
-							nonce: queries[nonce].kernelNonce,
-							data: updateData,
-						},
-						kernelOrigin
-					)
-				})
+			blockForKernelNonce.then((nonce: string) => {
+				kernelSource.postMessage(
+					{
+						method: "queryUpdate",
+						nonce,
+						data: updateData,
+					},
+					kernelOrigin
+				)
 			})
 		}
 	}

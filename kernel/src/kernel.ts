@@ -111,7 +111,7 @@ declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.1.0"
+const kernelVersion = "0.2.1"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one

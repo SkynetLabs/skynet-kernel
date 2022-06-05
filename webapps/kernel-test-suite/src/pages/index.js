@@ -401,7 +401,6 @@ function TestLibkernelQueryUpdates() {
 		let sendUpdate
 		let expectedProgress = 1
 		let receiveUpdate = function(data) {
-			console.log("RECEIVED UPDATE")
 			// Don't handle an update if the query is already
 			// complete.
 			if (resolved === true) {
@@ -431,7 +430,6 @@ function TestLibkernelQueryUpdates() {
 			}
 
 			// Send the helper module an update with increased progress.
-			console.log("calling sendUpdate")
 			sendUpdate({ progress: data.progress +  1 })
 			expectedProgress += 2
 		}
