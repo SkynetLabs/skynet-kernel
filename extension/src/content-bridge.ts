@@ -78,12 +78,9 @@ function handleBackgroundMessage(data) {
 	let query = ({
 		nonce: info.nonce,
 		method: data.method,
+		data: data.data,
 	})
 
-	// Check that an error was included.
-	if ("data" in data) {
-		query["data"] = data.data
-	}
 	if (data.method === "response") {
 		if (!("err" in data)) {
 			query["err"] = "kernel did not include an err field in response"
@@ -152,33 +149,8 @@ function handleKernelQuery(data) {
 
 // handleQueryUpdate will forward an update to a query to the kernel.
 function handleQueryUpdate(data) {
-	// Helper function to report an error.
-	let postErr = function(err) {
-		window.postMessage({
-			nonce: data.nonce,
-			method: "responseUpdate",
-			err,
-		})
-	}
-	// Check that data was provided.
-	if (!("data" in data)) {
-		postErr("missing data from queryUpdate message: "+JSON.stringify(data))
-		return
-	}
-
-	// Find the corresponding kernel query.
-	if (!(data.nonce in reverseQueries)) {
-		postErr("no open query for provided nonce")
-		return
-	}
-	let nonce = reverseQueries[data.nonce]
-
 	// Send the update to the kernel.
-	port.postMessage({
-		nonce,
-		method: "queryUpdate",
-		data: data.data,
-	})
+	port.postMessage(data)
 }
 
 // This is the listener for the content script, it will receive messages from
@@ -207,9 +179,12 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Ignore response and responseUpdate messages because they may be from
-	// ourself.
-	if (event.data.method === "response" || event.data.method === "responseUpdate") {
+	// Ignore response messages because they are from ourself.
+	let isResponse = event.data.method === "response"
+	let isResponseUpdate = event.data.method === "responseUpdate"
+	let isResponseNonce = event.data.method === "responseNonce"
+	let isResponseX = isResponse || isResponseUpdate || isResponseNonce
+	if (isResponseX) {
 		return
 	}
 

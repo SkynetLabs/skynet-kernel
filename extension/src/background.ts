@@ -123,11 +123,13 @@ function handleBridgeMessage(port: any, data: any, domain: string) {
 	.then(x => {
 		// Grab the next nonce and store a promise resolution in the
 		// queries object.
-		let nonce = queriesNonce
-		queriesNonce += 1
-		queries[nonce] = respond
-		data.nonce = nonce
-		data.domain = domain
+		if (data.method !== "queryUpdate") {
+			let nonce = queriesNonce
+			queriesNonce += 1
+			queries[nonce] = respond
+			data.nonce = nonce
+			data.domain = domain
+		}
 		kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
 	})
 }
@@ -266,15 +268,13 @@ function handleKernelResponse(event) {
 		return
 	}
 
-	// TODO: Currently queryUpdates and the responseNonce set of messages
-	// aren't supported by skapps.
-	if (method === "responseNonce") {
-		return
-	}
-
 	// The only other methods we are expecting from the kernel are
 	// 'response' and 'responseUpdate'.
-	if (method !== "response" && method !== "responseUpdate") {
+	let isResponse = method === "response"
+	let isResponseUpdate = method === "responseUpdate"
+	let isResponseNonce = method === "responseNonce"
+	let isResponseX = isResponse || isResponseUpdate || isResponseNonce
+	if (!isResponseX) {
 		console.error("received a message from the kernel with unrecognized method:", event.data)
 		return
 	}

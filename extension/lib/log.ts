@@ -27,6 +27,7 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 			error: true,
 			debug: true,
 			auth: true,
+			moduleCall: true,
 			portal: true,
 			workerMessage: true,
 		})
@@ -34,6 +35,7 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 			"ERROR":         true,
 			"error":         true,
 			"auth":          true,
+			"moduleCall":    true,
 			"portal":        true,
 			"workerMessage": true}`
 	}

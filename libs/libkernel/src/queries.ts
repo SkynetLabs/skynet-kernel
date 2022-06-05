@@ -142,7 +142,21 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// TODO: need to handle responseNonce.
+	// Handle a responseNonce.
+	//
+	// TODO: Might be able to just resolve the kernelNonceReceived promise with
+	// the nonce rather than having multiple fields.
+	if (event.data.method === "responseNonce") {
+		console.log("libkernel received responseNonce message", event.data)
+		let knr = queries[event.data.nonce].kernelNonceReceived
+		if (typeof knr === "function") {
+			queries[event.data.nonce].kernelNonce = event.data.data.nonce
+			knr()
+		} else {
+			console.error("received responseNonce msg but queries object has no nonce handler", queries)
+		}
+		return
+	}
 }
 
 // launchKernelFrame will launch the skt.us iframe that is used to connect to the
@@ -345,6 +359,31 @@ function newKernelQuery(
 	// can't send a query until all of the setup is complete, and the setup
 	// cylce has multiple dependencies and therefore we get a few promises that
 	// all depend on each other.
+	//
+	// Using async/await here actually breaks certain usage patterns (or at
+	// least makes them much more difficult to use correctly). The standard way
+	// to establish duplex communication using connectModule is to define a
+	// variable 'sendUpdate' before defining the function 'receiveUpdate', and
+	// then setting 'sendUpdate' equal to the first return value of
+	// 'connectModue'. It looks like this:
+	//
+	// let sendUpdate;
+	// let receiveUpdate = function(data: any) {
+	//     if (data.needsUpdate) {
+	//         sendUpdate(someUpdate)
+	//     }
+	// }
+	// let [sendUpdateFn, response] = connectModule(x, y, z, receiveUpdate)
+	// sendUpdate = sendUpdateFn
+	//
+	// If we use async/await, it's not safe to set sendUpdate after
+	// connectModule returns because 'receiveUpdate' may be called before
+	// 'sendUpdate' is set. You can fix that by using a promise, but it's a
+	// complicated fix and we want this library to be usable by less
+	// experienced developers.
+	//
+	// Therefore, we make an implementation tradeoff here and avoid async/await
+	// at the cost of having a bunch of complicated promise chaining.
 
 	// Create a promise that will resolve once the nonce is available. We
 	// cannot get the nonce until init() is complete. getNonce therefore

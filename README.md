@@ -41,6 +41,9 @@ getting started on a new machine, you will also need to swap out the v2
 skylinks of every kernel module that gets imported by the test suite, by
 libkernel, and by other modules. This is high priority to fix.
 
+The extension will prevent the web browser from working at all if there is no
+Internet connection. This is medium priority to fix.
+
 There are a bunch of other places in the code where things are done in strange
 or inefficient ways. The kernel is very much in a state of 'it started working
 so we stopped touching it for now', we will be going thorugh the kernel over
