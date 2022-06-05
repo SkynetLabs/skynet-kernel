@@ -5,9 +5,17 @@ import { bufToB64, dataFn, encodeU64, error, errTuple } from "libskynet"
 // It gets called when a query sends a 'response' message.
 type queryResolve = (er: errTuple) => void
 
-// queryMap is a hashmap that maps a nonce to an open query. The 'resolve'
-// function is called when a 'response' message is received for the query. The
-// 'receiveUpdate' function is called when
+// queryMap is a hashmap that maps a nonce to an open query. 'resolve' gets
+// called when a response has been provided for the query.
+//
+// 'receiveUpdate' is a function that gets called every time a responseUpdate
+// message is sent to the query. If a responseUpdate is sent but there is no
+// 'receiveUpdate' method defined, the update will be ignored.
+//
+// 'kernelNonceReceived' is a promise that resolves when the kernel nonce has
+// been received from the kernel, which is a prerequesite for sending
+// queryUpdate messages. The promise will resolve with a string that contains
+// the kernel nonce.
 interface queryMap {
 	[nonce: string]: {
 		resolve: queryResolve
@@ -16,7 +24,7 @@ interface queryMap {
 	}
 }
 
-// Create the queryMap singleton.
+// Create the queryMap.
 let queries: queryMap = {}
 
 // Define the nonce handling. nonceSeed is 16 random bytes that get generated
@@ -59,8 +67,9 @@ function nextNonce(): string {
 
 // Establish the handler for incoming messages.
 function handleMessage(event: MessageEvent) {
-	// Ignore all messages that aren't from approved kernel sources. The
-	// two approved sources are skt.us and
+	// Ignore all messages that aren't from approved kernel sources. The two
+	// approved sources are skt.us and the browser extension bridge (which has
+	// an event.source equal to 'window')
 	if (event.source !== window && event.origin !== "https://skt.us") {
 		return
 	}
@@ -92,14 +101,13 @@ function handleMessage(event: MessageEvent) {
 	// indicating that the user is not logged in.
 	if (event.data.method === "kernelAuthStatus") {
 		if (initResolved === true) {
-			console.error("kernel sent an auth status message, but init is already finished")
+			console.log("kernel sent an auth status message, but init is already finished")
 			return
 		}
+		initResolved = true
 		if (event.data.data.userAuthorized) {
-			initResolved = true
 			initResolve(null)
 		} else {
-			initResolved = true
 			initResolve("user is not logged in")
 		}
 		return
@@ -134,18 +142,16 @@ function handleMessage(event: MessageEvent) {
 	// Handle a response update.
 	if (event.data.method === "responseUpdate") {
 		// If no update handler was provided, there is nothing to do.
-		if (typeof query.receiveUpdate !== "function") {
-			return
+		if (typeof query.receiveUpdate === "function") {
+			query.receiveUpdate(event.data.data)
 		}
-		query.receiveUpdate(event.data.data)
 		return
 	}
 
 	// Handle a responseNonce.
 	if (event.data.method === "responseNonce") {
-		let knr = queries[event.data.nonce].kernelNonceReceived
-		if (typeof knr === "function") {
-			knr(event.data.data.nonce)
+		if (typeof query.kernelNonceReceived === "function") {
+			query.kernelNonceReceived(event.data.data.nonce)
 		}
 		return
 	}
