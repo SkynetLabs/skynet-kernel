@@ -1,11 +1,63 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: "/"
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 10
+  # Root level dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: monthly
+
+  # /libs
+  - package-ecosystem: npm
+    directory: "/libs/libkernel"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/libs/libkerneldev"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/libs/libkmodule"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/libs/libskynet"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+
+  # /modules
+  - package-ecosystem: npm
+    directory: "/modules/kernel-test-helper"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/modules/kernel-test-suite"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/modules/secure-download"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/modules/secure-registry"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+  - package-ecosystem: npm
+    directory: "/modules/secure-upload"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
+
+  # /webapps
+  - package-ecosystem: npm
+    directory: "/webapps/kernel-test-suite"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 10
