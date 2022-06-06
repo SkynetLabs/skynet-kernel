@@ -1,6 +1,5 @@
-export { addContextToErr, composeErr } from "./err.js"
 export { log, logErr } from "./log.js"
-export { addHandler, handleMessage } from "./messages.js"
+export { activeQuery, addHandler, handleMessage } from "./messages.js"
 export { callModule, connectModule, newKernelQuery } from "./queries.js"
 export { getSeed } from "./seed.js"
-export { tryStringify } from "libskynet"
+export { addContextToErr, composeErr, tryStringify } from "libskynet"

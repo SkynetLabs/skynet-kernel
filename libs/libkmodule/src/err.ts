@@ -1,4 +1,3 @@
-import { addContextToErr, composeErr } from "libskynet"
 import { clearIncomingQuery } from "./queries.js"
 import { tryStringify } from "libskynet"
 
@@ -14,4 +13,4 @@ function respondErr(event: MessageEvent, err: string) {
 	clearIncomingQuery(event.data.nonce)
 }
 
-export { addContextToErr, composeErr, respondErr }
+export { respondErr }

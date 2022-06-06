@@ -24,6 +24,9 @@ function nextTest() {
   }
 }
 
+const kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
+const helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
+
 // TestLibkernelInit will check the init function of libkernel. This tests that
 // the bridge script was loaded. If this fails, it either means the browser
 // extension is missing entirely or it means that something fundamental broke.
@@ -72,7 +75,10 @@ function TestGetKernelVersion() {
 // 		kernel => test module ->
 // 		kernel ->
 // 	background -> bridge -> webpage
+<<<<<<< HEAD
 let kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g";
+=======
+>>>>>>> main
 function TestModuleHasSeed() {
   return new Promise((resolve, reject) => {
     kernel.callModule(kernelTestSuite, "viewSeed", {}).then(([data, err]) => {
@@ -423,6 +429,88 @@ function TestIgnoreResponseUpdates() {
   });
 }
 
+// TestLibkernelQueryUpdates is a test to check that queryUpdates are working
+// when using libkernel. It uses the same method on the helper module that the
+// tester module uses to verify connectModule in libkmodule, which gives us
+// confidence that the libraries are equivalent.
+//
+// TODO: Need to find some way to abort a query. Maybe that's per-module or
+// something I'm not sure.
+function TestLibkernelQueryUpdates() {
+	// Track whether or not we've called accept/reject.
+	let resolved = false
+
+	// Return a promise that resolves with the result of the test.
+	return new Promise((resolve, reject) => {
+		// Define a function to receive updates.
+		let sendUpdate
+		let expectedProgress = 1
+		let receiveUpdate = function(data) {
+			// Don't handle an update if the query is already
+			// complete.
+			if (resolved === true) {
+				console.error("received an update after query resolution")
+				return
+			}
+
+			if (!("progress" in data)) {
+				reject("expecting progress field in data")
+				resolved = true
+				return
+			}
+			if (typeof data.progress !== "number") {
+				reject("expecting progress to be a number")
+				resolved = true
+				return
+			}
+			if (expectedProgress !== data.progress) {
+				reject("progress has wrong value")
+				resolved = true
+				return
+			}
+			if (data.progress > 7) {
+				reject("progress is larger than 7")
+				resolved = true
+				return
+			}
+
+			// Send the helper module an update with increased progress.
+			sendUpdate({ progress: data.progress +  1 })
+			expectedProgress += 2
+		}
+
+		// Create the query and set 'sendUpdate' so that the
+		// receiveUpdate function can properly send updates.
+		//
+		// NOTE: Cannot use async here because that might cause a race
+		// condition where receiveUpdate is called before sendUpdate
+		// has been set properly. Could resolve this with some promise
+		// magic, but it's also not needed if you aren't using async.
+		let [sendUpdateFn, responsePromise] = kernel.connectModule(helperModule, "updateTest", { progress: 0 }, receiveUpdate)
+		sendUpdate = sendUpdateFn
+
+		// Block for the final response, where progress should equal 9.
+		responsePromise.then(([resp, err]) => {
+			if (resolved === true) {
+				console.error("received response after query was closed")
+				return
+			}
+			if (err !== null) {
+				reject(err)
+				resolved = true
+				return
+			}
+			if (resp.progress !== 9) {
+				reject("expected final progress to be 9")
+				resolved = true
+				return
+			}
+			resolve("query update test has passed")
+			resolved = true
+		})
+	})
+}
+
 // TestBasicCORS has the test module make a fetch request to a couple of
 // websites to check that CORS is not preventing workers from talking to the
 // network.
@@ -607,7 +695,6 @@ function TestModuleHasErrors() {
 
 // Check whether any errors showed up in the helper module of the testing
 // module.
-let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA";
 function TestHelperModuleHasErrors() {
   return new Promise((resolve, reject) => {
     kernel.callModule(helperModule, "viewErrors", {}).then(([data, err]) => {
@@ -693,6 +780,7 @@ function LoginButton(props) {
 
 // Establish the index page.
 const IndexPage = () => {
+<<<<<<< HEAD
   return (
     <main>
       <title>Libkernel Test Suite</title>
@@ -817,5 +905,40 @@ const IndexPage = () => {
     </main>
   );
 };
+=======
+	return (
+		<main>
+			<title>Libkernel Test Suite</title>
+			<h1>Running Tests</h1>
+			<LoginButton />
+			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
+			<TestCard name="TestGetKernelVersion" test={TestGetKernelVersion} turn={getTurn()} />
+			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
+			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
+			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
+			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
+			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
+			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
+			<TestCard name="TestViewTesterSeedByHelper" test={TestViewTesterSeedByHelper} turn={getTurn()} />
+			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
+			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestModuleUpdateQuery" test={TestModuleUpdateQuery} turn={getTurn()} />
+			<TestCard name="TestLibkernelQueryUpdates" test={TestLibkernelQueryUpdates} turn={getTurn()} />
+			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
+			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedSeq20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
+			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
+		</main>
+	)
+}
+>>>>>>> main
 
 export default IndexPage;

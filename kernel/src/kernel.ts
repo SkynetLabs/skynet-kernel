@@ -96,6 +96,7 @@
 // dependent on a particular extension having the same implementation as all of
 // the others.
 declare var blake2b
+declare var bufToB64
 declare var downloadSkylink
 declare var encodeNumber
 declare var getUserSeed
@@ -110,7 +111,7 @@ declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.1.0"
+const kernelVersion = "0.3.0"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
@@ -196,7 +197,6 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// to log and which domains do not, which might suggest the way
 		// we handle tags is not quite correct.
 		if (event.data.data.isErr === true) {
-			logErr("debug", module.domain, event.data.data.message)
 			logErr("workerMessage", module.domain, event.data.data.message)
 		} else {
 			log("workerMessage", module.domain, event.data.data.message)
@@ -352,7 +352,7 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
 	moduleSeedPreimage.set(u8Path, 0)
 	moduleSeedPreimage.set(activeSeed, u8Path.length)
-	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
+	let moduleSeed = bufToB64(blake2b(moduleSeedPreimage).slice(0, 16))
 	module.worker.postMessage({
 		method: "presentSeed",
 		domain: "root",
@@ -382,7 +382,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		return
 	}
 	if (typeof event.data.data.method !== "string") {
-		logErr("moduleCall", "recieved moduleCall with malformed method")
+		logErr("moduleCall", "recieved moduleCall with malformed method", event.data)
 		respondErr(event, messagePortal, isWorker, "'data.method' needs to be a string")
 		return
 	}
@@ -417,7 +417,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		noncePreimage.set(nonceSalt, 0)
 		noncePreimage.set(activeSeed, nonceSalt.length)
 		noncePreimage.set(nonceBytes, nonceSalt.length+activeSeed.length)
-		let nonce = blake2b(noncePreimage)
+		let nonce = bufToB64(blake2b(noncePreimage))
 		queriesNonce += 1
 		queries[nonce] = {
 			isWorker,
@@ -554,7 +554,22 @@ handleMessage = function(event) {
 		return
 	}
 	if (event.data.method === "queryUpdate") {
-		respondErr(event, event.source, false, "queryUpdate not yet supported")
+		// Check that the module still exists before sending a queryUpdate to
+		// the module.
+		if (!(event.data.nonce in queries)) {
+			logErr("auth", "received queryUpdate but nonce is not recognized", event.data, queries)
+			return
+		}
+		let dest = queries[event.data.nonce].dest
+		if (!(dest in modules)) {
+			logErr("workerMessage", "worker is sending queryUpdate to module that was killed")
+			return
+		}
+		modules[dest].worker.postMessage({
+			nonce: event.data.nonce,
+			method: event.data.method,
+			data: event.data.data,
+		})
 		return
 	}
 	if (event.data.method === "requestOverride") {

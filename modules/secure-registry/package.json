@@ -1,7 +1,7 @@
 {
-	"name": "kernel-test-suite-module",
+	"name": "secure-registry-module",
 	"version": "0.0.1",
-	"description": "skynet kernel module to test the kernel's APIs",
+	"description": "skynet kernel module to securely interact with the registry",
 	"main": "index.js",
 	"scripts": {
 		"eslint": "eslint src --fix",
@@ -20,7 +20,7 @@
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"eslint": "^8.13.0",
-		"libkerneldev": "^0.0.41",
+		"libkerneldev": "^0.0.39",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
 		"ts-loader": "^9.2.8",
@@ -29,7 +29,7 @@
 		"webpack-cli": "^4.9.2"
 	},
 	"dependencies": {
-		"libkernel": "^0.0.76",
-		"libkmodule": "^0.2.0"
+		"libkmodule": "^0.2.1",
+		"libskynet": "^0.0.8"
 	}
 }
