@@ -136,7 +136,6 @@ function readRegistryEntry(pubkey: Uint8Array, datakey: Uint8Array): Promise<rea
 				}
 			}
 			reject("unable to read registry entry\n" + JSON.stringify(result))
-			return
 		})
 	})
 }

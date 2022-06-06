@@ -162,4 +162,4 @@ function progressiveFetch(
 	})
 }
 
-export { progressiveFetch }
+export { progressiveFetch, progressiveFetchResult }
