@@ -41,25 +41,45 @@ If the entry does exists, 'entryData' will contain the binary contents of the
 registry entry. 'revisionNumber' will contain the revision number of the
 registry entry.
 
-#### overwriteEntry
+#### writeEntry
 
-overwriteEntry will overwrite an existing entry with new data. It will read the
-latest revision number and then overwrite the data in the entry with a higher
-revision number. This can be destructive! A common bug is accidentally
-overwriting newer data with older data. This function is considered unsafe, and
-it is recommended to use getsetjson instead for safer data management.
+writeEntry will write a new registry entry using a provided revision number.
+writeEntry is potentially unsafe, the caller should ensure that they have set a
+revision number that matches the most recent data that they have read.
+
+It is generally not recommended to use writeEntry directly. Instead, callers
+should use a library that wraps writeEntry with safety mechanisms.
 
 Input:
 
-Provide
+The inputs include a keypair, the data key, the data itself, and a revision
+number. The module will perform the signing and uploading.
 
-###### TODO:
+```ts
+{
+	module: "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q",
+	method: "overwriteEntry",
+	data: {
+		publicKey: <Uint8Array>,
+		secretKey: <Uint8Array>,
+		dataKey: <Uint8Array>,
+		data: <Uint8Array>,
+		revisionNumber: <BigInt>,
+	},
+}
+```
 
-Ergonomics thoughts: we want to make sure that this is easy to use. We also
-want this to be a layer where modules can provide any seed that they want.
-Therefore the input here should be a seed and a datakey identifier. We'll
-handle the privacy bits and we will make it private / unlinked. If you want it
-linked, use another structure.
+Output:
+
+```ts
+{
+	entryID: <string>,
+}
+```
+
+The output is the entryID of the registry entry that got written. No revision
+number is provided, as this is an overwrite and should not be used in any
+context where the revision number is important.
 
 ## Roadmap
 

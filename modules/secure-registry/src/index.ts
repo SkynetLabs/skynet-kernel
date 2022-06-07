@@ -15,7 +15,7 @@ onmessage = handleMessage
 
 // Establish the handlers for the methods.
 addHandler("readEntry", handleReadEntry)
-// addHandler("writeEntry", handleWriteEntry)
+addHandler("writeEntry", handleWriteEntry)
 
 // verifyDecodedResp will verify the decoded response from a portal for a
 // regRead call.
@@ -159,4 +159,8 @@ function handleReadEntry(aq: activeQuery) {
 
 		aq.reject("unable to read registry entry\n" + tryStringify(result))
 	})
+}
+
+// writeEntry kjkjkjkj
+function writeEntry(aq: activeQuery) {
 }
