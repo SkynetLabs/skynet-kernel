@@ -1,7 +1,12 @@
 import { activeQuery, addContextToErr, addHandler, handleMessage } from "libkmodule"
 import {
+	blake2b,
+	bufToB64,
 	bufToHex,
 	defaultPortalList,
+	deriveRegistryEntryID,
+	ed25519Sign,
+	encodePrefixedBytes,
 	encodeU64,
 	error,
 	hexToBuf,
@@ -159,9 +164,25 @@ function handleReadEntry(aq: activeQuery) {
 	})
 }
 
-// writeEntry is the handler for a writeEntry call, see the README for further
+// verifyRegistryWrite will check that the response from the portal matches the
+// write we attempted to perform.
+function verifyRegistryWrite(resp: Response): Promise<error> {
+	return new Promise((resolve) => {
+		if (!("status" in resp)) {
+			resolve("response did not contain a status")
+			return
+		}
+		if (resp.status === 204) {
+			resolve(null)
+			return
+		}
+		resolve("unrecognized status")
+	})
+}
+
+// handleWriteEntry is the handler for a writeEntry call, see the README for further
 // documentation.
-function writeEntry(aq: activeQuery) {
+function handleWriteEntry(aq: activeQuery) {
 	// Perform input validation.
 	let data = aq.callerInput
 	if (!("publicKey" in data)) {
@@ -233,7 +254,7 @@ function writeEntry(aq: activeQuery) {
 		aq.reject(addContextToErr(errEPB, "unable to encode data"))
 		return
 	}
-	let dataToSign = new Uint8Array(32+8+data.length+8)
+	let dataToSign = new Uint8Array(32 + 8 + data.length + 8)
 	dataToSign.set(data.datakey, 0)
 	dataToSign.set(encodedData, 32)
 	dataToSign.set(encodedRevision, 32 + 8 + data.length)
@@ -251,10 +272,10 @@ function writeEntry(aq: activeQuery) {
 			algorithm: "ed25519",
 			key: Array.from(data.publicKey),
 		},
-		datakey: datakeyHex,
+		datakey: dataKeyHex,
 		revision: Number(data.revision), // TODO: Need to encode this to be full precision
 		data: Array.from(data.data),
-		signature: Array.From(sig),
+		signature: Array.from(sig),
 	}
 	let [postJSON, errJS] = jsonStringify(postBody)
 	if (errJS !== null) {
@@ -266,16 +287,17 @@ function writeEntry(aq: activeQuery) {
 		body: postJSON,
 	}
 	let endpoint = "/skynet/registry"
-	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryWrite).then((result) => {
-		if (result.success === true) {
-			aq.accept({
-				entryID: bufToB64(entryID)
-			})
-			return
-		}
-		aq.reject("unable to write registry entry: "+tryStringify(result))
-	})
-	.catch((err) => {
-		reject(addContextToErr(err, "unable to write registry entry"))
-	})
+	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryWrite)
+		.then((result) => {
+			if (result.success === true) {
+				aq.accept({
+					entryID: bufToB64(entryID),
+				})
+				return
+			}
+			aq.reject("unable to write registry entry: " + tryStringify(result))
+		})
+		.catch((err) => {
+			aq.reject(addContextToErr(err, "unable to write registry entry"))
+		})
 }

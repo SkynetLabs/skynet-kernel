@@ -1,4 +1,4 @@
-import { addContextToErr, respondErr } from "./err.js"
+import { respondErr } from "./err.js"
 import { logErr } from "./log.js"
 import {
 	clearIncomingQuery,
@@ -9,7 +9,7 @@ import {
 	handleResponseUpdate,
 } from "./queries.js"
 import { handlePresentSeed } from "./seed.js"
-import { dataFn, errFn, tryStringify } from "libskynet"
+import { addContextToErr, dataFn, errFn, tryStringify } from "libskynet"
 
 // handlerFn takes an activeQuery as input and has no return value. The return
 // is expected to come in the form of calling aq.accept or aq.reject.
