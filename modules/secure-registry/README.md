@@ -77,9 +77,7 @@ Output:
 }
 ```
 
-The output is the entryID of the registry entry that got written. No revision
-number is provided, as this is an overwrite and should not be used in any
-context where the revision number is important.
+The output is the entryID of the registry entry that got written.
 
 ## Roadmap
 
