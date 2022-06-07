@@ -10,9 +10,9 @@ import { tryStringify } from "./stringify.js"
 // NOTE: To protect against accidental situations where an Error type or some
 // other type is provided instead of a string, we wrap both of the inputs with
 // tryStringify before returning them. This prevents runtime failures.
-function addContextToErr(err: string | null, context: string): string | null {
+function addContextToErr(err: string | null, context: string): string {
 	if (err === null) {
-		return null
+		err = "[no error provided]"
 	}
 	return tryStringify(context) + ": " + tryStringify(err)
 }

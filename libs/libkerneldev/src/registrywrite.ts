@@ -107,8 +107,7 @@ function overwriteRegistryEntry(keypair: any, datakey: Uint8Array, data: Uint8Ar
 				})
 			})
 			.catch((err) => {
-				reject(addContextToErr(err, "unable to read registry entry"))
-				return
+				reject(addContextToErr(err, "unable to write registry entry"))
 			})
 	})
 }

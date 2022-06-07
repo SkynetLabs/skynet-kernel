@@ -111,7 +111,7 @@ declare var handleSkynetKernelRequestOverride
 declare var handleSkynetKernelProxyInfo
 
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.3.0"
+const kernelVersion = "0.3.1"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
@@ -352,7 +352,7 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
 	moduleSeedPreimage.set(u8Path, 0)
 	moduleSeedPreimage.set(activeSeed, u8Path.length)
-	let moduleSeed = bufToB64(blake2b(moduleSeedPreimage).slice(0, 16))
+	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
 	module.worker.postMessage({
 		method: "presentSeed",
 		domain: "root",

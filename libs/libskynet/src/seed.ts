@@ -18,6 +18,9 @@ function generateSeedPhraseDeterministic(password: string): [string, string | nu
 	let seedWords = []
 	for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
 		let wordIndex = randNums[i] % dictionary.length
+		if (i == SEED_ENTROPY_WORDS - 1) {
+			wordIndex = randNums[i] % (dictionary.length / 4)
+		}
 		seedWords.push(dictionary[wordIndex])
 	}
 
@@ -148,4 +151,11 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
 	return [bytes, null]
 }
 
-export { generateSeedPhraseDeterministic, seedToChecksumWords, validSeedPhrase, SEED_BYTES }
+// seedPhraseToSeed will take a seed phrase and return the corresponding seed,
+// providing an error if the seed phrase is invalid. This is an alias of
+// validSeedPhrase.
+function seedPhraseToSeed(seedPhrase: string): [Uint8Array, string | null] {
+	return validSeedPhrase(seedPhrase)
+}
+
+export { generateSeedPhraseDeterministic, seedToChecksumWords, seedPhraseToSeed, validSeedPhrase, SEED_BYTES }

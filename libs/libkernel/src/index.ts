@@ -1,4 +1,5 @@
 export { download } from "./messagedownload.js"
+export { registryRead, registryWrite } from "./messageregistry.js"
 export { upload } from "./messageupload.js"
 export { kernelVersion } from "./messageversion.js"
 export { callModule, connectModule, init } from "./queries.js"

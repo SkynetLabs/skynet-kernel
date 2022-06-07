@@ -12,7 +12,6 @@ import {
 	newKernelQuery,
 	tryStringify,
 } from "libkmodule"
-import { b64ToBuf } from "libskynet"
 
 // Establish the module name of the helper module that we'll be using to test
 // cross-module communciation and a few other things that we can only test by
@@ -64,18 +63,12 @@ function checkPresentSeed(event: MessageEvent) {
 		errors.push("presentSeed did not include a seed")
 		return
 	}
-	if (typeof event.data.data.seed !== "string") {
-		logErr("seed is not a string")
-		errors.push("seed is not a string")
+	if (!(event.data.data.seed instanceof Uint8Array)) {
+		logErr("seed is not a Uint8Array")
+		errors.push("seed is not a Uint8Array")
 		return
 	}
-	let [seed, errBTB] = b64ToBuf(event.data.data.seed)
-	if (errBTB !== null) {
-		logErr("seed could not be decoded", errBTB)
-		errors.push("seed could not be decoded", errBTB)
-		return
-	}
-	if (seed.length !== 16) {
+	if (event.data.data.seed.length !== 16) {
 		logErr("seed is the wrong length")
 		errors.push("presentSeed did not provide a 16 byte seed")
 		return

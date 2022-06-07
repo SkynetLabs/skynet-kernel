@@ -1,5 +1,6 @@
-import * as React from "react";
-import * as kernel from "libkernel";
+import * as React from "react"
+import * as kernel from "libkernel"
+import * as skynet from "libskynet"
 
 // Define a set of functions which facilitate executing the tests sequentially.
 // Each test is assigned a 'turn' and then will wait to begin execution until
@@ -24,8 +25,13 @@ function nextTest() {
   }
 }
 
-const kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g";
-const helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA";
+// Real modules that we use during testing.
+const kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
+const helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
+
+// Fake modules to check error conditions.
+const moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo9no3XJpUydcDCjw7VJy8lG1MCZ3g"
+const moduleMalformed = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3"
 
 // TestLibkernelInit will check the init function of libkernel. This tests that
 // the bridge script was loaded. If this fails, it either means the browser
@@ -118,7 +124,6 @@ function TestModuleLogging() {
 // module that doesn't exist. For the module, we use the test module but with
 // the final character modified so that the hash doesn't actually point to
 // anything.
-let moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo9no3XJpUydcDCjw7VJy8lG1MCZ3g";
 function TestMissingModule() {
   return new Promise((resolve, reject) => {
     kernel
@@ -135,7 +140,6 @@ function TestMissingModule() {
 
 // TestMalformedModule checks that the kernel correctly handles a call to a
 // module that is using a malformed skylink.
-let moduleMalformed = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3";
 function TestMalformedModule() {
   return new Promise((resolve, reject) => {
     kernel.callModule(moduleMalformed, "viewSeed", {}).then(([data, err]) => {
@@ -535,6 +539,79 @@ function TestBasicCORS() {
   });
 }
 
+// TestSecureRegistry will check that the sercure-registry module is working.
+function TestSecureRegistry() {
+	return new Promise(async (resolve, reject) => {
+		// Start by creating keys that we can use to write to the registry.
+		let [seedPhrase, errSPD] = skynet.generateSeedPhraseDeterministic("kernel-test-suite")
+		if (errSPD !== null) {
+			reject("unable to generate seed for registry testing")
+			return
+		}
+		let [seed, errSPTS] = skynet.seedPhraseToSeed(seedPhrase)
+		if (errSPTS !== null) {
+			reject(skynet.addContextToErr(errSPTS, "unable to convert seed phrase to seed"))
+			return
+		}
+		let [keypair, dataKey, errTREK] = skynet.taggedRegistryEntryKeys(seed, "test1", "test1")
+		if (errTREK !== null) {
+			reject(skynet.addContextToErr(errTREK, "unable to generate tagged registry keys"))
+			return
+		}
+
+		// Read from the registry entry.
+		let [readData, errRR] = await kernel.registryRead(keypair.publicKey, dataKey)
+		if (errRR !== null) {
+			reject(skynet.addContextToErr(errRR, "unable to read from registry entry"))
+			return
+		}
+		if (readData.exists !== true) {
+			reject("registry entry should exist")
+			return
+		}
+		if (!("entryData" in readData)) {
+			reject("response should contain entryData")
+			return
+		}
+		if (!(readData.entryData instanceof Uint8Array)) {
+			console.error(readData.entryData)
+			reject("entryData response should be a Uint8Array")
+			return
+		}
+		let entryData = new TextEncoder().encode("test message in the registry")
+		if (entryData.length !== readData.entryData.length) {
+			reject("entryData mismatch")
+			return
+		}
+		for (let i = 0; i < entryData.length; i++) {
+			if (entryData[i] !== readData.entryData[i]) {
+				reject("entryData mismatch")
+				return
+			}
+		}
+		if (!("revision" in readData)) {
+			reject("revision not provided by readData")
+			return
+		}
+		if (typeof readData.revision !== "bigint") {
+			reject("revision should be a bigint")
+			return
+		}
+
+		// Write to the registry entry.
+		let [resp, errRW] = await kernel.registryWrite(keypair, dataKey, entryData, readData.revision+1n)
+		if (errRW !== null) {
+			reject(skynet.addContextToErr(errRW, "error when calling registry module"))
+			return
+		}
+		if (!("entryID" in resp)) {
+			reject("registry module response does not contain an entryID field")
+			return
+		}
+		resolve(resp.entryID)
+	})
+}
+
 // TestSecureUploadAndDownload will upload a very basic file to Skynet using
 // libkernel. It will then download that skylink using libkernel.
 function TestSecureUploadAndDownload() {
@@ -781,134 +858,39 @@ function LoginButton(props) {
 
 // Establish the index page.
 const IndexPage = () => {
-  return (
-    <main>
-      <title>Libkernel Test Suite</title>
-      <h1>Running Tests</h1>
-      <LoginButton />
-      <TestCard
-        name="TestLibkernelInit"
-        test={TestLibkernelInit}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestGetKernelVersion"
-        test={TestGetKernelVersion}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleHasSeed"
-        test={TestModuleHasSeed}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleLogging"
-        test={TestModuleLogging}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleMissingModule"
-        test={TestMissingModule}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleMalformedModule"
-        test={TestMalformedModule}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModulePresentSeed"
-        test={TestModulePresentSeed}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleQueryKernel"
-        test={TestModuleQueryKernel}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleCheckHelperSeed"
-        test={TestModuleCheckHelperSeed}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestViewTesterSeedByHelper"
-        test={TestViewTesterSeedByHelper}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMirrorDomain"
-        test={TestMirrorDomain}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestTesterMirrorDomain"
-        test={TestTesterMirrorDomain}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMethodFieldRequired"
-        test={TestMethodFieldRequired}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestResponseUpdates"
-        test={TestResponseUpdates}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestIgnoreResponseUpdates"
-        test={TestIgnoreResponseUpdates}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleUpdateQuery"
-        test={TestModuleUpdateQuery}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestLibkernelQueryUpdates"
-        test={TestLibkernelQueryUpdates}
-        turn={getTurn()}
-      />
-      <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
-      <TestCard
-        name="TestSecureUploadAndDownload"
-        test={TestSecureUploadAndDownload}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMsgSpeedSequential5k"
-        test={TestMsgSpeedSequential5k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleSpeedSeq20k"
-        test={TestModuleSpeedSequential20k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestMsgSpeedParallel5k"
-        test={TestMsgSpeedParallel5k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleSpeedParallel20k"
-        test={TestModuleSpeedParallel20k}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestModuleHasErrors"
-        test={TestModuleHasErrors}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestHelperModuleHasErrors"
-        test={TestHelperModuleHasErrors}
-        turn={getTurn()}
-      />
-    </main>
-  );
-};
+	return (
+		<main>
+			<title>Libkernel Test Suite</title>
+			<h1>Running Tests</h1>
+			<LoginButton />
+			<TestCard name="TestLibkernelInit" test={TestLibkernelInit} turn={getTurn()} />
+			<TestCard name="TestGetKernelVersion" test={TestGetKernelVersion} turn={getTurn()} />
+			<TestCard name="TestModuleHasSeed" test={TestModuleHasSeed} turn={getTurn()} />
+			<TestCard name="TestModuleLogging" test={TestModuleLogging} turn={getTurn()} />
+			<TestCard name="TestModuleMissingModule" test={TestMissingModule} turn={getTurn()} />
+			<TestCard name="TestModuleMalformedModule" test={TestMalformedModule} turn={getTurn()} />
+			<TestCard name="TestModulePresentSeed" test={TestModulePresentSeed} turn={getTurn()} />
+			<TestCard name="TestModuleQueryKernel" test={TestModuleQueryKernel} turn={getTurn()} />
+			<TestCard name="TestModuleCheckHelperSeed" test={TestModuleCheckHelperSeed} turn={getTurn()} />
+			<TestCard name="TestViewTesterSeedByHelper" test={TestViewTesterSeedByHelper} turn={getTurn()} />
+			<TestCard name="TestMirrorDomain" test={TestMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestTesterMirrorDomain" test={TestTesterMirrorDomain} turn={getTurn()} />
+			<TestCard name="TestMethodFieldRequired" test={TestMethodFieldRequired} turn={getTurn()} />
+			<TestCard name="TestResponseUpdates" test={TestResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestIgnoreResponseUpdates" test={TestIgnoreResponseUpdates} turn={getTurn()} />
+			<TestCard name="TestModuleUpdateQuery" test={TestModuleUpdateQuery} turn={getTurn()} />
+			<TestCard name="TestLibkernelQueryUpdates" test={TestLibkernelQueryUpdates} turn={getTurn()} />
+			<TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
+			<TestCard name="TestSecureRegistry" test={TestSecureRegistry} turn={getTurn()} />
+			<TestCard name="TestSecureUploadAndDownload" test={TestSecureUploadAndDownload} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedSequential5k" test={TestMsgSpeedSequential5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedSeq20k" test={TestModuleSpeedSequential20k} turn={getTurn()} />
+			<TestCard name="TestMsgSpeedParallel5k" test={TestMsgSpeedParallel5k} turn={getTurn()} />
+			<TestCard name="TestModuleSpeedParallel20k" test={TestModuleSpeedParallel20k} turn={getTurn()} />
+			<TestCard name="TestModuleHasErrors" test={TestModuleHasErrors} turn={getTurn()} />
+			<TestCard name="TestHelperModuleHasErrors" test={TestHelperModuleHasErrors} turn={getTurn()} />
+		</main>
+	)
+}
 
 export default IndexPage;
