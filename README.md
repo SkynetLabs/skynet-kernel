@@ -717,7 +717,7 @@ a resolver link or a content link) and the user's seed.
 	let path = "moduleSeedDerivation"+moduleResolverSkylink
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
-	let moduleSeed = bufToB64(blake2b(moduleSeedPreimage).slice(0, 16))
+	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
 ```
 
 The message will have the form:
@@ -726,7 +726,7 @@ The message will have the form:
 worker.postMessage({
 	method: "presentSeed",
 	data: {
-		seed: <string>,
+		seed: <Uint8Array>,
 	},
 })
 ```

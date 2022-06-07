@@ -10,16 +10,8 @@ let getSeed = new Promise((resolve) => {
 
 // handlePresentSeed will accept a seed from the kernel and unblock any method
 // that is waiting for the seed.
-//
-// NOTE: "presentSeed" is not expected to provide a response, therefore the
-// 'accept' and 'reject' inputs are omitted. This omission only applies to the
-// "presentSeed" method, and therefore this is not a good example for how other
-// handlers should be implemented.
 function handlePresentSeed(aq: activeQuery) {
-	// Decode the seed from base64 - the kernel will not provide us with
-	// invalid base64 for the seed so we don't need to check the error here.
-	let [u8arraySeed] = b64ToBuf(aq.callerInput.seed)
-	resolveSeed(u8arraySeed)
+	resolveSeed(aq.callerInput.seed)
 }
 
 export { getSeed, handlePresentSeed }
