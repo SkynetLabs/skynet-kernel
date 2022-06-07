@@ -2,10 +2,12 @@ import { activeQuery, addContextToErr, addHandler, handleMessage } from "libkmod
 import {
 	bufToHex,
 	defaultPortalList,
+	encodeU64,
 	error,
 	hexToBuf,
 	progressiveFetch,
 	progressiveFetchResult,
+	jsonStringify,
 	tryStringify,
 	verifyRegistrySignature,
 } from "libskynet"
@@ -35,8 +37,7 @@ function verifyDecodedResp(resp: Response, data: any, pubkey: Uint8Array, datake
 	if (!("revision" in data)) {
 		return "expected revision in response"
 	}
-	// TODO: Actually we want this to be a bigint, need to change the json
-	// decoder though.
+	// TODO: Need to change the json decoder so that this decodes to a bigint.
 	if (typeof data.revision !== "number") {
 		return "expected revision to be a number"
 	}
@@ -90,9 +91,6 @@ function verifyRegReadResp(resp: Response, pubkey: Uint8Array, datakey: Uint8Arr
 }
 
 // handleReadEntry will process a call to 'readEntry'.
-//
-// TODO: Need to support reading registry entries by their entryID. I'm not
-// sure if the API supports this.
 function handleReadEntry(aq: activeQuery) {
 	// Perform the input validation.
 	let data = aq.callerInput
@@ -109,7 +107,7 @@ function handleReadEntry(aq: activeQuery) {
 		return
 	}
 	if (!(data.dataKey instanceof Uint8Array)) {
-		aq.reject("datakKey input should be a Uint8Array")
+		aq.reject("dataKey input should be a Uint8Array")
 		return
 	}
 
@@ -161,6 +159,123 @@ function handleReadEntry(aq: activeQuery) {
 	})
 }
 
-// writeEntry kjkjkjkj
+// writeEntry is the handler for a writeEntry call, see the README for further
+// documentation.
 function writeEntry(aq: activeQuery) {
+	// Perform input validation.
+	let data = aq.callerInput
+	if (!("publicKey" in data)) {
+		aq.reject("input should contain a publicKey field")
+		return
+	}
+	if (!(data.publicKey instanceof Uint8Array)) {
+		aq.reject("publicKey input should be a Uint8Array")
+		return
+	}
+	if (data.publicKey.length !== 32) {
+		aq.reject("publicKey should have a length of 32")
+		return
+	}
+	if (!("secretKey" in data)) {
+		aq.reject("input should contain a secretKey field")
+		return
+	}
+	if (!(data.secretKey instanceof Uint8Array)) {
+		aq.reject("secretKey input should be a Uint8Array")
+		return
+	}
+	if (data.secretKey.length !== 64) {
+		aq.reject("secretKey should have a length of 64")
+		return
+	}
+	if (!("dataKey" in data)) {
+		aq.reject("input should contain a dataKey field")
+		return
+	}
+	if (!(data.dataKey instanceof Uint8Array)) {
+		aq.reject("dataKey input should be a Uint8Array")
+		return
+	}
+	if (!("data" in data)) {
+		aq.reject("input should contain a data field")
+		return
+	}
+	if (!(data.data instanceof Uint8Array)) {
+		aq.reject("data input should be a Uint8Array")
+		return
+	}
+	if (data.length > 86) {
+		aq.reject("provided data is too large to fit in a registry entry")
+		return
+	}
+	if (!("revision" in data)) {
+		aq.reject("input should contain a revision field")
+		return
+	}
+	if (typeof data.revision !== "bigint") {
+		aq.reject("revision should be a BigInt")
+		return
+	}
+	let [entryID, errDREID] = deriveRegistryEntryID(data.publicKey, data.dataKey)
+	if (errDREID !== null) {
+		aq.reject(addContextToErr(errDREID, "unable to derive entry ID from pubkey and datakey"))
+		return
+	}
+
+	// Compute the signature of the new registry entry.
+	let [encodedRevision, errU64] = encodeU64(data.revision)
+	if (errU64 !== null) {
+		aq.reject(addContextToErr(errU64, "unable to encode revisionNumber"))
+		return
+	}
+	let [encodedData, errEPB] = encodePrefixedBytes(data.data)
+	if (errEPB !== null) {
+		aq.reject(addContextToErr(errEPB, "unable to encode data"))
+		return
+	}
+	let dataToSign = new Uint8Array(32+8+data.length+8)
+	dataToSign.set(data.datakey, 0)
+	dataToSign.set(encodedData, 32)
+	dataToSign.set(encodedRevision, 32 + 8 + data.length)
+	let sigHash = blake2b(dataToSign)
+	let [sig, errS] = ed25519Sign(sigHash, data.secretKey)
+	if (errS !== null) {
+		aq.reject(addContextToErr(errS, "unable to create signature"))
+		return
+	}
+
+	// Compose the fetch query.
+	let dataKeyHex = bufToHex(data.dataKey)
+	let postBody = {
+		publickey: {
+			algorithm: "ed25519",
+			key: Array.from(data.publicKey),
+		},
+		datakey: datakeyHex,
+		revision: Number(data.revision), // TODO: Need to encode this to be full precision
+		data: Array.from(data.data),
+		signature: Array.From(sig),
+	}
+	let [postJSON, errJS] = jsonStringify(postBody)
+	if (errJS !== null) {
+		aq.reject(addContextToErr(errJS, "unable to stringify post body"))
+		return
+	}
+	let fetchOpts = {
+		method: "post",
+		body: postJSON,
+	}
+	let endpoint = "/skynet/registry"
+	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryWrite).then((result) => {
+		if (result.success === true) {
+			aq.accept({
+				entryID: bufToB64(entryID)
+			})
+			return
+		}
+		aq.reject("unable to write registry entry: "+tryStringify(result))
+	})
+	.catch((err) => {
+		reject(addContextToErr(err, "unable to write registry entry"))
+	})
 }

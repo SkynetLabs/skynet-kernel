@@ -28,8 +28,8 @@ Output:
 ```ts
 {
 	exists: <boolean>,
-	entryData: <Uint8Array>,
-	revisionNumber: <BigInt>,
+	entryData?: <Uint8Array>,
+	revision?: <BigInt>,
 }
 ```
 
@@ -58,13 +58,13 @@ number. The module will perform the signing and uploading.
 ```ts
 {
 	module: "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q",
-	method: "overwriteEntry",
+	method: "writeEntry",
 	data: {
 		publicKey: <Uint8Array>,
 		secretKey: <Uint8Array>,
 		dataKey: <Uint8Array>,
 		data: <Uint8Array>,
-		revisionNumber: <BigInt>,
+		revision: <BigInt>,
 	},
 }
 ```

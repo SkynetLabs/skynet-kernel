@@ -1,3 +1,6 @@
+import { addContextToErr } from "./err.js"
+import { error } from "./types.js"
+
 // tryStringify will try to turn the provided input into a string. If the input
 // object is already a string, the input object will be returned. If the input
 // object has a toString method, the toString method will be called. If that
@@ -23,5 +26,15 @@ function tryStringify(obj: any): string {
 		return "[stringify failed]"
 	}
 }
+// jsonStringify is a replacement for JSON.stringify that returns an error
+// rather than throwing.
+function jsonStringify(obj: any): [string, error] {
+	try {
+		let str = JSON.stringify(obj)
+		return [str, null]
+	} catch (err) {
+		return ["", addContextToErr(tryStringify(err), "unable to stringify object")]
+	}
+}
 
-export { tryStringify }
+export { jsonStringify, tryStringify }
