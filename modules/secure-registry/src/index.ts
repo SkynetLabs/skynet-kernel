@@ -135,15 +135,20 @@ function handleReadEntry(aq: activeQuery) {
 			result.response
 				.json()
 				.then((j: any) => {
+					let [entryData, errBTH] = hexToBuf(j.data)
+					if (errBTH !== null) {
+						aq.reject(addContextToErr(errBTH, "unable to decode entry data"))
+						return
+					}
 					aq.accept({
 						exists: true,
-						data: j.data,
+						entryData,
 						revision: BigInt(j.revision),
 					})
 				})
 				.catch((err: any) => {
 					let errStr = tryStringify(err)
-					aq.reject(<string>addContextToErr(errStr, "unable to parse final response despite passing verification"))
+					aq.reject(addContextToErr(errStr, "unable to parse final response despite passing verification"))
 				})
 			return
 		}
@@ -153,8 +158,6 @@ function handleReadEntry(aq: activeQuery) {
 			if (result.responsesFailed[i].status === 404) {
 				aq.accept({
 					exists: false,
-					data: new Uint8Array(0),
-					revision: 0n,
 				})
 				return
 			}
@@ -217,15 +220,15 @@ function handleWriteEntry(aq: activeQuery) {
 		aq.reject("dataKey input should be a Uint8Array")
 		return
 	}
-	if (!("data" in data)) {
+	if (!("entryData" in data)) {
 		aq.reject("input should contain a data field")
 		return
 	}
-	if (!(data.data instanceof Uint8Array)) {
+	if (!(data.entryData instanceof Uint8Array)) {
 		aq.reject("data input should be a Uint8Array")
 		return
 	}
-	if (data.length > 86) {
+	if (data.entryData.length > 86) {
 		aq.reject("provided data is too large to fit in a registry entry")
 		return
 	}
@@ -249,15 +252,15 @@ function handleWriteEntry(aq: activeQuery) {
 		aq.reject(addContextToErr(errU64, "unable to encode revisionNumber"))
 		return
 	}
-	let [encodedData, errEPB] = encodePrefixedBytes(data.data)
+	let [encodedData, errEPB] = encodePrefixedBytes(data.entryData)
 	if (errEPB !== null) {
 		aq.reject(addContextToErr(errEPB, "unable to encode data"))
 		return
 	}
-	let dataToSign = new Uint8Array(32 + 8 + data.length + 8)
-	dataToSign.set(data.datakey, 0)
+	let dataToSign = new Uint8Array(32 + 8 + data.entryData.length + 8)
+	dataToSign.set(data.dataKey, 0)
 	dataToSign.set(encodedData, 32)
-	dataToSign.set(encodedRevision, 32 + 8 + data.length)
+	dataToSign.set(encodedRevision, 32 + 8 + data.entryData.length)
 	let sigHash = blake2b(dataToSign)
 	let [sig, errS] = ed25519Sign(sigHash, data.secretKey)
 	if (errS !== null) {
@@ -274,7 +277,7 @@ function handleWriteEntry(aq: activeQuery) {
 		},
 		datakey: dataKeyHex,
 		revision: Number(data.revision), // TODO: Need to encode this to be full precision
-		data: Array.from(data.data),
+		data: Array.from(data.entryData),
 		signature: Array.from(sig),
 	}
 	let [postJSON, errJS] = jsonStringify(postBody)

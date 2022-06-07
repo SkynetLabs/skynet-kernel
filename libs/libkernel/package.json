@@ -1,6 +1,6 @@
 {
 	"name": "libkernel",
-	"version": "0.1.18",
+	"version": "0.1.22",
 	"description": "helper library to interact with skynet and the skynet kernel",
 	"main": "dist/index.js",
 	"type": "module",
@@ -23,6 +23,6 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.12"
+		"libskynet": "^0.0.13"
 	}
 }
