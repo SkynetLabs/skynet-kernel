@@ -420,11 +420,29 @@ window.addEventListener("message", event => {handleMessage(event)})
 // refreshed.
 var authChangeMessageSent = false
 var handleStorage = function(event: StorageEvent) {
-	// A null key indicates that storage has been cleared, which also means
-	// the auth status has changed.
-	if (event.key === "v1-seed" || event.key === null) {
+	// If the event is that the v1-seed has changed, then this is a login
+	// event. If the user was already logged in, it may mean they switched
+	// accounts.
+	if (event.key === "v1-seed") {
 		authChangeMessageSent = true
-		window.parent.postMessage({method: "kernelAuthStatusChanged"}, "*")
+		window.parent.postMessage({
+			method: "kernelAuthStatusChanged",
+			data: {
+				userAuthorized: true,
+			},
+		}, "*")
+	}
+
+	// If the event is null, it means the localStorage was cleared, which means
+	// the user has logged out.
+	if (event.key === null) {
+		authChangeMessageSent = true
+		window.parent.postMessage({
+			method: "kernelAuthStatusChanged",
+			data: {
+				userAuthorized: false,
+			},
+		}, "*")
 	}
 }
 window.addEventListener("storage", event => (handleStorage(event)))
