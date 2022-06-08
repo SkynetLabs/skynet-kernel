@@ -169,6 +169,7 @@ function launchKernelFrame() {
 	document.body.appendChild(iframe)
 	kernelSource = <Window>iframe.contentWindow
 	kernelOrigin = "https://skt.us"
+	kernelAuth = "https://skt.us/auth.html"
 
 	// Set a timer to fail the login process if the kernel doesn't load in
 	// time.
@@ -186,6 +187,7 @@ function launchKernelFrame() {
 // messageBridge will open an iframe to skt.us and use that as the kernel.
 let kernelSource: Window
 let kernelOrigin: string
+let kernelAuth: string
 function messageBridge() {
 	// Establish the function that will handle the bridge's response.
 	let bridgeInitComplete = false
@@ -212,6 +214,7 @@ function messageBridge() {
 		// Bridge has responded successfully, and there's no error.
 		kernelSource = window
 		kernelOrigin = window.origin
+		kernelAuth = "http://kernel.skynet/auth.html"
 	})
 
 	// Add the handler to the queries map.
@@ -493,4 +496,4 @@ function newKernelQuery(
 	return [sendUpdate, p]
 }
 
-export { callModule, connectModule, init, newKernelQuery }
+export { callModule, connectModule, init, kernelAuth, newKernelQuery }

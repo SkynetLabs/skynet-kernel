@@ -737,26 +737,44 @@ function TestCard(props) {
 	const [statusColor, setStatusColor] = React.useState("rgba(60, 60, 60, 0.6)")
 	const [duration, setDuration] = React.useState(0)
 
+	// Define the events that will run a the test.
 	React.useEffect(() => {
-		props.turn
-		.then(x => {
-			setTestStatus("test is running")
-			setStatusColor("rgba(255, 165, 0, 0.6)")
-			let start = performance.now()
-			props.test()
+		// Don't try to run a test until the auth status is known.
+		kernel.init().then((authStatus) => {
+			// If the user is not logged in, render the component differently.
+			if (authStatus !== null) {
+				setTestStatus("cannot run test if user is not logged in")
+				setStatusColor("rgba(35, 35, 35, 0.7)")
+				setDuration(0)
+				nextTest()
+				return
+			}
+
+			// Wait until it's our turn.
+			props.turn
 			.then(x => {
-				setTestStatus("test success: " + x)
-				setStatusColor("rgba(0, 80, 0, 0.6)")
-				setDuration(performance.now()-start)
-				nextTest()
-			})
-			.catch(x => {
-				console.error(x)
-				setTestStatus(x)
-				setStatusColor("rgba(255, 0, 0, 0.6)")
-				let end = performance.now()
-				setDuration(end-start)
-				nextTest()
+				// Set the component to 'running'.
+				setTestStatus("test is running")
+				setStatusColor("rgba(255, 165, 0, 0.6)")
+				let start = performance.now()
+
+				// Wait until the test is complete, then render either success
+				// or failure.
+				props.test()
+				.then(x => {
+					setTestStatus("test success: " + x)
+					setStatusColor("rgba(0, 80, 0, 0.6)")
+					setDuration(performance.now()-start)
+					nextTest()
+				})
+				.catch(x => {
+					console.error(x)
+					setTestStatus(x)
+					setStatusColor("rgba(255, 0, 0, 0.6)")
+					let end = performance.now()
+					setDuration(end-start)
+					nextTest()
+				})
 			})
 		})
 	}, [props])
@@ -773,12 +791,9 @@ function TestCard(props) {
 // LoginButton is a react component that allows the user to log into the
 // kernel.
 function LoginButton(props) {
-	let loginPopup = function() {
-		window.open("https://skt.us/auth.html", "_blank")
-	}
 	return (
 		<div>
-			<button text="login" style={{margin: "12px"}} onClick={loginPopup}>Login to Kernel</button>
+			<button text="login" style={{margin: "12px"}} onClick={kernel.openAuthWindow}>Login to Kernel</button>
 		</div>
 	)
 }
