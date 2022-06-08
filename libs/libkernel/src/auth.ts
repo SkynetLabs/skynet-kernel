@@ -1,6 +1,18 @@
 import { init, kernelAuthLocation, loginPromise, logoutPromise } from "./queries.js"
 import { error } from "libskynet"
 
+// loginSuccess will resolve when the user has successfully logged in.
+function loginSuccess(): Promise<void> {
+	return loginPromise
+}
+
+// logoutComplete will resolve when the user has logged out. Note that
+// logoutComplete will only resolve if the user logged in first - if the user
+// was not logged in to begin with, this promise will not resolve.
+function logoutComplete(): Promise<void> {
+	return logoutPromise
+}
+
 // openAuthWindow is intended to be used as an onclick target when the user
 // clicks the 'login' button on a skynet application. It will block until the
 // auth location is known, and then it will pop open the correct auth window
@@ -23,16 +35,4 @@ function openAuthWindow(): void {
 	})
 }
 
-// loginSuccess will resolve when the user has successfully logged in.
-function loginSuccess(): Promise<void> {
-	return loginPromise
-}
-
-// logoutComplete will resolve when the user has logged out. Note that
-// logoutComplete will only resolve if the user logged in first - if the user
-// was not logged in to begin with, this promise will not resolve.
-function logoutComplete(): Promise<void> {
-	return logoutPromise
-}
-
-export { openAuthWindow, loginSuccess, logoutComplete }
+export { loginSuccess, logoutComplete, openAuthWindow }

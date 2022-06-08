@@ -1,4 +1,4 @@
-export { openAuthWindow } from "./auth.js"
+export { loginSuccess, logoutComplete, openAuthWindow } from "./auth.js"
 export { download } from "./messagedownload.js"
 export { registryRead, registryWrite } from "./messageregistry.js"
 export { upload } from "./messageupload.js"
