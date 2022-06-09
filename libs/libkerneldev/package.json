@@ -23,7 +23,7 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
-		"libkernel": "^0.0.72",
+		"libkernel": "^0.1.30",
 		"node-fetch": "^3.2.4"
 	}
 }
