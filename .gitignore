@@ -21,3 +21,6 @@ public
 
 # ignore the build.js for secure-upload
 modules/secure-upload/build.js
+
+# Code Editors
+.vscode
