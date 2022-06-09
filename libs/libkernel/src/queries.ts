@@ -100,11 +100,19 @@ function handleMessage(event: MessageEvent) {
 	// user is logged in, report success, otherwise return an error
 	// indicating that the user is not logged in.
 	if (event.data.method === "kernelAuthStatus") {
+		// The kernelAuthStatus may be sent out multiple times if we are
+		// connected to the bridge and there are multiple libraries
+		// independently talking to the bridge. Ignore any dupliate
+		// kernelAuthStatus messages.
 		if (initResolved === true) {
-			console.log("kernel sent an auth status message, but init is already finished")
 			return
 		}
 		initResolved = true
+
+		// Once we receive the kernelAuthStatus message, we know that the
+		// bootloader is initialized. initResolve will resolve to 'null' if the
+		// user is logged in, and will resolve to an error if the user is not
+		// logged in.
 		if (event.data.data.userAuthorized) {
 			initResolve(null)
 			loginResolve()
@@ -114,8 +122,9 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Check for an auth status change. If there was an auth change, we
-	// just reload the whole window.
+	// Check for an auth status change and use it to make progress on the auth
+	// cycle. The auth cycle is init -> login -> logout. The cycle cannot be
+	// repeated, once logout has occured the page needs to be reloaded.
 	if (event.data.method === "kernelAuthStatusChanged") {
 		if (event.data.data.userAuthorized === true) {
 			loginResolve()
@@ -125,22 +134,24 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	// Check that the message sent has a nonce and a method. We don't log
+	// Check that the message sent has a nonce. We don't log
 	// on failure because the message may have come from 'window', which
 	// will happen if the app has other messages being sent to the window.
 	if (!("nonce" in event.data)) {
 		return
 	}
-	// If we can't locate the nonce in the queries map, there is nothing to
-	// do.
+	// If we can't locate the nonce in the queries map, there is nothing to do.
+	// This can happen especially for responseUpdate messages.
 	if (!(event.data.nonce in queries)) {
 		return
 	}
 	let query = queries[event.data.nonce]
 
-	// Handle a response.
+	// Handle a response. Once the response has been received, it is safe to
+	// delete the query from the queries map.
 	if (event.data.method === "response") {
 		queries[event.data.nonce].resolve([event.data.data, event.data.err])
+		delete queries[event.data.nonce]
 		return
 	}
 

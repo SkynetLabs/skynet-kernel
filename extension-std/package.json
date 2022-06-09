@@ -1,0 +1,28 @@
+{
+	"name": "skynet-web-extension",
+	"version": "0.1.0",
+	"description": "source code for the full skynet web extension",
+	"main": "index.js",
+	"scripts": {
+		"eslint": "eslint src --fix",
+		"prettier": "prettier --write .",
+		"lint": "npm run prettier && npm run eslint",
+		"webpack": "webpack --config webpack.config.js --mode=production",
+		"build": "npm run webpack"
+	},
+	"author": "David Vorick",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/read": "^0.0.29",
+		"@typescript-eslint/eslint-plugin": "^5.18.0",
+		"eslint": "^8.13.0",
+		"prettier": "^2.6.2",
+		"ts-loader": "^9.2.8",
+		"typescript": "^4.6.3",
+		"webpack": "^5.71.0",
+		"webpack-cli": "^4.9.2"
+	},
+	"dependencies": {
+		"libskynet": "^0.0.16"
+	}
+}

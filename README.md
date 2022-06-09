@@ -650,6 +650,9 @@ The message will have the form:
 ```ts
 window.parent.postMessage({
 	method: "kernelAuthStatusChanged",
+	data: {
+		userAuthorized: <boolean>,
+	},
 }, window.parent.origin)
 ```
 
