@@ -1,4 +1,4 @@
-import { addContextToErr, b64ToBuf, bufToStr, dataFn, error, tryStringify } from "libskynet"
+import { addContextToErr, b64ToBuf, bufToStr, error, tryStringify } from "libskynet"
 
 // TODO: Need to figure out if the full kernel needs to overwrite the handlers
 // or if it can just add its own.

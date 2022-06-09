@@ -1,3 +1,5 @@
+export {}
+
 // Need to declare the browser variable so typescript doesn't complain. We
 // declare it as 'any' because typescript doesn't know type 'Browser'.
 declare var browser: any

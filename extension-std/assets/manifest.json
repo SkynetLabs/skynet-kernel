@@ -28,13 +28,13 @@
 	"content_scripts": [
 		{
 			"matches": ["http://kernel.skynet/"],
-			"js": ["content-kernel.js"],
+			"js": ["bootloader.js"],
 			"run_at": "document_end",
 			"all_frames": true
 		},
 		{
 			"matches": ["<all_urls>"],
-			"js": ["content-bridge.js"],
+			"js": ["bridge.js"],
 			"run_at": "document_start",
 			"all_frames": true
 		}

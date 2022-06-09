@@ -172,7 +172,7 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
-	console.log("Received unrecognized method:", event.data.method)
+	// Ignore any other messages as they might be from other applications.
 }
 
 // launchKernelFrame will launch the skt.us iframe that is used to connect to the

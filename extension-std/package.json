@@ -7,23 +7,34 @@
 		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
 		"lint": "npm run prettier && npm run eslint",
-		"webpack": "webpack --config webpack.config.js --mode=production",
-		"build": "npm run webpack"
+		"compile": "npm run lint && tsc",
+		"rollup-a": "rollup -c rollup.conf.background.js",
+		"rollup-b": "rollup -c rollup.conf.bootloader.js",
+		"rollup-c": "rollup -c rollup.conf.bridge.js",
+		"compile-a": "npm run lint && tsc",
+		"compile-b": "npm run compile-a && npm run rollup-a",
+		"compile-c": "npm run compile-b && npm run rollup-b",
+		"compile-d": "npm run compile-c && npm run rollup-c",
+		"dist-a": "mkdir dist && mv build/background.r.js dist/background.js",
+		"dist-b": "npm run dist-a && mv build/bootloader.r.js dist/bootloader.js",
+		"dist-c": "npm run dist-b && mv build/bridge.r.js dist/content-bridge.js",
+		"dist-d": "npm run dist-c && cp assets/icon.png dist/icon.png",
+		"dist-e": "npm run dist-d && cp assets/icon@2x.png dist/icon@2x.png",
+		"dist-f": "npm run dist-e && cp assets/manifest.json dist/manifest.json",
+		"build": "npm run compile-d && npm run dist-f"
 	},
 	"author": "David Vorick",
 	"license": "MIT",
 	"devDependencies": {
+		"@rollup/plugin-node-resolve": "^13.3.0",
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"eslint": "^8.13.0",
 		"prettier": "^2.6.2",
 		"rollup": "^2.75.6",
-		"ts-loader": "^9.2.8",
-		"typescript": "^4.6.3",
-		"webpack": "^5.71.0",
-		"webpack-cli": "^4.9.2"
+		"typescript": "^4.6.3"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.16"
+		"libskynet": "^0.0.17"
 	}
 }

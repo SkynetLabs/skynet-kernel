@@ -1,6 +1,13 @@
-import { dataFn } from "libskynet"
+export {}
 
+// Need to declare the browser to make typescript happy. 'any' is used as the
+// type because typescript didn't seem to recognize the browser type.
 declare let browser: any
+
+// This is the same as the dataFn in libskynet, but since it is the only import
+// we are reimplementing it here, this prevents us from needing to use
+// rollup.js on the background script.
+type dataFn = (data?: any) => void
 
 // Messages cannot be sent to the kernel until the kernel has indicated that it
 // is ready to receive messages. We create a promise here that will resovle
