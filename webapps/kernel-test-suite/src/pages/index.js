@@ -38,9 +38,13 @@ const moduleMalformed = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3"
 // extension is missing entirely or it means that something fundamental broke.
 function TestLibkernelInit() {
 	return new Promise((resolve, reject) => {
+		// Wait for kernel init to complete.
 		kernel.init().then((err) => {
+			// Check if the user is already logged in.
 			if (err !== null) {
-				reject(err)
+				kernel.loginComplete().then(() => {
+					resolve("kernel loaded successfully")
+				})
 				return
 			}
 			resolve("kernel loaded successfully")
@@ -739,44 +743,38 @@ function TestCard(props) {
 
 	// Define the events that will run a the test.
 	React.useEffect(() => {
-		// Don't try to run a test until the auth status is known.
-		kernel.init().then((authStatus) => {
-			// If the user is not logged in, render the component differently.
+		async function manageTest() {
+			// Wait for the user to be logged in.
+			let authStatus = await kernel.init()
 			if (authStatus !== null) {
 				setTestStatus("cannot run test if user is not logged in")
 				setStatusColor("rgba(35, 35, 35, 0.7)")
-				setDuration(0)
-				nextTest()
-				return
+				await kernel.loginComplete()
 			}
 
-			// Wait until it's our turn.
-			props.turn
-			.then(x => {
-				// Set the component to 'running'.
-				setTestStatus("test is running")
-				setStatusColor("rgba(255, 165, 0, 0.6)")
-				let start = performance.now()
+			// Wait until it's this test's turn to run.
+			await props.turn
+			setTestStatus("test is running")
+			setStatusColor("rgba(255, 165, 0, 0.6)")
+			let start = performance.now()
 
-				// Wait until the test is complete, then render either success
-				// or failure.
-				props.test()
-				.then(x => {
-					setTestStatus("test success: " + x)
-					setStatusColor("rgba(0, 80, 0, 0.6)")
-					setDuration(performance.now()-start)
-					nextTest()
-				})
-				.catch(x => {
-					console.error(x)
-					setTestStatus(x)
-					setStatusColor("rgba(255, 0, 0, 0.6)")
-					let end = performance.now()
-					setDuration(end-start)
-					nextTest()
-				})
+			// Run the test.
+			props.test().then(result => {
+				setTestStatus("test success: " + result)
+				setStatusColor("rgba(0, 80, 0, 0.6)")
+				setDuration(performance.now()-start)
+				nextTest()
 			})
-		})
+			.catch(err => {
+				console.error(err)
+				setTestStatus(err)
+				setStatusColor("rgba(255, 0, 0, 0.6)")
+				let end = performance.now()
+				setDuration(end-start)
+				nextTest()
+			})
+		}
+		manageTest(props)
 	}, [props])
 
 	return (
@@ -791,9 +789,34 @@ function TestCard(props) {
 // LoginButton is a react component that allows the user to log into the
 // kernel.
 function LoginButton(props) {
+	const [buttonText, setButtonText] = React.useState("Loading Kernel...")
+	const [maybeDisabled, setMaybeDisabled] = React.useState(true)
+
+	// Define the events that will run a the test.
+	React.useEffect(() => {
+		async function manageLoginButton() {
+			// Wait for the user to be logged in.
+			let authStatus = await kernel.init()
+			if (authStatus !== null) {
+				setButtonText("Login to Skynet")
+				setMaybeDisabled(false)
+				await kernel.loginComplete()
+			}
+
+			// Login complete, change the button and wait for logout.
+			setButtonText("Logout of Skynet")
+			setMaybeDisabled("")
+			await kernel.logoutComplete()
+
+			// User has logged out, reload the skapp.
+			window.location.reload()
+		}
+		manageLoginButton(props)
+	}, [props])
+
 	return (
 		<div>
-			<button text="login" style={{margin: "12px"}} onClick={kernel.openAuthWindow}>Login to Kernel</button>
+			<button text="login" style={{margin: "12px"}} onClick={kernel.openAuthWindow} disabled={maybeDisabled}>{buttonText}</button>
 		</div>
 	)
 }

@@ -117,8 +117,10 @@ function handleMessage(event: MessageEvent) {
 	// Check for an auth status change. If there was an auth change, we
 	// just reload the whole window.
 	if (event.data.method === "kernelAuthStatusChanged") {
-		console.log("Received a kernel auth state changed message")
-		console.log(event.data)
+		if (event.data.data.userAuthorized === true) {
+			loginResolve()
+			return
+		}
 		logoutResolve()
 		return
 	}

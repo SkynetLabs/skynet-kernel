@@ -431,6 +431,12 @@ var handleStorage = function(event: StorageEvent) {
 				userAuthorized: true,
 			},
 		}, "*")
+
+		// Attempt to load the kernel again.
+		if (kernelHasLoaded === false) {
+			loadSkynetKernel()
+			kernelHasLoaded = true
+		}
 	}
 
 	// If the event is null, it means the localStorage was cleared, which means
@@ -443,6 +449,7 @@ var handleStorage = function(event: StorageEvent) {
 				userAuthorized: false,
 			},
 		}, "*")
+		window.location.reload()
 	}
 }
 window.addEventListener("storage", event => (handleStorage(event)))
@@ -467,8 +474,6 @@ function authFailed() {
 			err: null,
 		},
 	}, "*")
-	kernelLoaded()
-	kernelHasLoaded = true
 }
 if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && window.origin === "https://skt.us") {
 	document.requestStorageAccess().then(() => {

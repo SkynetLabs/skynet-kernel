@@ -1,8 +1,8 @@
 import { init, kernelAuthLocation, loginPromise, logoutPromise } from "./queries.js"
 import { error } from "libskynet"
 
-// loginSuccess will resolve when the user has successfully logged in.
-function loginSuccess(): Promise<void> {
+// loginComplete will resolve when the user has successfully logged in.
+function loginComplete(): Promise<void> {
 	return loginPromise
 }
 
@@ -28,11 +28,9 @@ function logoutComplete(): Promise<void> {
 function openAuthWindow(): void {
 	// openAuthWindow doesn't care what the auth status is, it's just trying to
 	// open the right window.
-	init().then((err: error) => {
-		if (err !== null) {
-			window.open(kernelAuthLocation, "_blank")
-		}
+	init().then(() => {
+		window.open(kernelAuthLocation, "_blank")
 	})
 }
 
-export { loginSuccess, logoutComplete, openAuthWindow }
+export { loginComplete, logoutComplete, openAuthWindow }

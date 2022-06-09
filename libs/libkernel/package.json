@@ -1,6 +1,6 @@
 {
 	"name": "libkernel",
-	"version": "0.1.26",
+	"version": "0.1.30",
 	"description": "helper library to interact with skynet and the skynet kernel",
 	"main": "dist/index.js",
 	"type": "module",
