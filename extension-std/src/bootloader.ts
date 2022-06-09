@@ -1,4 +1,16 @@
-import { addContextToErr, b64ToBuf, bufToStr, error, tryStringify } from "libskynet"
+// Import methods from libskynet. They are all namespaced to have a
+// 'bootloader' prefix because the full kernel is also likely to use libskynet.
+// As the full kernel is imported via 'eval', we need to make sure that methods
+// declared inside of the kernel do not conflict with the bootloader. And as
+// the bootloader is the one that is the most difficult to change, we go out of
+// our way to namespace the bootloader.
+import {
+	addContextToErr as bootloaderAddContextToErr,
+	b64ToBuf as bootloaderB64ToBuf,
+	bufToStr as bootloaderBufToStr,
+	error as bootloaderError,
+	tryStringify as bootloaderTryStringify,
+} from "libskynet"
 
 // TODO: Need to figure out if the full kernel needs to overwrite the handlers
 // or if it can just add its own.
@@ -38,7 +50,7 @@ function bootloaderWLog(isErr: boolean, ...inputs: any) {
 	let message = "[bootloader]"
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
-		message += tryStringify(inputs[i])
+		message += bootloaderTryStringify(inputs[i])
 	}
 	window.parent.postMessage(
 		{
@@ -78,9 +90,9 @@ let downloadDefaultKernel = function (): Promise<string> {
 			.then((output: any) => {
 				// Handle the success case.
 				if (output.response.status === 200) {
-					let [text, errBTS] = bufToStr(output.fileData)
+					let [text, errBTS] = bootloaderBufToStr(output.fileData)
 					if (errBTS !== null) {
-						reject(addContextToErr(errBTS, "kernel data is invalid"))
+						reject(bootloaderAddContextToErr(errBTS, "kernel data is invalid"))
 						return
 					}
 					resolve(text)
@@ -93,7 +105,7 @@ let downloadDefaultKernel = function (): Promise<string> {
 				return
 			})
 			.catch((err: any) => {
-				reject(addContextToErr(err, "unable to download default portal"))
+				reject(bootloaderAddContextToErr(err, "unable to download default portal"))
 			})
 	})
 }
@@ -108,9 +120,9 @@ let processUserKernelDownload = function (output: any): Promise<string> {
 		// Handle the success case.
 		let response = output.response
 		if (response.status === 200) {
-			let [text, errBTS] = bufToStr(output.fileData)
+			let [text, errBTS] = bootloaderBufToStr(output.fileData)
 			if (errBTS !== null) {
-				reject(addContextToErr(errBTS, "kernel data is invalid"))
+				reject(bootloaderAddContextToErr(errBTS, "kernel data is invalid"))
 				return
 			}
 			resolve(text)
@@ -130,10 +142,10 @@ let processUserKernelDownload = function (output: any): Promise<string> {
 			bootloaderLog("lifecycle", "user has no established kernel, trying to set the default")
 
 			// Perform the registry write.
-			let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
+			let [defaultKernelSkylink, err64] = bootloaderB64ToBuf(defaultKernelResolverLink)
 			if (err64 !== null) {
 				bootloaderLog("lifecycle", "could not convert defaultKernelSkylink to a uin8array")
-				reject(addContextToErr(err64, "could not convert defaultKernelSkylink"))
+				reject(bootloaderAddContextToErr(err64, "could not convert defaultKernelSkylink"))
 				return
 			}
 			writeNewOwnRegistryEntry("v1-skynet-kernel", "v1-skynet-kernel-datakey", defaultKernelSkylink)
@@ -150,7 +162,7 @@ let processUserKernelDownload = function (output: any): Promise<string> {
 					resolve(text)
 				})
 				.catch((err) => {
-					reject(addContextToErr(err, "unable to download default kernel"))
+					reject(bootloaderAddContextToErr(err, "unable to download default kernel"))
 				})
 			return
 		}
@@ -169,7 +181,7 @@ let downloadUserKernel = function (): Promise<string> {
 		// Get the resolver link for the user's kernel.
 		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
 		if (errDRL !== null) {
-			reject(addContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
+			reject(bootloaderAddContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
 			return
 		}
 
@@ -179,11 +191,11 @@ let downloadUserKernel = function (): Promise<string> {
 				processUserKernelDownload(output)
 					.then((kernel) => resolve(kernel))
 					.catch((err) => {
-						reject(addContextToErr(err, "unable to download kernel for the user"))
+						reject(bootloaderAddContextToErr(err, "unable to download kernel for the user"))
 					})
 			})
 			.catch((err: any) => {
-				reject(addContextToErr(err, "unable to download user's kernel"))
+				reject(bootloaderAddContextToErr(err, "unable to download user's kernel"))
 			})
 	})
 }
@@ -344,7 +356,7 @@ let handleSkynetKernelRequestOverride = function (event: any) {
 				respondBody(result.fileData)
 			})
 			.catch((err: any) => {
-				let errStr = tryStringify(err)
+				let errStr = bootloaderTryStringify(err)
 				respondErr("unable to fetch skylink for kernel page: " + errStr)
 			})
 		return
@@ -492,7 +504,7 @@ function bootloaderAuthFailed() {
 
 // bootloaderGetSeed will return the seed that is stored in localStorage. If
 // there is no seed, it means the user is not logged in.
-function bootloaderGetSeed(): [Uint8Array, error] {
+function bootloaderGetSeed(): [Uint8Array, bootloaderError] {
 	// Pull the string version of the seed from localstorage.
 	let userSeedString = window.localStorage.getItem("v1-seed")
 	if (userSeedString === null) {
