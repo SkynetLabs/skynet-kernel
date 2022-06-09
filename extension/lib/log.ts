@@ -93,7 +93,7 @@ var wlog = function(isErr: boolean, logType: string, ...inputs: any) {
 			isErr,
 			message,
 		},
-	}, window.parent.origin)
+	}, "*")
 }
 var log = function(logType: string, ...inputs: any) {
 	wlog(false, logType, ...inputs)

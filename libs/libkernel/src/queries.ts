@@ -107,6 +107,7 @@ function handleMessage(event: MessageEvent) {
 		initResolved = true
 		if (event.data.data.userAuthorized) {
 			initResolve(null)
+			loginResolve()
 		} else {
 			initResolve("user is not logged in")
 		}
@@ -116,7 +117,11 @@ function handleMessage(event: MessageEvent) {
 	// Check for an auth status change. If there was an auth change, we
 	// just reload the whole window.
 	if (event.data.method === "kernelAuthStatusChanged") {
-		window.location.reload()
+		if (event.data.data.userAuthorized === true) {
+			loginResolve()
+			return
+		}
+		logoutResolve()
 		return
 	}
 
@@ -155,6 +160,8 @@ function handleMessage(event: MessageEvent) {
 		}
 		return
 	}
+
+	console.log("Received unrecognized method:", event.data.method)
 }
 
 // launchKernelFrame will launch the skt.us iframe that is used to connect to the
@@ -169,6 +176,7 @@ function launchKernelFrame() {
 	document.body.appendChild(iframe)
 	kernelSource = <Window>iframe.contentWindow
 	kernelOrigin = "https://skt.us"
+	kernelAuthLocation = "https://skt.us/auth.html"
 
 	// Set a timer to fail the login process if the kernel doesn't load in
 	// time.
@@ -186,6 +194,7 @@ function launchKernelFrame() {
 // messageBridge will open an iframe to skt.us and use that as the kernel.
 let kernelSource: Window
 let kernelOrigin: string
+let kernelAuthLocation: string
 function messageBridge() {
 	// Establish the function that will handle the bridge's response.
 	let bridgeInitComplete = false
@@ -212,6 +221,7 @@ function messageBridge() {
 		// Bridge has responded successfully, and there's no error.
 		kernelSource = window
 		kernelOrigin = window.origin
+		kernelAuthLocation = "http://kernel.skynet/auth.html"
 	})
 
 	// Add the handler to the queries map.
@@ -252,6 +262,10 @@ let initialized: boolean
 let initResolved: boolean
 let initResolve: (err: error) => void
 let initPromise: Promise<error>
+let loginResolve: () => void
+let loginPromise: Promise<void>
+let logoutResolve: () => void
+let logoutPromise: Promise<void>
 function init(): Promise<error> {
 	// If init has already been called, just return the init promise.
 	if (initialized === true) {
@@ -264,10 +278,19 @@ function init(): Promise<error> {
 	window.addEventListener("message", handleMessage)
 	messageBridge()
 
-	// Create the initProise and return it.
+	// Create the promises that resolve at various stages of the auth flow.
 	initPromise = new Promise((resolve) => {
 		initResolve = resolve
 	})
+	loginPromise = new Promise((resolve) => {
+		loginResolve = resolve
+	})
+	logoutPromise = new Promise((resolve) => {
+		logoutResolve = resolve
+	})
+
+	// Return the initPromise, which will resolve when bootloader init is
+	// complete.
 	return initPromise
 }
 
@@ -493,4 +516,4 @@ function newKernelQuery(
 	return [sendUpdate, p]
 }
 
-export { callModule, connectModule, init, newKernelQuery }
+export { callModule, connectModule, init, kernelAuthLocation, loginPromise, logoutPromise, newKernelQuery }

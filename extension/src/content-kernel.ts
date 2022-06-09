@@ -420,11 +420,36 @@ window.addEventListener("message", event => {handleMessage(event)})
 // refreshed.
 var authChangeMessageSent = false
 var handleStorage = function(event: StorageEvent) {
-	// A null key indicates that storage has been cleared, which also means
-	// the auth status has changed.
-	if (event.key === "v1-seed" || event.key === null) {
+	// If the event is that the v1-seed has changed, then this is a login
+	// event. If the user was already logged in, it may mean they switched
+	// accounts.
+	if (event.key === "v1-seed") {
 		authChangeMessageSent = true
-		window.parent.postMessage({method: "kernelAuthStatusChanged"}, "*")
+		window.parent.postMessage({
+			method: "kernelAuthStatusChanged",
+			data: {
+				userAuthorized: true,
+			},
+		}, "*")
+
+		// Attempt to load the kernel again.
+		if (kernelHasLoaded === false) {
+			loadSkynetKernel()
+			kernelHasLoaded = true
+		}
+	}
+
+	// If the event is null, it means the localStorage was cleared, which means
+	// the user has logged out.
+	if (event.key === null) {
+		authChangeMessageSent = true
+		window.parent.postMessage({
+			method: "kernelAuthStatusChanged",
+			data: {
+				userAuthorized: false,
+			},
+		}, "*")
+		window.location.reload()
 	}
 }
 window.addEventListener("storage", event => (handleStorage(event)))
@@ -449,8 +474,6 @@ function authFailed() {
 			err: null,
 		},
 	}, "*")
-	kernelLoaded()
-	kernelHasLoaded = true
 }
 if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && window.origin === "https://skt.us") {
 	document.requestStorageAccess().then(() => {
