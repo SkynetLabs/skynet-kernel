@@ -1,5 +1,12 @@
 import { addContextToErr, b64ToBuf, bufToStr, dataFn, error, tryStringify } from "libskynet"
 
+// TODO: Need to figure out if the full kernel needs to overwrite the handlers
+// or if it can just add its own.
+
+// NOTE: The bootloader is somewhat unique because it contains both the code
+// for the browser extension bootloader, and also for the skt.us bootloader.
+// The main difference between the two is how localstorage is handled.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.skynet"
@@ -7,6 +14,12 @@ let header = document.createElement("h1")
 header.textContent =
 	"Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe."
 document.body.appendChild(header)
+
+// TODO: None of these exist, need to either implement or import them.
+declare var deriveResolverLink: any
+declare var downloadSkylink: any
+declare var initUserPortalPreferences: any
+declare var writeNewOwnRegistryEntry: any
 
 // NOTE: Many of the function and object names in this file are made slightly
 // cumbersome using prefixes such as 'bootloader'. This is because we are going
@@ -52,41 +65,11 @@ function bootloaderErr(...inputs: any) {
 	bootloaderWLog(true, ...inputs)
 }
 
-// TODO: None of these exist, need to either implement or import them.
-declare var defaultKernelResolverLink: any
-declare var deriveResolverLink: any
-declare var downloadSkylink: any
-declare var initUserPortalPreferences: any
-declare var writeNewOwnRegistryEntry: any
+// Establish the skylink of the default kernel.
+let defaultKernelResolverLink = "AQBY_5nSN_JhWCNcm7GrjENlNuaT-yUTTknWH4rtCnQO5A"
 
-// Establish a promise that will block until the kernel is loaded. Messages
-// that are received will wait to be processed until the kernel has finished
-// bootstrapping. Messages that are required for kernel bootstrapping will
-// bypass the block.
-//
-// The kernelHasLoaded variable is used by the handleMessage function to make
-// sure that messages aren't stuck in an infinite loop.
-let kernelLoaded: dataFn
-let blockUntilLoaded = new Promise((resolve) => {
-	kernelLoaded = resolve
-})
+// Establish a singleton which tracks whether the kernel has loaded.
 let kernelHasLoaded = false
-
-// getUserSeed will return the seed that is stored in localStorage. This is the
-// first function that gets called when the kernel iframe is openend. The
-// kernel will not be loaded if no seed is present, as it means that the user
-// is not logged in.
-let getUserSeed = function (): [Uint8Array, error] {
-	// Pull the string version of the seed from localstorage.
-	let userSeedString = window.localStorage.getItem("v1-seed")
-	if (userSeedString === null) {
-		return [new Uint8Array(0), "no user seed in local storage"]
-	}
-
-	// Parse the string into a Uint8Array and return the result.
-	let userSeed = Uint8Array.from([...userSeedString].map((ch) => ch.charCodeAt(0)))
-	return [userSeed, null]
-}
 
 // downloadDefaultKernel will download the default kernel.
 let downloadDefaultKernel = function (): Promise<string> {
@@ -232,7 +215,6 @@ let kernelDiscoveryFailed = function (err: any) {
 		},
 		"*"
 	)
-	kernelLoaded()
 	kernelHasLoaded = true
 }
 
@@ -246,7 +228,6 @@ let evalKernel = function (kernel: string) {
 		bootloaderErr("kernel could not be loaded", err)
 		return
 	}
-	bootloaderLog("lifecycle", "user kernel successfully loaded")
 
 	// Only send a message indicating that the kernel was successfully
 	// loaded if the auth status hasn't changed in the meantime.
@@ -261,7 +242,6 @@ let evalKernel = function (kernel: string) {
 			},
 			"*"
 		)
-		kernelLoaded()
 		kernelHasLoaded = true
 	}
 }
@@ -389,21 +369,6 @@ let handleSkynetKernelProxyInfo = function (event: any) {
 	)
 }
 
-// handleTest responds to the 'test' method.
-let handleTest = function (event: any) {
-	event.source.postMessage(
-		{
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				version: "v0.0.1",
-			},
-		},
-		event.origin as any
-	)
-}
-
 // Establish the event listener for the kernel. There are several default
 // requests that are supported, namely everything that the user needs to create
 // a seed and log in with an existing seed, because before we have the user
@@ -426,14 +391,6 @@ var handleMessage = function (event: any) {
 	}
 	if (!("method" in event.data)) {
 		respondUnknownMethod("[no method provided]")
-		return
-	}
-
-	// Establish a debugging handler that a developer can call to verify
-	// that round-trip communication has been correctly programmed between
-	// the kernel and the calling application.
-	if (event.data.method === "test") {
-		handleTest(event)
 		return
 	}
 
@@ -461,9 +418,7 @@ var handleMessage = function (event: any) {
 	if (kernelHasLoaded === true) {
 		respondUnknownMethod(event.data.method)
 	} else {
-		blockUntilLoaded.then(() => {
-			handleMessage(event)
-		})
+		bootloaderLog("received a message before the kernel was ready", event.data)
 	}
 }
 window.addEventListener("message", (event) => {
@@ -475,7 +430,7 @@ window.addEventListener("message", (event) => {
 // 'kernelAuthStatusChanged' method to the parent so that the kernel can be
 // refreshed.
 var authChangeMessageSent = false
-let handleStorage = function (event: StorageEvent) {
+var handleStorage = function (event: StorageEvent) {
 	// If the event is that the v1-seed has changed, then this is a login
 	// event. If the user was already logged in, it may mean they switched
 	// accounts.
@@ -516,22 +471,13 @@ let handleStorage = function (event: StorageEvent) {
 }
 window.addEventListener("storage", (event) => handleStorage(event))
 
-// Send a message indicating that the kernel has loaded.
-window.parent.postMessage(
-	{
-		method: "kernelReady",
-		data: {},
-	},
-	"*"
-)
-
 // If the user seed is in local storage, we'll load the kernel. If the user
 // seed is not in local storage, we'll report that the user needs to perform
 // authentication. Kernel loading will resume once the user has authenticated.
 //
 // NOTE: Depending on which browser is being used we need to call
 // requestStorageAccess.
-function authFailed() {
+function bootloaderAuthFailed() {
 	window.parent.postMessage(
 		{
 			method: "kernelAuthStatus",
@@ -543,31 +489,51 @@ function authFailed() {
 		"*"
 	)
 }
+
+// bootloaderGetSeed will return the seed that is stored in localStorage. If
+// there is no seed, it means the user is not logged in.
+function bootloaderGetSeed(): [Uint8Array, error] {
+	// Pull the string version of the seed from localstorage.
+	let userSeedString = window.localStorage.getItem("v1-seed")
+	if (userSeedString === null) {
+		return [new Uint8Array(0), "no user seed in local storage"]
+	}
+
+	// Parse the string into a Uint8Array and return the result.
+	let userSeed = Uint8Array.from([...userSeedString].map((ch) => ch.charCodeAt(0)))
+	return [userSeed, null]
+}
+
+// bootloaderLoadKernel will attempt to load the kernel from the user's seed.
+// If the seed isn't available, it will declare that auth failed.
+function bootloaderLoadKernel() {
+	// Try to load the user's seed.
+	let [, errGSU] = bootloaderGetSeed()
+	if (errGSU !== null) {
+		bootloaderLog("auth", "user is not logged in", errGSU)
+		bootloaderAuthFailed()
+		return
+	}
+
+	// Attempt to load the skynet kernel.
+	bootloaderLog("auth", "user is logged in, attempting to load kernel")
+	loadSkynetKernel()
+}
+
+// If the browser supports requesting storage access, try to get storage
+// access. Otherwise, the user will need to disable strict privacy in their
+// browser for skt.us to work. If the user has the extension, disabling strict
+// privacy is not needed.
 if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && window.origin === "https://skt.us") {
 	document
 		.requestStorageAccess()
 		.then(() => {
-			let [, errGSU] = getUserSeed()
-			if (errGSU !== null) {
-				bootloaderLog("auth", "user is not logged in", errGSU)
-				authFailed()
-			} else {
-				bootloaderLog("auth", "user is logged in, attempting to load kernel")
-				loadSkynetKernel()
-			}
+			bootloaderLoadKernel()
 		})
 		.catch((err) => {
 			bootloaderLog("auth", "could not get access to localStorage", err)
-			authFailed()
+			bootloaderAuthFailed()
 		})
 } else {
-	let [, errGSU] = getUserSeed()
-	if (errGSU !== null) {
-		// Send a message indicating the auth status.
-		bootloaderLog("auth", "user is not logged in", errGSU)
-		authFailed()
-	} else {
-		bootloaderLog("auth", "user is logged in, attempting to load kernel")
-		loadSkynetKernel()
-	}
+	bootloaderLoadKernel()
 }

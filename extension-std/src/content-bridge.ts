@@ -1,8 +1,10 @@
-import { dataFn } from "libskynet"
-
 // Need to declare the browser variable so typescript doesn't complain. We
 // declare it as 'any' because typescript doesn't know type 'Browser'.
 declare var browser: any
+
+// This is the same as the dataFn declared in libskynet, but since it is the
+// only import I decided to re-implement it here.
+type dataFn = (data?: any) => void
 
 // Create the object that will track the current auth status of the kernel. We
 // need a promise because the client may connect to the bridge after all of the
