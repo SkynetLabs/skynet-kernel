@@ -94,7 +94,7 @@ function handleViewErrors(activeQuery: any) {
 // need to make sure that the seed distribution from the kernel appears to be
 // working, so we expose the seed for this module.
 async function handleViewSeed(activeQuery: any) {
-	let seed = await getSeed
+	let seed = await getSeed()
 	activeQuery.accept({ seed })
 }
 

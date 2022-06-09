@@ -4,23 +4,36 @@
 // declared inside of the kernel do not conflict with the bootloader. And as
 // the bootloader is the one that is the most difficult to change, we go out of
 // our way to namespace the bootloader.
+//
+// This cumbersome namespacing extends to other methods that we define inside
+// of the bootloader as well.
 import {
 	addContextToErr as bootloaderAddContextToErr,
 	b64ToBuf as bootloaderB64ToBuf,
 	bufToStr as bootloaderBufToStr,
 	defaultPortalList as bootloaderDefaultPortalList,
 	error as bootloaderError,
+	progressiveFetch as bootloaderProgressiveFetch,
 	progressiveFetchResult as bootloaderProgressiveFetchResult,
 	tryStringify as bootloaderTryStringify,
+	validSkylink as bootloaderValidSkylink,
 	verifyDownloadResponse as bootloaderVerifyDownloadResponse,
 } from "libskynet"
-
-// TODO: Need to figure out if the full kernel needs to overwrite the handlers
-// or if it can just add its own.
 
 // NOTE: The bootloader is somewhat unique because it contains both the code
 // for the browser extension bootloader, and also for the skt.us bootloader.
 // The main difference between the two is how localstorage is handled.
+
+// TODO: Need to figure out if the full kernel needs to overwrite the handlers
+// or if it can just add its own. And what the performance implications of that
+// might be. Well, the kernel probably wants to do things like overwrite the
+// localstorage handler behavior anyway.
+
+// TODO: A whole bunch of 'event' objects have been given type 'any' because
+// typescript was throwing weird errors like 'Object is possibly null' and
+// 'Argument of type 'string' is not assignable to parameter of type
+// 'WindowPostMessageOptions | undefined' - both of which I believe are
+// incorrect.
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -35,16 +48,8 @@ declare var deriveResolverLink: any
 declare var initUserPortalPreferences: any
 declare var writeNewOwnRegistryEntry: any
 
-// NOTE: Many of the function and object names in this file are made slightly
-// cumbersome using prefixes such as 'bootloader'. This is because we are going
-// to call 'eval' on the full kernel, and we need to make sure that the methods
-// named here don't conflict with any of the methods in the kernel.
-
-// TODO: A whole bunch of 'event' objects have been given type 'any' because
-// typescript was throwing weird errors like 'Object is possibly null' and
-// 'Argument of type 'string' is not assignable to parameter of type
-// 'WindowPostMessageOptions | undefined' - both of which I believe are
-// incorrect.
+// Establish the skylink of the default kernel.
+const bootloaderDefaultKernelResolverLink = "AQBY_5nSN_JhWCNcm7GrjENlNuaT-yUTTknWH4rtCnQO5A"
 
 // bootloaderWLog is a function that gets wrapped by bootloaderLog and
 // bootloaderErr.
@@ -82,64 +87,102 @@ function bootloaderErr(...inputs: any) {
 // bootloaderDownloadSkylink will download the provided skylink.
 function bootloaderDownloadSkylink(skylink: string): Promise<[data: Uint8Array, err: bootloaderError]> {
 	return new Promise((resolve) => {
+		// Get the Uint8Array of the input skylink.
+		let [u8Link, errBBTB] = bootloaderB64ToBuf(skylink)
+		if (errBBTB !== null) {
+			resolve([new Uint8Array(0), bootloaderAddContextToErr(errBBTB, "unable to decode skylink")])
+			return
+		}
+		if (!bootloaderValidSkylink(u8Link)) {
+			resolve([new Uint8Array(0), "skylink appears to be invalid"])
+			return
+		}
+
 		// Prepare the download call.
 		let endpoint = "/skynet/trustless/basesector/" + skylink
 		let portals = bootloaderDefaultPortalList
 		let fileDataPtr = { fileData: new Uint8Array(0), err: null }
-		let verifyFunction = function (response: Response): Promise<error> {
+		let verifyFunction = function (response: Response): Promise<bootloaderError> {
 			return bootloaderVerifyDownloadResponse(response, u8Link, fileDataPtr)
 		}
 
 		// Perform the download call.
-		progressiveFetch(endpoint, null, portals, verifyFunction).then((result: bootloaderProgressiveFetchResult) => {
-			// Return an error if the call failed.
-			if (result.success !== true) {
-				let err = tryStringify(result.messagesFailed)
-				resolve([new Uint8Array(0), bootloaderAddContextToErr(err, "unable to complete download")])
+		bootloaderProgressiveFetch(endpoint, null, portals, verifyFunction).then(
+			(result: bootloaderProgressiveFetchResult) => {
+				// Return an error if the call failed.
+				if (result.success !== true) {
+					let err = bootloaderTryStringify(result.messagesFailed)
+					resolve([new Uint8Array(0), bootloaderAddContextToErr(err, "unable to complete download")])
+					return
+				}
+				// Check if the portal is honest but the download is corrupt.
+				if (fileDataPtr.err !== null) {
+					resolve([new Uint8Array(0), bootloaderAddContextToErr(fileDataPtr.err, "download is corrupt")])
+					return
+				}
+				resolve([fileDataPtr.fileData, null])
+			}
+		)
+	})
+}
+
+// bootloaderDownloadDefaultKernel will attempt to download the default kernel
+// and return the code that can be eval'd.
+function bootloaderDownloadDefaultKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+	return new Promise((resolve) => {
+		bootloaderDownloadSkylink(bootloaderDefaultKernelResolverLink).then(([fileData, err]) => {
+			// Check the error.
+			if (err !== null) {
+				resolve(["", bootloaderAddContextToErr(err, "unable to download the default kernel")])
 				return
 			}
-			// Check if the portal is honest but the download is corrupt.
-			if (fileDataPtr.err !== null) {
-				resolve([new Uint8Array(0), bootloaderAddContextToErr(fileDataPtr.err, "download is corrupt")])
+
+			// Decode the fileData to text and return the text.
+			let [kernelCode, errBBTS] = bootloaderBufToStr(fileData)
+			if (errBBTS !== null) {
+				resolve(["", bootloaderAddContextToErr(err, "unable to decode the default kernel")])
 				return
 			}
-			resolve([fileDataPtr.fileData, null])
+			resolve([kernelCode, null])
 		})
 	})
 }
 
-// Establish the skylink of the default kernel.
-let defaultKernelResolverLink = "AQBY_5nSN_JhWCNcm7GrjENlNuaT-yUTTknWH4rtCnQO5A"
+// bootloaderDownloadUserKernel will download the user's kernel and return the
+// code that can be eval'd.
+function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+}
 
-// Establish a singleton which tracks whether the kernel has loaded.
-let kernelHasLoaded = false
-
-// downloadDefaultKernel will download the default kernel.
-let downloadDefaultKernel = function (): Promise<string> {
+// downloadUserKernel will download the user's kernel, falling back to the
+// default if necessary.
+let downloadUserKernel = function (): Promise<string> {
 	return new Promise((resolve, reject) => {
-		downloadSkylink(defaultKernelResolverLink)
-			.then((output: any) => {
-				// Handle the success case.
-				if (output.response.status === 200) {
-					let [text, errBTS] = bootloaderBufToStr(output.fileData)
-					if (errBTS !== null) {
-						reject(bootloaderAddContextToErr(errBTS, "kernel data is invalid"))
-						return
-					}
-					resolve(text)
-					return
-				}
+		// Get the resolver link for the user's kernel.
+		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
+		if (errDRL !== null) {
+			reject(bootloaderAddContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
+			return
+		}
 
-				// Handle every other response status.
-				bootloaderLog("portal response not recognized", output.response)
-				reject("response not recognized when reading default kernel")
-				return
+		// Attempt the download.
+		downloadSkylink(skylink)
+			.then((output: any) => {
+				processUserKernelDownload(output)
+					.then((kernel) => resolve(kernel))
+					.catch((err) => {
+						reject(bootloaderAddContextToErr(err, "unable to download kernel for the user"))
+					})
 			})
 			.catch((err: any) => {
-				reject(bootloaderAddContextToErr(err, "unable to download default portal"))
+				reject(bootloaderAddContextToErr(err, "unable to download user's kernel"))
 			})
 	})
 }
+
+// Establish a singleton which tracks whether the kernel has loaded.
+//
+// TODO: Need to rename this to namespace it better.
+let kernelHasLoaded = false
 
 // processUserKernelDownload handles the result of attempting to download the
 // kernel stored at the user's seed. This is a 'success' response, meaning that
@@ -173,7 +216,7 @@ let processUserKernelDownload = function (output: any): Promise<string> {
 			bootloaderLog("lifecycle", "user has no established kernel, trying to set the default")
 
 			// Perform the registry write.
-			let [defaultKernelSkylink, err64] = bootloaderB64ToBuf(defaultKernelResolverLink)
+			let [defaultKernelSkylink, err64] = bootloaderB64ToBuf(bootloaderDefaultKernelResolverLink)
 			if (err64 !== null) {
 				bootloaderLog("lifecycle", "could not convert defaultKernelSkylink to a uin8array")
 				reject(bootloaderAddContextToErr(err64, "could not convert defaultKernelSkylink"))
@@ -202,32 +245,6 @@ let processUserKernelDownload = function (output: any): Promise<string> {
 		bootloaderLog("lifecycle", "response not recognized when reading user kernel\n", response)
 		reject("response not recognized when reading user's kernel")
 		return
-	})
-}
-
-// downloadUserKernel will download the user's kernel, falling back to the
-// default if necessary.
-let downloadUserKernel = function (): Promise<string> {
-	return new Promise((resolve, reject) => {
-		// Get the resolver link for the user's kernel.
-		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
-		if (errDRL !== null) {
-			reject(bootloaderAddContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
-			return
-		}
-
-		// Attempt the download.
-		downloadSkylink(skylink)
-			.then((output: any) => {
-				processUserKernelDownload(output)
-					.then((kernel) => resolve(kernel))
-					.catch((err) => {
-						reject(bootloaderAddContextToErr(err, "unable to download kernel for the user"))
-					})
-			})
-			.catch((err: any) => {
-				reject(bootloaderAddContextToErr(err, "unable to download user's kernel"))
-			})
 	})
 }
 
