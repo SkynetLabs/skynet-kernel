@@ -29,7 +29,6 @@ document.body.appendChild(header)
 
 // TODO: None of these exist, need to either implement or import them.
 declare var deriveResolverLink: any
-declare var downloadSkylink: any
 declare var initUserPortalPreferences: any
 declare var writeNewOwnRegistryEntry: any
 
@@ -75,6 +74,12 @@ function bootloaderLog(...inputs: any) {
 // as an error.
 function bootloaderErr(...inputs: any) {
 	bootloaderWLog(true, ...inputs)
+}
+
+// bootloaderDownloadSkylink will download the provided skylink.
+//
+// TODO: Implement this. See if you can keep this type signature.
+function bootloaderDownloadSkylink(skylink: string): Promise<[data: Uint8Array, err: bootloaderError]> {
 }
 
 // Establish the skylink of the default kernel.

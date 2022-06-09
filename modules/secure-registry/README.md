@@ -63,7 +63,7 @@ number. The module will perform the signing and uploading.
 		publicKey: <Uint8Array>,
 		secretKey: <Uint8Array>,
 		dataKey: <Uint8Array>,
-		data: <Uint8Array>,
+		entryData: <Uint8Array>,
 		revision: <BigInt>,
 	},
 }

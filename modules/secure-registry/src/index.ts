@@ -221,7 +221,7 @@ function handleWriteEntry(aq: activeQuery) {
 		return
 	}
 	if (!("entryData" in data)) {
-		aq.reject("input should contain a data field")
+		aq.reject("input should contain an entryData field")
 		return
 	}
 	if (!(data.entryData instanceof Uint8Array)) {
