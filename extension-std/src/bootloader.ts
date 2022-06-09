@@ -8,8 +8,11 @@ import {
 	addContextToErr as bootloaderAddContextToErr,
 	b64ToBuf as bootloaderB64ToBuf,
 	bufToStr as bootloaderBufToStr,
+	defaultPortalList as bootloaderDefaultPortalList,
 	error as bootloaderError,
+	progressiveFetchResult as bootloaderProgressiveFetchResult,
 	tryStringify as bootloaderTryStringify,
+	verifyDownloadResponse as bootloaderVerifyDownloadResponse,
 } from "libskynet"
 
 // TODO: Need to figure out if the full kernel needs to overwrite the handlers
@@ -77,9 +80,32 @@ function bootloaderErr(...inputs: any) {
 }
 
 // bootloaderDownloadSkylink will download the provided skylink.
-//
-// TODO: Implement this. See if you can keep this type signature.
 function bootloaderDownloadSkylink(skylink: string): Promise<[data: Uint8Array, err: bootloaderError]> {
+	return new Promise((resolve) => {
+		// Prepare the download call.
+		let endpoint = "/skynet/trustless/basesector/" + skylink
+		let portals = bootloaderDefaultPortalList
+		let fileDataPtr = { fileData: new Uint8Array(0), err: null }
+		let verifyFunction = function (response: Response): Promise<error> {
+			return bootloaderVerifyDownloadResponse(response, u8Link, fileDataPtr)
+		}
+
+		// Perform the download call.
+		progressiveFetch(endpoint, null, portals, verifyFunction).then((result: bootloaderProgressiveFetchResult) => {
+			// Return an error if the call failed.
+			if (result.success !== true) {
+				let err = tryStringify(result.messagesFailed)
+				resolve([new Uint8Array(0), bootloaderAddContextToErr(err, "unable to complete download")])
+				return
+			}
+			// Check if the portal is honest but the download is corrupt.
+			if (fileDataPtr.err !== null) {
+				resolve([new Uint8Array(0), bootloaderAddContextToErr(fileDataPtr.err, "download is corrupt")])
+				return
+			}
+			resolve([fileDataPtr.fileData, null])
+		})
+	})
 }
 
 // Establish the skylink of the default kernel.

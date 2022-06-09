@@ -4,6 +4,11 @@
 // fails, we try to call JSON.stringify on the object. And if that fails, we
 // set the return value to "[stringify failed]".
 function tryStringify(obj: any): string {
+	// Check for undefined input.
+	if (obj === undefined || obj === null) {
+		return "[cannot stringify undefined input]"
+	}
+
 	// Parse the error into a string.
 	if (typeof obj === "string") {
 		return obj

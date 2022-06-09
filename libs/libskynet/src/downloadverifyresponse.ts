@@ -9,7 +9,7 @@ import { error } from "./types.js"
 // verifyDownloadResponse to return the fileData back to the caller.
 interface fileDataObj {
 	fileData: Uint8Array
-	err: string | null
+	err: error
 }
 
 // Establish the function that verifies the result is correct.
