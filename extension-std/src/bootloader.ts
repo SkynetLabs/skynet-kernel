@@ -126,11 +126,11 @@ function bootloaderDownloadSkylink(skylink: string): Promise<[data: Uint8Array, 
 	})
 }
 
-// bootloaderDownloadDefaultKernel will attempt to download the default kernel
-// and return the code that can be eval'd.
-function bootloaderDownloadDefaultKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+// bootloaderDownloadKernel will take the skylink for a kernel distro, download
+// that kernel, and return the code that can be eval'd to load the kernel.
+function bootloaderDownloadKernel(kernelSkylink: string): Promise<[kernelCode: string, err: bootloaderError]> {
 	return new Promise((resolve) => {
-		bootloaderDownloadSkylink(bootloaderDefaultKernelResolverLink).then(([fileData, err]) => {
+		bootloaderDownloadSkylink(kernelSkylink).then(([fileData, err]) => {
 			// Check the error.
 			if (err !== null) {
 				resolve(["", bootloaderAddContextToErr(err, "unable to download the default kernel")])
@@ -148,21 +148,33 @@ function bootloaderDownloadDefaultKernel(): Promise<[kernelCode: string, err: bo
 	})
 }
 
+// bootloaderDownloadDefaultKernel will attempt to download the default kernel
+// and return the code that can be eval'd.
+function bootloaderDownloadDefaultKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+	return bootloaderDownloadKernel(bootloaderDefaultKernelResolverLink)
+}
+
 // bootloaderDownloadUserKernel will download the user's kernel and return the
 // code that can be eval'd.
 function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+	// Get the resolver link for the user's kernel.
+	let [userKernelSkylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
+	if (errDRL !== null) {
+		reject(bootloaderAddContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
+		return
+	}
+
+	// TODO: If the registry lookup is a 404 for the user's kernel skylink, we
+	// need to write the default kernel to the user's kernel skylink.
+
+	// Use that skylink to fetch the kernel code.
+	return bootloaderDownloadKernel(userKernelSkylink)
 }
 
 // downloadUserKernel will download the user's kernel, falling back to the
 // default if necessary.
 let downloadUserKernel = function (): Promise<string> {
 	return new Promise((resolve, reject) => {
-		// Get the resolver link for the user's kernel.
-		let [skylink, errDRL] = deriveResolverLink("v1-skynet-kernel", "v1-skynet-kernel-datakey")
-		if (errDRL !== null) {
-			reject(bootloaderAddContextToErr(errDRL, "unable to get resovler link for user's portal prefs"))
-			return
-		}
 
 		// Attempt the download.
 		downloadSkylink(skylink)

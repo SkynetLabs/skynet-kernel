@@ -1,5 +1,8 @@
 export { log, logErr } from "./log.js"
+export { download } from "./messagedownload.js"
+export { registryRead, registryWrite } from "./messageregistry.js"
 export { activeQuery, addHandler, handleMessage } from "./messages.js"
+export { upload } from "./messageupload.js"
 export { callModule, connectModule, newKernelQuery } from "./queries.js"
 export { getSeed } from "./seed.js"
 export { addContextToErr, composeErr, tryStringify } from "libskynet"
