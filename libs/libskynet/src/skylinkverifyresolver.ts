@@ -3,6 +3,7 @@ import { addContextToErr } from "./err.js"
 import { deriveRegistryEntryID, verifyRegistrySignature } from "./registry.js"
 import { parseSkylinkBitfield } from "./skylinkbitfield.js"
 import { validSkylink } from "./skylinkvalidate.js"
+import { tryStringify } from "./stringifytry.js"
 
 // Helper consts to make returning empty values alongside errors more
 // convenient.
@@ -51,8 +52,8 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
 	if (typeof proof.signature !== "string") {
 		return [nu8, "signature is malformed"]
 	}
-	if (proof.type !== 1) {
-		return [nu8, "registry entry has unrecognized type"]
+	if (proof.type !== 1n) {
+		return [nu8, "registry entry has unrecognized type: " + tryStringify(proof.type)]
 	}
 	let sigStr = <string>proof.signature
 	if (typeof proof.revision !== "bigint") {

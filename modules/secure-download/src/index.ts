@@ -2,7 +2,7 @@
 // of the file is computed locally after the data is received to ensure that
 // the data matches the skylink.
 
-import { activeQuery, addContextToErr, addHandler, handleMessage, log, tryStringify } from "libkmodule"
+import { activeQuery, addContextToErr, addHandler, handleMessage, tryStringify } from "libkmodule"
 
 import {
 	b64ToBuf,
@@ -40,15 +40,13 @@ function handleSecureDownload(aq: activeQuery) {
 
 	// Call progressiveFetch to perform the download.
 	let endpoint = "/skynet/trustless/basesector/" + aq.callerInput.skylink
-	log("download module is trying to fetch at endpoint:", endpoint, defaultPortalList)
 	let fileDataPtr = { fileData: new Uint8Array(0), err: null }
 	let verifyFunction = function (response: Response): Promise<error> {
 		return verifyDownloadResponse(response, u8Link, fileDataPtr)
 	}
 	progressiveFetch(endpoint, null, defaultPortalList, verifyFunction).then((result: progressiveFetchResult) => {
 		if (result.success !== true) {
-			log(result)
-			let err = tryStringify(result.messagesFailed)
+			let err = tryStringify({ logs: result.logs })
 			aq.reject(addContextToErr(err, "unable to download file"))
 			return
 		}

@@ -607,9 +607,10 @@ function TestSecureRegistry() {
 function TestSecureUploadAndDownload() {
 	return new Promise(async (resolve, reject) => {
 		// Try to upload a sample file.
-		console.log("starting test")
+		let start = performance.now()
 		let fileDataUp = new TextEncoder().encode("test data")
 		let [uploadResp, errU] = await kernel.upload("testUpload.txt", fileDataUp)
+		console.log("TestSecureUploadAndDownload: initial upload completed after", performance.now()-start)
 		if (errU !== null) {
 			reject(kernel.addContextToErr(errU, "upload failed"))
 			return
@@ -621,8 +622,8 @@ function TestSecureUploadAndDownload() {
 		let skylink = uploadResp.skylink
 
 		// Try to download the file we just uploaded.
-		console.log("got to download")
 		let [downloadResp, errD] = await kernel.download(skylink)
+		console.log("TestSecureUploadAndDownload: initial download completed after", performance.now()-start)
 		if (errD !== null) {
 			reject(kernel.addContextToErr(errD, "content link download failed"))
 			return
@@ -641,8 +642,8 @@ function TestSecureUploadAndDownload() {
 
 		// Create a resolver link for the file and publish that resolver link
 		// to the registry.
-		console.log("got to seed")
 		let [seedResp, errVS] = await kernel.callModule(kernelTestSuite, "viewSeed", {})
+		console.log("TestSecureUploadAndDownload: viewSeed completed after", performance.now()-start)
 		if (errVS !== null) {
 			reject(kernel.addContextToErr(errVS, "unable to retrieve seed"))
 			return
@@ -662,8 +663,8 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Perform a registry read to get the revision number that we need.
-		console.log("got to regread")
 		let [regRead, errRR] = await kernel.registryRead(keypair.publicKey, dataKey)
+		console.log("TestSecureUploadAndDownload: regread completed after", performance.now()-start)
 		if (errRR !== null) {
 			reject(skynet.addContextToErr(errRR, "unable to read from registry entry"))
 			return
@@ -674,8 +675,8 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Perform the registry write.
-		console.log("got to regwrite")
 		let [respRW, errRW] = await kernel.registryWrite(keypair, dataKey, bufLink, revisionNumber)
+		console.log("TestSecureUploadAndDownload: regwrite completed after", performance.now()-start)
 		if (errRW !== null) {
 			return
 		}
@@ -685,7 +686,6 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Convert the entryID to a resovler skylink.
-		console.log("resolver link attained")
 		let [resolverLink, errRL] = skynet.resolverLink(respRW.entryID)
 		if (errRL !== null) {
 			reject(kernel.addContextToErr(errRL, "unable to convert resp.entryID to resolver link"))
@@ -693,9 +693,8 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Perform a skylink download using the resolver link.
-		console.log("downloading by resolver link:", resolverLink)
 		let [resolverDownloadResp, errD2] = await kernel.download(resolverLink)
-		console.log("kernel.download complete")
+		console.log("TestSecureUploadAndDownload: download completed after", performance.now()-start)
 		if (errD2 !== null) {
 			reject(kernel.addContextToErr(errD2, "content link download failed"))
 			return
@@ -713,8 +712,7 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Test is complete.
-		console.log("oh yeah we done now")
-		resolve("v1 skylink: "+skylink+"\nv2 skylink: "+resolverLink)
+		resolve("<br />v1skylink: "+skylink+"<br />v2skylink: "+resolverLink)
 	})
 }
 
