@@ -1,3 +1,5 @@
+import { tryStringify } from "./stringifytry.js"
+
 // progressiveFetchResult lists the items that are returned after calling
 // progressiveFetch. The 'portal' field indicates the portal that returned the
 // provided response. 'responsesFailed' contains any responses from portals
@@ -35,7 +37,7 @@ interface progressiveFetchMidstate {
 function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, verifyFunction: any) {
 	// If we run out of portals, return an error.
 	if (pfm.remainingPortals.length === 0) {
-		let newLog = "query failed because all portals have been tried\n" + JSON.stringify(pfm)
+		let newLog = "query failed because all portals have been tried"
 		pfm.logs.push(newLog)
 		resolve({
 			success: false,
@@ -43,6 +45,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 			response: null,
 			portalsFailed: pfm.portalsFailed,
 			responsesFailed: pfm.responsesFailed,
+			messagesFailed: pfm.messagesFailed,
 			remainingPortals: null,
 			logs: pfm.logs,
 		})
@@ -79,11 +82,11 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 		.then((response: any) => {
 			// Check for a 5XX error.
 			if (!("status" in response) || typeof response.status !== "number") {
-				nextPortal(response, "portal has returned invalid response\n" + JSON.stringify({ portal, query }))
+				nextPortal(response, "portal has returned invalid response\n" + tryStringify({ portal, query }))
 				return
 			}
 			if (response.status < 200 || response.status >= 300) {
-				nextPortal(response, "portal has returned error status\n" + JSON.stringify({ portal, query }))
+				nextPortal(response, "portal has returned error status\n" + tryStringify({ portal, query }))
 				return
 			}
 
@@ -109,7 +112,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 		})
 		.catch((err: any) => {
 			// This portal failed, try again with the next portal.
-			nextPortal(null, "fetch returned an error\n" + JSON.stringify(err) + JSON.stringify(pfm.fetchOpts))
+			nextPortal(null, "fetch returned an error\n" + tryStringify(err) + tryStringify(pfm.fetchOpts))
 			return
 		})
 }

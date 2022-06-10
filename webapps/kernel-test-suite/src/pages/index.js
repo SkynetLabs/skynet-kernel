@@ -500,18 +500,19 @@ function TestBasicCORS() {
 // TestSecureRegistry will check that the sercure-registry module is working.
 function TestSecureRegistry() {
 	return new Promise(async (resolve, reject) => {
-		// Start by creating keys that we can use to write to the registry.
-		let [seedPhrase, errSPD] = skynet.generateSeedPhraseDeterministic("kernel-test-suite")
-		if (errSPD !== null) {
-			reject("unable to generate seed for registry testing")
+		let start = performance.now()
+		// Start by retrieving a seed from the test suite, this way we can
+		// create a registry entry that is unique to the current user.
+		let [seedResp, errVS] = await kernel.callModule(kernelTestSuite, "viewSeed", {})
+		console.log("TestSecureRegistry: viewSeed completed after", performance.now()-start)
+		if (errVS !== null) {
+			reject(kernel.addContextToErr(errVS, "unable to retrieve seed"))
 			return
 		}
-		let [seed, errSPTS] = skynet.seedPhraseToSeed(seedPhrase)
-		if (errSPTS !== null) {
-			reject(skynet.addContextToErr(errSPTS, "unable to convert seed phrase to seed"))
-			return
-		}
-		let [keypair, dataKey, errTREK] = skynet.taggedRegistryEntryKeys(seed, "test1", "test1")
+		let seed = seedResp.seed
+
+		// Create the keypair that we will use for this registry entry.
+		let [keypair, dataKey, errTREK] = skynet.taggedRegistryEntryKeys(seed, "TSR", "TSR")
 		if (errTREK !== null) {
 			reject(skynet.addContextToErr(errTREK, "unable to generate tagged registry keys"))
 			return
@@ -519,14 +520,40 @@ function TestSecureRegistry() {
 
 		// Read from the registry entry.
 		let [readData, errRR] = await kernel.registryRead(keypair.publicKey, dataKey)
+		console.log("TestSecureRegistry: registryRead completed after", performance.now()-start)
 		if (errRR !== null) {
 			reject(skynet.addContextToErr(errRR, "unable to read from registry entry"))
 			return
 		}
+
+		// If the registry entry doesn't exist yet (which it won't if this is
+		// the first time that the test suite has been run by this seed),
+		// perform a write to create the registry entry.
+		let entryData = new TextEncoder().encode("sample registry data")
 		if (readData.exists !== true) {
-			reject("registry entry should exist")
-			return
+			// Perform the write.
+			let [, errRW] = await kernel.registryWrite(keypair, dataKey, entryData, 0n)
+			console.log("TestSecureRegistry: registryWrite404 completed after", performance.now()-start)
+			if (errRW !== null) {
+				reject(skynet.addContextToErr(errRW, "error when calling registry module"))
+				return
+			}
+
+			// Redo the read so that the test can proceed as though the first
+			// read succeeded.
+			[readData, errRR] = await kernel.registryRead(keypair.publicKey, dataKey)
+			console.log("TestSecureRegistry: registryRead404 completed after", performance.now()-start)
+			if (errRR !== null) {
+				reject(skynet.addContextToErr(errRR, "unable to read from registry entry"))
+				return
+			}
+			if (readData.exists !== true) {
+				reject(skynet.addContextToErr(errRR, "got a 404 after writing to a registry entry"))
+				return
+			}
 		}
+
+		// Check the entry data.
 		if (!("entryData" in readData)) {
 			reject("response should contain entryData")
 			return
@@ -536,7 +563,6 @@ function TestSecureRegistry() {
 			reject("entryData response should be a Uint8Array")
 			return
 		}
-		let entryData = new TextEncoder().encode("test message in the registry")
 		if (entryData.length !== readData.entryData.length) {
 			reject("entryData mismatch")
 			return
@@ -556,8 +582,9 @@ function TestSecureRegistry() {
 			return
 		}
 
-		// Write to the registry entry.
+		// Write to the registry entry and check that no errors are returned.
 		let [resp, errRW] = await kernel.registryWrite(keypair, dataKey, entryData, readData.revision+1n)
+		console.log("TestSecureRegistry: registryWrite completed after", performance.now()-start)
 		if (errRW !== null) {
 			reject(skynet.addContextToErr(errRW, "error when calling registry module"))
 			return
@@ -566,45 +593,128 @@ function TestSecureRegistry() {
 			reject("registry module response does not contain an entryID field")
 			return
 		}
-		resolve(resp.entryID)
+		let [resolverLink, errRL] = skynet.resolverLink(resp.entryID)
+		if (errRL !== null) {
+			reject(skynet.addContextToErr(errRL, "could not convert entryID to resolver link"))
+			return
+		}
+		resolve(resolverLink)
 	})
 }
 
 // TestSecureUploadAndDownload will upload a very basic file to Skynet using
 // libkernel. It will then download that skylink using libkernel.
 function TestSecureUploadAndDownload() {
-	return new Promise((resolve, reject) => {
+	return new Promise(async (resolve, reject) => {
+		// Try to upload a sample file.
+		console.log("starting test")
 		let fileDataUp = new TextEncoder().encode("test data")
-		kernel.upload("testUpload.txt", fileDataUp)
-		.then(([data, err])=> {
-			if (err !== null) {
-				reject("upload failed: "+err)
+		let [uploadResp, errU] = await kernel.upload("testUpload.txt", fileDataUp)
+		if (errU !== null) {
+			reject(kernel.addContextToErr(errU, "upload failed"))
+			return
+		}
+		if (!("skylink" in uploadResp)) {
+			reject("return value of upload had no skylink field")
+			return
+		}
+		let skylink = uploadResp.skylink
+
+		// Try to download the file we just uploaded.
+		console.log("got to download")
+		let [downloadResp, errD] = await kernel.download(skylink)
+		if (errD !== null) {
+			reject(kernel.addContextToErr(errD, "content link download failed"))
+			return
+		}
+		let fileDataDown = downloadResp.fileData
+		if (fileDataUp.length !== fileDataDown.length) {
+			reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
+			return
+		}
+		for (let i = 0; i < fileDataUp.length; i++) {
+			if (fileDataUp[i] !== fileDataDown[i]) {
+				reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
 				return
 			}
-			if (!("skylink" in data)) {
-				reject("return value of upload had no skylink field")
+		}
+
+		// Create a resolver link for the file and publish that resolver link
+		// to the registry.
+		console.log("got to seed")
+		let [seedResp, errVS] = await kernel.callModule(kernelTestSuite, "viewSeed", {})
+		if (errVS !== null) {
+			reject(kernel.addContextToErr(errVS, "unable to retrieve seed"))
+			return
+		}
+		let seed = seedResp.seed
+		// Create the keypair that we will use for this registry entry.
+		let [keypair, dataKey, errTREK] = skynet.taggedRegistryEntryKeys(seed, "TSUAD", "TSUAD")
+		if (errTREK !== null) {
+			reject(skynet.addContextToErr(errTREK, "unable to generate tagged registry keys"))
+			return
+		}
+		// Create the data field for the resolver link.
+		let [bufLink, errBTB] = skynet.b64ToBuf(skylink)
+		if (errBTB !== null) {
+			reject(skynet.addContextToErr(errBTB, "unable to convert skylink to buf"))
+			return
+		}
+
+		// Perform a registry read to get the revision number that we need.
+		console.log("got to regread")
+		let [regRead, errRR] = await kernel.registryRead(keypair.publicKey, dataKey)
+		if (errRR !== null) {
+			reject(skynet.addContextToErr(errRR, "unable to read from registry entry"))
+			return
+		}
+		let revisionNumber = 0n
+		if (regRead.exists) {
+			revisionNumber = regRead.revision + 1n
+		}
+
+		// Perform the registry write.
+		console.log("got to regwrite")
+		let [respRW, errRW] = await kernel.registryWrite(keypair, dataKey, bufLink, revisionNumber)
+		if (errRW !== null) {
+			return
+		}
+		if (!("entryID" in respRW)) {
+			reject("registry module response does not contain an entryID field")
+			return
+		}
+
+		// Convert the entryID to a resovler skylink.
+		console.log("resolver link attained")
+		let [resolverLink, errRL] = skynet.resolverLink(respRW.entryID)
+		if (errRL !== null) {
+			reject(kernel.addContextToErr(errRL, "unable to convert resp.entryID to resolver link"))
+			return
+		}
+
+		// Perform a skylink download using the resolver link.
+		console.log("downloading by resolver link:", resolverLink)
+		let [resolverDownloadResp, errD2] = await kernel.download(resolverLink)
+		console.log("kernel.download complete")
+		if (errD2 !== null) {
+			reject(kernel.addContextToErr(errD2, "content link download failed"))
+			return
+		}
+		let resolverData = resolverDownloadResp.fileData
+		if (fileDataUp.length !== resolverData.length) {
+			reject("uploaded data and resolver downloaded data do not match: "+skynet.tryStringify({uploaded: fileDataUp, downloaded: resolverData}))
+			return
+		}
+		for (let i = 0; i < fileDataUp.length; i++) {
+			if (fileDataUp[i] !== fileDataDown[i]) {
+				reject("uploaded data and downloaded data do not match: "+skynet.tryStringify({uploaded: fileDataUp, downloaded: resolverData}))
 				return
 			}
-			let skylink = data.skylink
-			kernel.download(skylink).then(([ddata, derr])=> {
-				if (derr !== null) {
-					reject("download failed: "+derr)
-					return
-				}
-				let fileDataDown = ddata.fileData
-				if (fileDataUp.length !== fileDataDown.length) {
-					reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
-					return
-				}
-				for (let i = 0; i < fileDataUp.length; i++) {
-					if (fileDataUp[i] !== fileDataDown[i]) {
-						reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
-						return
-					}
-				}
-				resolve(skylink)
-			})
-		})
+		}
+
+		// Test is complete.
+		console.log("oh yeah we done now")
+		resolve("v1 skylink: "+skylink+"\nv2 skylink: "+resolverLink)
 	})
 }
 

@@ -73,7 +73,7 @@ Output:
 
 ```ts
 {
-	entryID: <string>,
+	entryID: <Uint8Array>,
 }
 ```
 

@@ -3,6 +3,7 @@ import { addContextToErr } from "./err.js"
 import { parseJSON } from "./parse.js"
 import { parseSkylinkBitfield } from "./skylinkbitfield.js"
 import { verifyResolverLinkProofs } from "./skylinkverifyresolver.js"
+import { tryStringify } from "./stringifytry.js"
 import { error } from "./types.js"
 
 // fileDataObj defines the fileData object that we use in
@@ -25,7 +26,7 @@ function verifyDownloadResponse(response: Response, u8Link: Uint8Array, fileData
 		// Currently the only valid successful response for a download is a
 		// 200. Anything else is unexpected and counts as an error.
 		if (response.status !== 200) {
-			resolve("unrecognized response status " + response.status.toString() + ", expecting 200")
+			resolve("unrecognized response status " + tryStringify(response.status) + ", expecting 200")
 			return
 		}
 

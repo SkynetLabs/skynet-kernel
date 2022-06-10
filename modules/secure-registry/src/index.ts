@@ -1,7 +1,6 @@
 import { activeQuery, addContextToErr, addHandler, handleMessage } from "libkmodule"
 import {
 	blake2b,
-	bufToB64,
 	bufToHex,
 	defaultPortalList,
 	deriveRegistryEntryID,
@@ -294,7 +293,7 @@ function handleWriteEntry(aq: activeQuery) {
 		.then((result) => {
 			if (result.success === true) {
 				aq.accept({
-					entryID: bufToB64(entryID),
+					entryID,
 				})
 				return
 			}
