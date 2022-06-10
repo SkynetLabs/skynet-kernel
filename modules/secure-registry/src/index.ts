@@ -1,7 +1,6 @@
 import { activeQuery, addContextToErr, addHandler, handleMessage } from "libkmodule"
 import {
 	blake2b,
-	bufToB64,
 	bufToHex,
 	defaultPortalList,
 	deriveRegistryEntryID,
@@ -221,7 +220,7 @@ function handleWriteEntry(aq: activeQuery) {
 		return
 	}
 	if (!("entryData" in data)) {
-		aq.reject("input should contain a data field")
+		aq.reject("input should contain an entryData field")
 		return
 	}
 	if (!(data.entryData instanceof Uint8Array)) {
@@ -294,7 +293,7 @@ function handleWriteEntry(aq: activeQuery) {
 		.then((result) => {
 			if (result.success === true) {
 				aq.accept({
-					entryID: bufToB64(entryID),
+					entryID,
 				})
 				return
 			}

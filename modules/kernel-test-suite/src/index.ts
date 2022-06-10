@@ -333,7 +333,7 @@ async function handleViewHelperSeed(activeQuery: any) {
 	}
 
 	// Check that the seed is well formed
-	let seed = <Uint8Array>await getSeed
+	let seed = await getSeed()
 	let equal = true
 	for (let i = 0; i < 16; i++) {
 		if (seed[i] !== resp.seed[i]) {
@@ -353,7 +353,7 @@ async function handleViewHelperSeed(activeQuery: any) {
 // handleViewSeed responds to a query asking to see the specific seed for the
 // module.
 async function handleViewSeed(activeQuery: any) {
-	let seed = await getSeed
+	let seed = await getSeed()
 	activeQuery.accept({ seed: seed })
 }
 
@@ -382,7 +382,7 @@ async function handleViewOwnSeedThroughHelper(activeQuery: any) {
 
 	// Need to wait until the kernel has send us our seed to do a seed
 	// comparison.
-	let seed = <Uint8Array>await getSeed
+	let seed = await getSeed()
 	let equal = true
 	for (let i = 0; i < 16; i++) {
 		if (seed[i] !== resp.testerSeed[i]) {

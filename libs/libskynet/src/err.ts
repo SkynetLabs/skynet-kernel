@@ -1,4 +1,4 @@
-import { tryStringify } from "./stringify.js"
+import { tryStringify } from "./stringifytry.js"
 
 // addContextToErr is a helper function that standardizes the formatting of
 // adding context to an error. Within the world of go we discovered that being
