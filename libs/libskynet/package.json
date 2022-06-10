@@ -17,13 +17,9 @@
 	},
 	"author": "David Vorick",
 	"devDependencies": {
-		"@types/json-bigint": "^1.0.1",
 		"@types/node": "^17.0.23",
 		"@typescript-eslint/eslint-plugin": "^5.19.0",
 		"eslint": "^8.13.0",
 		"prettier": "^2.6.2"
-	},
-	"dependencies": {
-		"json-bigint": "^1.0.0"
 	}
 }

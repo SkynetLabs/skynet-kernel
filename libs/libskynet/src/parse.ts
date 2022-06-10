@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { tryStringify } from "./stringifytry.js"
 import { error } from "./types.js"
 
@@ -9,7 +11,6 @@ const suspectProtoRx =
 	/(?:_|\\u005[Ff])(?:_|\\u005[Ff])(?:p|\\u0070)(?:r|\\u0072)(?:o|\\u006[Ff])(?:t|\\u0074)(?:o|\\u006[Ff])(?:_|\\u005[Ff])(?:_|\\u005[Ff])/
 const suspectConstructorRx =
 	/(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[Ee])(?:s|\\u0073)(?:t|\\u0074)(?:r|\\u0072)(?:u|\\u0075)(?:c|\\u0063)(?:t|\\u0074)(?:o|\\u006[Ff])(?:r|\\u0072)/
-let BigNumber = null
 let json_parse = function (options) {
 	"use strict"
 
@@ -26,7 +27,6 @@ let json_parse = function (options) {
 		strict: false, // not being strict means do not generate syntax errors for "duplicate key"
 		storeAsString: false, // toggles whether the values should be stored as BigNumber (default) or a string
 		alwaysParseAsBig: false, // toggles whether all numbers should be Big
-		useNativeBigInt: false, // toggles whether to use native BigInt instead of bignumber.js
 		protoAction: "error",
 		constructorAction: "error",
 	}
@@ -40,7 +40,6 @@ let json_parse = function (options) {
 			_options.storeAsString = true
 		}
 		_options.alwaysParseAsBig = options.alwaysParseAsBig === true ? options.alwaysParseAsBig : false
-		_options.useNativeBigInt = options.useNativeBigInt === true ? options.useNativeBigInt : false
 
 		if (typeof options.constructorAction !== "undefined") {
 			if (
@@ -140,18 +139,9 @@ let json_parse = function (options) {
 			if (!isFinite(number)) {
 				error("Bad number")
 			} else {
-				if (BigNumber == null) BigNumber = require("bignumber.js")
-				if (Number.isSafeInteger(number))
-					return !_options.alwaysParseAsBig ? number : _options.useNativeBigInt ? BigInt(number) : new BigNumber(number)
+				if (Number.isSafeInteger(number)) return !_options.alwaysParseAsBig ? number : BigInt(number)
 				// Number with fractional part should be treated as number(double) including big integers in scientific notation, i.e 1.79e+308
-				else
-					return _options.storeAsString
-						? string
-						: /[.eE]/.test(string)
-						? number
-						: _options.useNativeBigInt
-						? BigInt(string)
-						: new BigNumber(string)
+				else return _options.storeAsString ? string : /[.eE]/.test(string) ? number : BigInt(string)
 			}
 		},
 		string = function () {
@@ -350,8 +340,7 @@ let json_parse = function (options) {
 
 		return typeof reviver === "function"
 			? (function walk(holder, key) {
-					let k,
-						v,
+					let v,
 						value = holder[key]
 					if (value && typeof value === "object") {
 						Object.keys(value).forEach(function (k) {
