@@ -712,7 +712,7 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Test is complete.
-		resolve("<br />v1skylink: "+skylink+"<br />v2skylink: "+resolverLink)
+		resolve("upload works, download works, resolver download works")
 	})
 }
 

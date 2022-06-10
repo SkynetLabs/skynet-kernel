@@ -30,6 +30,6 @@
 	},
 	"dependencies": {
 		"libkmodule": "^0.2.8",
-		"libskynet": "^0.0.23"
+		"libskynet": "^0.0.27"
 	}
 }

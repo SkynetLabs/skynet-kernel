@@ -116,7 +116,7 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
 function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array, string | null] {
 	// Check that the proof is an array.
 	if (!Array.isArray(proof)) {
-		return [nu8, "provided proof is not an array"]
+		return [nu8, "provided proof is not an array: " + tryStringify(proof)]
 	}
 	if (proof.length === 0) {
 		return [nu8, "proof array is empty"]

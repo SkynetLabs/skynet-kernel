@@ -366,7 +366,7 @@ let json_parse = function (options) {
 // cryptographic, therefore full precision is required.
 function parseJSON(json: string): [any, error] {
 	try {
-		let obj = json_parse(json)
+		let obj = json_parse({ alwaysParseAsBig: true })(json)
 		return [obj, null]
 	} catch (err: any) {
 		return [{}, tryStringify(err)]
