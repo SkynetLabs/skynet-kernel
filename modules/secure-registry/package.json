@@ -29,7 +29,7 @@
 		"webpack-cli": "^4.9.2"
 	},
 	"dependencies": {
-		"libkmodule": "^0.2.3",
+		"libkmodule": "^0.2.10",
 		"libskynet": "^0.0.20"
 	}
 }
