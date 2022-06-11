@@ -26,7 +26,7 @@ interface activeQuery {
 	// accept and reject are functions that will send response messages
 	// that close out the query. accept can take an arbitrary object as
 	// input, reject should always be a string.
-	accept: dataFn
+	respond: dataFn
 	reject: errFn
 
 	// domain is a field provided by the kernel that informs the module who
@@ -143,7 +143,7 @@ function handleMessage(event: MessageEvent) {
 	// Set up the accept and reject functions. They use the 'responded'
 	// variable to ensure that only one response is ever sent.
 	let responded = false
-	let accept = function (data: any) {
+	let respond = function (data: any) {
 		// Check if a response was already sent.
 		if (responded) {
 			let str = tryStringify(data)
@@ -204,7 +204,7 @@ function handleMessage(event: MessageEvent) {
 	try {
 		let activeQuery: activeQuery = {
 			callerInput: event.data.data,
-			accept,
+			respond,
 			reject,
 			sendUpdate,
 			domain: event.data.domain,

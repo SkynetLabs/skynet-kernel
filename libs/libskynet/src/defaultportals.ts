@@ -1,3 +1,3 @@
-const defaultPortalList = ["siasky.net", "eu-ger-12.siasky.net", "web3portal.com", "siasky.dev"]
+const defaultPortalList = ["https://siasky.net", "https://web3portal.com", "https://siasky.dev"]
 
 export { defaultPortalList }

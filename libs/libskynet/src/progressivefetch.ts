@@ -54,7 +54,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
 
 	// Grab the portal and query.
 	let portal = <string>pfm.remainingPortals.shift()
-	let query = "https://" + portal + pfm.endpoint
+	let query = portal + pfm.endpoint
 
 	// Create a helper function for trying the next portal.
 	let nextPortal = function (response: Response | null, log: string) {
