@@ -19,15 +19,13 @@ onmessage = handleMessage
 
 // handleSecureDownload will handle a call to secureDownload.
 function handleSecureDownload(aq: activeQuery) {
-	// Parse the skylink.
-	if (!("skylink" in aq.callerInput)) {
-		aq.reject("missing skylink from method data")
-		return
-	}
+	// Check the inputs.
 	if (typeof aq.callerInput.skylink !== "string") {
 		aq.reject("filename is expected to be a string")
 		return
 	}
+
+	// Parse the skylink into a uint8array and ensure it is valid.
 	let [u8Link, err64] = b64ToBuf(aq.callerInput.skylink)
 	if (err64 !== null) {
 		aq.reject(addContextToErr(err64, "unable to decode skylink"))
@@ -54,7 +52,7 @@ function handleSecureDownload(aq: activeQuery) {
 			aq.reject(addContextToErr(fileDataPtr.err, "file appears to be corrupt"))
 			return
 		}
-		aq.accept({
+		aq.respond({
 			fileData: fileDataPtr.fileData,
 		})
 	})
