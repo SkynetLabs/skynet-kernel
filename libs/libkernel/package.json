@@ -23,6 +23,6 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.19"
+		"libskynet": "^0.0.31"
 	}
 }
