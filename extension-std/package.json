@@ -6,7 +6,8 @@
 	"scripts": {
 		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
-		"lint": "npm run prettier && npm run eslint",
+		"deps": "npm install libskynet@latest",
+		"lint": "npm run prettier && npm run eslint && npm run deps",
 		"compile": "npm run lint && tsc",
 		"rollup-a": "rollup -c rollup.conf.background.js",
 		"rollup-b": "rollup -c rollup.conf.bootloader.js",
@@ -35,6 +36,6 @@
 		"typescript": "^4.6.3"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.20"
+		"libskynet": "^0.0.30"
 	}
 }

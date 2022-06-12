@@ -1,7 +1,7 @@
 import { blake2b } from "./blake2b.js"
 import { bufToB64, encodePrefixedBytes, encodeU64 } from "./encoding.js"
 import { addContextToErr } from "./err.js"
-import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Verify } from "./ed25519.js"
+import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
 import { sha512 } from "./sha512.js"
 import { error } from "./types.js"
@@ -13,31 +13,40 @@ const nkp = { publicKey: nu8, secretKey: nu8 }
 // computeRegistrySignature will take a secret key and the required fields of a
 // registry entry and use them to compute a registry signature, returning both
 // the signature and the encoded data for the registry entry.
-function computeRegistrySignature(secretKey: Uint8Array, dataKey: Uint8Array, data: Uint8Array, revision: BigInt): [signature: Uint8Array, encodedData: Uint8Array, err: error] {
+function computeRegistrySignature(
+	secretKey: Uint8Array,
+	dataKey: Uint8Array,
+	data: Uint8Array,
+	revision: bigint
+): [signature: Uint8Array, err: error] {
 	// Check that the data is the right size.
 	if (data.length > 86) {
-		return [nu8, nu8, "registry data must be at most 86 bytes"]
+		return [nu8, "registry data must be at most 86 bytes"]
 	}
 
 	// Build the encoded data.
 	let [encodedData, errEPB] = encodePrefixedBytes(data)
 	if (errEPB !== null) {
-		return [nu8, nu8, addContextToErr(errEPB, "unable to encode provided registry data")]
+		return [nu8, addContextToErr(errEPB, "unable to encode provided registry data")]
+	}
+	let [encodedRevision, errEU64] = encodeU64(revision)
+	if (errEU64 !== null) {
+		return [nu8, addContextToErr(errEU64, "unable to encode the revision number")]
 	}
 
 	// Build the signing data.
 	let dataToSign = new Uint8Array(32 + 8 + data.length + 8)
 	dataToSign.set(dataKey, 0)
 	dataToSign.set(encodedData, 32)
-	dataToSign.set(encodedRevision, 32+8+data.length)
+	dataToSign.set(encodedRevision, 32 + 8 + data.length)
 	let sigHash = blake2b(dataToSign)
 
 	// Sign the data.
-	let [sig, errS] = sign(sigHash, secretKey)
+	let [sig, errS] = ed25519Sign(sigHash, secretKey)
 	if (errS !== null) {
-		return [nu8, nu8, addContextToErr(errS, "unable to sign registry entry")]
+		return [nu8, addContextToErr(errS, "unable to sign registry entry")]
 	}
-	return [sig, encodedData, null]
+	return [sig, null]
 }
 
 // deriveRegistryEntryID derives a registry entry ID from a provided pubkey and
@@ -78,6 +87,14 @@ function deriveRegistryEntryID(pubkey: Uint8Array, datakey: Uint8Array): [Uint8A
 	return [id, null]
 }
 
+// entryIDToSkylink converts a registry entry id to a resolver skylink.
+function entryIDToSkylink(entryID: Uint8Array): string {
+	let v2Skylink = new Uint8Array(34)
+	v2Skylink.set(entryID, 2)
+	v2Skylink[0] = 1
+	return bufToB64(v2Skylink)
+}
+
 // resolverLink will take a registryEntryID and return the corresponding
 // resolver link.
 function resolverLink(entryID: Uint8Array): [string, string | null] {
@@ -106,13 +123,17 @@ function resolverLink(entryID: Uint8Array): [string, string | null] {
 function taggedRegistryEntryKeys(
 	seed: Uint8Array,
 	keypairTagStr: string,
-	datakeyTagStr: string
+	datakeyTagStr?: string
 ): [ed25519Keypair, Uint8Array, string | null] {
 	if (seed.length !== SEED_BYTES) {
 		return [nkp, nu8, "seed has the wrong length"]
 	}
 	if (keypairTagStr.length > 255) {
 		return [nkp, nu8, "keypairTag must be less than 256 characters"]
+	}
+	// If no datakey tag was provided, use the empty string.
+	if (datakeyTagStr === undefined) {
+		datakeyTagStr = ""
 	}
 
 	// Generate a unique set of entropy using the seed and keypairTag.
@@ -175,4 +196,11 @@ function verifyRegistrySignature(
 	return ed25519Verify(sigHash, sig, pubkey)
 }
 
-export { computeRegistrySignature, deriveRegistryEntryID, resolverLink, taggedRegistryEntryKeys, verifyRegistrySignature }
+export {
+	computeRegistrySignature,
+	deriveRegistryEntryID,
+	entryIDToSkylink,
+	resolverLink,
+	taggedRegistryEntryKeys,
+	verifyRegistrySignature,
+}

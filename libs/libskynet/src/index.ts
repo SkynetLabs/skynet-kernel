@@ -9,8 +9,16 @@ export { addContextToErr, composeErr } from "./err.js"
 export { blake2bAddLeafBytesToProofStack, blake2bMerkleRoot, blake2bProofStackRoot } from "./merkle.js"
 export { parseJSON } from "./parse.js"
 export { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
-export { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink, verifyRegistrySignature } from "./registry.js"
-export { generateSeedPhraseDeterministic, seedPhraseToSeed, validSeedPhrase } from "./seed.js"
+export {
+	computeRegistrySignature,
+	deriveRegistryEntryID,
+	entryIDToSkylink,
+	resolverLink,
+	taggedRegistryEntryKeys,
+	verifyRegistrySignature,
+} from "./registry.js"
+export { verifyRegReadResp } from "./registryverify.js"
+export { deriveChildSeed, generateSeedPhraseDeterministic, seedPhraseToSeed, validSeedPhrase } from "./seed.js"
 export { sha512 } from "./sha512.js"
 export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkbitfield.js"
 export { validateSkyfileMetadata, validateSkyfilePath, validSkylink } from "./skylinkvalidate.js"

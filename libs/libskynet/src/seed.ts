@@ -7,6 +7,15 @@ const SEED_ENTROPY_WORDS = 13
 const SEED_CHECKSUM_WORDS = 2 // Not used, but left as documentation.
 const SEED_BYTES = 16
 
+// deriveChildSeed is a helper function to derive a child seed from a parent
+// seed using a string as the path.
+function deriveChildSeed(parentSeed: Uint8Array, derivationTag: string): Uint8Array {
+	let u8 = new TextEncoder().encode(" - " + derivationTag)
+	let preimage = new Uint8Array(parentSeed.length + u8.length)
+	let hash = sha512(preimage)
+	return hash.slice(0, SEED_BYTES)
+}
+
 // generateSeedPhraseDeterministic will generate and verify a seed phrase for
 // the user.
 function generateSeedPhraseDeterministic(password: string): [string, string | null] {
@@ -158,4 +167,11 @@ function seedPhraseToSeed(seedPhrase: string): [Uint8Array, string | null] {
 	return validSeedPhrase(seedPhrase)
 }
 
-export { generateSeedPhraseDeterministic, seedToChecksumWords, seedPhraseToSeed, validSeedPhrase, SEED_BYTES }
+export {
+	deriveChildSeed,
+	generateSeedPhraseDeterministic,
+	seedToChecksumWords,
+	seedPhraseToSeed,
+	validSeedPhrase,
+	SEED_BYTES,
+}

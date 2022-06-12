@@ -4,9 +4,10 @@
 	"description": "skynet kernel module to securely interact with the registry",
 	"main": "index.js",
 	"scripts": {
+		"deps": "npm install libkmodule@latest && npm install libskynet@latest",
 		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
-		"lint": "npm run prettier && npm run eslint",
+		"lint": "npm run deps && npm run prettier && npm run eslint",
 		"webpack": "webpack --config webpack.config.js --mode=production",
 		"make-build-script": "tsc --project tsconfig.build.json",
 		"move-dist": "mv dist-build/build.js dist-build/build.mjs",
@@ -29,7 +30,7 @@
 		"webpack-cli": "^4.9.2"
 	},
 	"dependencies": {
-		"libkmodule": "^0.2.3",
-		"libskynet": "^0.0.20"
+		"libkmodule": "^0.2.10",
+		"libskynet": "^0.0.31"
 	}
 }
