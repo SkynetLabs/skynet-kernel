@@ -1,0 +1,29 @@
+{
+	"name": "skynet-kernel",
+	"version": "0.2.0",
+	"description": "source code for the full Skynet kernel",
+	"main": "kernel.js",
+	"scripts": {
+		"deps": "npm install libskynet@latest",
+		"prettier": "prettier --write .",
+		"eslint": "eslint src --fix",
+		"lint": "npm run deps && npm run prettier && npm run eslint",
+		"rollup": "rollup -c rollup.conf.js",
+		"compile": "npm run lint && tsc && npm run rollup",
+		"dist": "mkdir -p dist && mv build/kernel.r.js dist/kernel.js",
+		"build": "npm run compile && npm run dist"
+	},
+	"author": "David Vorick",
+	"license": "MIT",
+	"devDependencies": {
+		"@rollup/plugin-node-resolve": "^13.3.0",
+		"@typescript-eslint/eslint-plugin": "^5.18.0",
+		"eslint": "^8.13.0",
+		"prettier": "^2.6.2",
+		"rollup": "^2.75.6",
+		"typescript": "^4.6.3"
+	},
+	"dependencies": {
+		"libskynet": "^0.0.32"
+	}
+}
