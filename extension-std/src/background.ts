@@ -1,58 +1,26 @@
-export {}
+import { composeErr, dataFn } from "libskynet"
 
 // Need to declare the browser to make typescript happy. 'any' is used as the
 // type because typescript didn't seem to recognize the browser type.
 declare let browser: any
 
-// This is the same as the dataFn in libskynet, but since it is the only import
-// we are reimplementing it here, this prevents us from needing to use
-// rollup.js on the background script.
-type dataFn = (data?: any) => void
-
 // Messages cannot be sent to the kernel until the kernel has indicated that it
 // is ready to receive messages. We create a promise here that will resovle
 // when the kernel sends us a message indicating that it is ready to receive
 // messages.
-let kernelReady: dataFn
+let kernelReadyResolved = false
+let kernelReadyResolve: dataFn
 let blockForKernel = new Promise((resolve) => {
-	kernelReady = resolve
+	kernelReadyResolve = resolve
 })
 
 // Create a blocking function to know the auth status of the kernel.
-let authStatusKnown: dataFn
+let authStatus: any // matches the data field of the kernelAuthStatus message
+let authStatusKnown = false
+let authStatusResolve: dataFn
 let blockForAuthStatus = new Promise((resolve) => {
-	authStatusKnown = resolve
+	authStatusResolve = resolve
 })
-
-// composeErr takes a series of inputs and composes them into a single string.
-// Each element will be separated by a newline. If the input is not a string,
-// it will be transformed into a string with JSON.stringify.
-//
-// Any object that cannot be stringified will be skipped, though an error will
-// be logged.
-function composeErr(...inputs: any): string {
-	let result = ""
-	for (let i = 0; i < inputs.length; i++) {
-		// Prepend a newline if this isn't the first element.
-		if (i !== 0) {
-			result += "\n"
-		}
-		// Strings can be added without modification.
-		if (typeof inputs[i] === "string") {
-			result += inputs[i]
-			continue
-		}
-		// Everything else needs to be stringified, log an error if it
-		// fails.
-		try {
-			let str = JSON.stringify(inputs[i])
-			result += str
-		} catch {
-			console.error("unable to stringify input to composeErr")
-		}
-	}
-	return result
-}
 
 // queryKernel returns a promise that will resolve when the kernel has
 // responded to the query. The resolve function is stored in the kernelQueries
@@ -106,41 +74,34 @@ function queryKernel(query: any) {
 	})
 }
 
-// bridgeBridgeMessage and the related functions will receive and handle
+// handleBridgeMessage and the related functions will receive and handle
 // messages coming from the bridge. Note that many instances of the bridge can
 // exist across many different web pages.
-//
-// TODO: Need to build infra to relay any authChange messages.
 function handleBridgeMessage(port: any, data: any, domain: string) {
-	// Input sanitization.
+	// Check that the message has a nonce and therefore can receive a response.
 	if (!("nonce" in data)) {
 		console.error("received message from", domain, "with no nonce")
 		return
 	}
-	let originalNonce = data.nonce
 
-	// Build the functions that will respond to any messages that come from
-	// the kernel.
-	//
-	// NOTE: This has been structured so that you can use the same function
-	// for both responseUpdate messages and also response messages.
+	// Establish the method that can be used to provide the kernel response and
+	// responseUpdates to the caller.
 	let respond = function (response: any) {
-		response.nonce = originalNonce
 		port.postMessage(response)
 	}
 
-	blockForKernel.then(() => {
-		// Grab the next nonce and store a promise resolution in the
-		// queries object.
-		if (data.method !== "queryUpdate") {
-			let nonce = queriesNonce
-			queriesNonce += 1
-			queries[nonce] = respond
-			data.nonce = nonce
-			data.domain = domain
-		}
-		kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
-	})
+	// If the message is not a queryUpdate, we set the domain of the message
+	// and we set the response function in the queries map. The domain needs to
+	// be set so that the kernel knows the domain of the app sending the
+	// request.
+	//
+	// These fields can be skipped for a queryUpdate because they were already
+	// sent in the original query.
+	if (data.method !== "queryUpdate") {
+		queries[data.nonce] = respond
+		data["domain"] = domain
+	}
+	kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
 }
 function bridgeListener(port: any) {
 	// Grab the domain of the webpage that's connecting to the background
@@ -156,66 +117,18 @@ function bridgeListener(port: any) {
 		handleBridgeMessage(port, data, domain)
 	})
 
-	// Send a message down the port containing the current auth status of
-	// the kernel.
-	blockForAuthStatus.then((userAuthorized: any) => {
+	// Send a message down the port containing the current auth status of the
+	// kernel. If a new webpage is just connecting to the kernel it's not going
+	// to know the status, we have to tell it.
+	blockForAuthStatus.then(() => {
 		port.postMessage({
 			method: "kernelAuthStatus",
-			data: {
-				userAuthorized,
-			},
+			data: authStatus,
 		})
 	})
 }
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onConnect.addListener(bridgeListener)
-
-// reloadKernel gets called if the kernel issues a signal indicating that it
-// should be reloaded. That will be the last message emitted by the kernel
-// until it is reloaded.
-let reloading = false
-function reloadKernel() {
-	// Reset the kernel loading variables. This will cause all new messages
-	// to block until the reload is complete.
-	blockForKernel = new Promise((resolve) => {
-		kernelReady = resolve
-	})
-	queriesNonce = 1 // Technically not needed, but we do it anyway to be thorough
-
-	// Reset the queries array. All open queries need to be rejected, as
-	// the kernel will no longer be processing them.
-	Object.keys(queries).forEach((key) => {
-		queries[key].respond({
-			nonce: queries[key].nonce,
-			method: "response",
-			err: "user has logged out, cancelling query",
-		})
-		delete queries[key]
-	})
-
-	// If we reset the kernel immediately, there is a race condition where
-	// the old kernel may have emitted a 'kernelReady' message that hasn't
-	// been processed yet. If that message gets processed before the new
-	// kernel has loaded, we may start sending messages that will get lost.
-	//
-	// To mitigate this risk, we wait a bit before reloading the kernel.
-	// This gives the event loop some time to reach any messages which may
-	// be from the old kernel indicating that the kernel finished loading.
-	// If a 'kernelReady' message is received while 'reloading' is set to
-	// false, it will be ignored.
-	//
-	// For UX, waiting 300 milliseconds is not ideal, but this should only
-	// happen in the rare event of a login or log out, something that a
-	// user is expected to do less than once a month. I could not find any
-	// other reliable way to ensure a 'kernelReady' message would not be
-	// processed incorrectly, and even this method is not totally reliable.
-	reloading = true
-	setTimeout(function () {
-		reloading = false
-		// This is a neat trick to reload the iframe.
-		kernelFrame.src += ""
-	}, 300)
-}
 
 // Create a handler for all kernel responses. The responses are all keyed by a
 // nonce, which gets matched to a promise that's been stored in 'queries'.
@@ -251,33 +164,34 @@ function handleKernelResponse(event: any) {
 		return
 	}
 
-	// If the kernel is reporting anything to indicate a change in auth
-	// status, reload the extension.
-	//
-	// TODO: Need to send a message to the bridge indicating that the auth
-	// status has changed.
-	if (method === "kernelAuthStatusChanged") {
-		console.log("received authStatusChanged signal, reloading the kernel")
-		reloadKernel()
-		return
-	}
-
-	// Listen for the kernel successfully loading. If we know that a
-	// reloading signal was received, we will ignore messages indicating
-	// that the kernel has loaded, because those messages are from the
-	// previous kernel, which we have already reset.
-	if (method === "kernelReady" && reloading === false) {
-		console.log("kernel has loaded")
-		kernelReady() // This is resolving a promise
-		return
-	}
-
-	// Establish the auth status.
-	//
-	// TODO: We don't have a stable protocol yet for a changing auth
-	// status.
+	// Process any auth message.
 	if (method === "kernelAuthStatus") {
-		authStatusKnown(event.data.data.userAuthorized)
+		// TODO: Need to pass this auth message to all ports that are connected
+		// to the background.
+
+		// Signal that the auth status is known if this is the first auth
+		// status message.
+		if (authStatusKnown === false) {
+			authStatusKnown = true
+			authStatus = data
+			authStatusResolve()
+		}
+
+		// If the kernel has finished loading, we can unblock the loading
+		// promise and start sending kernel messages.
+		if (kernelReadyResolved === false) {
+			kernelReadyResolved = true
+			kernelReadyResolve()
+		}
+
+		// If the kernel is signaling that there has been a logout, reload the
+		// iframe to reset both the kernel and the background state. A hard
+		// refresh isn't strictly necessary but it guarantees that old items
+		// are cleaned up properly.
+		if (data.logoutComplete === true) {
+			window.location.reload()
+			return
+		}
 		return
 	}
 

@@ -100,37 +100,36 @@ function handleMessage(event: MessageEvent) {
 	// user is logged in, report success, otherwise return an error
 	// indicating that the user is not logged in.
 	if (event.data.method === "kernelAuthStatus") {
-		// The kernelAuthStatus may be sent out multiple times if we are
-		// connected to the bridge and there are multiple libraries
-		// independently talking to the bridge. Ignore any dupliate
-		// kernelAuthStatus messages.
-		if (initResolved === true) {
-			return
+		// If we have received an auth status message, it means the bootloader
+		// at a minimum is working.
+		if (initResolved === false) {
+			initResolved = true
+			initResolve()
 		}
-		initResolved = true
 
-		// Once we receive the kernelAuthStatus message, we know that the
-		// bootloader is initialized. initResolve will resolve to 'null' if the
-		// user is logged in, and will resolve to an error if the user is not
-		// logged in.
-		if (event.data.data.userAuthorized) {
-			initResolve(null)
+		// If the auth status message says that login is complete, it means
+		// that the user is logged in.
+		if (loginResolved === false && event.data.data.loginComplete === true) {
+			loginResolved = true
 			loginResolve()
-		} else {
-			initResolve("user is not logged in")
 		}
-		return
-	}
 
-	// Check for an auth status change and use it to make progress on the auth
-	// cycle. The auth cycle is init -> login -> logout. The cycle cannot be
-	// repeated, once logout has occured the page needs to be reloaded.
-	if (event.data.method === "kernelAuthStatusChanged") {
-		if (event.data.data.userAuthorized === true) {
-			loginResolve()
-			return
+		// If the auth status message says that the kernel loaded, it means
+		// that the kernel is ready to receive messages.
+		if (loadResolved === false && event.data.data.kernelLoaded !== "not yet") {
+			loadResolved = true
+			if (event.data.data.kernelLoaded === "success") {
+				loadResolve(null)
+			} else {
+				loadResolve(event.data.data.kernelLoaded)
+			}
 		}
-		logoutResolve()
+
+		// If we have received a message indicating that the user has logged
+		// out, we need to reload the page and reset the auth process.
+		if (event.data.data.logoutComplete === true) {
+			window.location.reload()
+		}
 		return
 	}
 
@@ -269,12 +268,21 @@ function messageBridge() {
 
 // init is a function that returns a promise which will resolve when
 // initialization is complete.
-let initialized: boolean
-let initResolved: boolean
-let initResolve: (err: error) => void
-let initPromise: Promise<error>
+//
+// The init / auth process has 5 stages. The first stage is that something
+// somewhere needs to call init(). It is safe to call init() multiple times,
+// thanks to the 'initialized' variable.
+let initialized = false // set to true once 'init()' has been called
+let initResolved = false // set to true once we know the bootloader is working
+let initResolve: dataFn
+let initPromise: Promise<void>
+let loginResolved = false // set to true once we know the user is logged in
 let loginResolve: () => void
 let loginPromise: Promise<void>
+let loadResolved = false // set to true once the user kernel is loaded
+let loadResolve: Promise<error>
+let loadPromise: Promise<error>
+let logoutResolved = false // set to true once the user is logged out
 let logoutResolve: () => void
 let logoutPromise: Promise<void>
 function init(): Promise<error> {

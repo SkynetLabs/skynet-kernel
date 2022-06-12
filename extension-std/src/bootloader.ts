@@ -25,6 +25,7 @@ import {
 	tryStringify as bootloaderTryStringify,
 	validSkylink as bootloaderValidSkylink,
 	verifyDownloadResponse as bootloaderVerifyDownloadResponse,
+	verifyRegistryReadResponse as bootloaderVerifyRegistryReadResp,
 } from "libskynet"
 
 // NOTE: The bootloader is somewhat unique because it contains both the code
@@ -222,9 +223,7 @@ function bootloaderSetUserKernelAsDefault(keypair: bootloaderEd25519Keypair, dat
 	}
 
 	// Perform the fetch call.
-	//
-	// TODO: No verify function for registry.
-	bootloaderProgressiveFetch(endpoint, fetchOpts, bootloaderDefaultPortalList, verifyFunction).then(
+	bootloaderProgressiveFetch(endpoint, fetchOpts, bootloaderDefaultPortalList, bootloaderVerifyRegistryReadResp).then(
 		(result: bootloaderProgressiveFetchResult) => {
 			// Return an error if the call failed.
 			if (result.success !== true) {

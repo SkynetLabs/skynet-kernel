@@ -1,6 +1,14 @@
 import { init, kernelAuthLocation, loginPromise, logoutPromise } from "./queries.js"
 import { error } from "libskynet"
 
+// kernelLoaded will resolve when the user has successfully loaded the kernel.
+// If there was an error in loading the kernel, the error will be returned.
+//
+// NOTE: kernelLoaded will not resolve until after loginComplete has resolved.
+function kernelLoaded(): Promise<error> {
+	return kernelLoadedPromise
+}
+
 // loginComplete will resolve when the user has successfully logged in.
 function loginComplete(): Promise<void> {
 	return loginPromise
@@ -33,4 +41,4 @@ function openAuthWindow(): void {
 	})
 }
 
-export { loginComplete, logoutComplete, openAuthWindow }
+export { kernelLoaded, loginComplete, logoutComplete, openAuthWindow }

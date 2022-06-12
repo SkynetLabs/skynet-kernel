@@ -14,16 +14,13 @@ type dataFn = (data?: any) => void
 // catch the initial messages.
 //
 // blockForAuthStatus is a promise that will resolve when the auth status is
-// initially known. 'userAuthorized' is a variable that contains the current
-// auth status, it will change if a new auth message is received from the
-// kernel.
-//
-// userAuthorized is only intended to be used one time, after that the client
-// should be listening for new messages from the kernel.
-let userAuthorized: boolean
-let authStatusKnown: dataFn
+// initially known. 'authStatus' is the object that contains the latest auth
+// information from
+let authStatus: any // matches the data field of the kernelAuthStatus message
+let authStatusKnown = false
+let authStatusResolve: dataFn
 let blockForAuthStatus: Promise<void> = new Promise((resolve) => {
-	authStatusKnown = resolve
+	authStatusResolve = resolve
 })
 
 // Create the handler for messages from the background page. The background
@@ -32,14 +29,11 @@ function handleBackgroundMessage(data: any) {
 	// If this is the first auth status message from the kernel, resolve the
 	// auth promise.
 	if (data.method === "kernelAuthStatus") {
-		userAuthorized = data.data.userAuthorized
-		authStatusKnown()
-	}
-
-	// If this is an authStatusChanged message, update the userAuthorized field
-	// that we use to message new subscribers with the auth status.
-	if (data.method === "kernelAuthStatusChanged") {
-		userAuthorized = data.data.userAuthorized
+		authStatus = data.data
+		if (authStatusKnown === false) {
+			authStatusKnown = true
+			authStatusResolve()
+		}
 	}
 
 	// Pass the message through to the main page.
@@ -47,9 +41,6 @@ function handleBackgroundMessage(data: any) {
 }
 
 // Connect to the background page.
-//
-// TODO: We are opening a port to the background for every single page/tab the
-// user has open. This may be too heavy.
 let port = browser.runtime.connect()
 port.onMessage.addListener(handleBackgroundMessage)
 
@@ -63,7 +54,7 @@ function handleVersion(data: any) {
 		method: "response",
 		err: null,
 		data: {
-			version: "v0.1.0",
+			version: "v0.2.0",
 		},
 	})
 
@@ -72,9 +63,7 @@ function handleVersion(data: any) {
 	blockForAuthStatus.then(() => {
 		window.postMessage({
 			method: "kernelAuthStatus",
-			data: {
-				userAuthorized,
-			},
+			data: authStatus,
 		})
 	})
 }
