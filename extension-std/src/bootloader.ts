@@ -38,6 +38,12 @@ import {
 // 'WindowPostMessageOptions | undefined' - both of which I believe are
 // incorrect.
 
+// TODO: Need to ensure that queries that come in which are intended for the
+// full kernel but instead hit the bootloader do get relayed to the full kernel
+// after it gets eval'd, or otherwise get rejected if the full kernel cannot be
+// loaded. This is particularly important for request overrides and header
+// overrides because the user may be depending on these overrides for safety.
+
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
 document.title = "kernel.skynet"
@@ -118,8 +124,10 @@ function bootloaderDownloadSkylink(skylink: string): Promise<[data: Uint8Array, 
 		}
 
 		// Perform the download call.
+		bootloaderLog("calling progfetch")
 		bootloaderProgressiveFetch(endpoint, null, bootloaderDefaultPortalList, verifyFunction).then(
 			(result: bootloaderProgressiveFetchResult) => {
+				bootloaderLog("progfetch called and returned")
 				// Return an error if the call failed.
 				if (result.success !== true) {
 					// Check for a 404.
@@ -243,9 +251,11 @@ function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootl
 		// entry.
 		let [seed, errBGS] = bootloaderGetSeed()
 		if (errBGS !== null) {
+			bootloaderLog("user seed could not be retreived for kernel download")
 			resolve(["", bootloaderAddContextToErr(errBGS, "unable to load the user's seed")])
 			return
 		}
+		bootloaderLog("user seed successfully retrieved")
 
 		// Create a child seed for working with the user's kernel entry. We
 		// create a child seed here so that the user's kernel entry seed can be
@@ -278,10 +288,13 @@ function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootl
 		// and then they won't see this bootloader again. But at the very least, a
 		// naive user will have the same experience every time when using Skynet
 		// until they intentionally change their kernel.
+		bootloaderLog("calling download on userKernelSkylink")
 		bootloaderDownloadKernel(userKernelSkylink).then(([kernelCode, err]) => {
 			// If the error is a 404, we need to set the default kernel of the
 			// user and then return the download for the default kernel.
+			bootloaderLog("download has finished")
 			if (err === "404") {
+				bootloaderLog("got a 404")
 				bootloaderDownloadDefaultKernel().then(([defaultCode, errDefault]) => {
 					if (errDefault === null) {
 						bootloaderSetUserKernelAsDefault(keypair, dataKey)
@@ -306,34 +319,14 @@ function bootloaderEvalKernel(kernel: string) {
 	try {
 		eval(kernel)
 		bootloaderKernelLoaded = "success"
-		window.parent.postMessage(
-			{
-				method: "kernelAuthStatus",
-				data: {
-					loginComplete: bootloaderLoginComplete,
-					logoutComplete: bootloaderLogoutComplete,
-					kernelLoaded: bootloaderKernelLoaded,
-				},
-			},
-			"*"
-		)
+		bootloaderSendAuthUpdate()
 		bootloaderLog("kernel successfully loaded and eval'd")
 		return
 	} catch (err: any) {
 		let extErr = bootloaderAddContextToErr(bootloaderTryStringify(err), "unable to eval kernel")
 		bootloaderKernelLoaded = extErr
 		bootloaderErr(extErr)
-		window.parent.postMessage(
-			{
-				method: "kernelAuthStatus",
-				data: {
-					loginComplete: bootloaderLoginComplete,
-					logoutComplete: bootloaderLogoutComplete,
-					kernelLoaded: bootloaderKernelLoaded,
-				},
-			},
-			"*"
-		)
+		bootloaderSendAuthUpdate()
 		return
 	}
 }
@@ -341,21 +334,12 @@ function bootloaderEvalKernel(kernel: string) {
 // bootloaderLoadKernel will download the kernel code and eval it.
 function bootloaderLoadKernel() {
 	bootloaderDownloadUserKernel().then(([kernelCode, err]) => {
+		bootloaderLog("user kernel download is complete")
 		if (err !== null) {
 			let extErr = bootloaderAddContextToErr(err, "unable to download kernel")
 			bootloaderKernelLoaded = extErr
 			bootloaderErr(extErr)
-			window.parent.postMessage(
-				{
-					method: "kernelAuthStatus",
-					data: {
-						loginComplete: bootloaderLoginComplete,
-						logoutComplete: bootloaderLogoutComplete,
-						kernelLoaded: bootloaderKernelLoaded,
-					},
-				},
-				"*"
-			)
+			bootloaderSendAuthUpdate()
 			return
 		}
 
@@ -536,19 +520,10 @@ var handleStorage = function (event: StorageEvent) {
 	// If the user is not logged in and this is a v1-seed change, it means that
 	// the user is now logged in.
 	if (event.key === "v1-seed" && bootloaderLoginComplete === false) {
+		bootloaderLog("user is now logged in, attempting to load kernel")
 		bootloaderLoginComplete = true
 		bootloaderLoadKernel()
-		window.parent.postMessage(
-			{
-				method: "kernelAuthStatus",
-				data: {
-					loginComplete: bootloaderLoginComplete,
-					logoutComplete: bootloaderLogoutComplete,
-					kernelLoaded: bootloaderKernelLoaded,
-				},
-			},
-			"*"
-		)
+		bootloaderSendAuthUpdate()
 		return
 	}
 
@@ -561,31 +536,24 @@ var handleStorage = function (event: StorageEvent) {
 	// settings or private data leaks between different user account logins of
 	// the kernel.
 	bootloaderLogoutComplete = true
-	window.parent.postMessage(
-		{
-			method: "kernelAuthStatus",
-			data: {
-				loginComplete: bootloaderLoginComplete,
-				logoutComplete: bootloaderLogoutComplete,
-				kernelLoaded: bootloaderKernelLoaded,
-			},
-		},
-		"*"
-	)
+	bootloaderSendAuthUpdate()
 	window.location.reload()
 }
 window.addEventListener("storage", (event) => handleStorage(event))
 
-// If the user seed is in local storage, we'll load the kernel. If the user
-// seed is not in local storage, we'll report that the user needs to perform
-// authentication. Kernel loading will resume once the user has authenticated.
+// bootloaderSendAuthUpdate will send a message containing an auth update,
+// letting any listeners know the updated auth state. The auth state has five
+// stages that are covered by three variables.
 //
-// NOTE: Depending on which browser is being used we need to call
-// requestStorageAccess.
+// Stage 0; no auth updates
+// Stage 1: bootloader is loaded, user is not yet logged in
+// Stage 2: bootloader is loaded, user is logged in
+// Stage 3: kernel is loaded, user is logged in
+// Stage 4: kernel is loaded, user is logging out (refresh iminent)
 let bootloaderLoginComplete = false
 let bootloaderLogoutComplete = false
 let bootloaderKernelLoaded = "not yet"
-function bootloaderAuthFailed() {
+function bootloaderSendAuthUpdate() {
 	window.parent.postMessage(
 		{
 			method: "kernelAuthStatus",
@@ -606,14 +574,20 @@ function bootloaderCheckForLoadKernel() {
 	// Try to load the user's seed.
 	let [, errGSU] = bootloaderGetSeed()
 	if (errGSU !== null) {
+		// If the seed could not be loaded, the most likely explanation is that
+		// the user is not logged in. We send an auth message that says the
+		// user is not logged in, but this informs the receiver that the
+		// bootloader has finished loading.
 		bootloaderLog(bootloaderAddContextToErr(errGSU, "unable to get user credentials, user may not be logged in"))
-		bootloaderAuthFailed()
+		bootloaderSendAuthUpdate()
 		return
 	}
 
-	// Attempt to load the skynet kernel.
-	bootloaderLog("user is logged in, attempting to load kernel")
+	// User is logged in, attempt to load the kernel. Before loading the
+	// kernel, inform any listeners that auth was successful.
+	bootloaderLog("user is already logged in, attempting to load kernel")
 	bootloaderLoginComplete = true
+	bootloaderSendAuthUpdate()
 	bootloaderLoadKernel()
 }
 
@@ -630,7 +604,7 @@ if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && wi
 		})
 		.catch((err) => {
 			bootloaderLog(bootloaderAddContextToErr(err, bootloaderAccessFailedStr))
-			bootloaderAuthFailed()
+			bootloaderSendAuthUpdate()
 		})
 } else {
 	bootloaderCheckForLoadKernel()

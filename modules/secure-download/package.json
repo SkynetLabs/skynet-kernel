@@ -4,10 +4,11 @@
 	"description": "skynet kernel module to securely download files from skynet",
 	"main": "index.js",
 	"scripts": {
-		"deps": "npm install libkmodule@latest && npm install libskynet@latest",
+		"deps-1": "npm install libkmodule@latest && npm install libskynet@latest",
+		"deps-2": "npm run deps-1 && npm install libskynetnode@latest",
 		"prettier": "prettier --write .",
 		"eslint": "eslint src --fix",
-		"lint": "npm run deps && npm run prettier && npm run eslint",
+		"lint": "npm run deps-2 && npm run prettier && npm run eslint",
 		"rollup": "rollup -c rollup.conf.js",
 		"compile": "npm run lint && tsc && npm run rollup",
 		"make-build-script": "tsc --project tsconfig.build.json",
@@ -23,7 +24,6 @@
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"eslint": "^8.13.0",
-		"libkerneldev": "^0.0.39",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
 		"rollup": "^2.75.6",
@@ -32,6 +32,7 @@
 	},
 	"dependencies": {
 		"libkmodule": "^0.2.10",
-		"libskynet": "^0.0.32"
+		"libskynet": "^0.0.32",
+		"libskynetnode": "^0.1.1"
 	}
 }

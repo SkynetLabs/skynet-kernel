@@ -11,7 +11,7 @@ import {
 	taggedRegistryEntryKeys,
 	validSeedPhrase,
 } from "libskynet"
-import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libkerneldev"
+import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libskynetnode"
 import read from "read"
 
 // Helper variables to make it easier to return empty values alongside errors.
