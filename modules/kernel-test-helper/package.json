@@ -29,7 +29,7 @@
 		"webpack-cli": "^4.9.2"
 	},
 	"dependencies": {
-		"libkernel": "^0.0.76",
+		"libkernel": "^0.1.31",
 		"libkmodule": "^0.2.6"
 	}
 }
