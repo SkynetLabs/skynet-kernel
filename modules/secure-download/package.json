@@ -23,7 +23,7 @@
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"eslint": "^8.13.0",
-		"libkerneldev": "^0.0.39",
+		"libkerneldev": "^0.0.41",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
 		"rollup": "^2.75.6",
