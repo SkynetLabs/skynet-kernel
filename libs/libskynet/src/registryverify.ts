@@ -54,9 +54,9 @@ function verifyDecodedResp(resp: Response, data: any, pubkey: Uint8Array, datake
 	return null
 }
 
-// verifyRegReadResp will verify that the registry read response from the
-// portal was correct.
-function verifyRegReadResp(resp: Response, pubkey: Uint8Array, datakey: Uint8Array): Promise<error> {
+// verifyRegistryReadResponse will verify that the registry read response from
+// the portal was correct.
+function verifyRegistryReadResponse(resp: Response, pubkey: Uint8Array, datakey: Uint8Array): Promise<error> {
 	return new Promise((resolve) => {
 		resp
 			.text()
@@ -79,4 +79,4 @@ function verifyRegReadResp(resp: Response, pubkey: Uint8Array, datakey: Uint8Arr
 	})
 }
 
-export { verifyRegReadResp }
+export { verifyRegistryReadResponse }

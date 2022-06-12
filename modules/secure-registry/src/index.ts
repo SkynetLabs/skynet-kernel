@@ -13,7 +13,7 @@ import {
 	progressiveFetchResult,
 	jsonStringify,
 	tryStringify,
-	verifyRegReadResp,
+	verifyRegistryReadResponse,
 } from "libskynet"
 
 // Let libkmodule handle the message processing.
@@ -51,7 +51,7 @@ function handleReadEntry(aq: activeQuery) {
 
 	// Establish the verification function.
 	let verifyFunc = function (response: Response): Promise<error> {
-		return verifyRegReadResp(response, data.publicKey, data.dataKey)
+		return verifyRegistryReadResponse(response, data.publicKey, data.dataKey)
 	}
 
 	// Perform the fetch.

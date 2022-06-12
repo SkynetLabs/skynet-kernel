@@ -17,7 +17,7 @@ export {
 	taggedRegistryEntryKeys,
 	verifyRegistrySignature,
 } from "./registry.js"
-export { verifyRegReadResp } from "./registryverify.js"
+export { verifyRegistryReadResponse } from "./registryverify.js"
 export { deriveChildSeed, generateSeedPhraseDeterministic, seedPhraseToSeed, validSeedPhrase } from "./seed.js"
 export { sha512 } from "./sha512.js"
 export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkbitfield.js"
