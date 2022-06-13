@@ -142,7 +142,7 @@ let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
 
 // TODO: Need to implement the system that respects and ignores the tags.
 function wLog(isErr: boolean, tag: string, ...inputs: any) {
-	let message = "[skynet-kernel]"
+	let message = "[skynet-kernel]\n" + tag
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
 		message += tryStringify(inputs[i])
@@ -320,8 +320,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		}
 	}
 
-	// Pass the response to the original caller. Only response messages should
-	// have the err field set.
+	// Pass the response to the original caller.
 	let sourceIsWorker = queries[event.data.nonce].isWorker
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
@@ -334,11 +333,8 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	// For responses only, set an error and close out the query by deleting it
 	// from the query map.
 	if (isResponse) {
-		logErr("dropping a certain nonce", event.data.nonce, event.data)
 		msg["err"] = event.data.err
 		delete queries[event.data.nonce]
-	} else {
-		logErr("sending non-response message", msg)
 	}
 	if (sourceIsWorker === true) {
 		source.postMessage(msg)
@@ -522,7 +518,10 @@ handleMessage = function (event: any) {
 		return
 	}
 	if (!("nonce" in event.data)) {
-		logErr("handleMessage", "message sent to kernel with no nonce field")
+		// TODO: Need to figure out why the one thing isn't stringifying
+		// correctly.
+		logErr("handleMessage", "message sent to kernel with no nonce field", JSON.stringify(event.data))
+		logErr("handleMessage", "message sent to kernel with no nonce field", event.data)
 		return
 	}
 

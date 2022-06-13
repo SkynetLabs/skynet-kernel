@@ -36,11 +36,6 @@ creators the moment they join a new application or platform.
 
 ## Known Issues
 
-The build process only works on Linux and is highly non-standard. If you are
-getting started on a new machine, you will also need to swap out the v2
-skylinks of every kernel module that gets imported by the test suite, by
-libkernel, and by other modules. This is high priority to fix.
-
 The extension will prevent the web browser from working at all if there is no
 Internet connection. This is medium priority to fix.
 
@@ -48,23 +43,8 @@ When loaded in skt.us, the kernel will reveal information to third parties
 about the user's extension settings. This only happens if the user provided a
 seed to skt.us, but it's still a vulnerability that should be cleaned up.
 
-There are a bunch of other places in the code where things are done in strange
-or inefficient ways. The kernel is very much in a state of 'it started working
-so we stopped touching it for now', we will be going thorugh the kernel over
-the next few weeks and cleaning up a lot of the jank and inefficiency. Some of
-the jank is actually doing a good job of exposing bugs, so we won't be cleaning
-that up until all the bugs are fixed first. The jank is medium priority to
-clean up.
-
-We have done our best to polish and finish all pieces of the code that might
-impact compatibility in the future. Things like the kernel messaging protocol
-are well refined at this point and should not be changing. Developers using the
-kernel API or building kernel modules should be prepared for minor breaking
-changes, but the kernel is already in a place where there's a reasonable chance
-that we will never need to make any breaking changes.
-
-This browser extension does not work in Chrome. This is medium-high priority to
-fix.
+This browser extension does not work in Chrome. There is a general pessimism
+that getting it to work in chrome is possible.
 
 ## Repository Structure
 
