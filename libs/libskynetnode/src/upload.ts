@@ -143,9 +143,6 @@ function upload(fileData: Uint8Array, metadata: any): Promise<string> {
 		// Establish the function that verifies the result is correct.
 		let verifyFunction = function (response: Response): Promise<error> {
 			return new Promise((resolve) => {
-				console.log(response)
-				console.log(response.text)
-				console.log(response.json)
 				response
 					.json()
 					.then((j) => {

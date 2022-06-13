@@ -1,23 +1,5 @@
 import fetch from "node-fetch"
-
-// progressiveFetchResult lists the items that are returned after calling
-// progressiveFetch. The 'portal' field indicates the portal that returned the
-// provided response. 'responsesFailed' contains any responses from portals
-// that returned a failed response (4XX, 5XX, or other), so that if there was a
-// user error the caller can handle it effectively. 'remainingPortals' contains
-// a list of portals that haven't been tried yet from the original response (in
-// case the provided response ends up being unacceptable), and 'logs' contains
-// a list of any log messages that might be worth reporting to the user.
-interface progressiveFetchResult {
-	success: boolean
-	portal: string
-	response: Response
-	portalsFailed: string[]
-	responsesFailed: Response[] // Can also be null
-	messagesFailed: string[]
-	remainingPortals: string[]
-	logs: string[]
-}
+import { progressiveFetchResult } from "libskynet"
 
 // progressiveFetchMidstate contains all of the information that gets passed to
 // the progressiveFetchHelper.
