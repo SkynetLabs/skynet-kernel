@@ -54,7 +54,7 @@ header.textContent =
 document.body.appendChild(header)
 
 // Establish the skylink of the default kernel.
-const bootloaderDefaultKernelResolverLink = "AQBY_5nSN_JhWCNcm7GrjENlNuaT-yUTTknWH4rtCnQO5A"
+const bootloaderDefaultKernelResolverLink = "AQBFjXpEBwbMwkBwYg0gdkeAM-yy9vlajfLtZSee9f-MDg"
 const bootloaderDefaultAuthPage = "OACMoqF1nkQNe49Svh3lS6hfFhsiSWx0GCnscU7jrA_NCg"
 
 // bootloaderWLog is a function that gets wrapped by bootloaderLog and
