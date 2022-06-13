@@ -1,47 +1,26 @@
-export {}
+import { composeErr, dataFn } from "libskynet"
 
-declare var browser
+// Need to declare the browser to make typescript happy. 'any' is used as the
+// type because typescript didn't seem to recognize the browser type.
+declare let browser: any
 
 // Messages cannot be sent to the kernel until the kernel has indicated that it
 // is ready to receive messages. We create a promise here that will resovle
 // when the kernel sends us a message indicating that it is ready to receive
 // messages.
-var kernelReady
-var blockForKernel = new Promise(resolve => {kernelReady = resolve})
+let kernelReadyResolved = false
+let kernelReadyResolve: dataFn
+let blockForKernel = new Promise((resolve) => {
+	kernelReadyResolve = resolve
+})
 
 // Create a blocking function to know the auth status of the kernel.
-var authStatusKnown
-var blockForAuthStatus = new Promise(resolve => {authStatusKnown = resolve})
-
-// composeErr takes a series of inputs and composes them into a single string.
-// Each element will be separated by a newline. If the input is not a string,
-// it will be transformed into a string with JSON.stringify.
-//
-// Any object that cannot be stringified will be skipped, though an error will
-// be logged.
-function composeErr(...inputs: any): string {
-	let result = "";
-	for (let i = 0; i < inputs.length; i++) {
-		// Prepend a newline if this isn't the first element.
-		if (i !== 0) {
-			result += "\n"
-		}
-		// Strings can be added without modification.
-		if (typeof inputs[i] === "string") {
-			result += inputs[i]
-			continue
-		}
-		// Everything else needs to be stringified, log an error if it
-		// fails.
-		try {
-			let str = JSON.stringify(inputs[i])
-			result += str
-		} catch {
-			console.error("unable to stringify input to composeErr")
-		}
-	}
-	return result
-}
+let authStatus: any // matches the data field of the kernelAuthStatus message
+let authStatusKnown = false
+let authStatusResolve: dataFn
+let blockForAuthStatus = new Promise((resolve) => {
+	authStatusResolve = resolve
+})
 
 // queryKernel returns a promise that will resolve when the kernel has
 // responded to the query. The resolve function is stored in the kernelQueries
@@ -53,13 +32,13 @@ function composeErr(...inputs: any): string {
 //
 // NOTE: queryKernel cannot be used if you need queryUpdates or
 // responseUpdates, it's only intended to be used with single-message queries.
-var queriesNonce = 1
-var queries = new Object()
-function queryKernel(query) {
+let queriesNonce = 1
+let queries: any = new Object()
+function queryKernel(query: any) {
 	return new Promise((resolve, reject) => {
 		let nonce = queriesNonce
 		queriesNonce += 1
-		let respond = function(data) {
+		let respond = function (data: any) {
 			if (!("method" in data)) {
 				console.error("received response without a method field", data)
 				let cErr = composeErr("received response without a method field", data)
@@ -85,8 +64,7 @@ function queryKernel(query) {
 			}
 			resolve(data)
 		}
-		blockForKernel
-		.then(x => {
+		blockForKernel.then(() => {
 			// Grab the next nonce and store a promise resolution in the
 			// kernelQueries object.
 			query.nonce = nonce
@@ -96,44 +74,46 @@ function queryKernel(query) {
 	})
 }
 
-// bridgeBridgeMessage and the related functions will receive and handle
+// handleBridgeMessage and the related functions will receive and handle
 // messages coming from the bridge. Note that many instances of the bridge can
 // exist across many different web pages.
 //
-// TODO: Need to build infra to relay any authChange messages.
+// We keep track of all the open ports so that we can send them updated auth
+// messages when new auth messages arrive.
+//
+// TODO: Need to have some way to know when a port has been closed so we can
+// delete it from the global map and also cancel any open queries with the
+// kernel.
+let portsNonce = 0
+let openPorts = {} as any
 function handleBridgeMessage(port: any, data: any, domain: string) {
-	// Input sanitization.
+	// Check that the message has a nonce and therefore can receive a response.
 	if (!("nonce" in data)) {
 		console.error("received message from", domain, "with no nonce")
 		return
 	}
-	let originalNonce = data.nonce
 
-	// Build the functions that will respond to any messages that come from
-	// the kernel.
+	// If the message is not a queryUpdate, we set the domain of the message
+	// and we set the response function in the queries map. The domain needs to
+	// be set so that the kernel knows the domain of the app sending the
+	// request.
 	//
-	// NOTE: This has been structured so that you can use the same function
-	// for both responseUpdate messages and also response messages.
-	let respond = function(response) {
-		response.nonce = originalNonce
-		port.postMessage(response)
-	}
-
-	blockForKernel
-	.then(x => {
-		// Grab the next nonce and store a promise resolution in the
-		// queries object.
-		if (data.method !== "queryUpdate") {
-			let nonce = queriesNonce
-			queriesNonce += 1
-			queries[nonce] = respond
-			data.nonce = nonce
-			data.domain = domain
+	// These fields can be skipped for a queryUpdate because they were already
+	// sent in the original query.
+	if (data.method !== "queryUpdate") {
+		queries[data.nonce] = (response: any) => {
+			port.postMessage(response)
 		}
-		kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
-	})
+		data["domain"] = domain
+	}
+	kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
 }
-function bridgeListener(port) {
+function bridgeListener(port: any) {
+	// Add this port to the set of openPorts.
+	let nonce = portsNonce
+	portsNonce++
+	openPorts[nonce] = port
+
 	// Grab the domain of the webpage that's connecting to the background
 	// page. The kernel needs to know the domain so that it can
 	// conditionally apply restrictions or grant priviledges based on the
@@ -143,70 +123,26 @@ function bridgeListener(port) {
 	let domain = new URL(port.sender.url).hostname
 
 	// Add a listener to grab messages that are sent over the port.
-	port.onMessage.addListener(function(data) { handleBridgeMessage(port, data, domain) })
+	port.onMessage.addListener(function (data: any) {
+		handleBridgeMessage(port, data, domain)
+	})
 
-	// Send a message down the port containing the current auth status of
-	// the kernel.
-	blockForAuthStatus.then((userAuthorized) => {
+	// Send a message down the port containing the current auth status of the
+	// kernel. If a new webpage is just connecting to the kernel it's not going
+	// to know the status, we have to tell it.
+	blockForAuthStatus.then(() => {
 		port.postMessage({
 			method: "kernelAuthStatus",
-			data: {
-				userAuthorized,
-			},
+			data: authStatus,
 		})
 	})
 }
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onConnect.addListener(bridgeListener)
 
-// reloadKernel gets called if the kernel issues a signal indicating that it
-// should be reloaded. That will be the last message emitted by the kernel
-// until it is reloaded.
-var reloading = false
-function reloadKernel() {
-	// Reset the kernel loading variables. This will cause all new messages
-	// to block until the reload is complete.
-	blockForKernel = new Promise(resolve => {kernelReady = resolve})
-	queriesNonce = 1 // Technically not needed, but we do it anyway to be thorough
-
-	// Reset the queries array. All open queries need to be rejected, as
-	// the kernel will no longer be processing them.
-	Object.keys(queries).forEach((key, i) => {
-		queries[key].respond({
-			nonce: queries[key].nonce,
-			method: "response",
-			err: "user has logged out, cancelling query",
-		})
-		delete queries[key]
-	})
-
-	// If we reset the kernel immediately, there is a race condition where
-	// the old kernel may have emitted a 'kernelReady' message that hasn't
-	// been processed yet. If that message gets processed before the new
-	// kernel has loaded, we may start sending messages that will get lost.
-	//
-	// To mitigate this risk, we wait a bit before reloading the kernel.
-	// This gives the event loop some time to reach any messages which may
-	// be from the old kernel indicating that the kernel finished loading.
-	// If a 'kernelReady' message is received while 'reloading' is set to
-	// false, it will be ignored.
-	//
-	// For UX, waiting 300 milliseconds is not ideal, but this should only
-	// happen in the rare event of a login or log out, something that a
-	// user is expected to do less than once a month. I could not find any
-	// other reliable way to ensure a 'kernelReady' message would not be
-	// processed incorrectly, and even this method is not totally reliable.
-	reloading = true
-	setTimeout(function() {
-		reloading = false
-		// This is a neat trick to reload the iframe.
-		kernelFrame.src += ''
-	}, 300)
-}
-
 // Create a handler for all kernel responses. The responses are all keyed by a
 // nonce, which gets matched to a promise that's been stored in 'queries'.
-function handleKernelResponse(event) {
+function handleKernelResponse(event: any) {
 	// Ignore all messages that aren't coming from the kernel.
 	if (event.origin !== "http://kernel.skynet") {
 		return
@@ -238,33 +174,39 @@ function handleKernelResponse(event) {
 		return
 	}
 
-	// If the kernel is reporting anything to indicate a change in auth
-	// status, reload the extension.
-	//
-	// TODO: Need to send a message to the bridge indicating that the auth
-	// status has changed.
-	if (method === "kernelAuthStatusChanged") {
-		console.log("received authStatusChanged signal, reloading the kernel")
-		reloadKernel()
-		return
-	}
-
-	// Listen for the kernel successfully loading. If we know that a
-	// reloading signal was received, we will ignore messages indicating
-	// that the kernel has loaded, because those messages are from the
-	// previous kernel, which we have already reset.
-	if (method === "kernelReady" && reloading === false) {
-		console.log("kernel has loaded")
-		kernelReady() // This is resolving a promise
-		return
-	}
-
-	// Establish the auth status.
-	//
-	// TODO: We don't have a stable protocol yet for a changing auth
-	// status.
+	// Process any auth message.
 	if (method === "kernelAuthStatus") {
-		authStatusKnown(event.data.data.userAuthorized)
+		// Set the local auth status equal to the new auth status data.
+		authStatus = data.data
+
+		// Signal that the auth status is known if this is the first auth
+		// status message.
+		if (authStatusKnown === false) {
+			authStatusKnown = true
+			authStatusResolve()
+		}
+
+		// If the kernel has finished loading, we can unblock the loading
+		// promise and start sending kernel messages.
+		if (kernelReadyResolved === false) {
+			kernelReadyResolved = true
+			kernelReadyResolve()
+		}
+
+		// Need to pass the new auth to all ports that are connected to the
+		// background.
+		for (let [, port] of Object.entries(openPorts)) {
+			(port as any).postMessage(event.data)
+		}
+
+		// If the kernel is signaling that there has been a logout, reload the
+		// iframe to reset both the kernel and the background state. A hard
+		// refresh isn't strictly necessary but it guarantees that old items
+		// are cleaned up properly.
+		if (data.logoutComplete === true) {
+			window.location.reload()
+			return
+		}
 		return
 	}
 
@@ -281,7 +223,7 @@ function handleKernelResponse(event) {
 
 	// Grab the nonce, determine the status of the response, and then
 	// resolve or reject accordingly.
-	if (!("nonce" in event.data) || typeof event.data.nonce !== "number") {
+	if (!("nonce" in event.data)) {
 		console.log("received a kernel message without a nonce\n", event.data)
 		return
 	}
@@ -322,14 +264,14 @@ window.addEventListener("message", handleKernelResponse)
 // around with the requests, but I never confirmed what was going on.
 // Regardless, all of the errors seemed pretty harmless.
 let headers: any = new Object()
-function onBeforeRequestListener(details) {
+function onBeforeRequestListener(details: any) {
 	// Set up a promise that will be used by onHeadersReceived to inject
 	// the right headers into the response. onHeadersReceived will compare
 	// the requestId that it gets to the 'headers' hashmap, and will do
 	// nothing unless there's a promise in the hashmap. This code is
 	// guaranteed to fire before onHeadersReceived fires.
-	let resolveHeaders
-	headers[details.requestId] = new Promise((resolve, reject) => {
+	let resolveHeaders!: dataFn
+	headers[details.requestId] = new Promise((resolve) => {
 		resolveHeaders = resolve
 	})
 
@@ -355,7 +297,7 @@ function onBeforeRequestListener(details) {
 				value: "text/html; charset=utf8",
 			},
 		])
-		filter.onstart = function(event) {
+		filter.onstart = function () {
 			// Calling filter.close() immediately as the filter
 			// starts will ensure that no data is served.
 			filter.close()
@@ -375,8 +317,8 @@ function onBeforeRequestListener(details) {
 	// response from the kernel, so we need to use a promise to coordinate
 	// the timings. The 'blockFilter' promise will block any filter
 	// operations until the kernel query has come back.
-	let resolveFilter
-	let blockFilter = new Promise((resolve, reject) => {
+	let resolveFilter: dataFn
+	let blockFilter = new Promise((resolve) => {
 		resolveFilter = resolve
 	})
 	queryKernel({
@@ -386,58 +328,58 @@ function onBeforeRequestListener(details) {
 			method: details.method,
 		},
 	})
-	.then((response: any) => {
-		// Check for correct inputs from the kernel. Any error
-		// will result in ignoring the request, which we can do
-		// by resolving 'null' for the headers promise, and by
-		// disconnecting from the filter.
-		if (!("data" in response) || !("override" in response.data)) {
-			console.error("requestOverride response has no 'override' field\n", response)
-			resolveHeaders(null)
-			resolveFilter(null)
-			return
-		}
-		if (!("err" in response) || response.err !== null) {
-			console.error("requestOverride returned an error\n", response.err)
-			resolveHeaders(null)
-			resolveFilter(null)
-			return
-		}
-		// If the kernel doesn't explicitly tell us to override
-		// this request, then we ignore the request.
-		if (response.data.override !== true) {
-			resolveHeaders(null)
-			resolveFilter(null)
-			return
-		}
-		if (!("body" in response.data)) {
-			console.error("requestOverride response is missing 'body' field\n", response)
-			resolveHeaders(null)
-			resolveFilter(null)
-			return
-		}
-		if (!("headers" in response.data)) {
-			console.error("requestOverride response is missing 'headers' field\n", response)
-			resolveHeaders(null)
-			resolveFilter(null)
-			return
-		}
+		.then((response: any) => {
+			// Check for correct inputs from the kernel. Any error
+			// will result in ignoring the request, which we can do
+			// by resolving 'null' for the headers promise, and by
+			// disconnecting from the filter.
+			if (!("data" in response) || !("override" in response.data)) {
+				console.error("requestOverride response has no 'override' field\n", response)
+				resolveHeaders(null)
+				resolveFilter(null)
+				return
+			}
+			if (!("err" in response) || response.err !== null) {
+				console.error("requestOverride returned an error\n", response.err)
+				resolveHeaders(null)
+				resolveFilter(null)
+				return
+			}
+			// If the kernel doesn't explicitly tell us to override
+			// this request, then we ignore the request.
+			if (response.data.override !== true) {
+				resolveHeaders(null)
+				resolveFilter(null)
+				return
+			}
+			if (!("body" in response.data)) {
+				console.error("requestOverride response is missing 'body' field\n", response)
+				resolveHeaders(null)
+				resolveFilter(null)
+				return
+			}
+			if (!("headers" in response.data)) {
+				console.error("requestOverride response is missing 'headers' field\n", response)
+				resolveHeaders(null)
+				resolveFilter(null)
+				return
+			}
 
-		// We have a set of headers and a response body from
-		// the kernel, we want to inject them into the
-		// response. We resolve the headers promise with the
-		// headers provided by the kernel, and we write the
-		// response data to the filter. After writing the
-		// response data we close the filter so that no more
-		// data from the server can get through.
-		resolveHeaders(response.data.headers)
-		resolveFilter(response.data.body)
-	})
-	.catch(err => {
-		console.error("requestOverride query to kernel failed:", err)
-		resolveHeaders(null)
-		resolveFilter(null)
-	})
+			// We have a set of headers and a response body from
+			// the kernel, we want to inject them into the
+			// response. We resolve the headers promise with the
+			// headers provided by the kernel, and we write the
+			// response data to the filter. After writing the
+			// response data we close the filter so that no more
+			// data from the server can get through.
+			resolveHeaders(response.data.headers)
+			resolveFilter(response.data.body)
+		})
+		.catch((err) => {
+			console.error("requestOverride query to kernel failed:", err)
+			resolveHeaders(null)
+			resolveFilter(null)
+		})
 
 	// Set the filter.ondata and the filter.onstop functions. filter.ondata
 	// will block until the kernel query returns, and then it will write
@@ -445,12 +387,12 @@ function onBeforeRequestListener(details) {
 	//
 	// The blockClose promise will block the call to filter.close until the
 	// full data has been written.
-	let closeFilter
-	let blockClose = new Promise((resolve, reject) => {
+	let closeFilter: dataFn
+	let blockClose = new Promise((resolve) => {
 		closeFilter = resolve
 	})
-	filter.ondata = function(event) {
-		blockFilter.then(response => {
+	filter.ondata = function (event: any) {
+		blockFilter.then((response) => {
 			if (response === null) {
 				filter.write(event.data)
 			} else {
@@ -459,21 +401,19 @@ function onBeforeRequestListener(details) {
 			closeFilter()
 		})
 	}
-	filter.onstop = function(event) {
-		blockClose.then(x => {filter.close()})
+	filter.onstop = function () {
+		blockClose.then(() => {
+			filter.close()
+		})
 	}
 	return {}
 }
-browser.webRequest.onBeforeRequest.addListener(
-	onBeforeRequestListener,
-	{urls: ["<all_urls>"]},
-	["blocking"]
-)
+browser.webRequest.onBeforeRequest.addListener(onBeforeRequestListener, { urls: ["<all_urls>"] }, ["blocking"])
 
 // onHeadersReceivedListener will replace the headers provided by the portal
 // with trusted headers, preventing the portal from providing potentially
 // malicious information through the headers.
-function onHeadersReceivedListener(details) {
+function onHeadersReceivedListener(details: any) {
 	// There is an item for this request. Return a promise that will
 	// resolve to updated headers when we know what the updated headers are
 	// supposed to be.
@@ -482,36 +422,34 @@ function onHeadersReceivedListener(details) {
 	// the original page, this typically completes after we need the
 	// headers, which is why we use promises rather than using the desired
 	// values directly.
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve) => {
 		// Do nothing if there's no item for this request in the headers
 		// object.
 		if (!(details.requestId in headers)) {
 			// TODO: If the query was just a headers query, we may
 			// need to ask the kernel anyway.
-			resolve({responseHeaders: details.responseHeaders})
+			resolve({ responseHeaders: details.responseHeaders })
 			return
 		}
 
 		let h = headers[details.requestId]
 		delete headers[details.requestId]
-		h.then(response => {
+		h.then((response: any) => {
 			if (response !== null) {
-				resolve({responseHeaders: response})
+				resolve({ responseHeaders: response })
 			} else {
-				resolve({responseHeaders: details.responseHeaders})
+				resolve({ responseHeaders: details.responseHeaders })
 			}
-		})
-		.catch(err => {
+		}).catch((err: any) => {
 			console.error("headers promise failed", details.url, "\n", err)
-			resolve({responseHeaders: details.responseHeaders})
+			resolve({ responseHeaders: details.responseHeaders })
 		})
 	})
 }
-browser.webRequest.onHeadersReceived.addListener(
-	onHeadersReceivedListener,
-	{urls: ["<all_urls>"]},
-	["blocking", "responseHeaders"]
-)
+browser.webRequest.onHeadersReceived.addListener(onHeadersReceivedListener, { urls: ["<all_urls>"] }, [
+	"blocking",
+	"responseHeaders",
+])
 
 // Establish a proxy that enables the user to visit non-existent TLDs, such as
 // '.hns' and '.eth' and '.skynet'. The main idea behind this proxy is that we
@@ -543,7 +481,7 @@ browser.webRequest.onHeadersReceived.addListener(
 // TODO: Need to add an extension-level override for the proxy destination. The
 // kernel can specify whether the extension-specific proxies get to take
 // priority or not.
-function handleProxyRequest(info) {
+function handleProxyRequest(info: any) {
 	// Hardcode an exception for 'kernel.skynet'. We need this exception
 	// because that's where the kernel exists, and the kernel needs to be
 	// loaded before we can ask the kernel whether we should be proxying
@@ -560,11 +498,11 @@ function handleProxyRequest(info) {
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
 		return [
-			{type: "http", host: "localhost", port: 25252},
-			{type: "http", host: "skynetpro.net", port: 80},
-			{type: "http", host: "skynetfree.net", port: 80},
-			{type: "http", host: "siasky.net", port: 80},
-			{type: "http", host: "fileportal.org", port: 80},
+			{ type: "http", host: "localhost", port: 25252 },
+			{ type: "http", host: "skynetpro.net", port: 80 },
+			{ type: "http", host: "skynetfree.net", port: 80 },
+			{ type: "http", host: "siasky.net", port: 80 },
+			{ type: "http", host: "fileportal.org", port: 80 },
 		]
 	}
 
@@ -573,34 +511,35 @@ function handleProxyRequest(info) {
 		method: "proxyInfo",
 		data: { url: info.url },
 	})
-	query.then((response: any) => {
-		// Input sanitization.
-		if (!("data" in response)) {
-			console.error("kernel did not include a 'data' field in the data\n", response)
-			return {type: "direct"}
-		}
-		let data = response.data
-		if (!("proxy" in data) || typeof data.proxy !== "boolean") {
-			console.error("kernel did not include a 'proxy' in the data\n", response)
-			return {type: "direct"}
-		}
-		if (data.proxy === false) {
-			return {type: "direct"}
-		}
-		if (!("proxyValue" in data)) {
-			console.error("kernel did not include a proxyValue in the data\n", response)
-			return {type: "direct"}
-		}
-		return data.proxyValue
-	})
-	.catch(errQK => {
-		console.error("error after sending proxyInfo message:", errQK)
-		return {type: "direct"}
-	})
+	query
+		.then((response: any) => {
+			// Input sanitization.
+			if (!("data" in response)) {
+				console.error("kernel did not include a 'data' field in the data\n", response)
+				return { type: "direct" }
+			}
+			let data = response.data
+			if (!("proxy" in data) || typeof data.proxy !== "boolean") {
+				console.error("kernel did not include a 'proxy' in the data\n", response)
+				return { type: "direct" }
+			}
+			if (data.proxy === false) {
+				return { type: "direct" }
+			}
+			if (!("proxyValue" in data)) {
+				console.error("kernel did not include a proxyValue in the data\n", response)
+				return { type: "direct" }
+			}
+			return data.proxyValue
+		})
+		.catch((errQK) => {
+			console.error("error after sending proxyInfo message:", errQK)
+			return { type: "direct" }
+		})
 }
-browser.proxy.onRequest.addListener(handleProxyRequest, {urls: ["<all_urls>"]})
+browser.proxy.onRequest.addListener(handleProxyRequest, { urls: ["<all_urls>"] })
 
 // Open an iframe containing the kernel.
-var kernelFrame = document.createElement("iframe")
+let kernelFrame: any = document.createElement("iframe")
 kernelFrame.src = "http://kernel.skynet"
 document.body.appendChild(kernelFrame)

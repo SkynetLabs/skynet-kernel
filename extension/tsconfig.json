@@ -1,12 +1,11 @@
 {
-  "compilerOptions": {
-    "lib": ["dom", "es6", "es2017.string"],
-    "target": "es6",
-    "module": "commonjs",
-    "outDir": "../build/extension",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["./bundle"],
-  "exclude": []
+	"compilerOptions": {
+		"target": "esnext",
+		"declaration": true,
+		"moduleResolution": "node",
+		"outDir": "./build",
+		"strict": true
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "**/__tests__/*"]
 }

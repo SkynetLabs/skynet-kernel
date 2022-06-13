@@ -116,18 +116,21 @@ function handleMessage(event: MessageEvent) {
 
 		// If the auth status message says that the kernel loaded, it means
 		// that the kernel is ready to receive messages.
-		if (loadResolved === false && event.data.data.kernelLoaded !== "not yet") {
-			loadResolved = true
+		if (kernelLoadedResolved === false && event.data.data.kernelLoaded !== "not yet") {
+			kernelLoadedResolved = true
 			if (event.data.data.kernelLoaded === "success") {
-				loadResolve(null)
+				kernelLoadedResolve(null)
 			} else {
-				loadResolve(event.data.data.kernelLoaded)
+				kernelLoadedResolve(event.data.data.kernelLoaded)
 			}
 		}
 
 		// If we have received a message indicating that the user has logged
 		// out, we need to reload the page and reset the auth process.
 		if (event.data.data.logoutComplete === true) {
+			if (logoutResolved === false) {
+				logoutResolve()
+			}
 			window.location.reload()
 		}
 		return
@@ -279,13 +282,13 @@ let initPromise: Promise<void>
 let loginResolved = false // set to true once we know the user is logged in
 let loginResolve: () => void
 let loginPromise: Promise<void>
-let loadResolved = false // set to true once the user kernel is loaded
-let loadResolve: Promise<error>
-let loadPromise: Promise<error>
+let kernelLoadedResolved = false // set to true once the user kernel is loaded
+let kernelLoadedResolve: (err: error) => void
+let kernelLoadedPromise: Promise<error>
 let logoutResolved = false // set to true once the user is logged out
 let logoutResolve: () => void
 let logoutPromise: Promise<void>
-function init(): Promise<error> {
+function init(): Promise<void> {
 	// If init has already been called, just return the init promise.
 	if (initialized === true) {
 		return initPromise
@@ -303,6 +306,9 @@ function init(): Promise<error> {
 	})
 	loginPromise = new Promise((resolve) => {
 		loginResolve = resolve
+	})
+	kernelLoadedPromise = new Promise((resolve) => {
+		kernelLoadedResolve = resolve
 	})
 	logoutPromise = new Promise((resolve) => {
 		logoutResolve = resolve
@@ -535,4 +541,13 @@ function newKernelQuery(
 	return [sendUpdate, p]
 }
 
-export { callModule, connectModule, init, kernelAuthLocation, loginPromise, logoutPromise, newKernelQuery }
+export {
+	callModule,
+	connectModule,
+	init,
+	kernelAuthLocation,
+	kernelLoadedPromise,
+	loginPromise,
+	logoutPromise,
+	newKernelQuery,
+}

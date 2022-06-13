@@ -969,12 +969,10 @@ function LoginButton(props) {
   React.useEffect(() => {
     async function manageLoginButton() {
       // Wait for the user to be logged in.
-      let authStatus = await kernel.init();
-      if (authStatus !== null) {
-        setButtonText("Login to Skynet");
-        setMaybeDisabled(false);
-        await kernel.loginComplete();
-      }
+      await kernel.init();
+	  setButtonText("Login to Skynet");
+      setMaybeDisabled(false);
+      await kernel.loginComplete();
 
       // Login complete, change the button and wait for logout.
       setButtonText("Logout of Skynet");

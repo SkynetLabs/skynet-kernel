@@ -25,7 +25,6 @@ import {
 	progressiveFetchResult as bootloaderProgressiveFetchResult,
 	taggedRegistryEntryKeys as bootloaderTaggedRegistryEntryKeys,
 	tryStringify as bootloaderTryStringify,
-	verifyDownloadResponse as bootloaderVerifyDownloadResponse,
 	verifyRegistryReadResponse as bootloaderVerifyRegistryReadResp,
 } from "libskynet"
 
@@ -121,6 +120,7 @@ function bootloaderDownloadKernel(kernelSkylink: string): Promise<[kernelCode: s
 // bootloaderDownloadDefaultKernel will attempt to download the default kernel
 // and return the code that can be eval'd.
 function bootloaderDownloadDefaultKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+	bootloaderLog("using default kernel as kernel: " + bootloaderDefaultKernelResolverLink)
 	return bootloaderDownloadKernel(bootloaderDefaultKernelResolverLink)
 }
 
@@ -187,7 +187,7 @@ function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootl
 		// create a child seed here so that the user's kernel entry seed can be
 		// exported without exposing the user's root seed. It's unlikely that
 		// this will ever matter, but it's also trivial to implement.
-		let kernelEntrySeed = bootloaderDeriveChildSeed(userSeed, "userPreferredKernel")
+		let kernelEntrySeed = bootloaderDeriveChildSeed(userSeed, "userPreferredKernel2")
 
 		// Get the registry keys.
 		let [keypair, dataKey, errTREK] = bootloaderTaggedRegistryEntryKeys(kernelEntrySeed, "user kernel")
@@ -226,7 +226,9 @@ function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootl
 					resolve([defaultCode, errDefault])
 					return
 				})
+				return
 			}
+			bootloaderLog("found user kernel, using: " + userKernelSkylink)
 
 			// The error is not a 404, therefore use the result of the download
 			// directly as the resolve/return values.
@@ -271,9 +273,9 @@ function bootloaderLoadKernel() {
 	})
 }
 
-// bootstrapHandleSkynetKernelRequestOverride is defined for two pages when the
-// user hasn't logged in: the home page, and the authentication page.
-function bootstrapHandleSkynetKernelRequestOverride(event: any) {
+// handleSkynetKernelRequestOverride is defined for two pages when the user
+// hasn't logged in: the home page, and the authentication page.
+function handleSkynetKernelRequestOverride(event: any) {
 	// Define the headers that need to be injected when responding to the
 	// GET request. In this case (pre-auth), the headers will be the same
 	// for all pages that we inject.
@@ -345,11 +347,10 @@ function bootstrapHandleSkynetKernelRequestOverride(event: any) {
 	})
 }
 
-// bootstrapHandleSkynetKernelProxyInfo responds to a DNS query. The default
-// kernel always responds that there should be no proxy for the given domain -
-// the background script already has special carveouts for all required
-// domains.
-function bootstrapHandleSkynetKernelProxyInfo(event: any) {
+// handleSkynetKernelProxyInfo responds to a DNS query. The default kernel
+// always responds that there should be no proxy for the given domain - the
+// background script already has special carveouts for all required domains.
+function handleSkynetKernelProxyInfo(event: any) {
 	// Before the kernel is loaded, the default is always "do not proxy".
 	event.source.postMessage(
 		{
@@ -399,11 +400,11 @@ var handleMessage = function (event: any) {
 	// methods. These methods are important during bootloading to ensure
 	// that the default login page can be loaded for the user.
 	if (event.data.method === "requestOverride") {
-		bootstrapHandleSkynetKernelRequestOverride(event)
+		handleSkynetKernelRequestOverride(event)
 		return
 	}
 	if (event.data.method === "proxyInfo") {
-		bootstrapHandleSkynetKernelProxyInfo(event)
+		handleSkynetKernelProxyInfo(event)
 		return
 	}
 

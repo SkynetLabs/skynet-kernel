@@ -1,13 +1,9 @@
-# skynet-kernel-extension
+# Skynet Extension
 
-The fully compiled skynet-kernel-extension is a single folder that contains an
-assortment of files. Some of them are compiled from typescript (the source can
-be found in ts-src, and the ouptut can be found in ts-out), and the rest are a
-mix of configs, js files, and assets. The non-typescript files can be found in
-the 'other' folder.
+This folder contains the source code for the full Skynet extension. The main
+purpose of the extension is to give users a fully trustless skynet experience.
+All assets that are loaded from Skynet get fully verfied before being loaded.
+This includes skapps, and includes the kernel itself.
 
-This odd structure exists to minimize the number of steps required to add a new
-file. If you want to add a new non-typescript file to the extension build, put
-it in the 'other' folder. If you want to add a new typescript file to the
-extension build, put it in the 'ts-src' folder. No other changes (such as
-changes to build.sh or to the .gitignore) are necessary.
+To the best of our knowledge, the full Skynet kernel is the only way to have a
+fully trustless browsing experience when using Skynet.

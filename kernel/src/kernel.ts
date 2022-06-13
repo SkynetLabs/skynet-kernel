@@ -35,14 +35,12 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
-// TODO: The bootloader already has a bootstrap process for grabbing the user's
-// preferred portals. This process is independent of the full process, which we
-// need to marry to the bootstrap process.
+import { addContextToErr, blake2b, bufToB64, downloadSkylink, encodeU64, error, tryStringify } from "libskynet"
 
-// TODO: When implementing versioning, need to distinguish between a developer
-// domain and a production domain, and add some extra steps to publishing
-// updates to the publisher domain to ensure beta code doesn't make it to the
-// public.
+// TODO: Need to make sure the portal module is setting the field that the
+// bootloader uses to get the user's default set of portals to use for
+// bootloading. The bootloader will probably need to be updated to decrypt API
+// keys that the user has with the portal.
 
 // TODO: Need to figure out some way to avoid race conditions when a module is
 // upgrading itself. The potential race is that an RPC gets called on the
@@ -67,8 +65,7 @@
 // and inconsistency if they aren't coordinating around the upgrade together
 // effectively.
 
-// TODO: Need to set up a system that watches for updates to our worker code
-// and then injects the new code into the workers object.
+// TODO: Need our workers to auto-update when new code is shipped.
 
 // TODO: Need to set up a system for tracking the number of workers that we
 // have open and deciding when to terminate workers when we reach some
@@ -86,70 +83,90 @@
 // I know though there's no easy way to tell how much memory and cpu each
 // worker is consuming.
 
-// TODO: Change the logging format for any postMessage based logging to include
-// an array of objects to log rather than just a string, this will solve our
-// issue where things like quotes around objects get escaped a billion times.
-// When you do this, remember to update the test modules so that they make use
-// of the new logging format properly.
+// TODO: Need some better fix for the 'var queries = {} as any' line
 
-// TODO: Don't declare these, actually overwrite them. We don't want to be
-// dependent on a particular extension having the same implementation as all of
-// the others.
-declare var blake2b
-declare var bufToB64
-declare var downloadSkylink
-declare var encodeNumber
-declare var getUserSeed
-declare var defaultPortalList
-declare var preferredPortals
-declare var addContextToErr
-declare var handleMessage
-declare var log
-declare var logErr
-declare var handleTest
-declare var handleSkynetKernelRequestOverride
-declare var handleSkynetKernelProxyInfo
+// These three functions are expected to have already been declared by the
+// bootloader. They are necessary for getting started and downloading the
+// kernel while informing applications about the auth state of the kernel.
+//
+// The kernel is expected to overwrite these functions with new values.
+declare var handleMessage: Function
+declare var handleSkynetKernelRequestOverride: Function
+declare var handleSkynetKernelProxyInfo: Function
 
+// This variable is the seed that got loaded into memory by the bootloader, and
+// is the user seed. We keep this seed in memory, because if the user ever logs
+// out the kernel is expected to refresh, which will clear the seed.
+declare var userSeed: Uint8Array
+
+// Set the distribution and version of this kernel. There may be other versions
+// of the kernel in the world produced by other development teams, so openly
+// declaring the version number and development team allows other pieces of
+// software to determine what features are or are not supported.
+//
+// At some point we may want something like a capabilities array, but the
+// ecosystem isn't mature enough to need that.
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.3.1"
+const kernelVersion = "0.4.0"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
 // query for each nonce. queries is a map from a nonce to an openQuery.
 interface openQuery {
-	isWorker: boolean;
-	domain: string;
-	source: any;
-	origin: any;
-	dest: any;
-	nonce: string;
+	isWorker: boolean
+	domain: string
+	source: any
+	origin: any
+	dest: any
+	nonce: string
 }
 var queriesNonce = 0
-var queries = {}
+var queries = {} as any
 
 // modules is a hashmap that maps from a domain to the module that responds to
 // that domain.
 interface module {
-	worker: Worker;
-	domain: string;
+	worker: Worker
+	domain: string
 }
-var modules = {}
-
-// Grab the user's seed because we need it for kernel operations.
-let [rootSeed, errGSU] = getUserSeed()
-if (errGSU !== null) {
-	logErr("error", "unable to create worker because seed is unavailable", errGSU)
-	throw "unable to load user seed when loading kernel"
-}
+var modules = {} as any
 
 // Derive the active seed for this session. We define an active seed so that
 // the user has control over changing accounts later, they can "change
 // accounts" by switching up their active seed and then reloading all modules.
-let activeSeedSalt = new TextEncoder().encode("account:user")
-let activeSeedPreimage = new Uint8Array(rootSeed.length + activeSeedSalt.length)
-activeSeedPreimage.set(rootSeed, 0)
-activeSeedPreimage.set(activeSeedSalt, rootSeed.length)
-let activeSeed = blake2b(activeSeedPreimage).slice(0 ,16)
+let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed")
+let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length)
+activeSeedPreimage.set(userSeed, 0)
+activeSeedPreimage.set(activeSeedSalt, userSeed.length)
+let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
+
+// TODO: Need to implement the system that respects and ignores the tags.
+function wLog(isErr: boolean, tag: string, ...inputs: any) {
+	let message = "[skynet-kernel]"
+	for (let i = 0; i < inputs.length; i++) {
+		message += "\n"
+		message += tryStringify(inputs[i])
+	}
+	window.parent.postMessage(
+		{
+			method: "log",
+			data: {
+				isErr,
+				message,
+			},
+		},
+		"*"
+	)
+}
+function log(tag: string, ...inputs: any) {
+	wLog(false, tag, ...inputs)
+}
+function logErr(tag: string, ...inputs: any) {
+	wLog(true, tag, ...inputs)
+}
+
+// Write a log that declares the kernel version and distribution.
+log("init", "Skynet Kernel v" + kernelVersion + "-" + kernelDistro)
 
 // respondErr will send an error response to the caller that closes out the
 // query for the provided nonce. The gross extra inputs of 'messagePortal' and
@@ -179,7 +196,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// TODO: shut down the worker for being buggy.
 		return
 	}
-	
+
 	// Check whether this is a logging call.
 	if (event.data.method === "log") {
 		if (!("data" in event.data)) {
@@ -199,7 +216,9 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		if (event.data.data.isErr === true) {
 			logErr("workerMessage", module.domain, event.data.data.message)
 		} else {
-			log("workerMessage", module.domain, event.data.data.message)
+			// TODO: stringifying this here because tryStringify isn't working
+			// for some reason.
+			log("workerMessage", module.domain, JSON.stringify(event.data.data.message))
 		}
 		return
 	}
@@ -307,7 +326,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
 	let origin = queries[event.data.nonce].origin
-	let msg = {
+	let msg: any = {
 		nonce: sourceNonce,
 		method: event.data.method,
 		data: event.data.data,
@@ -331,7 +350,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 // createModule will create a worker for the provided code.
 //
 // TODO: Need to set up an onerror
-function createModule(workerCode: Uint8Array, domain: string): [module, string] {
+function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 	// Create a webworker from the worker code.
 	let module = {
 		domain,
@@ -339,17 +358,17 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 	let url = URL.createObjectURL(new Blob([workerCode]))
 	try {
 		module.worker = new Worker(url)
-	} catch (err) {
+	} catch (err: any) {
 		logErr("createModule", "unable to create worker", domain, err)
-		return [null, addContextToErr(err, "unable to create worker")]
+		return [module, addContextToErr(tryStringify(err), "unable to create worker")]
 	}
-	module.worker.onmessage = function(event: MessageEvent) {
+	module.worker.onmessage = function (event: MessageEvent) {
 		handleWorkerMessage(event, module)
 	}
 
-	let path = "moduleSeedDerivation"+domain
+	let path = "moduleSeedDerivation" + domain
 	let u8Path = new TextEncoder().encode(path)
-	let moduleSeedPreimage = new Uint8Array(u8Path.length+16)
+	let moduleSeedPreimage = new Uint8Array(u8Path.length + 16)
 	moduleSeedPreimage.set(u8Path, 0)
 	moduleSeedPreimage.set(activeSeed, u8Path.length)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
@@ -368,7 +387,7 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain: string, isWorker: boolean) {
 	if (!("data" in event.data) || !("module" in event.data.data)) {
 		logErr("moduleCall", "received moduleCall with no module field in the data", event.data)
-		respondErr(event, messagePortal, isWorker, "moduleCall is missing 'module' field: "+JSON.stringify(event.data))
+		respondErr(event, messagePortal, isWorker, "moduleCall is missing 'module' field: " + JSON.stringify(event.data))
 		return
 	}
 	if (typeof event.data.data.module !== "string" || event.data.data.module.length != 46) {
@@ -405,18 +424,18 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	// both open a query on the module and also send an update message to the
 	// caller with the kernel nonce for this query so that the caller can
 	// perform query updates.
-	let newModuleQuery = function(module: module) {
+	let newModuleQuery = function (module: module) {
 		// Get the nonce for this query. The nonce is a
 		// cryptographically secure string derived from a number and
 		// the user's seed. We use 'kernelNonceSalt' as a salt to
 		// namespace the nonces and make sure other processes don't
 		// accidentally end up using the same hashes.
 		let nonceSalt = new TextEncoder().encode("kernelNonceSalt")
-		let nonceBytes = encodeNumber(queriesNonce)
+		let [nonceBytes] = encodeU64(BigInt(queriesNonce)) // no need to check the error here, it's safe // TODO: are you sure?
 		let noncePreimage = new Uint8Array(nonceSalt.length + activeSeed.length + nonceBytes.length)
 		noncePreimage.set(nonceSalt, 0)
 		noncePreimage.set(activeSeed, nonceSalt.length)
-		noncePreimage.set(nonceBytes, nonceSalt.length+activeSeed.length)
+		noncePreimage.set(nonceBytes, nonceSalt.length + activeSeed.length)
 		let nonce = bufToB64(blake2b(noncePreimage))
 		queriesNonce += 1
 		queries[nonce] = {
@@ -445,7 +464,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 				method: "responseNonce",
 				data: {
 					nonce,
-				}
+				},
 			}
 			if (isWorker) {
 				messagePortal.postMessage(msg)
@@ -466,41 +485,37 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 
 	// Download the code for the worker.
 	downloadSkylink(finalModule)
-	.then(result => {
-		// TODO: Save the result to localStorage. Can't do that until
-		// subscriptions are in place so that localStorage can sync
-		// with any updates from the remote module.
+		.then(([moduleData, errDS]) => {
+			// TODO: Save the result to localStorage. Can't do that until
+			// subscriptions are in place so that localStorage can sync
+			// with any updates from the remote module.
 
-		// Check for a 404.
-		//
-		// NOTE: This is a side-effect of using the old version of
-		// progressiveFetch. When we switch to writing the kernel using
-		// libkernel, this check will change.
-		if (result.response.status === 404) {
-			respondErr(event, messagePortal, isWorker, "could not load module, received 404")
-			return
-		}
+			// Check for a 404.
+			if (errDS === "404") {
+				respondErr(event, messagePortal, isWorker, "could not load module, received 404")
+				return
+			}
 
-		// Create a new module.
-		let [module, err] = createModule(result.fileData, moduleDomain)
-		if (err !== null) {
-			respondErr(event, messagePortal, isWorker, addContextToErr(err, "unable to create module"))
-			return
-		}
+			// Create a new module.
+			let [module, errCM] = createModule(moduleData, moduleDomain)
+			if (errCM !== null) {
+				respondErr(event, messagePortal, isWorker, addContextToErr(errCM, "unable to create module"))
+				return
+			}
 
-		// Add the module to the list of modules.
-		modules[moduleDomain] = module
-		newModuleQuery(module)
-	})
-	.catch(err => {
-		logErr("moduleCall", "unable to download module", err)
-		respondErr(event, messagePortal, isWorker, "unable to download module: "+err)
-	})
+			// Add the module to the list of modules.
+			modules[moduleDomain] = module
+			newModuleQuery(module)
+		})
+		.catch((err) => {
+			logErr("moduleCall", "unable to download module", err)
+			respondErr(event, messagePortal, isWorker, "unable to download module: " + err)
+		})
 }
 
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
-handleMessage = function(event) {
+handleMessage = function (event: any) {
 	// Input validation.
 	if (!("method" in event.data)) {
 		logErr("handleMessage", "kernel request is missing 'method' field")
@@ -517,15 +532,18 @@ handleMessage = function(event) {
 	//
 	// It was easier to inline the message than to abstract it.
 	if (event.data.method === "version") {
-		event.source.postMessage({
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				distribution: kernelDistro,
-				version: kernelVersion,
+		event.source.postMessage(
+			{
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					distribution: kernelDistro,
+					version: kernelVersion,
+				},
 			},
-		}, event.origin)
+			event.origin
+		)
 		return
 	}
 
@@ -582,5 +600,5 @@ handleMessage = function(event) {
 	}
 
 	// Unrecognized method, reject the query.
-	respondErr(event, event.source, false, "unrecognized method: "+event.data.method)
+	respondErr(event, event.source, false, "unrecognized method: " + event.data.method)
 }

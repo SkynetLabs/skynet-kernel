@@ -1,11 +1,11 @@
 {
-  "compilerOptions": {
-    "target": "es6",
-    "module": "commonjs",
-    "outDir": "../build/kernel",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["./src"],
-  "exclude": []
+	"compilerOptions": {
+		"target": "esnext",
+		"declaration": true,
+		"moduleResolution": "node",
+		"outDir": "./build",
+		"strict": true
+	},
+	"include": ["src"],
+	"exclude": ["node_modules"]
 }
