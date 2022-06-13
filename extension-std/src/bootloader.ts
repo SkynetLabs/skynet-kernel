@@ -16,14 +16,15 @@ import {
 	defaultPortalList as bootloaderDefaultPortalList,
 	deriveChildSeed as bootloaderDeriveChildSeed,
 	deriveRegistryEntryID as bootloaderDeriveRegistryEntryID,
+	downloadSkylink as bootloaderDownloadSkylink,
 	ed25519Keypair as bootloaderEd25519Keypair,
 	entryIDToSkylink as bootloaderEntryIDToSkylink,
 	error as bootloaderError,
+	hexToBuf as bootloaderHexToBuf,
 	progressiveFetch as bootloaderProgressiveFetch,
 	progressiveFetchResult as bootloaderProgressiveFetchResult,
 	taggedRegistryEntryKeys as bootloaderTaggedRegistryEntryKeys,
 	tryStringify as bootloaderTryStringify,
-	validSkylink as bootloaderValidSkylink,
 	verifyDownloadResponse as bootloaderVerifyDownloadResponse,
 	verifyRegistryReadResponse as bootloaderVerifyRegistryReadResp,
 } from "libskynet"
@@ -54,11 +55,12 @@ document.body.appendChild(header)
 
 // Establish the skylink of the default kernel.
 const bootloaderDefaultKernelResolverLink = "AQBY_5nSN_JhWCNcm7GrjENlNuaT-yUTTknWH4rtCnQO5A"
+const bootloaderDefaultAuthPage = "OACMoqF1nkQNe49Svh3lS6hfFhsiSWx0GCnscU7jrA_NCg"
 
 // bootloaderWLog is a function that gets wrapped by bootloaderLog and
 // bootloaderErr.
 function bootloaderWLog(isErr: boolean, ...inputs: any) {
-	let message = "[bootloader]"
+	let message = "[skynet-kernel-bootloader]"
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
 		message += bootloaderTryStringify(inputs[i])
@@ -86,72 +88,6 @@ function bootloaderLog(...inputs: any) {
 // as an error.
 function bootloaderErr(...inputs: any) {
 	bootloaderWLog(true, ...inputs)
-}
-
-// bootloaderGetSeed will return the seed that is stored in localStorage. If
-// there is no seed, it means the user is not logged in.
-function bootloaderGetSeed(): [Uint8Array, bootloaderError] {
-	// Pull the string version of the seed from localstorage.
-	let userSeedString = window.localStorage.getItem("v1-seed")
-	if (userSeedString === null) {
-		return [new Uint8Array(0), "no user seed in local storage"]
-	}
-
-	// Parse the string into a Uint8Array and return the result.
-	let userSeed = Uint8Array.from([...userSeedString].map((ch) => ch.charCodeAt(0)))
-	return [userSeed, null]
-}
-
-// bootloaderDownloadSkylink will download the provided skylink.
-function bootloaderDownloadSkylink(skylink: string): Promise<[data: Uint8Array, err: bootloaderError]> {
-	return new Promise((resolve) => {
-		// Get the Uint8Array of the input skylink.
-		let [u8Link, errBBTB] = bootloaderB64ToBuf(skylink)
-		if (errBBTB !== null) {
-			resolve([new Uint8Array(0), bootloaderAddContextToErr(errBBTB, "unable to decode skylink")])
-			return
-		}
-		if (!bootloaderValidSkylink(u8Link)) {
-			resolve([new Uint8Array(0), "skylink appears to be invalid"])
-			return
-		}
-
-		// Prepare the download call.
-		let endpoint = "/skynet/trustless/basesector/" + skylink
-		let fileDataPtr = { fileData: new Uint8Array(0), err: null }
-		let verifyFunction = function (response: Response): Promise<bootloaderError> {
-			return bootloaderVerifyDownloadResponse(response, u8Link, fileDataPtr)
-		}
-
-		// Perform the download call.
-		bootloaderLog("calling progfetch")
-		bootloaderProgressiveFetch(endpoint, null, bootloaderDefaultPortalList, verifyFunction).then(
-			(result: bootloaderProgressiveFetchResult) => {
-				bootloaderLog("progfetch called and returned")
-				// Return an error if the call failed.
-				if (result.success !== true) {
-					// Check for a 404.
-					for (let i = 0; i < result.responsesFailed.length; i++) {
-						if (result.responsesFailed[i].status === 404) {
-							resolve([new Uint8Array(0), "404"])
-							return
-						}
-					}
-
-					// Error is not a 404, return the logs as the error.
-					let err = bootloaderTryStringify(result.logs)
-					resolve([new Uint8Array(0), bootloaderAddContextToErr(err, "unable to complete download")])
-					return
-				}
-				// Check if the portal is honest but the download is corrupt.
-				if (fileDataPtr.err !== null) {
-					resolve([new Uint8Array(0), bootloaderAddContextToErr(fileDataPtr.err, "download is corrupt")])
-					return
-				}
-				resolve([fileDataPtr.fileData, null])
-			}
-		)
-	})
 }
 
 // bootloaderDownloadKernel will take the skylink for a kernel distro, download
@@ -247,21 +183,11 @@ function bootloaderSetUserKernelAsDefault(keypair: bootloaderEd25519Keypair, dat
 // code that can be eval'd.
 function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
 	return new Promise((resolve) => {
-		// Get the user's seed so we can use it to derive the user's kernel
-		// entry.
-		let [seed, errBGS] = bootloaderGetSeed()
-		if (errBGS !== null) {
-			bootloaderLog("user seed could not be retreived for kernel download")
-			resolve(["", bootloaderAddContextToErr(errBGS, "unable to load the user's seed")])
-			return
-		}
-		bootloaderLog("user seed successfully retrieved")
-
 		// Create a child seed for working with the user's kernel entry. We
 		// create a child seed here so that the user's kernel entry seed can be
 		// exported without exposing the user's root seed. It's unlikely that
 		// this will ever matter, but it's also trivial to implement.
-		let kernelEntrySeed = bootloaderDeriveChildSeed(seed, "userPreferredKernel")
+		let kernelEntrySeed = bootloaderDeriveChildSeed(userSeed, "userPreferredKernel")
 
 		// Get the registry keys.
 		let [keypair, dataKey, errTREK] = bootloaderTaggedRegistryEntryKeys(kernelEntrySeed, "user kernel")
@@ -288,11 +214,9 @@ function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootl
 		// and then they won't see this bootloader again. But at the very least, a
 		// naive user will have the same experience every time when using Skynet
 		// until they intentionally change their kernel.
-		bootloaderLog("calling download on userKernelSkylink")
 		bootloaderDownloadKernel(userKernelSkylink).then(([kernelCode, err]) => {
 			// If the error is a 404, we need to set the default kernel of the
 			// user and then return the download for the default kernel.
-			bootloaderLog("download has finished")
 			if (err === "404") {
 				bootloaderLog("got a 404")
 				bootloaderDownloadDefaultKernel().then(([defaultCode, errDefault]) => {
@@ -320,7 +244,7 @@ function bootloaderEvalKernel(kernel: string) {
 		eval(kernel)
 		bootloaderKernelLoaded = "success"
 		bootloaderSendAuthUpdate()
-		bootloaderLog("kernel successfully loaded and eval'd")
+		bootloaderLog("kernel successfully loaded")
 		return
 	} catch (err: any) {
 		let extErr = bootloaderAddContextToErr(bootloaderTryStringify(err), "unable to eval kernel")
@@ -334,7 +258,6 @@ function bootloaderEvalKernel(kernel: string) {
 // bootloaderLoadKernel will download the kernel code and eval it.
 function bootloaderLoadKernel() {
 	bootloaderDownloadUserKernel().then(([kernelCode, err]) => {
-		bootloaderLog("user kernel download is complete")
 		if (err !== null) {
 			let extErr = bootloaderAddContextToErr(err, "unable to download kernel")
 			bootloaderKernelLoaded = extErr
@@ -413,7 +336,7 @@ function bootstrapHandleSkynetKernelRequestOverride(event: any) {
 	//
 	// TODO: Change the skylink to a v2 skylink so we can update the auth page
 	// without needing to re-ship the bootloader.
-	bootloaderDownloadSkylink("OAC7797uTAoG25e9psL6ejA71VLKinUdF4t76sMkYTj8IA").then(([fileData, err]) => {
+	bootloaderDownloadSkylink(bootloaderDefaultAuthPage).then(([fileData, err]) => {
 		if (err !== null) {
 			respondErr(bootloaderAddContextToErr(err, "unable to fetch kernel auth page"))
 			return
@@ -570,18 +493,29 @@ function bootloaderSendAuthUpdate() {
 // bootloaderCheckForLoadKernel will check that the user seed is available, and
 // if so it will load the kernel. If not it will report that the user is not
 // logged in and go idle.
+let userSeed: Uint8Array
 function bootloaderCheckForLoadKernel() {
-	// Try to load the user's seed.
-	let [, errGSU] = bootloaderGetSeed()
-	if (errGSU !== null) {
+	// Try fetching the user seed.
+	let userSeedString = window.localStorage.getItem("v1-seed")
+	if (userSeedString === null) {
 		// If the seed could not be loaded, the most likely explanation is that
 		// the user is not logged in. We send an auth message that says the
 		// user is not logged in, but this informs the receiver that the
 		// bootloader has finished loading.
-		bootloaderLog(bootloaderAddContextToErr(errGSU, "unable to get user credentials, user may not be logged in"))
+		bootloaderLog("unable to get user credentials, user may not be logged in")
 		bootloaderSendAuthUpdate()
 		return
 	}
+	// Get the seed and convert it from hex to a Uint8Array.
+	let [decodedSeed, errHTB] = bootloaderHexToBuf(userSeedString)
+	if (errHTB !== null) {
+		// Log the error and report the user as not logged in.
+		bootloaderLog(bootloaderAddContextToErr(errHTB, "seed could not be decoded from hex"))
+		bootloaderSendAuthUpdate()
+		return
+	}
+	// Set the global 'userSeed' object.
+	userSeed = decodedSeed
 
 	// User is logged in, attempt to load the kernel. Before loading the
 	// kernel, inform any listeners that auth was successful.

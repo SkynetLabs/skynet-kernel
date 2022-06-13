@@ -35,7 +35,7 @@
 // or other reasons) then that new feature will have to wait to activate for
 // the user until they've upgraded their module.
 
-import { addContextToErr, blake2b, bufToB64, encodeU64 } from "libskynet"
+import { addContextToErr, blake2b, bufToB64, downloadSkylink, encodeU64, error, tryStringify } from "libskynet"
 
 // TODO: Need to make sure the portal module is setting the field that the
 // bootloader uses to get the user's default set of portals to use for
@@ -83,15 +83,21 @@ import { addContextToErr, blake2b, bufToB64, encodeU64 } from "libskynet"
 // I know though there's no easy way to tell how much memory and cpu each
 // worker is consuming.
 
+// TODO: Need some better fix for the 'var queries = {} as any' line
+
 // These three functions are expected to have already been declared by the
 // bootloader. They are necessary for getting started and downloading the
 // kernel while informing applications about the auth state of the kernel.
 //
 // The kernel is expected to overwrite these functions with new values.
-declare var handleMessage
-declare var handleSkynetKernelRequestOverride
-declare var handleSkynetKernelProxyInfo
-declare var userSeed
+declare var handleMessage: Function
+declare var handleSkynetKernelRequestOverride: Function
+declare var handleSkynetKernelProxyInfo: Function
+
+// This variable is the seed that got loaded into memory by the bootloader, and
+// is the user seed. We keep this seed in memory, because if the user ever logs
+// out the kernel is expected to refresh, which will clear the seed.
+declare var userSeed: Uint8Array
 
 // Set the distribution and version of this kernel. There may be other versions
 // of the kernel in the world produced by other development teams, so openly
@@ -115,7 +121,7 @@ interface openQuery {
 	nonce: string
 }
 var queriesNonce = 0
-var queries = {}
+var queries = {} as any
 
 // modules is a hashmap that maps from a domain to the module that responds to
 // that domain.
@@ -123,23 +129,44 @@ interface module {
 	worker: Worker
 	domain: string
 }
-var modules = {}
-
-// Grab the user's seed because we need it for kernel operations.
-let [rootSeed, errGSU] = getUserSeed()
-if (errGSU !== null) {
-	logErr("error", "unable to create worker because seed is unavailable", errGSU)
-	throw "unable to load user seed when loading kernel"
-}
+var modules = {} as any
 
 // Derive the active seed for this session. We define an active seed so that
 // the user has control over changing accounts later, they can "change
 // accounts" by switching up their active seed and then reloading all modules.
-let activeSeedSalt = new TextEncoder().encode("account:user")
-let activeSeedPreimage = new Uint8Array(rootSeed.length + activeSeedSalt.length)
-activeSeedPreimage.set(rootSeed, 0)
-activeSeedPreimage.set(activeSeedSalt, rootSeed.length)
+let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed")
+let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length)
+activeSeedPreimage.set(userSeed, 0)
+activeSeedPreimage.set(activeSeedSalt, userSeed.length)
 let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
+
+// TODO: Need to implement the system that respects and ignores the tags.
+function wLog(isErr: boolean, tag: string, ...inputs: any) {
+	let message = "[skynet-kernel]"
+	for (let i = 0; i < inputs.length; i++) {
+		message += "\n"
+		message += tryStringify(inputs[i])
+	}
+	window.parent.postMessage(
+		{
+			method: "log",
+			data: {
+				isErr,
+				message,
+			},
+		},
+		"*"
+	)
+}
+function log(tag: string, ...inputs: any) {
+	wLog(false, tag, ...inputs)
+}
+function logErr(tag: string, ...inputs: any) {
+	wLog(true, tag, ...inputs)
+}
+
+// Write a log that declares the kernel version and distribution.
+log("init", "Skynet Kernel v" + kernelVersion + "-" + kernelDistro)
 
 // respondErr will send an error response to the caller that closes out the
 // query for the provided nonce. The gross extra inputs of 'messagePortal' and
@@ -297,7 +324,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
 	let origin = queries[event.data.nonce].origin
-	let msg = {
+	let msg: any = {
 		nonce: sourceNonce,
 		method: event.data.method,
 		data: event.data.data,
@@ -321,7 +348,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 // createModule will create a worker for the provided code.
 //
 // TODO: Need to set up an onerror
-function createModule(workerCode: Uint8Array, domain: string): [module, string] {
+function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 	// Create a webworker from the worker code.
 	let module = {
 		domain,
@@ -329,9 +356,9 @@ function createModule(workerCode: Uint8Array, domain: string): [module, string] 
 	let url = URL.createObjectURL(new Blob([workerCode]))
 	try {
 		module.worker = new Worker(url)
-	} catch (err) {
+	} catch (err: any) {
 		logErr("createModule", "unable to create worker", domain, err)
-		return [null, addContextToErr(err, "unable to create worker")]
+		return [module, addContextToErr(tryStringify(err), "unable to create worker")]
 	}
 	module.worker.onmessage = function (event: MessageEvent) {
 		handleWorkerMessage(event, module)
@@ -402,7 +429,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		// namespace the nonces and make sure other processes don't
 		// accidentally end up using the same hashes.
 		let nonceSalt = new TextEncoder().encode("kernelNonceSalt")
-		let nonceBytes = encodeNumber(queriesNonce)
+		let [nonceBytes] = encodeU64(BigInt(queriesNonce)) // no need to check the error here, it's safe // TODO: are you sure?
 		let noncePreimage = new Uint8Array(nonceSalt.length + activeSeed.length + nonceBytes.length)
 		noncePreimage.set(nonceSalt, 0)
 		noncePreimage.set(activeSeed, nonceSalt.length)
@@ -456,25 +483,21 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 
 	// Download the code for the worker.
 	downloadSkylink(finalModule)
-		.then((result) => {
+		.then(([moduleData, errDS]) => {
 			// TODO: Save the result to localStorage. Can't do that until
 			// subscriptions are in place so that localStorage can sync
 			// with any updates from the remote module.
 
 			// Check for a 404.
-			//
-			// NOTE: This is a side-effect of using the old version of
-			// progressiveFetch. When we switch to writing the kernel using
-			// libkernel, this check will change.
-			if (result.response.status === 404) {
+			if (errDS === "404") {
 				respondErr(event, messagePortal, isWorker, "could not load module, received 404")
 				return
 			}
 
 			// Create a new module.
-			let [module, err] = createModule(result.fileData, moduleDomain)
-			if (err !== null) {
-				respondErr(event, messagePortal, isWorker, addContextToErr(err, "unable to create module"))
+			let [module, errCM] = createModule(moduleData, moduleDomain)
+			if (errCM !== null) {
+				respondErr(event, messagePortal, isWorker, addContextToErr(errCM, "unable to create module"))
 				return
 			}
 
@@ -490,7 +513,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 
 // Overwrite the handleMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
-handleMessage = function (event) {
+handleMessage = function (event: any) {
 	// Input validation.
 	if (!("method" in event.data)) {
 		logErr("handleMessage", "kernel request is missing 'method' field")

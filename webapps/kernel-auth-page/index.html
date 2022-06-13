@@ -693,6 +693,9 @@ var generateSeedPhrase = function () {
 		document.getElementById("seedText").textContent = seedPhrase;
 		return;
 };
+function bufToHex(buf) {
+    return [...buf].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
 // authUser is a function which will inspect the value of the input field to
 // find the seed, and then will set the user's local seed to that value.
 var authUser = function () {
@@ -709,7 +712,7 @@ var authUser = function () {
 				return;
 		}
 		// Take the seed and store it in localStorage.
-		let seedStr = String.fromCharCode(...seed);
+		let seedStr = bufToHex(seed)
 		window.localStorage.setItem("v1-seed", seedStr);
 		// If there was a window opener, we should send a message to
 		// the opener indicating that auth was successful, and then close

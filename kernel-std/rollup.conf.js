@@ -1,9 +1,9 @@
 import resolve from "@rollup/plugin-node-resolve"
 
 export default {
-	input: "build/background.js",
+	input: "build/kernel.js",
 	output: {
-		file: "build/background.r.js",
+		file: "build/kernel.r.js",
 		format: "cjs",
 	},
 	plugins: [resolve()],

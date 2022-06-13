@@ -1,6 +1,7 @@
 export { blake2b } from "./blake2b.js"
 export { defaultPortalList } from "./defaultportals.js"
 export { dictionary } from "./dictionary.js"
+export { downloadSkylink } from "./downloadskylink.js"
 export { verifyDownload } from "./downloadverify.js"
 export { fileDataObj, verifyDownloadResponse } from "./downloadverifyresponse.js"
 export { ed25519Keypair, ed25519Sign, ed25519Verify } from "./ed25519.js"
