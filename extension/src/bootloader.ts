@@ -432,6 +432,7 @@ var handleStorage = function (event: StorageEvent) {
 	// If the user is already logged out, ignore the message as we should wait
 	// until we've refreshed.
 	if (bootloaderLogoutComplete === true) {
+		window.location.reload()
 		return
 	}
 
@@ -444,6 +445,22 @@ var handleStorage = function (event: StorageEvent) {
 	// If the user is not logged in and this is a v1-seed change, it means that
 	// the user is now logged in.
 	if (event.key === "v1-seed" && bootloaderLoginComplete === false) {
+		// First load the new seed. If there's an error loading the seed,
+		// assume the storage event was not a login event.
+		let userSeedString = window.localStorage.getItem("v1-seed")
+		if (userSeedString === null) {
+			return
+		}
+		// Get the seed and convert it from hex to a Uint8Array.
+		let [decodedSeed, errHTB] = bootloaderHexToBuf(userSeedString)
+		if (errHTB !== null) {
+			// Log the error and report the user as not logged in.
+			bootloaderLog(bootloaderAddContextToErr(errHTB, "seed could not be decoded from hex"))
+			return
+		}
+		// Set the global 'userSeed' object.
+		userSeed = decodedSeed
+
 		bootloaderLog("user is now logged in, attempting to load kernel")
 		bootloaderLoginComplete = true
 		bootloaderLoadKernel()
@@ -461,6 +478,7 @@ var handleStorage = function (event: StorageEvent) {
 	// the kernel.
 	bootloaderLogoutComplete = true
 	bootloaderSendAuthUpdate()
+	bootloaderLog("attempting to do a page reload")
 	window.location.reload()
 }
 window.addEventListener("storage", (event) => handleStorage(event))

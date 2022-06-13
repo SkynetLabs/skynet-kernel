@@ -196,7 +196,11 @@ function handleKernelResponse(event: any) {
 		// Need to pass the new auth to all ports that are connected to the
 		// background.
 		for (let [, port] of Object.entries(openPorts)) {
-			(port as any).postMessage(event.data)
+			try {
+				(port as any).postMessage(event.data)
+			} catch (err: any) {
+				console.log(err)
+			}
 		}
 
 		// If the kernel is signaling that there has been a logout, reload the
@@ -204,6 +208,7 @@ function handleKernelResponse(event: any) {
 		// refresh isn't strictly necessary but it guarantees that old items
 		// are cleaned up properly.
 		if (data.logoutComplete === true) {
+			console.log("attempting to do a page reload")
 			window.location.reload()
 			return
 		}
