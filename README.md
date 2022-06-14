@@ -62,13 +62,11 @@ The 'kernel' folder contains the default kernel that gets loaded for the user
 when the user first logs into Skynet. The majority of the interesting concepts
 are in this folder.
 
-The 'libkernel' folder contains a node library that can help skapps interact
-with the kernel. The main goal of libkernel is to greatly simplify the process
-of communicating effectively with the kernel.
+The 'libs' folder contains a set of node libraries that are useful for both
+working with the kernel and also performing development on the kernel.
 
-The 'modules' folder contains example kernel modules, including modules
-maintained by the core team that are intended to be broadly useful to
-developers.
+The 'modules' folder contains kernel modules, including modules maintained by
+the core team that are intended to be broadly useful to developers.
 
 The 'webapps' directory contains webapps that are a key part of the development
 process. The most important apps are the default home page, the default
@@ -77,35 +75,27 @@ testapp which provides integration testing for the kernel.
 
 ## Building the Kernel
 
-The build process is being updated. Currently, the build process is linux-only.
-That will be fixed soon. The extension has only been tested on Firefox. That
-will also be fixed soon.
+The kernel really comes in two pieces. The first piece is the browser
+extension, which can be found in the 'extension' folder. To build the
+extension, navigate to that folder, then run 'npm install && npm run build'.
 
-### Dependencies
+The second piece is the kernel itself. You can build the kernel by navigating
+to the 'kernel' folder and running 'npm run build'. Note that this will build a
+development version of the kernel, which you can use to try new changes without
+deploying them.
 
-To build the kernel today, first you need to build the 'skynet-utils' binary.
-To do this, clone the repo at 'github.com/SkynetLabs/go-skynet', check out the
-'env-var' branch, and run `go install ./...`. If you do not have go installed
-on your machine, you can install go by following the directions at
-'go.dev/doc/install/source'. Make sure you update your PATH variable, typically
-you need to add both `export PATH=$PATH:/usr/local/go/bin' and `export
-PATH=$PATH:/home/user/go/bin` to your .bashrc.
+To deploy the full kernel, run 'npm run deploy'. You will be asked for a
+password. Without this password, you cannot upload the kernel to all users.
+Understandably, this password is kept confidential by the Skynet Labs team. We
+use a password based deployment process because deployment is **fully
+decentralized**. There are no central servers or central repositories that
+house the code, it all exists entirely on Skynet and gets deployed through
+Skynet. That means deployments happen using public keys and private keys, and
+we derive the deployment keys using a password derivation.
 
-You will also need 'tsc', which is the typescript compiler. You can install
-typescript by running `npm install -g typescript`. If you do not have npm, you
-will need to follow an online tutorial for getting it working.
-
-### Build the Extension
-
-Once you have 'skynet-utils' and 'tsc' in your PATH, you can build the kernel
-by running 'make'. This will create a 'build' folder and a 'build-cache' folder
-in the repo. The browser extension will be in 'build/extension' and the kernel
-will be in 'build/kernel'.
-
-You can load the extension into Firefox by going to 'about:debugging' -> 'This
-Firefox' and then clicking on 'Load Temporary Add-on'. Navigate to
-'build/extension' in the file picker and select the 'manifest.json' file. This
-will load the Skynet Kernel into Firefox as a temporary add-on.
+Though many people may advise that using passwords is not secure, it is fine so
+long as the password has sufficient entropy. Our passwords all have 80+ bits of
+entropy.
 
 ### Run the Test Suite
 
@@ -120,37 +110,14 @@ test suite to re-run the tests. You may need to include 'http://' when you type
 the URL, because your browser will not recognize 'kernel.skynet' as a valid
 domain and instead think you want to use a search engine.
 
-## Using the Kernel
+## How to Develop Using the Kernel
 
-There is a javascript library available in npm called 'libkernel' which
-abstracts all of this away and provides a simple API that allows developers to
-interact with the kernel. A typical libkernel call looks something like:
-
-```js
-libkernel.upload("someFile.mp4", fileData)
-.then(resp => successCallback(resp))
-.catch(err => errCallback(err))
-```
-
-A generic moduleCall will typically look something like:
-
-```js
-kernel.callModule(moduleEncryptFile, "encryptFile", {
-	filepath: "someFile.mp4",
-	fileData,
-})
-.then(resp => successCallback(resp))
-.catch(err => errCallback(err))
-```
-If you are developer that is just looking to build cool webapps, you stop
-reading here and get started by using 'libkernel'. Check out the README in the
-libkernel folder for more examples of interesting code.
-
-One of the best ways to help us keep the kernel reliable is to contribute
-testing to the test suite. If you write an application or a module for the
-kernel, we would love to have integration tests for your module added to our
-test suite. This helps ensure that future changes to the kernel will maintain
-full compatibility with your libraries and applications.
+Documentation and tutorials are coming soon. We had some information here but
+it was going out of date quickly as we polished up the APIs. Things are nearly
+stable, and if you want a taste for how to do things, check out the kernel
+modules in the 'modules' folder and check out the kernel-test-suite in the
+'webapps' folder. Both of those folders contain working code that interacts
+with the kernel.
 
 ## Developing Kernel Modules
 
@@ -612,67 +579,32 @@ window.parent.postMessage({
 This message is not a query, and therefore there are no response messages.
 There are also no queryUpdate or responseUpdate messages.
 
-#### kernelAuthStatusChanged
-
-kernelAuthStatusChanged is a message that will be sent by the kernel to the
-parent if the user's auth status has changed. This typically means that the
-user has logged in, though it can also mean that the user has logged out, or
-that the user has switched to another account.
-
-Regardless of the source cause, the expectation from the kernel is that the
-iframe containing the kernel will be refreshed. Because there is state that
-needs to be kept consistent between the caller and the kernel (such as any open
-queries, and such as the loading status of the kernel), the kernel does not
-automatically refresh itself.
-
-The message will have the form:
-
-```ts
-window.parent.postMessage({
-	method: "kernelAuthStatusChanged",
-	data: {
-		userAuthorized: <boolean>,
-	},
-}, window.parent.origin)
-```
-
-This message is not a query, and therefore there are no response messages.
-There are also no queryUpdate or responseUpdate messages.
-
-#### kernelReady
-
-kernelReady is a message that gets sent by the kernel when the kernel is ready
-to receive messages. This message is sent before the kernel has fully finished
-loading, but the kernel will properly wait to process the messages until it has
-loaded all the way.
-
-The message will have the form:
-
-```ts
-window.parent.postMessage({
-	method: "kernelReady",
-}, window.parent.origin)
-```
-
-This message is not a query, and therefore there are no response messages.
-There are also no queryUpdate or responseUpdate messages.
-
 #### kernelAuthStatus
 
-kernelAuthStatus is a message that the kernel will send once the kernel knows
-whether or not the user is logged in. If the user is not logged in, it will
-know almost immediately. If the user is logged in, it will wait to send this
-message until it knows whether the user's kernel could be loaded and eval'd. If
-the user's kernel could not be loaded, it will include an err.
+kernelAuthStatus is a message that the kernel will send any time that the auth
+status of the kernel has been updated. Auth happens in 5 stages:
 
-The message will have the form:
+Stage 0: Nothing has loaded.
+Stage 1: Bootloader has loaded, user is not logged in. (skipped if user already logged in)
+Stage 2: Bootloader has loaded, user is logged in.
+Stage 3: Kernel is loaded, user is logged in.
+Stage 4: Kernel is loaded, user is logged out, kernel is resetting to stage 0.
+
+The caller should not start sending messages to the kernel until the kernel has
+reached stage 3. In rare cases, the caller may wish to communicate directly to
+the bootloader, those messages can start being sent as early as stage 1.
+
+If kernelAuthStatus has not been sent yet, it means the kernel is in stage 0.
+The kernel will send an auth status message every time that it progresses to
+the next stage, and the message will have the form:
 
 ```ts
 window.parent.postMessage({
 	method: "kernelAuthStatus",
 	data: {
-		userAuthorized: <boolean>,
-		err: <string | null>,
+		loginComplete: <boolean>,
+		kernelLoaded: <boolean>,
+		logoutComplete: <boolean>,
 	},
 }, window.parent.origin)
 ```

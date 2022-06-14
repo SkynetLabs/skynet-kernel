@@ -501,8 +501,8 @@ function bootloaderSendAuthUpdate() {
 			method: "kernelAuthStatus",
 			data: {
 				loginComplete: bootloaderLoginComplete,
-				logoutComplete: bootloaderLogoutComplete,
 				kernelLoaded: bootloaderKernelLoaded,
+				logoutComplete: bootloaderLogoutComplete,
 			},
 		},
 		"*"
