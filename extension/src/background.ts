@@ -4,6 +4,22 @@ import { addContextToErr, composeErr, dataFn, tryStringify } from "libskynet"
 // type because typescript didn't seem to recognize the browser type.
 declare let browser: any
 
+// Declare all large objects at the top so that it's easier to check for memory
+// leaks.
+let headers = {} as any
+let queriesNonce = 1
+let queries: any = new Object()
+let portsNonce = 0
+let openPorts = {} as any
+function logLargeObjects() {
+	let headersLen = Object.keys(headers).length
+	let queriesLen = Object.keys(queries).length
+	let portsLen = Object.keys(openPorts).length
+	console.log("open ports :: open queries :: open headers :", portsLen, "::", queriesLen, "::", headersLen)
+	setTimeout(logLargeObjects, 20000)
+}
+logLargeObjects()
+
 // Messages cannot be sent to the kernel until the kernel has indicated that it
 // is ready to receive messages. We create a promise here that will resovle
 // when the kernel sends us a message indicating that it is ready to receive
@@ -32,8 +48,6 @@ let blockForAuthStatus = new Promise((resolve) => {
 //
 // NOTE: queryKernel cannot be used if you need queryUpdates or
 // responseUpdates, it's only intended to be used with single-message queries.
-let queriesNonce = 1
-let queries: any = new Object()
 function queryKernel(query: any) {
 	return new Promise((resolve, reject) => {
 		let nonce = queriesNonce
@@ -80,12 +94,6 @@ function queryKernel(query: any) {
 //
 // We keep track of all the open ports so that we can send them updated auth
 // messages when new auth messages arrive.
-//
-// TODO: Need to have some way to know when a port has been closed so we can
-// delete it from the global map and also cancel any open queries with the
-// kernel.
-let portsNonce = 0
-let openPorts = {} as any
 function handleBridgeMessage(port: any, portNonce: number, data: any, domain: string) {
 	// Check that the message has a nonce and therefore can receive a response.
 	if (!("nonce" in data)) {
@@ -289,13 +297,13 @@ window.addEventListener("message", handleKernelResponse)
 // errors were coming from other extensions (uMatrix and uBlock Origin) messing
 // around with the requests, but I never confirmed what was going on.
 // Regardless, all of the errors seemed pretty harmless.
-let headers: any = new Object()
 function onBeforeRequestListener(details: any) {
 	// Set up a promise that will be used by onHeadersReceived to inject
 	// the right headers into the response. onHeadersReceived will compare
 	// the requestId that it gets to the 'headers' hashmap, and will do
 	// nothing unless there's a promise in the hashmap. This code is
 	// guaranteed to fire before onHeadersReceived fires.
+	let start = performance.now()
 	let resolveHeaders!: dataFn
 	headers[details.requestId] = new Promise((resolve) => {
 		resolveHeaders = resolve
@@ -328,6 +336,10 @@ function onBeforeRequestListener(details: any) {
 			// starts will ensure that no data is served.
 			filter.close()
 		}
+		let elap = performance.now() - start
+		if (elap > 100) {
+			console.log("onbeforerequest took more than 100ms")
+		}
 		return {}
 	}
 
@@ -355,39 +367,15 @@ function onBeforeRequestListener(details: any) {
 		},
 	})
 		.then((response: any) => {
-			// Check for correct inputs from the kernel. Any error
-			// will result in ignoring the request, which we can do
-			// by resolving 'null' for the headers promise, and by
-			// disconnecting from the filter.
-			if (!("data" in response) || !("override" in response.data)) {
-				console.error("requestOverride response has no 'override' field\n", response)
-				resolveHeaders(null)
-				resolveFilter(null)
-				return
-			}
-			if (!("err" in response) || response.err !== null) {
-				console.error("requestOverride returned an error\n", response.err)
-				resolveHeaders(null)
-				resolveFilter(null)
-				return
-			}
 			// If the kernel doesn't explicitly tell us to override
 			// this request, then we ignore the request.
 			if (response.data.override !== true) {
 				resolveHeaders(null)
 				resolveFilter(null)
-				return
-			}
-			if (!("body" in response.data)) {
-				console.error("requestOverride response is missing 'body' field\n", response)
-				resolveHeaders(null)
-				resolveFilter(null)
-				return
-			}
-			if (!("headers" in response.data)) {
-				console.error("requestOverride response is missing 'headers' field\n", response)
-				resolveHeaders(null)
-				resolveFilter(null)
+				let elap = performance.now() - start
+				if (elap > 100) {
+					console.log("onbeforerequest took more than 100ms")
+				}
 				return
 			}
 
@@ -436,6 +424,17 @@ function onBeforeRequestListener(details: any) {
 }
 browser.webRequest.onBeforeRequest.addListener(onBeforeRequestListener, { urls: ["<all_urls>"] }, ["blocking"])
 
+// We need to listen for any errors that occur with requests because an aborted
+// request may get far enough into onBeforeRequest to have a header entry
+// created, without getting to onHeadersReceived, which means that the headers
+// object won't be consumed and we will leak memory.
+function handleErrorOccurred(details: any) {
+	if (details.requestId in headers) {
+		delete headers[details.requestId]
+	}
+}
+browser.webRequest.onErrorOccurred.addListener(handleErrorOccurred, { urls: ["<all_urls>"] })
+
 // onHeadersReceivedListener will replace the headers provided by the portal
 // with trusted headers, preventing the portal from providing potentially
 // malicious information through the headers.
@@ -448,12 +447,16 @@ function onHeadersReceivedListener(details: any) {
 	// the original page, this typically completes after we need the
 	// headers, which is why we use promises rather than using the desired
 	// values directly.
+	let start = performance.now()
 	return new Promise((resolve) => {
 		// Do nothing if there's no item for this request in the headers
 		// object.
 		if (!(details.requestId in headers)) {
-			// TODO: If the query was just a headers query, we may
-			// need to ask the kernel anyway.
+			console.log("no object for request:", details.requiestId)
+			let elapsed = performance.now() - start
+			if (elapsed > 100) {
+				console.log("headers resovle took more than 100ms:", elapsed)
+			}
 			resolve({ responseHeaders: details.responseHeaders })
 			return
 		}
@@ -462,11 +465,23 @@ function onHeadersReceivedListener(details: any) {
 		delete headers[details.requestId]
 		h.then((response: any) => {
 			if (response !== null) {
+				let elapsed = performance.now() - start
+				if (elapsed > 100) {
+					console.log("headers resovle took more than 100ms:", elapsed)
+				}
 				resolve({ responseHeaders: response })
 			} else {
+				let elapsed = performance.now() - start
+				if (elapsed > 100) {
+					console.log("headers resovle took more than 100ms:", elapsed)
+				}
 				resolve({ responseHeaders: details.responseHeaders })
 			}
 		}).catch((err: any) => {
+			let elapsed = performance.now() - start
+			if (elapsed > 100) {
+				console.log("headers resovle took more than 100ms:", elapsed)
+			}
 			console.error("headers promise failed", details.url, "\n", err)
 			resolve({ responseHeaders: details.responseHeaders })
 		})
@@ -521,6 +536,7 @@ function handleProxyRequest(info: any) {
 	// TODO: Add a default set of proxies the same way that we do for
 	// default portals. And really, all of a user's default portals should
 	// be included in this list.
+	let start = performance.now()
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
 		return [
@@ -528,7 +544,7 @@ function handleProxyRequest(info: any) {
 			{ type: "http", host: "skynetpro.net", port: 80 },
 			{ type: "http", host: "skynetfree.net", port: 80 },
 			{ type: "http", host: "siasky.net", port: 80 },
-			{ type: "http", host: "fileportal.org", port: 80 },
+			{ type: "http", host: "web3portal.com", port: 80 },
 		]
 	}
 
@@ -540,21 +556,13 @@ function handleProxyRequest(info: any) {
 	query
 		.then((response: any) => {
 			// Input sanitization.
-			if (!("data" in response)) {
-				console.error("kernel did not include a 'data' field in the data\n", response)
-				return { type: "direct" }
-			}
 			let data = response.data
-			if (!("proxy" in data) || typeof data.proxy !== "boolean") {
-				console.error("kernel did not include a 'proxy' in the data\n", response)
-				return { type: "direct" }
-			}
 			if (data.proxy === false) {
 				return { type: "direct" }
 			}
-			if (!("proxyValue" in data)) {
-				console.error("kernel did not include a proxyValue in the data\n", response)
-				return { type: "direct" }
+			let proxyTime = performance.now() - start
+			if (proxyTime > 100) {
+				console.log("proxy time exceeded 100ms:", proxyTime)
 			}
 			return data.proxyValue
 		})

@@ -120,8 +120,6 @@ interface openQuery {
 	dest: any
 	nonce: string
 }
-var queriesNonce = 0
-var queries = {} as any
 
 // modules is a hashmap that maps from a domain to the module that responds to
 // that domain.
@@ -129,16 +127,6 @@ interface module {
 	worker: Worker
 	domain: string
 }
-var modules = {} as any
-
-// Derive the active seed for this session. We define an active seed so that
-// the user has control over changing accounts later, they can "change
-// accounts" by switching up their active seed and then reloading all modules.
-let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed")
-let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length)
-activeSeedPreimage.set(userSeed, 0)
-activeSeedPreimage.set(activeSeedSalt, userSeed.length)
-let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
 
 // TODO: Need to implement the system that respects and ignores the tags.
 function wLog(isErr: boolean, tag: string, ...inputs: any) {
@@ -164,6 +152,28 @@ function log(tag: string, ...inputs: any) {
 function logErr(tag: string, ...inputs: any) {
 	wLog(true, tag, ...inputs)
 }
+
+// Cluster all of the large state objects at the top so that we can easily
+// track memory leaks.
+var queriesNonce = 0
+var queries = {} as any
+var modules = {} as any
+function logLargeObjects() {
+	let queriesLenStr = Object.keys(queries).length.toString()
+	let modulesLenStr = Object.keys(modules).length.toString()
+	log("open queries :: open modules : " + queriesLenStr + " :: " + modulesLenStr)
+	setTimeout(logLargeObjects, 30000)
+}
+logLargeObjects()
+
+// Derive the active seed for this session. We define an active seed so that
+// the user has control over changing accounts later, they can "change
+// accounts" by switching up their active seed and then reloading all modules.
+let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed")
+let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length)
+activeSeedPreimage.set(userSeed, 0)
+activeSeedPreimage.set(activeSeedSalt, userSeed.length)
+let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
 
 // Write a log that declares the kernel version and distribution.
 log("init", "Skynet Kernel v" + kernelVersion + "-" + kernelDistro)
@@ -213,12 +223,15 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		// as a tag, we need some way to control here which domains get
 		// to log and which domains do not, which might suggest the way
 		// we handle tags is not quite correct.
-		if (event.data.data.isErr === true) {
-			logErr("workerMessage", module.domain, event.data.data.message)
+		if (typeof event.data.data.message !== "string") {
+			log("worker log message is not a string!", typeof event.data.data.message)
 		} else {
-			// TODO: stringifying this here because tryStringify isn't working
-			// for some reason.
-			log("workerMessage", module.domain, JSON.stringify(event.data.data.message))
+			log("worker log message is a string")
+		}
+		if (event.data.data.isErr === false) {
+			log("workerMessage", module.domain, event.data.data.message)
+		} else {
+			logErr("workerMessage", module.domain, event.data.data.message)
 		}
 		return
 	}
