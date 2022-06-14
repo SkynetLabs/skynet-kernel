@@ -1,6 +1,7 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
 import {
+	activeQuery,
 	addContextToErr,
 	addHandler,
 	callModule,
@@ -77,31 +78,31 @@ function checkPresentSeed(event: MessageEvent) {
 
 // callModulePerformanceSequential will run the 'viewSeed' method on the helper
 // module the provided number of times in series.
-async function handleCallModulePerformanceSequential(activeQuery: any) {
+async function handleCallModulePerformanceSequential(aq: activeQuery) {
 	// Check that a proper number of iterations was provided.
-	if (!("iterations" in activeQuery.callerInput)) {
+	if (!("iterations" in aq.callerInput)) {
 		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
-		activeQuery.reject("input is expected to have an 'iterations' value")
+		aq.reject("input is expected to have an 'iterations' value")
 		return
 	}
-	if (typeof activeQuery.callerInput.iterations !== "number") {
+	if (typeof aq.callerInput.iterations !== "number") {
 		errors.push("callModulePerformanceSequential called but iterations was not of type 'number'")
-		activeQuery.reject("iterations needs to be a number")
+		aq.reject("iterations needs to be a number")
 		return
 	}
 
 	// perform a 'viewSeed' call on the helper module the specified number of
 	// times sequentially.
-	for (let i = 0; i < activeQuery.callerInput.iterations; i++) {
+	for (let i = 0; i < aq.callerInput.iterations; i++) {
 		let [, err] = await callModule(helperModule, "viewSeed", {})
 		if (err !== null) {
 			logErr("error when using callModule to viewSeed on the helper module", err)
 			errors.push(err)
-			activeQuery.reject(err)
+			aq.reject(err)
 			return
 		}
 	}
-	activeQuery.accept({ message: "helper module calls complete" })
+	aq.respond({ message: "helper module calls complete" })
 }
 
 // callModulePerformanceParallel will run the 'viewSeed' method on the helper
@@ -133,13 +134,13 @@ function handleCallModulePerformanceParallel(activeQuery: any) {
 				return
 			}
 		}
-		activeQuery.accept({ message: "helper module calls complete" })
+		activeQuery.respond({ message: "helper module calls complete" })
 	})
 }
 
 // handleMirrorDomain handles a call to mirrorDomain.
 function handleMirrorDomain(activeQuery: any) {
-	activeQuery.accept({ domain: activeQuery.domain })
+	activeQuery.respond({ domain: activeQuery.domain })
 }
 
 // handleSendTestToKernel handles a call to "sendTestToKernel". It sends a test
@@ -165,7 +166,7 @@ async function handleSendTestToKernel(activeQuery: any) {
 		activeQuery.reject("no version provided by kernel 'test' method")
 		return
 	}
-	activeQuery.accept({ kernelVersion: resp.version })
+	activeQuery.respond({ kernelVersion: resp.version })
 }
 
 // handleTestCORS checks that the webworker is able to make webrequests to at
@@ -174,7 +175,7 @@ async function handleSendTestToKernel(activeQuery: any) {
 function handleTestCORS(activeQuery: any) {
 	fetch("https://siasky.net")
 		.then((response) => {
-			activeQuery.accept({ url: response.url })
+			activeQuery.respond({ url: response.url })
 		})
 		.catch((errFetch) => {
 			let err = "fetch request failed: " + errFetch
@@ -190,7 +191,7 @@ function handleTestLogging(activeQuery: any) {
 	log("this", "is", "a", "multi-arg", "log")
 	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
 	logErr("this is an intentional error from the kernel test suite module")
-	activeQuery.accept({})
+	activeQuery.respond({})
 }
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
@@ -209,7 +210,7 @@ async function handleTesterMirrorDomain(activeQuery: any) {
 		activeQuery.reject(err)
 		return
 	}
-	activeQuery.accept({ domain: resp.domain })
+	activeQuery.respond({ domain: resp.domain })
 }
 
 // handleTestResponseUpdate will respond to a query with three updates spaced
@@ -227,7 +228,7 @@ function handleTestResponseUpdate(activeQuery: any) {
 		activeQuery.sendUpdate({ eventProgress: 75 })
 	}, 600)
 	setTimeout(() => {
-		activeQuery.accept({ eventProgress: 100 })
+		activeQuery.respond({ eventProgress: 100 })
 	}, 800)
 }
 
@@ -235,7 +236,7 @@ function handleTestResponseUpdate(activeQuery: any) {
 // communication between the test module and the helper module that makes use
 // of both 'responseUpdate' messages and also 'queryUpdate' messages.
 async function handleUpdateTest(activeQuery: any) {
-	// Track whether or not 'reject' or 'accept' has already been called.
+	// Track whether or not 'reject' or 'respond' has already been called.
 	let resolved = false
 
 	// Create the function that will receive responseUpdate messages from the
@@ -295,7 +296,7 @@ async function handleUpdateTest(activeQuery: any) {
 		resolved = true
 		return
 	}
-	activeQuery.accept("successfully sent and received updates")
+	activeQuery.respond("successfully sent and received updates")
 	resolved = true
 }
 
@@ -347,14 +348,14 @@ async function handleViewHelperSeed(activeQuery: any) {
 		activeQuery.reject(err)
 		return
 	}
-	activeQuery.accept({ message: "(success) helper seed does not match tester seed" })
+	activeQuery.respond({ message: "(success) helper seed does not match tester seed" })
 }
 
 // handleViewSeed responds to a query asking to see the specific seed for the
 // module.
 async function handleViewSeed(activeQuery: any) {
 	let seed = await getSeed()
-	activeQuery.accept({ seed: seed })
+	activeQuery.respond({ seed: seed })
 }
 
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
@@ -396,13 +397,13 @@ async function handleViewOwnSeedThroughHelper(activeQuery: any) {
 		activeQuery.reject(err)
 		return
 	}
-	activeQuery.accept({ message: "our seed as reported by the helper module is correct" })
+	activeQuery.respond({ message: "our seed as reported by the helper module is correct" })
 }
 
 // handleViewErrors will return the set of errors that have accumulated during
 // testing.
 function handleViewErrors(activeQuery: any) {
-	activeQuery.accept({ errors })
+	activeQuery.respond({ errors })
 }
 
 // Add handlers for various test functions.

@@ -28,11 +28,11 @@
 		"read": "^1.0.7",
 		"rollup": "^2.75.6",
 		"rollup-plugin-terser": "^7.0.2",
-		"typescript": "^4.6.3"
+		"typescript": "^4.6.3",
+		"libskynetnode": "^0.1.2"
 	},
 	"dependencies": {
 		"libkmodule": "^0.2.10",
-		"libskynet": "^0.0.33",
-		"libskynetnode": "^0.1.2"
+		"libskynet": "^0.0.33"
 	}
 }

@@ -1,4 +1,4 @@
-import { composeErr, dataFn } from "libskynet"
+import { addContextToErr, composeErr, dataFn, tryStringify } from "libskynet"
 
 // Need to declare the browser to make typescript happy. 'any' is used as the
 // type because typescript didn't seem to recognize the browser type.
@@ -86,7 +86,7 @@ function queryKernel(query: any) {
 // kernel.
 let portsNonce = 0
 let openPorts = {} as any
-function handleBridgeMessage(port: any, data: any, domain: string) {
+function handleBridgeMessage(port: any, portNonce: number, data: any, domain: string) {
 	// Check that the message has a nonce and therefore can receive a response.
 	if (!("nonce" in data)) {
 		console.error("received message from", domain, "with no nonce")
@@ -102,7 +102,11 @@ function handleBridgeMessage(port: any, data: any, domain: string) {
 	// sent in the original query.
 	if (data.method !== "queryUpdate") {
 		queries[data.nonce] = (response: any) => {
-			port.postMessage(response)
+			if (portNonce in openPorts) {
+				port.postMessage(response)
+			} else {
+				console.log("received response to query for page that has closed")
+			}
 		}
 		data["domain"] = domain
 	}
@@ -110,9 +114,14 @@ function handleBridgeMessage(port: any, data: any, domain: string) {
 }
 function bridgeListener(port: any) {
 	// Add this port to the set of openPorts.
-	let nonce = portsNonce
+	let portNonce = portsNonce
 	portsNonce++
-	openPorts[nonce] = port
+	openPorts[portNonce] = port
+
+	// Set up the garbage collection for the port.
+	port.onDisconnect.addListener(() => {
+		delete openPorts[portNonce]
+	})
 
 	// Grab the domain of the webpage that's connecting to the background
 	// page. The kernel needs to know the domain so that it can
@@ -124,7 +133,7 @@ function bridgeListener(port: any) {
 
 	// Add a listener to grab messages that are sent over the port.
 	port.onMessage.addListener(function (data: any) {
-		handleBridgeMessage(port, data, domain)
+		handleBridgeMessage(port, portNonce, data, domain)
 	})
 
 	// Send a message down the port containing the current auth status of the
@@ -199,7 +208,8 @@ function handleKernelResponse(event: any) {
 			try {
 				(port as any).postMessage(event.data)
 			} catch (err: any) {
-				console.log(err)
+				console.error("unable to send message to port\n", err)
+				console.error(addContextToErr(tryStringify(err), "unable to send message to port"))
 			}
 		}
 
@@ -208,8 +218,19 @@ function handleKernelResponse(event: any) {
 		// refresh isn't strictly necessary but it guarantees that old items
 		// are cleaned up properly.
 		if (data.logoutComplete === true) {
-			console.log("attempting to do a page reload")
-			window.location.reload()
+			console.log("received logout signal, clearing all ports")
+
+			// Iterate over all of the openPorts and close them.
+			for (let [, port] of Object.entries(openPorts)) {
+				try {
+					(port as any).disconnect()
+				} catch (err: any) {
+					console.log(addContextToErr(tryStringify(err), "unable to disconnect from port"))
+				}
+			}
+
+			// Reset the openPorts object.
+			openPorts = {}
 			return
 		}
 		return

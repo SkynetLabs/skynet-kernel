@@ -58,20 +58,12 @@ function TestLibkernelInit() {
 // communication path is broken in some way.
 function TestGetKernelVersion() {
   return new Promise((resolve, reject) => {
-    kernel.kernelVersion().then(([data, err]) => {
+    kernel.kernelVersion().then(([version, distribution, err]) => {
       if (err !== null) {
         reject(err);
         return;
       }
-      if (!("version" in data)) {
-        reject("no version provided in return value");
-        return;
-      }
-      if (!("distribution" in data)) {
-        reject("no distribution provided in return value");
-        return;
-      }
-      resolve(data.version + "-" + data.distribution);
+      resolve(version + "-" + distribution);
     });
   });
 }
@@ -629,17 +621,13 @@ function TestSecureRegistry() {
 		}
 
 		// Write to the registry entry and check that no errors are returned.
-		let [resp, errRW] = await kernel.registryWrite(keypair, dataKey, entryData, readData.revision+1n)
+		let [entryID, errRW] = await kernel.registryWrite(keypair, dataKey, entryData, readData.revision+1n)
 		console.log("TestSecureRegistry: registryWrite completed after", performance.now()-start)
 		if (errRW !== null) {
 			reject(skynet.addContextToErr(errRW, "error when calling registry module"))
 			return
 		}
-		if (!("entryID" in resp)) {
-			reject("registry module response does not contain an entryID field")
-			return
-		}
-		let [resolverLink, errRL] = skynet.resolverLink(resp.entryID)
+		let [resolverLink, errRL] = skynet.resolverLink(entryID)
 		if (errRL !== null) {
 			reject(skynet.addContextToErr(errRL, "could not convert entryID to resolver link"))
 			return
@@ -655,26 +643,20 @@ function TestSecureUploadAndDownload() {
 		// Try to upload a sample file.
 		let start = performance.now()
 		let fileDataUp = new TextEncoder().encode("test data")
-		let [uploadResp, errU] = await kernel.upload("testUpload.txt", fileDataUp)
+		let [skylink, errU] = await kernel.upload("testUpload.txt", fileDataUp)
 		console.log("TestSecureUploadAndDownload: initial upload completed after", performance.now()-start)
 		if (errU !== null) {
 			reject(kernel.addContextToErr(errU, "upload failed"))
 			return
 		}
-		if (!("skylink" in uploadResp)) {
-			reject("return value of upload had no skylink field")
-			return
-		}
-		let skylink = uploadResp.skylink
 
 		// Try to download the file we just uploaded.
-		let [downloadResp, errD] = await kernel.download(skylink)
+		let [fileDataDown, errD] = await kernel.download(skylink)
 		console.log("TestSecureUploadAndDownload: initial download completed after", performance.now()-start)
 		if (errD !== null) {
 			reject(kernel.addContextToErr(errD, "content link download failed"))
 			return
 		}
-		let fileDataDown = downloadResp.fileData
 		if (fileDataUp.length !== fileDataDown.length) {
 			reject("uploaded data and downloaded data do not match: "+JSON.stringify({uploaded: fileDataUp, downloaded: fileDataDown}))
 			return
@@ -721,37 +703,32 @@ function TestSecureUploadAndDownload() {
 		}
 
 		// Perform the registry write.
-		let [respRW, errRW] = await kernel.registryWrite(keypair, dataKey, bufLink, revisionNumber)
+		let [entryID, errRW] = await kernel.registryWrite(keypair, dataKey, bufLink, revisionNumber)
 		console.log("TestSecureUploadAndDownload: regwrite completed after", performance.now()-start)
 		if (errRW !== null) {
 			return
 		}
-		if (!("entryID" in respRW)) {
-			reject("registry module response does not contain an entryID field")
-			return
-		}
 
 		// Convert the entryID to a resovler skylink.
-		let [resolverLink, errRL] = skynet.resolverLink(respRW.entryID)
+		let [resolverLink, errRL] = skynet.resolverLink(entryID)
 		if (errRL !== null) {
 			reject(kernel.addContextToErr(errRL, "unable to convert resp.entryID to resolver link"))
 			return
 		}
 
 		// Perform a skylink download using the resolver link.
-		let [resolverDownloadResp, errD2] = await kernel.download(resolverLink)
+		let [resolverData, errD2] = await kernel.download(resolverLink)
 		console.log("TestSecureUploadAndDownload: download completed after", performance.now()-start)
 		if (errD2 !== null) {
 			reject(kernel.addContextToErr(errD2, "content link download failed"))
 			return
 		}
-		let resolverData = resolverDownloadResp.fileData
 		if (fileDataUp.length !== resolverData.length) {
 			reject("uploaded data and resolver downloaded data do not match: "+skynet.tryStringify({uploaded: fileDataUp, downloaded: resolverData}))
 			return
 		}
 		for (let i = 0; i < fileDataUp.length; i++) {
-			if (fileDataUp[i] !== fileDataDown[i]) {
+			if (fileDataUp[i] !== resolverData[i]) {
 				reject("uploaded data and downloaded data do not match: "+skynet.tryStringify({uploaded: fileDataUp, downloaded: resolverData}))
 				return
 			}
@@ -775,7 +752,7 @@ function TestMsgSpeedSequential5k() {
       return;
     }
 
-    kernel.kernelVersion().then(([data, err]) => {
+    kernel.kernelVersion().then(([, , err]) => {
       if (err !== null) {
         reject(err);
         return;
@@ -817,7 +794,7 @@ function TestMsgSpeedParallel5k() {
     Promise.all(promises)
       .then((x) => {
         for (let i = 0; i < x.length; i++) {
-          let err = x[i][1];
+          let err = x[i][2];
           if (err !== null) {
             reject(err);
             return;

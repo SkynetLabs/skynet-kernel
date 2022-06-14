@@ -39,10 +39,10 @@ function handleSecureDownload(aq: activeQuery) {
 	// Call progressiveFetch to perform the download.
 	let endpoint = "/skynet/trustless/basesector/" + aq.callerInput.skylink
 	let fileDataPtr = { fileData: new Uint8Array(0), err: null }
-	let verifyFunction = function (response: Response): Promise<error> {
+	let verify = function (response: Response): Promise<error> {
 		return verifyDownloadResponse(response, u8Link, fileDataPtr)
 	}
-	progressiveFetch(endpoint, null, defaultPortalList, verifyFunction).then((result: progressiveFetchResult) => {
+	progressiveFetch(endpoint, null, defaultPortalList, verify).then((result: progressiveFetchResult) => {
 		if (result.success !== true) {
 			let err = tryStringify({ logs: result.logs })
 			aq.reject(addContextToErr(err, "unable to download file"))
