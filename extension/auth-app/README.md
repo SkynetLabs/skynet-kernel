@@ -9,3 +9,5 @@ To build, run `npm i` then `npm run build`. For live-development, `npm run dev` 
 Skynet Kernel logic is contained in `./src/lib/helpers.ts` and `./src/libs/skynet.ts`.
 
 The `fonts-minimal.css` file may need replaced if modified text extends beyond a simple character set.
+
+The `static` directory contains additional files used when building for deployment to skt.us.
