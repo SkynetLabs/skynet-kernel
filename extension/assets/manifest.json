@@ -31,12 +31,9 @@
 			"js": ["bootloader.js"],
 			"run_at": "document_end",
 			"all_frames": true
-		},
-		{
-			"matches": ["<all_urls>"],
-			"js": ["bridge.js"],
-			"run_at": "document_start",
-			"all_frames": true
 		}
-	]
+	],
+
+	// Give the content scripts access to a favicon for the skynet kernel.
+	"web_accessible_resources": ["icon@2x.png", "auth.html"]
 }

@@ -1,48 +1,40 @@
-// Import methods from libskynet. They are all namespaced to have a
-// 'bootloader' prefix because the full kernel is also likely to use libskynet.
-// As the full kernel is imported via 'eval', we need to make sure that methods
-// declared inside of the kernel do not conflict with the bootloader. And as
-// the bootloader is the one that is the most difficult to change, we go out of
-// our way to namespace the bootloader.
+// bootloader.ts is the bootloader for the kernel. The sole purpose of the
+// bootloader is to load the user's kernel, ensuring along the way that the
+// webserver is not able to maliciously inject code that could steal the user's
+// seed.
 //
-// This cumbersome namespacing extends to other methods that we define inside
-// of the bootloader as well.
+// Throughout the bootloader, there are places where we need to do friviolous
+// null checks and use types 'as any' due to typescript seemingly not
+// understanding the types involved when working with the webbrowser. I'd like
+// to fix it, but it fell off of the priorities list. They've been marked with
+// the comment 'tsc'. We've tried to avoid them as much as possible, and if you
+// know how to get rid of these exceptions, we'd love to see a pull request.
+
 import {
-	addContextToErr as bootloaderAddContextToErr,
-	b64ToBuf as bootloaderB64ToBuf,
-	bufToHex as bootloaderBufToHex,
-	bufToStr as bootloaderBufToStr,
-	computeRegistrySignature as bootloaderComputeRegistrySignature,
-	defaultPortalList as bootloaderDefaultPortalList,
-	deriveChildSeed as bootloaderDeriveChildSeed,
-	deriveRegistryEntryID as bootloaderDeriveRegistryEntryID,
-	downloadSkylink as bootloaderDownloadSkylink,
-	ed25519Keypair as bootloaderEd25519Keypair,
-	entryIDToSkylink as bootloaderEntryIDToSkylink,
-	error as bootloaderError,
-	hexToBuf as bootloaderHexToBuf,
-	progressiveFetch as bootloaderProgressiveFetch,
-	progressiveFetchResult as bootloaderProgressiveFetchResult,
-	taggedRegistryEntryKeys as bootloaderTaggedRegistryEntryKeys,
-	tryStringify as bootloaderTryStringify,
-	verifyRegistryReadResponse as bootloaderVerifyRegistryReadResp,
+	addContextToErr,
+	b64ToBuf,
+	bufToHex,
+	bufToStr,
+	computeRegistrySignature,
+	defaultPortalList,
+	deriveChildSeed,
+	deriveRegistryEntryID,
+	downloadSkylink,
+	ed25519Keypair,
+	entryIDToSkylink,
+	error,
+	hexToBuf,
+	progressiveFetch,
+	progressiveFetchResult,
+	taggedRegistryEntryKeys,
+	tryStringify,
+	verifyRegistryReadResponse,
 } from "libskynet"
 
-// NOTE: The bootloader is somewhat unique because it contains both the code
-// for the browser extension bootloader, and also for the skt.us bootloader.
-// The main difference between the two is how localstorage is handled.
+var browser: any // tsc
 
-// TODO: A whole bunch of 'event' objects have been given type 'any' because
-// typescript was throwing weird errors like 'Object is possibly null' and
-// 'Argument of type 'string' is not assignable to parameter of type
-// 'WindowPostMessageOptions | undefined' - both of which I believe are
-// incorrect.
-
-// TODO: Need to ensure that queries that come in which are intended for the
-// full kernel but instead hit the bootloader do get relayed to the full kernel
-// after it gets eval'd, or otherwise get rejected if the full kernel cannot be
-// loaded. This is particularly important for request overrides and header
-// overrides because the user may be depending on these overrides for safety.
+// Establish the skylink of the default kernel.
+const defaultKernelResolverLink = "AQBFjXpEBwbMwkBwYg0gdkeAM-yy9vlajfLtZSee9f-MDg"
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -52,17 +44,13 @@ header.textContent =
 	"Something went wrong! You should not be visiting this page, this page should only be accessed via an invisible iframe."
 document.body.appendChild(header)
 
-// Establish the skylink of the default kernel.
-const bootloaderDefaultKernelResolverLink = "AQBFjXpEBwbMwkBwYg0gdkeAM-yy9vlajfLtZSee9f-MDg"
-const bootloaderDefaultAuthPage = "OACMoqF1nkQNe49Svh3lS6hfFhsiSWx0GCnscU7jrA_NCg"
-
 // bootloaderWLog is a function that gets wrapped by bootloaderLog and
 // bootloaderErr.
 function bootloaderWLog(isErr: boolean, ...inputs: any) {
 	let message = "[skynet-kernel-bootloader]"
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
-		message += bootloaderTryStringify(inputs[i])
+		message += tryStringify(inputs[i])
 	}
 	window.parent.postMessage(
 		{
@@ -72,28 +60,266 @@ function bootloaderWLog(isErr: boolean, ...inputs: any) {
 				message,
 			},
 		},
-		"*"
+		"*" as any // tsc
 	)
 }
-
 // Establish logging functions for the bootloader. The bootloader is in an
 // iframe and can't console.log directly, so instead we need to send a message
 // to the background and request that the background create the log message.
-function bootloaderLog(...inputs: any) {
+function log(...inputs: any) {
 	bootloaderWLog(false, ...inputs)
 }
-
-// bootloaderErr is a mirror of bootloaderLog, except that it reports the log
-// as an error.
-function bootloaderErr(...inputs: any) {
+function logErr(...inputs: any) {
 	bootloaderWLog(true, ...inputs)
 }
 
-// bootloaderDownloadKernel will take the skylink for a kernel distro, download
+// Set up the message handler that will process messages coming from pages or
+// from the background script.
+var handleMessage = function (event: MessageEvent) {
+	if (event.source === null) {
+		// tsc
+		return
+	}
+
+	// Check that there's a nonce.
+	if (!("nonce" in event.data)) {
+		event.source.postMessage(
+			{
+				nonce: "N/A",
+				method: "response",
+				err: "message sent to kernel with no nonce",
+			},
+			"*" as any
+		) // tsc
+		return
+	}
+
+	// Check that there's a method.
+	if (!("method" in event.data)) {
+		(event.source as WindowProxy).postMessage(
+			{
+				nonce: event.data.nonce,
+				method: "response",
+				err: "message sent to kernel with no method",
+			},
+			"*" as any
+		) // tsc
+		return
+	}
+
+	// Create default handlers for the requestOverride and proxyInfo
+	// methods. These methods are important during bootloading to ensure
+	// that the default login page can be loaded for the user.
+	if (event.data.method === "requestOverride") {
+		handleSkynetKernelRequestOverride(event)
+		return
+	}
+
+	// Message that the method was not recognized.
+	(event.source as WindowProxy).postMessage(
+		{
+			nonce: event.data.nonce,
+			method: "response",
+			err: "unrecognized method (user may need to log in): " + event.data.method,
+		},
+		"*" as any
+	) // tsc
+	return
+}
+window.addEventListener("message", (event: MessageEvent) => {
+	handleMessage(event)
+})
+
+// handleSkynetKernelRequestOverride will respond to a request override
+// message. This method will only respond to the browser extension, and it is
+// used to trustlessly load the favicon.ico and the kernel auth page.
+//
+// As part of initializing this function, we launch a promise that fetches the
+// favicon and the auth page so that we may send them to the background script
+// at runtime.
+let kernelFavicon: Uint8Array
+let blockForFavicon: Promise<void> = new Promise((resolve) => {
+	let faviconURL = browser.runtime.getURL("icon@2x.png")
+	fetch(faviconURL)
+		.then((response) => {
+			response.arrayBuffer().then((faviconData) => {
+				kernelFavicon = new Uint8Array(faviconData)
+				resolve()
+			})
+		})
+		.catch(() => {
+			// In the event of an error, just set the favicon to nothing.
+			kernelFavicon = new Uint8Array(0)
+			resolve()
+		})
+})
+let kernelAuthPage: Uint8Array
+let blockForAuthPage: Promise<void> = new Promise((resolve) => {
+	let authURL = browser.runtime.getURL("auth.html")
+	fetch(authURL)
+		.then((response) => {
+			response.arrayBuffer().then((authData) => {
+				kernelAuthPage = new Uint8Array(authData)
+				resolve()
+			})
+		})
+		.catch((err: any) => {
+			authURL = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
+			resolve()
+		})
+})
+function handleSkynetKernelRequestOverride(event: MessageEvent) {
+	if (event.source === null) {
+		// tsc
+		return
+	}
+
+	// Only a browser extension is allowed to call requestOverride.
+	if (!event.origin.startsWith("moz")) {
+		return
+	}
+	// Check that this is for a GET request, all other types are not handled.
+	if (event.data.data.method !== "GET") {
+		return
+	}
+
+	// Establish the standard headers that we respond with.
+	let respondOverride = function (headers: any, body: Uint8Array) {
+		// tsc
+		event.source!.postMessage(
+			{
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					override: true,
+					headers,
+					body,
+				},
+			},
+			"*" as any
+		) // tsc
+	}
+
+	// Set up a return value for the favicon.
+	if (event.data.data.url === "http://kernel.skynet/favicon.ico") {
+		blockForFavicon.then(() => {
+			let headers = [
+				{
+					name: "content-type",
+					value: "image/png",
+				},
+			]
+			respondOverride(headers, kernelFavicon)
+		})
+		return
+	}
+
+	// Set up a return value for the auth page.
+	if (event.data.data.url === "http://kernel.skynet/auth.html") {
+		blockForAuthPage.then(() => {
+			let headers = [
+				{
+					name: "content-type",
+					value: "text/html; charset=utf8",
+				},
+			]
+			respondOverride(headers, kernelAuthPage)
+		})
+		return
+	}
+
+	// The override request was not recognized, tell the extension not to
+	// override this file.
+	event.source.postMessage(
+		{
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				override: false,
+			},
+		},
+		"*" as any
+	) // tsc
+}
+
+// Establish a handler for storage events. The kernel is intended to overwrite
+// this handler after the kernel has loaded, therefore the name 'handleStorage'
+// is part of the bootloading protocol and cannot be changed.
+//
+// handleStorage primarily listens for changes to the user seed that indicate
+// that the user has either logged in or logged out.
+var handleStorage = function (event: StorageEvent) {
+	// Ignore any storage events that don't include v1-seed. The 'null' key
+	// means that all storage entries were wiped, which does include changes to
+	// v1-seed.
+	if (event.key !== null && event.key !== "v1-seed") {
+		return
+	}
+	// If the user is already logged out, ignore the message as we should wait
+	// until we've refreshed.
+	if (logoutComplete === true) {
+		window.location.reload()
+		return
+	}
+
+	// If the storage was wiped but the user is already not logged in, nothing
+	// needs to happen.
+	if (event.key === null && loginComplete === false) {
+		return
+	}
+
+	// If the user is not logged in and this is a v1-seed change, it means that
+	// the user is now logged in.
+	if (event.key === "v1-seed" && loginComplete === false) {
+		// First load the new seed. If there's an error loading the seed,
+		// assume the storage event was not a login event. If collecting the
+		// seed fails, send an auth update again to assert to any listeners
+		// that login failed.
+		let userSeedString = window.localStorage.getItem("v1-seed")
+		if (userSeedString === null) {
+			sendAuthUpdate()
+			return
+		}
+		// Get the seed and convert it from hex to a Uint8Array.
+		let [decodedSeed, errHTB] = hexToBuf(userSeedString)
+		if (errHTB !== null) {
+			// Log the error and report the user as not logged in.
+			logErr(addContextToErr(errHTB, "seed could not be decoded from hex"))
+			sendAuthUpdate()
+			return
+		}
+		// Set the global 'userSeed' object.
+		userSeed = decodedSeed
+
+		log("user is now logged in, attempting to load kernel")
+		loginComplete = true
+		loadKernel()
+		sendAuthUpdate()
+		return
+	}
+
+	// The other two cases are where the user was already logged in and then
+	// either v1-seed changed or all variables were deleted (which includes
+	// v1-seed being changed). We set logoutComplete to true and then we
+	// refresh the kernel, resetting the auth cycle.
+	//
+	// We refresh the kernel upon logout because we want to ensure that no
+	// settings or private data leaks between different user account logins of
+	// the kernel.
+	logoutComplete = true
+	sendAuthUpdate()
+	log("attempting to do a page reload")
+	window.location.reload()
+}
+window.addEventListener("storage", (event) => handleStorage(event))
+
+// downloadKernel will take the skylink for a kernel distro, download
 // that kernel, and return the code that can be eval'd to load the kernel.
-function bootloaderDownloadKernel(kernelSkylink: string): Promise<[kernelCode: string, err: bootloaderError]> {
+function downloadKernel(kernelSkylink: string): Promise<[kernelCode: string, err: error]> {
 	return new Promise((resolve) => {
-		bootloaderDownloadSkylink(kernelSkylink).then(([fileData, err]) => {
+		downloadSkylink(kernelSkylink).then(([fileData, err]) => {
 			// Don't add any context to a 404 error.
 			if (err === "404") {
 				resolve(["", err])
@@ -102,14 +328,14 @@ function bootloaderDownloadKernel(kernelSkylink: string): Promise<[kernelCode: s
 
 			// Check the error.
 			if (err !== null) {
-				resolve(["", bootloaderAddContextToErr(err, "unable to download the default kernel")])
+				resolve(["", addContextToErr(err, "unable to download the default kernel")])
 				return
 			}
 
 			// Decode the fileData to text and return the text.
-			let [kernelCode, errBBTS] = bootloaderBufToStr(fileData)
+			let [kernelCode, errBBTS] = bufToStr(fileData)
 			if (errBBTS !== null) {
-				resolve(["", bootloaderAddContextToErr(err, "unable to decode the default kernel")])
+				resolve(["", addContextToErr(err, "unable to decode the default kernel")])
 				return
 			}
 			resolve([kernelCode, null])
@@ -117,39 +343,37 @@ function bootloaderDownloadKernel(kernelSkylink: string): Promise<[kernelCode: s
 	})
 }
 
-// bootloaderDownloadDefaultKernel will attempt to download the default kernel
+// downloadDefaultKernel will attempt to download the default kernel
 // and return the code that can be eval'd.
-function bootloaderDownloadDefaultKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
-	bootloaderLog("using default kernel as kernel: " + bootloaderDefaultKernelResolverLink)
-	return bootloaderDownloadKernel(bootloaderDefaultKernelResolverLink)
+function downloadDefaultKernel(): Promise<[kernelCode: string, err: error]> {
+	return downloadKernel(defaultKernelResolverLink)
 }
 
-// bootloaderSetUserKernelAsDefault will set the user's kernel to be the
-// default kernel.
+// setUserKernelAsDefault will set the user's kernel to be the default kernel.
 //
 // There is no return value for this function, if it doesn't work leave a log
 // message.
-function bootloaderSetUserKernelAsDefault(keypair: bootloaderEd25519Keypair, dataKey: Uint8Array) {
+function setUserKernelAsDefault(keypair: ed25519Keypair, dataKey: Uint8Array) {
 	// Log that we are setting the user's kernel.
-	bootloaderLog("user kernel not found, setting user kernel to " + bootloaderDefaultKernelResolverLink)
+	log("user kernel not found, setting user kernel to " + defaultKernelResolverLink)
 
 	// Get the defaultKernelSkylink as a Uint8Array, which will be the data of
 	// the registry entry that we need to write.
-	let [defaultKernelSkylink, err64] = bootloaderB64ToBuf(bootloaderDefaultKernelResolverLink)
+	let [defaultKernelSkylink, err64] = b64ToBuf(defaultKernelResolverLink)
 	if (err64 !== null) {
-		bootloaderLog("unable to convert default kernel link to a Uint8Array")
+		log("unable to convert default kernel link to a Uint8Array")
 		return
 	}
 
 	// Get the encoded data and signature.
-	let [sig, errCRS] = bootloaderComputeRegistrySignature(keypair.secretKey, dataKey, defaultKernelSkylink, 0n)
+	let [sig, errCRS] = computeRegistrySignature(keypair.secretKey, dataKey, defaultKernelSkylink, 0n)
 	if (errCRS !== null) {
-		bootloaderLog(bootloaderAddContextToErr(errCRS, "unable to compute registry signature to set user kernel"))
+		log(addContextToErr(errCRS, "unable to compute registry signature to set user kernel"))
 		return
 	}
 
 	// Compute the parameters of the fetch call.
-	let dataKeyHex = bootloaderBufToHex(dataKey)
+	let dataKeyHex = bufToHex(dataKey)
 	let endpoint = "/skynet/registry"
 	let postBody = {
 		publickey: {
@@ -167,68 +391,71 @@ function bootloaderSetUserKernelAsDefault(keypair: bootloaderEd25519Keypair, dat
 	}
 
 	// Perform the fetch call.
-	bootloaderProgressiveFetch(endpoint, fetchOpts, bootloaderDefaultPortalList, bootloaderVerifyRegistryReadResp).then(
-		(result: bootloaderProgressiveFetchResult) => {
+	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryReadResponse).then(
+		(result: progressiveFetchResult) => {
 			// Return an error if the call failed.
 			if (result.success !== true) {
-				bootloaderLog("unable to update the user kernel registry entry\n", bootloaderTryStringify(result.logs))
+				log("unable to update the user kernel registry entry\n", tryStringify(result.logs))
 				return
 			}
-			bootloaderLog("successfully updated the user kernel registry entry to the default kernel")
+			log("successfully updated the user kernel registry entry to the default kernel")
 		}
 	)
 }
 
-// bootloaderDownloadUserKernel will download the user's kernel and return the
+// downloadUserKernel will download the user's kernel and return the
 // code that can be eval'd.
-function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootloaderError]> {
+function downloadUserKernel(): Promise<[kernelCode: string, err: error]> {
 	return new Promise((resolve) => {
 		// Create a child seed for working with the user's kernel entry. We
 		// create a child seed here so that the user's kernel entry seed can be
 		// exported without exposing the user's root seed. It's unlikely that
 		// this will ever matter, but it's also trivial to implement.
-		let kernelEntrySeed = bootloaderDeriveChildSeed(userSeed, "userPreferredKernel2")
+		log("user seed", bufToHex(userSeed))
+		let kernelEntrySeed = deriveChildSeed(userSeed, "userPreferredKernel2")
+		log("kern seed", bufToHex(kernelEntrySeed))
 
 		// Get the registry keys.
-		let [keypair, dataKey, errTREK] = bootloaderTaggedRegistryEntryKeys(kernelEntrySeed, "user kernel")
+		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(kernelEntrySeed, "user kernel")
 		if (errTREK !== null) {
-			resolve(["", bootloaderAddContextToErr(errTREK, "unable to create user kernel registry keys")])
+			resolve(["", addContextToErr(errTREK, "unable to create user kernel registry keys")])
 			return
 		}
+		log("user keys", bufToHex(keypair.publicKey))
 
 		// Get the entry id for the user's kernel entry.
-		let [entryID, errREID] = bootloaderDeriveRegistryEntryID(keypair.publicKey, dataKey)
+		let [entryID, errREID] = deriveRegistryEntryID(keypair.publicKey, dataKey)
 		if (errREID !== null) {
-			resolve(["", bootloaderAddContextToErr(errREID, "unable to derive registry entry id")])
+			resolve(["", addContextToErr(errREID, "unable to derive registry entry id")])
 			return
 		}
-		let userKernelSkylink = bootloaderEntryIDToSkylink(entryID)
+		let userKernelSkylink = entryIDToSkylink(entryID)
+		log("user link", userKernelSkylink)
 
 		// Perform the download of the user kernel. If the user kernel is a 404, we
-		// need to establish the default kernel of this bootloader as the user's
+		// need to establish the default kernel of this  as the user's
 		// kernel.
 		//
 		// We do this so that the user's first experience will be mirrored on any
 		// other device they use to load Skynet. If the user wishes to change to a
 		// new kernel from the one they initially bootstrapped to, they can do so
-		// and then they won't see this bootloader again. But at the very least, a
+		// and then they won't see this  again. But at the very least, a
 		// naive user will have the same experience every time when using Skynet
 		// until they intentionally change their kernel.
-		bootloaderDownloadKernel(userKernelSkylink).then(([kernelCode, err]) => {
+		downloadKernel(userKernelSkylink).then(([kernelCode, err]) => {
 			// If the error is a 404, we need to set the default kernel of the
 			// user and then return the download for the default kernel.
 			if (err === "404") {
-				bootloaderLog("got a 404")
-				bootloaderDownloadDefaultKernel().then(([defaultCode, errDefault]) => {
+				downloadDefaultKernel().then(([defaultCode, errDefault]) => {
 					if (errDefault === null) {
-						bootloaderSetUserKernelAsDefault(keypair, dataKey)
+						setUserKernelAsDefault(keypair, dataKey)
 					}
 					resolve([defaultCode, errDefault])
 					return
 				})
 				return
 			}
-			bootloaderLog("found user kernel, using: " + userKernelSkylink)
+			log("found user kernel, using: " + userKernelSkylink)
 
 			// The error is not a 404, therefore use the result of the download
 			// directly as the resolve/return values.
@@ -237,251 +464,33 @@ function bootloaderDownloadUserKernel(): Promise<[kernelCode: string, err: bootl
 	})
 }
 
-// bootloaderEvalKernel will call 'eval' on the provided kernel code and send a
-// message indication success or failure.
-function bootloaderEvalKernel(kernel: string) {
-	// The eval will throw if the userSeed is not available. This shouldn't
-	// happen, but we catch the throw here anyway.
-	try {
-		eval(kernel)
-		bootloaderKernelLoaded = "success"
-		bootloaderSendAuthUpdate()
-		bootloaderLog("kernel successfully loaded")
-		return
-	} catch (err: any) {
-		let extErr = bootloaderAddContextToErr(bootloaderTryStringify(err), "unable to eval kernel")
-		bootloaderKernelLoaded = extErr
-		bootloaderErr(extErr)
-		bootloaderSendAuthUpdate()
-		return
-	}
-}
-
-// bootloaderLoadKernel will download the kernel code and eval it.
-function bootloaderLoadKernel() {
-	bootloaderDownloadUserKernel().then(([kernelCode, err]) => {
+// loadKernel will download the kernel code and eval it.
+function loadKernel() {
+	downloadUserKernel().then(([kernelCode, err]) => {
 		if (err !== null) {
-			let extErr = bootloaderAddContextToErr(err, "unable to download kernel")
-			bootloaderKernelLoaded = extErr
-			bootloaderErr(extErr)
-			bootloaderSendAuthUpdate()
+			let extErr = addContextToErr(err, "unable to download kernel")
+			kernelLoaded = extErr
+			logErr(extErr)
+			sendAuthUpdate()
 			return
 		}
 
 		// Download was successful, time to eval the result.
-		bootloaderEvalKernel(kernelCode)
+		try {
+			eval(kernelCode)
+			kernelLoaded = "success"
+			sendAuthUpdate()
+			log("kernel successfully loaded")
+			return
+		} catch (err: any) {
+			let extErr = addContextToErr(tryStringify(err), "unable to eval kernel")
+			kernelLoaded = extErr
+			logErr(extErr)
+			sendAuthUpdate()
+			return
+		}
 	})
 }
-
-// handleSkynetKernelRequestOverride is defined for two pages when the user
-// hasn't logged in: the home page, and the authentication page.
-function handleSkynetKernelRequestOverride(event: any) {
-	// Define the headers that need to be injected when responding to the
-	// GET request. In this case (pre-auth), the headers will be the same
-	// for all pages that we inject.
-	let headers = [
-		{
-			name: "content-type",
-			value: "text/html; charset=utf8",
-		},
-	]
-
-	// Define a helper function for returning an error.
-	let data = event.data
-	let respondErr = function (err: string) {
-		let msg = {
-			nonce: data.nonce,
-			method: "response",
-			err,
-		}
-		event.source.postMessage(msg, event.origin)
-	}
-
-	// Define a helper function for returning the new body of the page that is
-	// getting overwritten.
-	let respondBody = function (body: any) {
-		let msg: any = {
-			nonce: data.nonce,
-			method: "response",
-			err: null,
-		}
-		if (body === null) {
-			msg["data"] = {
-				override: false,
-			}
-		} else {
-			msg["data"] = {
-				override: true,
-				headers,
-				body,
-			}
-		}
-		event.source.postMessage(msg, event.origin)
-	}
-
-	// Input checking.
-	if (!("data" in data) || typeof data.data.url !== "string") {
-		respondErr("no url provided: " + bootloaderTryStringify(data))
-		return
-	}
-
-	// Any page that isn't the auth page can be ignored.
-	let url = data.data.url
-	if (url !== "http://kernel.skynet/auth.html") {
-		// Respond with null, indicating that there is no override for the
-		// requested page.
-		respondBody(null)
-		return
-	}
-
-	// Fetch the auth page and return it for the override.
-	//
-	// TODO: Change the skylink to a v2 skylink so we can update the auth page
-	// without needing to re-ship the bootloader.
-	bootloaderDownloadSkylink(bootloaderDefaultAuthPage).then(([fileData, err]) => {
-		if (err !== null) {
-			respondErr(bootloaderAddContextToErr(err, "unable to fetch kernel auth page"))
-			return
-		}
-		respondBody(fileData)
-	})
-}
-
-// handleSkynetKernelProxyInfo responds to a DNS query. The default kernel
-// always responds that there should be no proxy for the given domain - the
-// background script already has special carveouts for all required domains.
-function handleSkynetKernelProxyInfo(event: any) {
-	// Before the kernel is loaded, the default is always "do not proxy".
-	event.source.postMessage(
-		{
-			nonce: event.data.nonce,
-			method: "response",
-			err: null,
-			data: {
-				proxy: false,
-			},
-		},
-		event.origin
-	)
-}
-
-// Establish a message handler for the kernel called handleMessage. The kernel
-// is intended to overwrite this handler after it has loaded, therefore the
-// name 'handleMessage' is part of the bootloading protocol and cannot be
-// changed.
-//
-// The construction of the browser extension requires that a few messages get
-// handled in advance of the full kernel loading, because certain pages and
-// assets need to be loaded before the kernel itself is able to load.
-var handleMessage = function (event: any) {
-	// Establish a helper method to respond to an unknown message with an
-	// error.
-	let respondUnknownMethod = function (method: string) {
-		event.source.postMessage(
-			{
-				nonce: event.data.nonce,
-				method: "response",
-				err: "unrecognized method (user may need to log in): " + method,
-			},
-			event.origin as any
-		)
-	}
-
-	// Check that there's a nonce and a method.
-	if (!("nonce" in event.data)) {
-		return
-	}
-	if (!("method" in event.data)) {
-		respondUnknownMethod("[no method provided]")
-		return
-	}
-
-	// Create default handlers for the requestOverride and proxyInfo
-	// methods. These methods are important during bootloading to ensure
-	// that the default login page can be loaded for the user.
-	if (event.data.method === "requestOverride") {
-		handleSkynetKernelRequestOverride(event)
-		return
-	}
-	if (event.data.method === "proxyInfo") {
-		handleSkynetKernelProxyInfo(event)
-		return
-	}
-
-	// This message is not supposed to be handled until the kernel has loaded.
-	// And the kernel loading is supposed to overwrite this handler.
-	bootloaderLog("received a message before the kernel was ready\n", event.data)
-}
-window.addEventListener("message", (event) => {
-	handleMessage(event)
-})
-
-// Establish a message handler for storage events. The kernel is intended to
-// overwrite this handler after the kernel has loaded, therefore the name
-// 'handleStorage' is part of the bootloading protocol and cannot be changed.
-//
-// handleStorage primarily listens for changes to the user seed that indicate
-// that the user has either logged in or logged out.
-var handleStorage = function (event: StorageEvent) {
-	// Ignore any storage events that don't include v1-seed. The 'null' key
-	// means that all storage entries were wiped, which does include changes to
-	// v1-seed.
-	if (event.key !== null && event.key !== "v1-seed") {
-		return
-	}
-	// If the user is already logged out, ignore the message as we should wait
-	// until we've refreshed.
-	if (bootloaderLogoutComplete === true) {
-		window.location.reload()
-		return
-	}
-
-	// If the storage was wiped but the user is already not logged in, nothing
-	// needs to happen.
-	if (event.key === null && bootloaderLoginComplete === false) {
-		return
-	}
-
-	// If the user is not logged in and this is a v1-seed change, it means that
-	// the user is now logged in.
-	if (event.key === "v1-seed" && bootloaderLoginComplete === false) {
-		// First load the new seed. If there's an error loading the seed,
-		// assume the storage event was not a login event.
-		let userSeedString = window.localStorage.getItem("v1-seed")
-		if (userSeedString === null) {
-			return
-		}
-		// Get the seed and convert it from hex to a Uint8Array.
-		let [decodedSeed, errHTB] = bootloaderHexToBuf(userSeedString)
-		if (errHTB !== null) {
-			// Log the error and report the user as not logged in.
-			bootloaderLog(bootloaderAddContextToErr(errHTB, "seed could not be decoded from hex"))
-			return
-		}
-		// Set the global 'userSeed' object.
-		userSeed = decodedSeed
-
-		bootloaderLog("user is now logged in, attempting to load kernel")
-		bootloaderLoginComplete = true
-		bootloaderLoadKernel()
-		bootloaderSendAuthUpdate()
-		return
-	}
-
-	// The other two cases are where the user was already logged in and then
-	// either v1-seed changed or all variables were deleted (which includes
-	// v1-seed being changed). We set logoutComplete to true and then we
-	// refresh the kernel, resetting the auth cycle.
-	//
-	// We refresh the kernel upon logout because we want to ensure that no
-	// settings or private data leaks between different user account logins of
-	// the kernel.
-	bootloaderLogoutComplete = true
-	bootloaderSendAuthUpdate()
-	bootloaderLog("attempting to do a page reload")
-	window.location.reload()
-}
-window.addEventListener("storage", (event) => handleStorage(event))
 
 // bootloaderSendAuthUpdate will send a message containing an auth update,
 // letting any listeners know the updated auth state. The auth state has five
@@ -492,45 +501,41 @@ window.addEventListener("storage", (event) => handleStorage(event))
 // Stage 2: bootloader is loaded, user is logged in
 // Stage 3: kernel is loaded, user is logged in
 // Stage 4: kernel is loaded, user is logging out (refresh iminent)
-let bootloaderLoginComplete = false
-let bootloaderLogoutComplete = false
-let bootloaderKernelLoaded = "not yet"
-function bootloaderSendAuthUpdate() {
+let loginComplete = false
+let logoutComplete = false
+let kernelLoaded = "not yet"
+function sendAuthUpdate() {
 	window.parent.postMessage(
 		{
 			method: "kernelAuthStatus",
 			data: {
-				loginComplete: bootloaderLoginComplete,
-				kernelLoaded: bootloaderKernelLoaded,
-				logoutComplete: bootloaderLogoutComplete,
+				loginComplete: loginComplete,
+				kernelLoaded: kernelLoaded,
+				logoutComplete: logoutComplete,
 			},
 		},
-		"*"
+		"*" as any // tsc
 	)
 }
+sendAuthUpdate()
 
-// bootloaderCheckForLoadKernel will check that the user seed is available, and
-// if so it will load the kernel. If not it will report that the user is not
-// logged in and go idle.
+// checkForLoadKernel will check that the user seed is available, and if so it
+// will load the kernel. If not it will report that the user is not logged in
+// and go idle.
 let userSeed: Uint8Array
-function bootloaderCheckForLoadKernel() {
+function checkForLoadKernel() {
 	// Try fetching the user seed.
 	let userSeedString = window.localStorage.getItem("v1-seed")
 	if (userSeedString === null) {
-		// If the seed could not be loaded, the most likely explanation is that
-		// the user is not logged in. We send an auth message that says the
-		// user is not logged in, but this informs the receiver that the
-		// bootloader has finished loading.
-		bootloaderLog("unable to get user credentials, user may not be logged in")
-		bootloaderSendAuthUpdate()
+		sendAuthUpdate()
 		return
 	}
 	// Get the seed and convert it from hex to a Uint8Array.
-	let [decodedSeed, errHTB] = bootloaderHexToBuf(userSeedString)
+	let [decodedSeed, errHTB] = hexToBuf(userSeedString)
 	if (errHTB !== null) {
 		// Log the error and report the user as not logged in.
-		bootloaderLog(bootloaderAddContextToErr(errHTB, "seed could not be decoded from hex"))
-		bootloaderSendAuthUpdate()
+		logErr(addContextToErr(errHTB, "seed could not be decoded from hex"))
+		sendAuthUpdate()
 		return
 	}
 	// Set the global 'userSeed' object.
@@ -538,27 +543,27 @@ function bootloaderCheckForLoadKernel() {
 
 	// User is logged in, attempt to load the kernel. Before loading the
 	// kernel, inform any listeners that auth was successful.
-	bootloaderLog("user is already logged in, attempting to load kernel")
-	bootloaderLoginComplete = true
-	bootloaderSendAuthUpdate()
-	bootloaderLoadKernel()
+	log("user is already logged in, attempting to load kernel")
+	loginComplete = true
+	sendAuthUpdate()
+	loadKernel()
 }
 
 // If the browser supports requesting storage access, try to get storage
 // access. Otherwise, the user will need to disable strict privacy in their
 // browser for skt.us to work. If the user has the extension, disabling strict
 // privacy is not needed.
-let bootloaderAccessFailedStr = "unable to get access to localStorage, user may need to reduce their privacy settings"
+let accessFailedStr = "unable to get access to localStorage, user may need to reduce their privacy settings"
 if (Object.prototype.hasOwnProperty.call(document, "requestStorageAccess") && window.origin === "https://skt.us") {
 	document
 		.requestStorageAccess()
 		.then(() => {
-			bootloaderCheckForLoadKernel()
+			checkForLoadKernel()
 		})
 		.catch((err) => {
-			bootloaderLog(bootloaderAddContextToErr(err, bootloaderAccessFailedStr))
-			bootloaderSendAuthUpdate()
+			log(addContextToErr(err, accessFailedStr))
+			sendAuthUpdate()
 		})
 } else {
-	bootloaderCheckForLoadKernel()
+	checkForLoadKernel()
 }

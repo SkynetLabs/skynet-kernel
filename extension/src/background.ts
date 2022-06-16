@@ -1,40 +1,49 @@
-import { addContextToErr, composeErr, dataFn, tryStringify } from "libskynet"
+// The background is the background script that runs for the duration of the
+// kernel's life. It is responsible for passing messages between pages calling
+// the kernel and the kernel itself. We use a background page so that there
+// only needs to be a single kernel for the whole browser, instead of requiring
+// each webpage to open an iframe.
+//
+// There are a few places where we need to use 'any' instead of a real type
+// because this is a browser extension and not all of the types are recognized
+// by typescript. If you know how to get rid of any of these, please let us
+// know. These areas are marked with a 'tsc' comment.
 
-// Need to declare the browser to make typescript happy. 'any' is used as the
-// type because typescript didn't seem to recognize the browser type.
-declare let browser: any
+import { dataFn, errTuple, kernelAuthStatus, requestOverrideResponse, tryStringify } from "libskynet"
 
-// Declare all large objects at the top so that it's easier to check for memory
-// leaks.
-let headers = {} as any
+declare var browser: any // tsc
+
+// Set up the code for handling queries and ports. They are both objects that
+// can suffer memory leaks, so we declare them together alongside a tracker
+// that will log when it appears like there's a memory leak.
+//
+// TODO: Ports will be in use later.
 let queriesNonce = 1
 let queries: any = new Object()
 let portsNonce = 0
 let openPorts = {} as any
+let timer = 20000
 function logLargeObjects() {
-	let headersLen = Object.keys(headers).length
 	let queriesLen = Object.keys(queries).length
 	let portsLen = Object.keys(openPorts).length
-	console.log("open ports :: open queries :: open headers :", portsLen, "::", queriesLen, "::", headersLen)
-	setTimeout(logLargeObjects, 20000)
+	if (queriesLen > 500) {
+		console.error("queries appears to be leaking:", queriesLen)
+	}
+	if (portsLen > 50) {
+		console.error("ports appears to be leaking:", portsLen)
+	}
+	timer *= 1.25
+	setTimeout(logLargeObjects, timer)
 }
-logLargeObjects()
+setTimeout(logLargeObjects, timer)
 
-// Messages cannot be sent to the kernel until the kernel has indicated that it
-// is ready to receive messages. We create a promise here that will resovle
-// when the kernel sends us a message indicating that it is ready to receive
-// messages.
-let kernelReadyResolved = false
-let kernelReadyResolve: dataFn
-let blockForKernel = new Promise((resolve) => {
-	kernelReadyResolve = resolve
-})
-
-// Create a blocking function to know the auth status of the kernel.
-let authStatus: any // matches the data field of the kernelAuthStatus message
+// Create a promise that will resolve when the bootloader is ready to receive
+// messages. We'll also track the auth info here, since the bootloader lets us
+// know that it is ready to receive messages by sengind the auth info.
+let authStatus: kernelAuthStatus
 let authStatusKnown = false
 let authStatusResolve: dataFn
-let blockForAuthStatus = new Promise((resolve) => {
+let blockForBootloader = new Promise((resolve) => {
 	authStatusResolve = resolve
 })
 
@@ -48,45 +57,105 @@ let blockForAuthStatus = new Promise((resolve) => {
 //
 // NOTE: queryKernel cannot be used if you need queryUpdates or
 // responseUpdates, it's only intended to be used with single-message queries.
-function queryKernel(query: any) {
-	return new Promise((resolve, reject) => {
-		let nonce = queriesNonce
-		queriesNonce += 1
-		let respond = function (data: any) {
-			if (!("method" in data)) {
-				console.error("received response without a method field", data)
-				let cErr = composeErr("received response without a method field", data)
-				reject(cErr)
-				return
-			}
-			if (data.method !== "response") {
-				console.error("received bad method, incompatible with queryKernel", data)
-				let cErr = composeErr("received bad method in queryKernel", data)
-				reject(cErr)
-				return
-			}
-			if (!("err" in data)) {
-				let cErr = composeErr("received response with no defined error", data)
-				console.error("received response with no defined error", data)
-				reject(cErr)
-				return
-			}
-			if (data.err !== null) {
-				let cErr = composeErr("queryKernel received an error", data.err)
-				reject(cErr)
-				return
-			}
+function queryKernel(query: any): Promise<any> {
+	// Return the promise that will resolve once we receive a message from the
+	// kernel.
+	return new Promise((resolve) => {
+		// Define the callback which will be called when a response is recieved
+		// from the kernel.
+		let receiveResponse = function (data: any) {
 			resolve(data)
 		}
-		blockForKernel.then(() => {
-			// Grab the next nonce and store a promise resolution in the
-			// kernelQueries object.
+
+		// Wait until the bootloader is ready, then send the query to the
+		// bootloader.
+		blockForBootloader.then(() => {
+			let nonce = queriesNonce
+			queriesNonce += 1
 			query.nonce = nonce
-			queries[nonce] = respond
-			kernelFrame.contentWindow.postMessage(query, "http://kernel.skynet")
+			queries[nonce] = receiveResponse
+			kernelFrame.contentWindow!.postMessage(query, "http://kernel.skynet")
 		})
 	})
 }
+
+// handleKernelMessage will handle messages from the kernel.
+//
+// The kernel is considered trusted so there is no type checking on the inputs.
+function handleKernelMessage(event: MessageEvent) {
+	// Ignore all messages that aren't coming from the kernel.
+	if (event.origin !== "http://kernel.skynet") {
+		return
+	}
+	let data = event.data.data
+
+	// Check if the kernel is trying to get a log message written.
+	if (event.data.method === "log") {
+		if (data.isErr === false) {
+			console.log(data.message)
+		} else {
+			console.error(data.message)
+		}
+		return
+	}
+
+	// Check if the kernel has sent an auth status message.
+	if (event.data.method === "kernelAuthStatus") {
+		authStatus = data
+		if (authStatusKnown === false) {
+			authStatusResolve()
+			authStatusKnown = true
+			console.log("bootloader is now initialized")
+		}
+
+		// Need to pass the new auth to all ports that are connected to the
+		// background. Need to wrap it in a try-catch because the postMessage
+		// here will throw if the tab was suddenly closed or some other event
+		// knocked out the port.
+		for (let [, port] of Object.entries(openPorts)) {
+			try {
+				(port as any).postMessage(event.data)
+			} catch { }
+		}
+
+		// If the kernel is signaling that there has been a logout, reload the
+		// iframe to reset both the kernel and the background state. A hard
+		// refresh isn't strictly necessary but it guarantees that old items
+		// are cleaned up properly.
+		if (data.logoutComplete === true) {
+			console.log("received logout signal, clearing all ports")
+
+			// Iterate over all of the openPorts and close them.
+			for (let [, port] of Object.entries(openPorts)) {
+				try {
+					(port as any).disconnect()
+				} catch { }
+			}
+
+			// Reset the openPorts object.
+			openPorts = {}
+		}
+
+		return
+	}
+
+	// All other message types are expected to be associated with a query.
+	// Concurrency limitations means its totally possible to receive an update
+	// for a message after the message has been closed, therefore it's not an
+	// error if there is no query for this nonce anymore.
+	if (!(event.data.nonce in queries)) {
+		return
+	}
+
+	// Pass the data along using the receiveResult method. If this is a
+	// response, it is the final communication and the query can be deleted.
+	let receiveResult = queries[event.data.nonce]
+	if (event.data.method === "response") {
+		delete queries[event.data.nonce]
+	}
+	receiveResult(data)
+}
+window.addEventListener("message", handleKernelMessage)
 
 // handleBridgeMessage and the related functions will receive and handle
 // messages coming from the bridge. Note that many instances of the bridge can
@@ -97,7 +166,6 @@ function queryKernel(query: any) {
 function handleBridgeMessage(port: any, portNonce: number, data: any, domain: string) {
 	// Check that the message has a nonce and therefore can receive a response.
 	if (!("nonce" in data)) {
-		console.error("received message from", domain, "with no nonce")
 		return
 	}
 
@@ -112,13 +180,11 @@ function handleBridgeMessage(port: any, portNonce: number, data: any, domain: st
 		queries[data.nonce] = (response: any) => {
 			if (portNonce in openPorts) {
 				port.postMessage(response)
-			} else {
-				console.log("received response to query for page that has closed")
 			}
 		}
 		data["domain"] = domain
 	}
-	kernelFrame.contentWindow.postMessage(data, "http://kernel.skynet")
+	kernelFrame.contentWindow!.postMessage(data, "http://kernel.skynet")
 }
 function bridgeListener(port: any) {
 	// Add this port to the set of openPorts.
@@ -147,7 +213,7 @@ function bridgeListener(port: any) {
 	// Send a message down the port containing the current auth status of the
 	// kernel. If a new webpage is just connecting to the kernel it's not going
 	// to know the status, we have to tell it.
-	blockForAuthStatus.then(() => {
+	blockForBootloader.then(() => {
 		port.postMessage({
 			method: "kernelAuthStatus",
 			data: authStatus,
@@ -156,341 +222,6 @@ function bridgeListener(port: any) {
 }
 // Add a listener that will catch messages from content scripts.
 browser.runtime.onConnect.addListener(bridgeListener)
-
-// Create a handler for all kernel responses. The responses are all keyed by a
-// nonce, which gets matched to a promise that's been stored in 'queries'.
-function handleKernelResponse(event: any) {
-	// Ignore all messages that aren't coming from the kernel.
-	if (event.origin !== "http://kernel.skynet") {
-		return
-	}
-	if (!("method" in event.data) || typeof event.data.method !== "string") {
-		return
-	}
-	let data = event.data
-	let method = data.method
-
-	// Check for the kernel requesting a log event. This infrastructure is
-	// in place because calling 'console.log' from the kernel itself does
-	// not seem to result in the log actually getting displayed in the
-	// console of the background page.
-	if (method === "log") {
-		if (!("data" in data) || !("isErr" in data.data) || typeof data.data.isErr !== "boolean") {
-			console.error("kernel sent a log message with no 'isErr' field", data)
-			return
-		}
-		if (!("message" in data.data)) {
-			console.error("kernel sent a log message with no 'message' field", data)
-			return
-		}
-		if (data.data.isErr === false) {
-			console.log(data.data.message)
-		} else {
-			console.error(data.data.message)
-		}
-		return
-	}
-
-	// Process any auth message.
-	if (method === "kernelAuthStatus") {
-		// Set the local auth status equal to the new auth status data.
-		authStatus = data.data
-
-		// Signal that the auth status is known if this is the first auth
-		// status message.
-		if (authStatusKnown === false) {
-			authStatusKnown = true
-			authStatusResolve()
-		}
-
-		// If the kernel has finished loading, we can unblock the loading
-		// promise and start sending kernel messages.
-		if (kernelReadyResolved === false) {
-			kernelReadyResolved = true
-			kernelReadyResolve()
-		}
-
-		// Need to pass the new auth to all ports that are connected to the
-		// background.
-		for (let [, port] of Object.entries(openPorts)) {
-			try {
-				(port as any).postMessage(event.data)
-			} catch (err: any) {
-				console.error("unable to send message to port\n", err)
-				console.error(addContextToErr(tryStringify(err), "unable to send message to port"))
-			}
-		}
-
-		// If the kernel is signaling that there has been a logout, reload the
-		// iframe to reset both the kernel and the background state. A hard
-		// refresh isn't strictly necessary but it guarantees that old items
-		// are cleaned up properly.
-		if (data.logoutComplete === true) {
-			console.log("received logout signal, clearing all ports")
-
-			// Iterate over all of the openPorts and close them.
-			for (let [, port] of Object.entries(openPorts)) {
-				try {
-					(port as any).disconnect()
-				} catch (err: any) {
-					console.log(addContextToErr(tryStringify(err), "unable to disconnect from port"))
-				}
-			}
-
-			// Reset the openPorts object.
-			openPorts = {}
-			return
-		}
-		return
-	}
-
-	// The only other methods we are expecting from the kernel are
-	// 'response' and 'responseUpdate'.
-	let isResponse = method === "response"
-	let isResponseUpdate = method === "responseUpdate"
-	let isResponseNonce = method === "responseNonce"
-	let isResponseX = isResponse || isResponseUpdate || isResponseNonce
-	if (!isResponseX) {
-		console.error("received a message from the kernel with unrecognized method:", event.data)
-		return
-	}
-
-	// Grab the nonce, determine the status of the response, and then
-	// resolve or reject accordingly.
-	if (!("nonce" in event.data)) {
-		console.log("received a kernel message without a nonce\n", event.data)
-		return
-	}
-	if (!(event.data.nonce in queries)) {
-		console.log("received a kernel message without a corresponding query\n", event.data)
-		return
-	}
-	let result = queries[event.data.nonce]
-	if (method === "response") {
-		delete queries[event.data.nonce]
-	}
-	result(event.data)
-}
-// Create a listener to handle responses coming from the kernel.
-window.addEventListener("message", handleKernelResponse)
-
-// onBeforeRequestListener processes requests that are sent to us by the
-// onBeforeRequest hook. The page 'kernel.skynet' is hardcoded and will be
-// completely swallowed, returning a blank page. The content script for
-// 'kernel.skynet' will inject code that loads the kernel.
-//
-// For all other pages, the kernel will be consulted. The kernel will either
-// indicate that the page should be ignored and therefore loaded as the server
-// presents it, or the kernel will indicate that an alternate response should
-// be provided.
-//
-// NOTE: The implementation details for the use of the filterResponseData
-// object, in particular around the 'filter.onstart', 'filter.ondata',
-// 'filter.onstop', 'filter.write', 'filter.close', and 'filter.disconnect' are
-// quite tempermental. It has been my experience that these things don't behave
-// quite like explained in the MDN documentation. I also found
-// music.youtube.com to be particularly useful when debugging, as it was very
-// sensitive to any mistakes that were made in this function.
-//
-// NOTE: We don't filter.onerror at the moment because there were a bunch of
-// 'Channel Redirected' and 'Invalid Request Id' errors. I suspect that those
-// errors were coming from other extensions (uMatrix and uBlock Origin) messing
-// around with the requests, but I never confirmed what was going on.
-// Regardless, all of the errors seemed pretty harmless.
-function onBeforeRequestListener(details: any) {
-	// Set up a promise that will be used by onHeadersReceived to inject
-	// the right headers into the response. onHeadersReceived will compare
-	// the requestId that it gets to the 'headers' hashmap, and will do
-	// nothing unless there's a promise in the hashmap. This code is
-	// guaranteed to fire before onHeadersReceived fires.
-	let start = performance.now()
-	let resolveHeaders!: dataFn
-	headers[details.requestId] = new Promise((resolve) => {
-		resolveHeaders = resolve
-	})
-
-	// Grab the filter for this request. As soon as we call it, the
-	// behavior of the webpage changes such that no data will be served and
-	// the request will hang. It is now our responsibility to ensure that
-	// we call filter.write and filter.close.
-	//
-	// NOTE: In my experience, filter.disconnect didn't work as described
-	// in the docs. We therefore avoid its use here and instead make
-	// explicit calls to filter.close, using promises to ensure that we
-	// don't call filter.close until we've finished writing everything that
-	// we intend to write.
-	let filter = browser.webRequest.filterResponseData(details.requestId)
-
-	// If the request is specifically for the kernel iframe, we swallow the
-	// request entirely. The content scripts will take over and ensure the
-	// kernel loads properly.
-	if (details.url === "http://kernel.skynet/") {
-		resolveHeaders([
-			{
-				name: "content-type",
-				value: "text/html; charset=utf8",
-			},
-		])
-		filter.onstart = function () {
-			// Calling filter.close() immediately as the filter
-			// starts will ensure that no data is served.
-			filter.close()
-		}
-		let elap = performance.now() - start
-		if (elap > 100) {
-			console.log("onbeforerequest took more than 100ms")
-		}
-		return {}
-	}
-
-	// Set up a query to the kernel that will ask what response should be
-	// used for this page. The kernel will provide information about both
-	// what the response body should be, and also what the response headers
-	// should be.
-	//
-	// We need to set filter.onstart and filter.onstop inside of this
-	// frame, therefore we cannot set them after the queryKernel promise
-	// resolves. But we need to make sure that the code inside of
-	// filter.onstart and filter.onstop doesn't run until after we have our
-	// response from the kernel, so we need to use a promise to coordinate
-	// the timings. The 'blockFilter' promise will block any filter
-	// operations until the kernel query has come back.
-	let resolveFilter: dataFn
-	let blockFilter = new Promise((resolve) => {
-		resolveFilter = resolve
-	})
-	queryKernel({
-		method: "requestOverride",
-		data: {
-			url: details.url,
-			method: details.method,
-		},
-	})
-		.then((response: any) => {
-			// If the kernel doesn't explicitly tell us to override
-			// this request, then we ignore the request.
-			if (response.data.override !== true) {
-				resolveHeaders(null)
-				resolveFilter(null)
-				let elap = performance.now() - start
-				if (elap > 100) {
-					console.log("onbeforerequest took more than 100ms")
-				}
-				return
-			}
-
-			// We have a set of headers and a response body from
-			// the kernel, we want to inject them into the
-			// response. We resolve the headers promise with the
-			// headers provided by the kernel, and we write the
-			// response data to the filter. After writing the
-			// response data we close the filter so that no more
-			// data from the server can get through.
-			resolveHeaders(response.data.headers)
-			resolveFilter(response.data.body)
-		})
-		.catch((err) => {
-			console.error("requestOverride query to kernel failed:", err)
-			resolveHeaders(null)
-			resolveFilter(null)
-		})
-
-	// Set the filter.ondata and the filter.onstop functions. filter.ondata
-	// will block until the kernel query returns, and then it will write
-	// the webpage based on what the kernel responds.
-	//
-	// The blockClose promise will block the call to filter.close until the
-	// full data has been written.
-	let closeFilter: dataFn
-	let blockClose = new Promise((resolve) => {
-		closeFilter = resolve
-	})
-	filter.ondata = function (event: any) {
-		blockFilter.then((response) => {
-			if (response === null) {
-				filter.write(event.data)
-			} else {
-				filter.write(response)
-			}
-			closeFilter()
-		})
-	}
-	filter.onstop = function () {
-		blockClose.then(() => {
-			filter.close()
-		})
-	}
-	return {}
-}
-browser.webRequest.onBeforeRequest.addListener(onBeforeRequestListener, { urls: ["<all_urls>"] }, ["blocking"])
-
-// We need to listen for any errors that occur with requests because an aborted
-// request may get far enough into onBeforeRequest to have a header entry
-// created, without getting to onHeadersReceived, which means that the headers
-// object won't be consumed and we will leak memory.
-function handleErrorOccurred(details: any) {
-	if (details.requestId in headers) {
-		delete headers[details.requestId]
-	}
-}
-browser.webRequest.onErrorOccurred.addListener(handleErrorOccurred, { urls: ["<all_urls>"] })
-
-// onHeadersReceivedListener will replace the headers provided by the portal
-// with trusted headers, preventing the portal from providing potentially
-// malicious information through the headers.
-function onHeadersReceivedListener(details: any) {
-	// There is an item for this request. Return a promise that will
-	// resolve to updated headers when we know what the updated headers are
-	// supposed to be.
-	//
-	// We aren't going to know until the kernel has finished downloading
-	// the original page, this typically completes after we need the
-	// headers, which is why we use promises rather than using the desired
-	// values directly.
-	let start = performance.now()
-	return new Promise((resolve) => {
-		// Do nothing if there's no item for this request in the headers
-		// object.
-		if (!(details.requestId in headers)) {
-			console.log("no object for request:", details.requiestId)
-			let elapsed = performance.now() - start
-			if (elapsed > 100) {
-				console.log("headers resovle took more than 100ms:", elapsed)
-			}
-			resolve({ responseHeaders: details.responseHeaders })
-			return
-		}
-
-		let h = headers[details.requestId]
-		delete headers[details.requestId]
-		h.then((response: any) => {
-			if (response !== null) {
-				let elapsed = performance.now() - start
-				if (elapsed > 100) {
-					console.log("headers resovle took more than 100ms:", elapsed)
-				}
-				resolve({ responseHeaders: response })
-			} else {
-				let elapsed = performance.now() - start
-				if (elapsed > 100) {
-					console.log("headers resovle took more than 100ms:", elapsed)
-				}
-				resolve({ responseHeaders: details.responseHeaders })
-			}
-		}).catch((err: any) => {
-			let elapsed = performance.now() - start
-			if (elapsed > 100) {
-				console.log("headers resovle took more than 100ms:", elapsed)
-			}
-			console.error("headers promise failed", details.url, "\n", err)
-			resolve({ responseHeaders: details.responseHeaders })
-		})
-	})
-}
-browser.webRequest.onHeadersReceived.addListener(onHeadersReceivedListener, { urls: ["<all_urls>"] }, [
-	"blocking",
-	"responseHeaders",
-])
 
 // Establish a proxy that enables the user to visit non-existent TLDs, such as
 // '.hns' and '.eth' and '.skynet'. The main idea behind this proxy is that we
@@ -516,8 +247,8 @@ browser.webRequest.onHeadersReceived.addListener(onHeadersReceivedListener, { ur
 // snooping despite the insecure warning.
 //
 // The proxy itself has a hard-coded carve-out for 'kernel.skynet' to allow the
-// kernel to load, and all other requests are routed to the kernel so that the
-// kernel can decide whether a proxy should be used for that page.
+// kernel to load. It communicates with the kernel to determine what other
+// pages to proxy.
 //
 // TODO: Need to add an extension-level override for the proxy destination. The
 // kernel can specify whether the extension-specific proxies get to take
@@ -548,32 +279,132 @@ function handleProxyRequest(info: any) {
 		]
 	}
 
-	// Ask the kernel whether there should be a proxy for this url.
-	let query = queryKernel({
-		method: "proxyInfo",
-		data: { url: info.url },
-	})
-	query
-		.then((response: any) => {
-			// Input sanitization.
-			let data = response.data
-			if (data.proxy === false) {
-				return { type: "direct" }
-			}
-			let proxyTime = performance.now() - start
-			if (proxyTime > 100) {
-				console.log("proxy time exceeded 100ms:", proxyTime)
-			}
-			return data.proxyValue
-		})
-		.catch((errQK) => {
-			console.error("error after sending proxyInfo message:", errQK)
-			return { type: "direct" }
-		})
+	return { type: "direct" }
 }
 browser.proxy.onRequest.addListener(handleProxyRequest, { urls: ["<all_urls>"] })
 
+// onBeforeRequestListener processes requests that are sent to us by the
+// onBeforeRequest hook. The page 'kernel.skynet' is hardcoded and will be
+// completely swallowed, returning a blank page. The content script for
+// 'kernel.skynet' will inject code that loads the kernel.
+//
+// For all other pages, the kernel will be consulted. The kernel will either
+// indicate that the page should be ignored and therefore loaded as the server
+// presents it, or the kernel will indicate that an alternate response should
+// be provided.
+//
+// NOTE: The filters are pretty difficult to use correctly, and are highly
+// prone to disruptive race conditions if you aren't precise with your
+// implementation. Please get extra review if making any changes to the flow of
+// the filters.
+function onBeforeRequestListener(details: any) {
+	// For the kernel, we swallow the entire page. The 'bootloader' content
+	// script will everything that we need.
+	if (details.url === "http://kernel.skynet/") {
+		// Get the filter and swallow any response from the server.
+		let filter = browser.webRequest.filterResponseData(details.requestId)
+		filter.onstart = () => {
+			filter.close()
+		}
+		return
+	}
+
+	// For the favicon, we make a request to a content script that has access
+	// to the favicon.
+	if (details.url === "http://kernel.skynet/favicon.ico") {
+		// Send a message to the kernel requesting an override for the
+		// favicon.ico. The kernel is itself loading this favicon from the
+		// browser, I just wasn't certain how to get binary objects directly to
+		// the background page, so we fetch it via a content script instead.
+		let faviconPromise = queryKernel({
+			method: "requestOverride",
+			data: {
+				url: details.url,
+				method: details.method,
+			},
+		})
+
+		// Get the filter and swallow any response from the server. Setting
+		// 'onData' to a blank function will swallow all data from the server.
+		let filter = browser.webRequest.filterResponseData(details.requestId)
+		filter.ondata = () => {}
+		filter.onstop = (event: any) => {
+			faviconPromise.then((result: requestOverrideResponse) => {
+				filter.write(result.body)
+				filter.close()
+			})
+		}
+		return
+	}
+
+	// For the favicon, we make a request to a content script that has access
+	// to the favicon.
+	if (details.url === "http://kernel.skynet/auth.html") {
+		// Send a message to the kernel requesting an override for the auth
+		// page. The kernel is itself loading the auth page from the browser, I
+		// just wasn't certain how to get binary objects directly to the
+		// background page, so we fetch it via a content script instead.
+		let authPagePromise = queryKernel({
+			method: "requestOverride",
+			data: {
+				url: details.url,
+				method: details.method,
+			},
+		})
+
+		// Get the filter and swallow any response from the server. Setting
+		// 'onData' to a blank function will swallow all data from the server.
+		let filter = browser.webRequest.filterResponseData(details.requestId)
+		filter.ondata = () => {}
+		filter.onstop = (event: any) => {
+			authPagePromise.then((result: requestOverrideResponse) => {
+				filter.write(result.body)
+				filter.close()
+			})
+		}
+		return
+	}
+
+	// Otherwise do nothing.
+	return {}
+}
+browser.webRequest.onBeforeRequest.addListener(onBeforeRequestListener, { urls: ["<all_urls>"] }, ["blocking"])
+
+// onHeadersReceivedListener will replace the headers provided by the portal
+// with trusted headers, preventing the portal from interfering with the kernel
+// by providing bad headers.
+function onHeadersReceivedListener(details: any) {
+	// For kernel.skynet, replace the response headers with trusted headers.
+	if (details.url === "http://kernel.skynet/" || details.url === "http://kernel.skynet/auth.html") {
+		let headers = [
+			{
+				name: "content-type",
+				value: "text/html; charset=utf8",
+			},
+		]
+		return { responseHeaders: headers }
+	}
+
+	// For the favicon, replace the headers with png headers.
+	if (details.url === "http://kernel.skynet/favicon.ico") {
+		let headers = [
+			{
+				name: "content-type",
+				value: "image/png",
+			},
+		]
+		return { responseHeaders: headers }
+	}
+
+	// For everything else, use the standard headers.
+	return { responseHeaders: details.responseHeaders }
+}
+browser.webRequest.onHeadersReceived.addListener(onHeadersReceivedListener, { urls: ["<all_urls>"] }, [
+	"blocking",
+	"responseHeaders",
+])
+
 // Open an iframe containing the kernel.
-let kernelFrame: any = document.createElement("iframe")
+let kernelFrame: HTMLIFrameElement = document.createElement("iframe")
 kernelFrame.src = "http://kernel.skynet"
 document.body.appendChild(kernelFrame)

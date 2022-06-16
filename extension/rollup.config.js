@@ -18,13 +18,4 @@ const bootloader = {
 	plugins: [resolve()],
 }
 
-const bridge = {
-	input: "build/bridge.js",
-	output: {
-		file: "dist/bridge.js",
-		format: "cjs",
-	},
-	plugins: [resolve()],
-}
-
-export default [background, bootloader, bridge]
+export default [background, bootloader]
