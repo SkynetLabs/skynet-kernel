@@ -89,7 +89,7 @@ function handleKernelMessage(event: MessageEvent) {
 
 	// Check if the kernel is trying to get a log message written.
 	if (event.data.method === "log") {
-		if (event.data.data.isErr === false) {
+		if (data.isErr === false) {
 			console.log(data.message)
 		} else {
 			console.error(data.message)
@@ -99,7 +99,7 @@ function handleKernelMessage(event: MessageEvent) {
 
 	// Check if the kernel has sent an auth status message.
 	if (event.data.method === "kernelAuthStatus") {
-		authStatus = event.data.data
+		authStatus = data
 		if (authStatusKnown === false) {
 			authStatusResolve()
 			authStatusKnown = true
@@ -113,7 +113,7 @@ function handleKernelMessage(event: MessageEvent) {
 	if (event.data.method === "response") {
 		let receiveResult = queries[event.data.nonce]
 		delete queries[event.data.nonce]
-		receiveResult(event.data.data)
+		receiveResult(data)
 	}
 }
 window.addEventListener("message", handleKernelMessage)
