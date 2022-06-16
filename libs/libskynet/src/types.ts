@@ -31,4 +31,29 @@ type errFn = (errMsg: string) => void
 // they access any part of the data field.
 type errTuple = [data: any, err: error]
 
-export { dataFn, errFn, error, errTuple }
+// kernelAuthStatus is the structure of a message that gets sent by the kernel
+// containing its auth status. Auth occurs in 5 stages. Each stage sets a new
+// value to 'true'. 'kernelLoaded' cannot be 'true' unless 'loginComplete' is
+// also true, and 'logoutComplete' cannot be true unless 'kernelLoaded' is also
+// true.
+//
+// Stage 0; no auth updates
+// Stage 1: bootloader is loaded, user is not yet logged in
+// Stage 2: bootloader is loaded, user is logged in
+// Stage 3: kernel is loaded, user is logged in
+// Stage 4: kernel is loaded, user is logging out (refresh iminent)
+interface kernelAuthStatus {
+	loginComplete: boolean
+	kernelLoaded: boolean
+	logoutComplete: boolean
+}
+
+// requestOverrideResponse defines the type that the kernel returns as a
+// response to a requestOverride call.
+interface requestOverrideResponse {
+	override: boolean
+	headers?: any // TODO: I don't know how to do an array of types.
+	body?: Uint8Array
+}
+
+export { dataFn, errFn, error, errTuple, kernelAuthStatus, requestOverrideResponse }

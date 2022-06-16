@@ -14,12 +14,6 @@ function tryStringify(obj: any): string {
 		return obj
 	}
 
-	// Check if the object has a custom toString and use that if so.
-	let hasToString = typeof obj.toString === "function"
-	if (hasToString && obj.toString !== Object.prototype.toString) {
-		return obj.toString()
-	}
-
 	// If the object does not have a custom toString, attempt to perform a
 	// JSON.stringify.
 	try {

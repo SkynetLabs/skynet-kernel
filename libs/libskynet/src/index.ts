@@ -26,4 +26,4 @@ export { validateSkyfileMetadata, validateSkyfilePath, validSkylink } from "./sk
 export { verifyResolverLinkProofs } from "./skylinkverifyresolver.js"
 export { jsonStringify } from "./stringifyjson.js"
 export { tryStringify } from "./stringifytry.js"
-export { dataFn, error, errFn, errTuple } from "./types.js"
+export { dataFn, error, errFn, errTuple, kernelAuthStatus, requestOverrideResponse } from "./types.js"
