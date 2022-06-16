@@ -10,7 +10,9 @@
 // the comment 'tsc'. We've tried to avoid them as much as possible, and if you
 // know how to get rid of these exceptions, we'd love to see a pull request.
 
-import { tryStringify } from "libskynet"
+import { addContextToErr, tryStringify } from "libskynet"
+
+var browser: any // tsc
 
 // Set a title and a message which indicates that the page should only be
 // accessed via an invisible iframe.
@@ -99,6 +101,39 @@ window.addEventListener("message", (event: MessageEvent) => {
 // handleSkynetKernelRequestOverride will respond to a request override
 // message. This method will only respond to the browser extension, and it is
 // used to trustlessly load the favicon.ico and the kernel auth page.
+//
+// As part of initializing this function, we launch a promise that fetches the
+// favicon and the auth page so that we may send them to the background script
+// at runtime.
+let kernelFavicon: Uint8Array
+let blockForFavicon: Promise<void> = new Promise((resolve) => {
+	let faviconURL = browser.runtime.getURL("icon@2x.png")
+	fetch(faviconURL).then((response) => {
+		response.arrayBuffer().then((faviconData) => {
+			kernelFavicon = new Uint8Array(faviconData)
+			resolve()
+		})
+	})
+	.catch(() => {
+		// In the event of an error, just set the favicon to nothing.
+		kernelFavicon = new Uint8Array(0)
+		resolve()
+	})
+})
+let kernelAuthPage: Uint8Array
+let blockForAuthPage: Promise<void> = new Promise((resolve) => {
+	let authURL = browser.runtime.getURL("auth.html")
+	fetch(authURL).then((response) => {
+		response.arrayBuffer().then((authData) => {
+			kernelAuthPage = new Uint8Array(authData)
+			resolve()
+		})
+	})
+	.catch((err: any) => {
+		authURL = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
+		resolve()
+	})
+})
 function handleSkynetKernelRequestOverride(event: MessageEvent) {
 	if (event.source === null) { // tsc
 		return
@@ -114,17 +149,14 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
 	}
 
 	// Establish the standard headers that we respond with.
-	let respondOverride = function(body: Uint8Array) {
+	let respondOverride = function(headers: any, body: Uint8Array) { // tsc
 		event.source!.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: null,
 			data: {
 				override: true,
-				headers: [{
-					name: "content-type",
-					value: "text/html; charset=utf8",
-				}],
+				headers,
 				body,
 			},
 		}, "*" as any) // tsc
@@ -132,13 +164,25 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
 
 	// Set up a return value for the favicon.
 	if (event.data.data.url === "http://kernel.skynet/favicon.ico") {
-		respondOverride(new TextEncoder().encode("favicon"))
+		blockForFavicon.then(() => {
+			let headers  = [{
+				name: "content-type",
+				value: "image/png",
+			}]
+			respondOverride(headers, kernelFavicon)
+		})
 		return
 	}
 
 	// Set up a return value for the auth page.
 	if (event.data.data.url === "http://kernel.skynet/auth.html") {
-		respondOverride(new TextEncoder().encode("auth page"))
+		blockForAuthPage.then(() => {
+			let headers  = [{
+				name: "content-type",
+				value: "text/html; charset=utf8",
+			}]
+			respondOverride(headers, kernelAuthPage)
+		})
 		return
 	}
 

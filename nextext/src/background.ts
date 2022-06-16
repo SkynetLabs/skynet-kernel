@@ -1,8 +1,17 @@
+// The background is the background script that runs for the duration of the
+// kernel's life. It is responsible for passing messages between pages calling
+// the kernel and the kernel itself. We use a background page so that there
+// only needs to be a single kernel for the whole browser, instead of requiring
+// each webpage to open an iframe.
+//
+// There are a few places where we need to use 'any' instead of a real type
+// because this is a browser extension and not all of the types are recognized
+// by typescript. If you know how to get rid of any of these, please let us
+// know. These areas are marked with a 'tsc' comment.
+
 import { dataFn, errTuple, kernelAuthStatus, requestOverrideResponse, tryStringify } from "libskynet"
 
-// The browser needs to be declared as 'any' because typescript doesn't
-// recognize any of the extension APIs.
-declare var browser: any
+declare var browser: any // tsc
 
 // Set up the code for handling queries and ports. They are both objects that
 // can suffer memory leaks, so we declare them together alongside a tracker
@@ -241,13 +250,30 @@ function onBeforeRequestListener(details: any) {
 	// For the favicon, we make a request to a content script that has access
 	// to the favicon.
 	if (details.url === "http://kernel.skynet/auth.html") {
-		// Get the filter and swallow any response from the server.
+		// Send a message to the kernel requesting an override for the auth
+		// page. The kernel is itself loading the auth page from the browser, I
+		// just wasn't certain how to get binary objects directly to the
+		// background page, so we fetch it via a content script instead.
+		let authPagePromise = queryKernel({
+			method: "requestOverride",
+			data: {
+				url: details.url,
+				method: details.method,
+			},
+		})
+
+		// Get the filter and swallow any response from the server. Setting
+		// 'onData' to a blank function will swallow all data from the server.
 		let filter = browser.webRequest.filterResponseData(details.requestId)
-		filter.onstart = () => {
-			filter.close()
+		filter.ondata = () => { }
+		filter.onstop = (event: any) => {
+			authPagePromise.then((result: requestOverrideResponse) => {
+				filter.write(result.body)
+				filter.close()
+			})
 		}
-		filter.onerror = () => {
-			console.error("auth filter error:", filter.error)
+		filter.onerror = (err: any) => {
+			console.error("favicon filter error:", err)
 		}
 		return
 	}
@@ -262,14 +288,25 @@ browser.webRequest.onBeforeRequest.addListener(onBeforeRequestListener, { urls: 
 // by providing bad headers.
 function onHeadersReceivedListener(details: any) {
 	// For kernel.skynet, replace the response headers with trusted headers.
-	if (details.url === "http://kernel.skynet/") {
-		let safeHeaders = [
+	if (details.url === "http://kernel.skynet/" || details.url === "http://kernel.skynet/auth.html") {
+		let headers = [
 			{
 				name: "content-type",
 				value: "text/html; charset=utf8",
 			},
 		]
-		return { responseHeaders: safeHeaders }
+		return { responseHeaders: headers }
+	}
+
+	// For the favicon, replace the headers with png headers.
+	if (details.url === "http://kernel.skynet/favicon.ico") {
+		let headers = [
+			{
+				name: "content-type",
+				value: "image/png",
+			},
+		]
+		return { responseHeaders: headers }
 	}
 
 	// For everything else, use the standard headers.
