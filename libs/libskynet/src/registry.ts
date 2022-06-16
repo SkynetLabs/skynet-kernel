@@ -139,7 +139,7 @@ function taggedRegistryEntryKeys(
 	// Generate a unique set of entropy using the seed and keypairTag.
 	let keypairTag = new TextEncoder().encode(keypairTagStr)
 	let entropyInput = new Uint8Array(keypairTag.length + seed.length)
-	entropyInput.set(seed)
+	entropyInput.set(seed, 0)
 	entropyInput.set(keypairTag, seed.length)
 	let keypairEntropy = sha512(entropyInput)
 

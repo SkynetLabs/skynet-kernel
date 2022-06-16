@@ -10,8 +10,10 @@ const SEED_BYTES = 16
 // deriveChildSeed is a helper function to derive a child seed from a parent
 // seed using a string as the path.
 function deriveChildSeed(parentSeed: Uint8Array, derivationTag: string): Uint8Array {
-	let u8 = new TextEncoder().encode(" - " + derivationTag)
-	let preimage = new Uint8Array(parentSeed.length + u8.length)
+	let tagU8 = new TextEncoder().encode(" - " + derivationTag)
+	let preimage = new Uint8Array(parentSeed.length + tagU8.length)
+	preimage.set(parentSeed, 0)
+	preimage.set(tagU8, parentSeed.length)
 	let hash = sha512(preimage)
 	return hash.slice(0, SEED_BYTES)
 }

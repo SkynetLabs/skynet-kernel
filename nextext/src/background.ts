@@ -22,6 +22,7 @@ let queriesNonce = 1
 let queries: any = new Object()
 let portsNonce = 0
 let openPorts = {} as any
+let timer = 20000
 function logLargeObjects() {
 	let queriesLen = Object.keys(queries).length
 	let portsLen = Object.keys(openPorts).length
@@ -31,9 +32,10 @@ function logLargeObjects() {
 	if (portsLen > 50) {
 		console.error("ports appears to be leaking:", portsLen)
 	}
-	setTimeout(logLargeObjects, 60000)
+	timer *= 1.25
+	setTimeout(logLargeObjects, timer)
 }
-setTimeout(logLargeObjects, 60000)
+setTimeout(logLargeObjects, timer)
 
 // Create a promise that will resolve when the bootloader is ready to receive
 // messages. We'll also track the auth info here, since the bootloader lets us
@@ -188,19 +190,10 @@ browser.proxy.onRequest.addListener(handleProxyRequest, { urls: ["<all_urls>"] }
 // presents it, or the kernel will indicate that an alternate response should
 // be provided.
 //
-// NOTE: The implementation details for the use of the filterResponseData
-// object, in particular around the 'filter.onstart', 'filter.ondata',
-// 'filter.onstop', 'filter.write', 'filter.close', and 'filter.disconnect' are
-// quite tempermental. It has been my experience that these things don't behave
-// quite like explained in the MDN documentation. I also found
-// music.youtube.com to be particularly useful when debugging, as it was very
-// sensitive to any mistakes that were made in this function.
-//
-// NOTE: We don't filter.onerror at the moment because there were a bunch of
-// 'Channel Redirected' and 'Invalid Request Id' errors. I suspect that those
-// errors were coming from other extensions (uMatrix and uBlock Origin) messing
-// around with the requests, but I never confirmed what was going on.
-// Regardless, all of the errors seemed pretty harmless.
+// NOTE: The filters are pretty difficult to use correctly, and are highly
+// prone to disruptive race conditions if you aren't precise with your
+// implementation. Please get extra review if making any changes to the flow of
+// the filters.
 function onBeforeRequestListener(details: any) {
 	// For the kernel, we swallow the entire page. The 'bootloader' content
 	// script will everything that we need.
@@ -209,9 +202,6 @@ function onBeforeRequestListener(details: any) {
 		let filter = browser.webRequest.filterResponseData(details.requestId)
 		filter.onstart = () => {
 			filter.close()
-		}
-		filter.onerror = (err: any) => {
-			console.error("bootloader filter error:", err)
 		}
 		return
 	}
@@ -234,15 +224,12 @@ function onBeforeRequestListener(details: any) {
 		// Get the filter and swallow any response from the server. Setting
 		// 'onData' to a blank function will swallow all data from the server.
 		let filter = browser.webRequest.filterResponseData(details.requestId)
-		filter.ondata = () => { }
+		filter.ondata = () => {}
 		filter.onstop = (event: any) => {
 			faviconPromise.then((result: requestOverrideResponse) => {
 				filter.write(result.body)
 				filter.close()
 			})
-		}
-		filter.onerror = (err: any) => {
-			console.error("favicon filter error:", err)
 		}
 		return
 	}
@@ -265,15 +252,12 @@ function onBeforeRequestListener(details: any) {
 		// Get the filter and swallow any response from the server. Setting
 		// 'onData' to a blank function will swallow all data from the server.
 		let filter = browser.webRequest.filterResponseData(details.requestId)
-		filter.ondata = () => { }
+		filter.ondata = () => {}
 		filter.onstop = (event: any) => {
 			authPagePromise.then((result: requestOverrideResponse) => {
 				filter.write(result.body)
 				filter.close()
 			})
-		}
-		filter.onerror = (err: any) => {
-			console.error("favicon filter error:", err)
 		}
 		return
 	}

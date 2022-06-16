@@ -32,19 +32,28 @@ type errFn = (errMsg: string) => void
 type errTuple = [data: any, err: error]
 
 // kernelAuthStatus is the structure of a message that gets sent by the kernel
-// containing its auth status. Auth occurs in 5 stages. Each stage sets a new
-// value to 'true'. 'kernelLoaded' cannot be 'true' unless 'loginComplete' is
-// also true, and 'logoutComplete' cannot be true unless 'kernelLoaded' is also
-// true.
+// containing its auth status. Auth occurs in 5 stages.
 //
 // Stage 0; no auth updates
 // Stage 1: bootloader is loaded, user is not yet logged in
 // Stage 2: bootloader is loaded, user is logged in
 // Stage 3: kernel is loaded, user is logged in
 // Stage 4: kernel is loaded, user is logging out (refresh iminent)
+//
+// 'kernelLoaded' is initially set to "not yet" and will be updated when the
+// kernel has loaded. If it is set to "success", it means the kernel loaded
+// without issues. If it is set to anything else, it means that there was an
+// error, and the new value is the error.
+//
+// 'kernelLoaded' will not be changed until 'loginComplete' has been set to
+// true. 'loginComplete' can be set to true immediately if the user is already
+// logged in.
+//
+// 'logoutComplete' can be set to 'true' at any point, which indicates that the
+// auth cycle needs to reset.
 interface kernelAuthStatus {
 	loginComplete: boolean
-	kernelLoaded: boolean
+	kernelLoaded: string
 	logoutComplete: boolean
 }
 

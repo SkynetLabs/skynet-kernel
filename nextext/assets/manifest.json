@@ -35,8 +35,5 @@
 	],
 
 	// Give the content scripts access to a favicon for the skynet kernel.
-	"web_accessible_resources": [
-		"icon@2x.png",
-		"auth.html"
-	]
+	"web_accessible_resources": ["icon@2x.png", "auth.html"]
 }
