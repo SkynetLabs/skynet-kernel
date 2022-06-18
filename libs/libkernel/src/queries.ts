@@ -215,7 +215,7 @@ function messageBridge() {
 	let p: Promise<errTuple> = new Promise((resolve) => {
 		bridgeResolve = resolve
 	})
-	p.then((et: errTuple) => {
+	p.then(([, err]) => {
 		// Check if the timeout already elapsed.
 		if (bridgeInitComplete === true) {
 			logErr("received response from bridge, but init already finished")
@@ -224,7 +224,6 @@ function messageBridge() {
 		bridgeInitComplete = true
 
 		// Deconstruct the input and return if there's an error.
-		let err = et[1]
 		if (err !== null) {
 			logErr("bridge exists but returned an error", err)
 			launchKernelFrame()

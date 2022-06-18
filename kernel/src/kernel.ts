@@ -1,39 +1,10 @@
-// The main function of the Skynet kernel is to create a secure platform for
-// skynet modules to interact. A skynet module is a piece of code that gets its
-// own private domain, its own private seed, and the ability to keep persistent
-// data and execution code secret from other modules.
-//
-// The kernel provides ultimate control to the user. Though each module is
-// guaranteed safety from other modules, the user has root level access that
-// allows the user to access and modify any private data stored within any
-// particular module.
-//
-// As much as possible, the kernel has been built to be minimal, with the vast
-// majority of its functionality being derived from other modules. For the
-// purposes of bootstrapping, there are a few exceptions. Modules themselves
-// are fetched via downloading, which means there needs to be some native
-// download code that exists outside of modules to avoid a chicken-and-egg
-// problem for performing a download. A similar issue exists when identifying
-// which portals should be used for the initial downloads. Finally, the kernel
-// has an idea of 'overrides', which allows the user to forcibly replace one
-// module with another, giving the new module full access to the domain of the
-// original module. The override code also exists in the core of the kernel.
+// This is the business logic for the Skynet kernel, responsible for
+// downloading and running modules, managing queries between modules and
+// applications, managing user overrides, and other core functionalities.
 
-// One of the key properties of the module system is that the caller determines
-// what domain they want to access, and then the kernel determines what code is
-// going to be run for accessing that domain. The caller will never have their
-// call routed or overwritten in a way that they end up in the wrong domain,
-// potentially siphoning up additional data. They may however have the API
-// managed differently, such that either access permissions are different,
-// optimizations are different, or other elements related to control over the
-// data are different.
-
-// The versioning is expected to happen inside of the module itself. If there's
-// an unrecognized call, the caller is going to have to realize that and return
-// an error. If a new feature in a module or skapp is dependent on a new
-// feature in another module that the user hasn't added yet (due to overrides
-// or other reasons) then that new feature will have to wait to activate for
-// the user until they've upgraded their module.
+// NOTE: Anything and anyone can send messages to the kernel. All data that
+// gets received is untrusted and potentially maliciously crafted. Type
+// checking is very important.
 
 import { addContextToErr, blake2b, bufToB64, downloadSkylink, encodeU64, error, tryStringify } from "libskynet"
 
@@ -89,7 +60,7 @@ import { addContextToErr, blake2b, bufToB64, downloadSkylink, encodeU64, error, 
 // bootloader. They are necessary for getting started and downloading the
 // kernel while informing applications about the auth state of the kernel.
 //
-// The kernel is expected to overwrite these functions with new values.
+// The kernel is encouraged to overwrite these functions with new values.
 declare var handleMessage: Function
 declare var handleSkynetKernelRequestOverride: Function
 declare var handleSkynetKernelProxyInfo: Function
@@ -107,11 +78,13 @@ declare var userSeed: Uint8Array
 // At some point we may want something like a capabilities array, but the
 // ecosystem isn't mature enough to need that.
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.4.0"
+const kernelVersion = "0.4.2"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
 // query for each nonce. queries is a map from a nonce to an openQuery.
+//
+// TODO: Apparently this interface is just never used. Maybe we don't need it?
 interface openQuery {
 	isWorker: boolean
 	domain: string
@@ -128,7 +101,9 @@ interface module {
 	domain: string
 }
 
-// TODO: Need to implement the system that respects and ignores the tags.
+// wLog is a wrapper for the log and logErr functions, to deduplicate code.
+//
+// TODO: Need to implement a tag system for the logging.
 function wLog(isErr: boolean, tag: string, ...inputs: any) {
 	let message = "[skynet-kernel]\n" + tag
 	for (let i = 0; i < inputs.length; i++) {
@@ -154,17 +129,20 @@ function logErr(tag: string, ...inputs: any) {
 }
 
 // Cluster all of the large state objects at the top so that we can easily
-// track memory leaks.
+// track memory leaks. We log exponentially less frequently throughout the
+// lifetime of the program to ensure we don't send too many messages total.
 var queriesNonce = 0
 var queries = {} as any
 var modules = {} as any
+let waitTime = 30000
 function logLargeObjects() {
 	let queriesLenStr = Object.keys(queries).length.toString()
 	let modulesLenStr = Object.keys(modules).length.toString()
 	log("open queries :: open modules : " + queriesLenStr + " :: " + modulesLenStr)
-	setTimeout(logLargeObjects, 30000)
+	waitTime *= 1.25
+	setTimeout(logLargeObjects, waitTime)
 }
-logLargeObjects()
+setTimeout(logLargeObjects, waitTime)
 
 // Derive the active seed for this session. We define an active seed so that
 // the user has control over changing accounts later, they can "change
@@ -179,7 +157,7 @@ let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
 log("init", "Skynet Kernel v" + kernelVersion + "-" + kernelDistro)
 
 // respondErr will send an error response to the caller that closes out the
-// query for the provided nonce. The gross extra inputs of 'messagePortal' and
+// query for the provided nonce. The extra inputs of 'messagePortal' and
 // 'isWorker' are necessary to handle the fact that the MessageEvent you get
 // from a worker message is different from the MessageEvent you get from a
 // window message, and also from the fact that postMessage has different
@@ -199,51 +177,78 @@ function respondErr(event: any, messagePortal: any, isWorker: boolean, err: stri
 }
 
 // Create a standard message handler for messages coming from workers.
+//
+// TODO: If the worker makes a mistake or has a bug that makes it seem
+// unstable, we should create some sort of debug log that can be viewed from
+// the kernel debug/control panel. We'll need to make sure the debug logs don't
+// consume too much memory, and we'll need to terminate workers that are
+// bugging out.
+//
+// TODO: Set up a ratelimiting system for modules making logs, we don't want
+// modules to be able to pollute the kernel and cause instability by logging
+// too much.
+//
+// TODO: Need to check that the postMessage call in respondErr isn't going to
+// throw or cause issuse in the event that the worker who sent the message has
+// been terminated.
+//
+// TODO: We probably need to have timeouts for queries, if a query doesn't send
+// an update after a certain amount of time we drop it.
 function handleWorkerMessage(event: MessageEvent, module: module) {
-	// Check for a method.
+	// TODO: Use of respondErr here may not be correct, should only be using
+	// respondErr for functions that are expecting a response and aren't
+	// already part of a separate query. If they are part of a separate query
+	// we need to close that query out gracefully.
+
+	// Perform input verification for a worker message.
 	if (!("method" in event.data)) {
-		logErr("workerMessage", "worker message is missing method")
-		// TODO: shut down the worker for being buggy.
+		logErr("worker", module.domain, "received worker message with no method")
+		respondErr(event, module.worker, true, "received message with no method")
 		return
 	}
 
 	// Check whether this is a logging call.
 	if (event.data.method === "log") {
+		// Perform the input verification for logging.
 		if (!("data" in event.data)) {
-			logErr("workerMessage", "received log with no data field")
-			// TODO: shut down the worker for being buggy.
+			logErr("worker", module.domain, "received worker log message with no data field")
+			respondErr(event, module.worker, true, "received log messsage with no data field")
 			return
 		}
-		if (!("isErr" in event.data.data) || !("message" in event.data.data)) {
-			logErr("workerMessage", "received log message, missing data.isErr or data.message")
-			// TODO: shut down the worker for being buggy.
-			return
-		}
-		// TODO: We probably want the log function to treat the domain
-		// as a tag, we need some way to control here which domains get
-		// to log and which domains do not, which might suggest the way
-		// we handle tags is not quite correct.
 		if (typeof event.data.data.message !== "string") {
-			log("worker log message is not a string!", typeof event.data.data.message)
-		} else {
-			log("worker log message is a string")
+			logErr("worker", module.domain, "worker log data.message is not of type 'string'")
+			respondErr(event, module.worker, true, "received log messsage with no message field")
+			return
 		}
+		if (event.data.data.isErr === undefined) {
+			event.data.data.isErr = false
+		}
+		if (typeof event.data.data.isErr !== "boolean") {
+			logErr("worker", module.domain, "worker log data.isErr is not of type 'boolean'")
+			respondErr(event, module.worker, true, "received log messsage with invalid isErr field")
+			return
+		}
+
+		// Send the log to the parent so that the log can be put in the
+		// console.
 		if (event.data.data.isErr === false) {
-			log("workerMessage", module.domain, event.data.data.message)
+			log("worker", "[" + module.domain + "]", event.data.data.message)
 		} else {
-			logErr("workerMessage", module.domain, event.data.data.message)
+			logErr("worker", "[" + module.domain + "]", event.data.data.message)
 		}
 		return
 	}
 
-	// Check for a nonce.
+	// Check for a nonce - log is the only message from a worker that does not
+	// need a nonce.
 	if (!("nonce" in event.data)) {
-		logErr("workerMessage", "worker message is missing nonce")
-		// TODO: shut down the worker for being buggy.
+		event.data.nonce = "N/A"
+		logErr("worker", module.domain, "worker sent a message with no nonce", event.data)
+		respondErr(event, module.worker, true, "received message with no nonce")
 		return
 	}
 
-	// Check if ther worker is performing a test query.
+	// Handle a version request.
 	if (event.data.method === "version") {
 		module.worker.postMessage({
 			nonce: event.data.nonce,
@@ -252,13 +257,13 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 			data: {
 				distribution: kernelDistro,
 				version: kernelVersion,
+				err: null,
 			},
 		})
 		return
 	}
 
-	// If the method is a moduleCall, create a query with the worker that
-	// is being called.
+	// Handle a call from the worker to another module.
 	if (event.data.method === "moduleCall") {
 		handleModuleCall(event, module.worker, module.domain, true)
 		return
@@ -270,42 +275,55 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	let isResponseUpdate = event.data.method === "responseUpdate"
 	let isResponse = event.data.method === "response"
 	if (isQueryUpdate !== true && isResponseUpdate !== true && isResponse !== true) {
-		logErr("workerMessage", "received message from worker with unrecognized method")
-		// TODO: Shut down the worker for being buggy.
+		logErr("worker", module.domain, "received message from worker with unrecognized method")
 		return
 	}
 
+	// TODO: Need to figure out what to do with the errors here. Do we call
+	// 'respondErr'? That doesn't seem correct. It's not correct because if we
+	// end a query we need to let both sides know that the query was killed by
+	// the kernel.
+
 	// Check that the data field is present.
 	if (!("data" in event.data)) {
-		logErr("workerMessage", "responses and updates from worker need to have a data field")
-		// TODO: shut down the worker for being buggy.
+		logErr("worker", module.domain, "received response or update from worker with no data field")
 		return
 	}
 
 	// Grab the query information so that we can properly relay the worker
 	// response to the original caller.
 	if (!(event.data.nonce in queries)) {
-		if (isQueryUpdate === true || isResponseUpdate === true) {
-			// It's possible that non-deterministic ordering of
-			// messages resulted in this responseUpdate being
-			// processed after the final response was processed,
-			// therefore this is not a fatal error and doesn't need
-			// to result in the worker being shut down.
+		// If there's no corresponding query and this is a response, send an
+		// error.
+		if (isResponse === true) {
+			logErr("worker", module.domain, "received response for an unknown nonce")
 			return
 		}
-		logErr("workerMessage", "received message from worker for non-existent nonce")
-		// TODO: Shut down the worker for being buggy.
+
+		// If there's no responding query and this isn't a response, it could
+		// just be an accident. queryUpdates and responseUpdates are async and
+		// can therefore be sent before both sides know that a query has been
+		// closed but not get processed untila afterwards.
+		//
+		// This can't happen with a 'response' message because the response
+		// message is the only message that can close the query, and there's
+		// only supposed to be one response message.
 		return
 	}
 
+	// Handle the queryUpdate message, we basically just need to forward the
+	// message to whatever module is processing the original query.
 	if (isQueryUpdate) {
 		// Check that the module still exists before sending a queryUpdate to
-		// the module.
+		// the module. If there was an error or an early termination it may not
+		// exist.
 		let dest = queries[event.data.nonce].dest
 		if (!(dest in modules)) {
-			logErr("workerMessage", "worker is sending queryUpdate to module that was killed")
+			logErr("worker", module.domain, "worker is sending queryUpdate to module that was killed")
 			return
 		}
+
+		// Forward the update to the module.
 		modules[dest].worker.postMessage({
 			nonce: event.data.nonce,
 			method: event.data.method,
@@ -318,8 +336,7 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 	if (isResponse) {
 		// Check that the err field exists.
 		if (!("err" in event.data)) {
-			logErr("workerMessage", "responses from worker need to have an err field")
-			// TODO: shut down the worker for being buggy
+			logErr("worker", module.domain, "got response from worker with no err field")
 			return
 		}
 
@@ -327,13 +344,13 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 		let errNull = event.data.err === null
 		let dataNull = event.data.data === null
 		if (errNull === dataNull) {
-			logErr("workerMessage", "exactly one of err and data must be null")
-			// TODO: shut down the worker for being buggy.
+			logErr("worker", module.domain, "exactly one of err and data must be null")
 			return
 		}
 	}
 
-	// Pass the response to the original caller.
+	// We are sending either a response message or a responseUpdate message,
+	// all other possibilities have been handled.
 	let sourceIsWorker = queries[event.data.nonce].isWorker
 	let sourceNonce = queries[event.data.nonce].nonce
 	let source = queries[event.data.nonce].source
@@ -357,8 +374,6 @@ function handleWorkerMessage(event: MessageEvent, module: module) {
 }
 
 // createModule will create a worker for the provided code.
-//
-// TODO: Need to set up an onerror
 function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 	// Create a webworker from the worker code.
 	let module = {
@@ -368,13 +383,19 @@ function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 	try {
 		module.worker = new Worker(url)
 	} catch (err: any) {
-		logErr("createModule", "unable to create worker", domain, err)
+		logErr("worker", domain, "unable to create worker", domain, err)
 		return [module, addContextToErr(tryStringify(err), "unable to create worker")]
 	}
+
+	// Set the onmessage and onerror functions.
 	module.worker.onmessage = function (event: MessageEvent) {
 		handleWorkerMessage(event, module)
 	}
+	module.worker.onerror = function (event: ErrorEvent) {
+		logErr("worker", domain, addContextToErr(tryStringify(event.error), "worker error"))
+	}
 
+	// Send the seed to the module.
 	let path = "moduleSeedDerivation" + domain
 	let u8Path = new TextEncoder().encode(path)
 	let moduleSeedPreimage = new Uint8Array(u8Path.length + 16)
@@ -388,6 +409,9 @@ function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 			seed: moduleSeed,
 		},
 	})
+
+	// TODO: Check if the module is on the whitelist to receive the mysky seed.
+
 	return [module, null]
 }
 
@@ -552,6 +576,7 @@ handleMessage = function (event: any) {
 				data: {
 					distribution: kernelDistro,
 					version: kernelVersion,
+					err: null,
 				},
 			},
 			event.origin

@@ -64,7 +64,13 @@ function queryKernel(query: any): Promise<any> {
 		// Define the callback which will be called when a response is recieved
 		// from the kernel.
 		let receiveResponse = function (data: any) {
-			resolve(data)
+			// The receiveResponse field gets resolved to the entire message
+			// that was received, this is because some messages are being
+			// passed to the module and need to contain a nonce, etc. Our
+			// internal queryKernel for this file though doesn't need the
+			// method and the nonce, it just needs the response data, so it
+			// resolves data.data.
+			resolve(data.data)
 		}
 
 		// Wait until the bootloader is ready, then send the query to the
@@ -153,7 +159,10 @@ function handleKernelMessage(event: MessageEvent) {
 	if (event.data.method === "response") {
 		delete queries[event.data.nonce]
 	}
-	receiveResult(data)
+	// Need to pass along the full event.data because in some cases it is being
+	// passed directly to a module or skapp, and that entity will need fields
+	// like the method and nonce.
+	receiveResult(event.data)
 }
 window.addEventListener("message", handleKernelMessage)
 

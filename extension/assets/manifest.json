@@ -31,6 +31,12 @@
 			"js": ["bootloader.js"],
 			"run_at": "document_end",
 			"all_frames": true
+		},
+		{
+			"matches": ["<all_urls>"],
+			"js": ["bridge.js"],
+			"run_at": "document_end",
+			"all_frames": true
 		}
 	],
 
