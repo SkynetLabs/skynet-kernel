@@ -1,4 +1,5 @@
 import { generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
+import { dictionary } from "../src/dictionary.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { sha512 } from "../src/sha512.js"
@@ -89,6 +90,31 @@ function TestGenerateSeedPhraseDeterministic(t: any) {
 	}
 	if (errVSP2 !== null) {
 		t.fail("vsp2 is not a valid seed phrase")
+	}
+
+	// Check that the generated seeds follow the 13th word rule, which is that
+	// the 13th word must always be from the first 256 entries in the
+	// dictionary (this keeps the final 2 bits clear)
+	for (let i = 0; i < 128; i++) {
+		let [phrase, err] = generateSeedPhraseDeterministic(i.toString())
+		if (err !== null) {
+			t.fail(err, "unable to generate seed phrase in large check")
+			return
+		}
+
+		let found = false
+		let words = phrase.split(" ")
+		console.log(words[12])
+		for (let j = 0; j < 256; j++) {
+			if (words[12] === dictionary[j]) {
+				found = true
+				break
+			}
+		}
+		if (found === false) {
+			t.fail(err, "generated a seed that did not follow the 13th word rule")
+			return
+		}
 	}
 }
 

@@ -33,6 +33,7 @@
 		"typescript": "^4.6.3"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.39"
+		"libkmodule": "^0.2.11",
+		"libskynet": "^0.0.43"
 	}
 }

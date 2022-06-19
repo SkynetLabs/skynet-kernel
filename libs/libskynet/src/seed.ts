@@ -1,4 +1,5 @@
 import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js"
+import { ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
 import { sha512 } from "./sha512.js"
 import { addContextToErr } from "./err.js"
 
@@ -16,6 +17,24 @@ function deriveChildSeed(parentSeed: Uint8Array, derivationTag: string): Uint8Ar
 	preimage.set(tagU8, parentSeed.length)
 	let hash = sha512(preimage)
 	return hash.slice(0, SEED_BYTES)
+}
+
+// deriveMyskyRoot is a helper function to derive the root mysky seed of the
+// provided user seed.
+//
+// NOTE: This is code is to provide legacy compatibility with the MySky
+// ecosystem. Compatibility cannot be broken here.
+function deriveMyskyRootKeypair(userSeed: Uint8Array): ed25519Keypair {
+	let saltBytes = new TextEncoder().encode("root discoverable key")
+	let saltHash = sha512(saltBytes)
+	let userSeedHash = sha512(userSeed)
+	let mergedHash = sha512(new Uint8Array([...saltHash, ...userSeedHash]))
+	let keyEntropy = mergedHash.slice(0, 32)
+
+	// Error is ignored because it should not be possible with the provided
+	// inputs.
+	let [keypair] = ed25519KeypairFromEntropy(keyEntropy)
+	return keypair
 }
 
 // generateSeedPhraseDeterministic will generate and verify a seed phrase for
@@ -171,6 +190,7 @@ function seedPhraseToSeed(seedPhrase: string): [Uint8Array, string | null] {
 
 export {
 	deriveChildSeed,
+	deriveMyskyRootKeypair,
 	generateSeedPhraseDeterministic,
 	seedToChecksumWords,
 	seedPhraseToSeed,

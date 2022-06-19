@@ -19,7 +19,13 @@ export {
 	verifyRegistrySignature,
 } from "./registry.js"
 export { verifyRegistryReadResponse } from "./registryverify.js"
-export { deriveChildSeed, generateSeedPhraseDeterministic, seedPhraseToSeed, validSeedPhrase } from "./seed.js"
+export {
+	deriveChildSeed,
+	deriveMyskyRootKeypair,
+	generateSeedPhraseDeterministic,
+	seedPhraseToSeed,
+	validSeedPhrase,
+} from "./seed.js"
 export { sha512 } from "./sha512.js"
 export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkbitfield.js"
 export { validateSkyfileMetadata, validateSkyfilePath, validSkylink } from "./skylinkvalidate.js"

@@ -6,7 +6,17 @@
 // gets received is untrusted and potentially maliciously crafted. Type
 // checking is very important.
 
-import { addContextToErr, blake2b, bufToB64, downloadSkylink, encodeU64, error, tryStringify } from "libskynet"
+import {
+	addContextToErr,
+	blake2b,
+	bufToB64,
+	deriveMyskyRootKeypair,
+	downloadSkylink,
+	encodeU64,
+	error,
+	tryStringify,
+} from "libskynet"
+import { moduleQuery, presentSeedData } from "libkmodule"
 
 // TODO: Need to make sure the portal module is setting the field that the
 // bootloader uses to get the user's default set of portals to use for
@@ -80,6 +90,10 @@ declare var userSeed: Uint8Array
 const kernelDistro = "SkynetLabs"
 const kernelVersion = "0.4.2"
 
+// defaultMyskyRootModules lists out the set of modules that are allowed to
+// receive the user's MySky root seed by default.
+const defaultMyskyRootModules = ["AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ"]
+
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
 // query for each nonce. queries is a map from a nonce to an openQuery.
@@ -147,11 +161,15 @@ setTimeout(logLargeObjects, waitTime)
 // Derive the active seed for this session. We define an active seed so that
 // the user has control over changing accounts later, they can "change
 // accounts" by switching up their active seed and then reloading all modules.
+//
+// NOTE: If the activeSeed is changed at runtime, the myskyRootKeypair also
+// needs to be changed.
 let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed")
 let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length)
 activeSeedPreimage.set(userSeed, 0)
 activeSeedPreimage.set(activeSeedSalt, userSeed.length)
 let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
+let myskyRootKeypair = deriveMyskyRootKeypair(activeSeed)
 
 // Write a log that declares the kernel version and distribution.
 log("init", "Skynet Kernel v" + kernelVersion + "-" + kernelDistro)
@@ -392,7 +410,16 @@ function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 		handleWorkerMessage(event, module)
 	}
 	module.worker.onerror = function (event: ErrorEvent) {
-		logErr("worker", domain, addContextToErr(tryStringify(event.error), "worker error"))
+		logErr("worker", domain, addContextToErr(tryStringify(event.error), "received onerror event"))
+	}
+
+	// Check if the module is on the whitelist to receive the mysky seed.
+	let sendMyskyRoot = false
+	for (let i = 0; i < defaultMyskyRootModules.length; i++) {
+		if (domain === defaultMyskyRootModules[i]) {
+			sendMyskyRoot = true
+			break
+		}
 	}
 
 	// Send the seed to the module.
@@ -402,16 +429,18 @@ function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 	moduleSeedPreimage.set(u8Path, 0)
 	moduleSeedPreimage.set(activeSeed, u8Path.length)
 	let moduleSeed = blake2b(moduleSeedPreimage).slice(0, 16)
-	module.worker.postMessage({
+	let msgData: presentSeedData = {
+		seed: moduleSeed,
+	}
+	let msg: moduleQuery = {
 		method: "presentSeed",
 		domain: "root",
-		data: {
-			seed: moduleSeed,
-		},
-	})
-
-	// TODO: Check if the module is on the whitelist to receive the mysky seed.
-
+		data: msgData,
+	}
+	if (sendMyskyRoot === true) {
+		msg.data.myskyRootKeypair = myskyRootKeypair
+	}
+	module.worker.postMessage(msg)
 	return [module, null]
 }
 

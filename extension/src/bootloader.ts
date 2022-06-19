@@ -483,9 +483,12 @@ function loadKernel() {
 			log("kernel successfully loaded")
 			return
 		} catch (err: any) {
-			let extErr = addContextToErr(tryStringify(err), "unable to eval kernel")
+			let extErr = addContextToErr(err, "unable to eval kernel")
 			kernelLoaded = extErr
 			logErr(extErr)
+			logErr(err.toString())
+			console.error(extErr)
+			console.error(err)
 			sendAuthUpdate()
 			return
 		}
