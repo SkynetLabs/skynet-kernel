@@ -16,7 +16,7 @@
         "autoprefixer": "^10.4.4",
         "dotenv": "^16.0.0",
         "fs-extra": "^10.1.0",
-        "libskynet": "^0.0.34",
+        "libskynet": "^0.0.43",
         "postcss": "^8.4.12",
         "postcss-load-config": "^3.1.4",
         "prettier": "^2.6.2",
