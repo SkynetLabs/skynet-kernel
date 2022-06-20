@@ -28,6 +28,9 @@ export const generateSeedPhrase = function () {
     let seedWords = []
     for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
         let wordIndex = randNums[i] % dictionary.length
+        if (i === 12) {
+            wordIndex = randNums[i] % (dictionary.length / 4)
+        }
         seedWords.push(dictionary[wordIndex])
     }
     // Convert the seedWords to a seed.

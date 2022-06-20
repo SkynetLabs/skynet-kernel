@@ -12,7 +12,7 @@ export default defineConfig({
     ],
     build: {
         outDir: 'build',
-        target: 'es2019',
+        target: 'es2020',
         assetsInlineLimit: 100000000,
         chunkSizeWarningLimit: 100000000,
         cssCodeSplit: false,
