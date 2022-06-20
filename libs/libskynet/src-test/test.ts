@@ -7,70 +7,6 @@ import { bufToHex, bufToB64 } from "../src/encoding.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
 
-// Import some code to check that our implementation of the derivation for
-// mysky seeds matches the original implementation, this is important for
-// preserving compatibility.
-import nacl from "tweetnacl"
-const SALT_ROOT_DISCOVERABLE_KEY = "root discoverable key";
-function stringToUint8ArrayUtf8(str: string) {
-	return Uint8Array.from(Buffer.from(str, "utf-8"))
-}
-function hashWithSalt(message: Uint8Array, salt: string): Uint8Array {
-  return s512(new Uint8Array([...s512(salt), ...s512(message)]));
-}
-function genKeyPairFromSeed(seed: Uint8Array) {
-  const hash = hashWithSalt(seed, SALT_ROOT_DISCOVERABLE_KEY);
-  return genKeyPairFromHash(hash);
-}
-function genKeyPairFromHash(hash: Uint8Array) {
-  const hashBytes = hash.slice(0, 32);
-  const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes)
-  return [publicKey, secretKey]
-}
-function s512(message: Uint8Array | string): Uint8Array {
-  if (typeof message === "string") {
-    return nacl.hash(stringToUint8ArrayUtf8(message));
-  }
-  return nacl.hash(message);
-}
-
-function TestMyskyEquivalence(t: any) {
-	// Get a seed.
-	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky")
-	if (errGSPD !== null) {
-		t.fail(errGSPD)
-		return
-	}
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
-	if (errVSP !== null) {
-		t.fail(errVSP)
-		return
-	}
-
-	let [pkOld, skOld] = genKeyPairFromSeed(seed)
-	let keypair = deriveMyskyRootKeypair(seed)
-	if (pkOld.length !== keypair.publicKey.length) {
-		t.fail("new pubkey len does not match legacy pubkey len")
-		return
-	}
-	for (let i = 0; i < pkOld.length; i++) {
-		if (pkOld[i] !== keypair.publicKey[i]) {
-			t.fail("new pubkey does not match legacy pubkey")
-			return
-		}
-	}
-	if (skOld.length !== keypair.secretKey.length) {
-		t.fail("new pubkey len does not match legacy pubkey len")
-		return
-	}
-	for (let i = 0; i < skOld.length; i++) {
-		if (skOld[i] !== keypair.secretKey[i]) {
-			t.fail("new pubkey does not match legacy pubkey")
-			return
-		}
-	}
-}
-
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
 function fail(errStr: string, ...inputs: any) {
@@ -377,6 +313,71 @@ function TestSkylinkV1Bitfield(t: any) {
 			t.fail("the wrong fetchSize has been set", fetchSize, tests[i])
 		}
 	}
+}
+
+// TestMyskyEquivalence is a test that checks that the way libskynet derives
+// the mysky seed for a user matches the code that derived a mysky seed for a
+// user in skynet-mysky. Following the test are some unique dependencies so
+// that the simulated mysky derivation is as close to the original code as
+// possible.
+function TestMyskyEquivalence(t: any) {
+	// Get a seed.
+	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky")
+	if (errGSPD !== null) {
+		t.fail(errGSPD)
+		return
+	}
+	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	if (errVSP !== null) {
+		t.fail(errVSP)
+		return
+	}
+
+	let [pkOld, skOld] = genKeyPairFromSeed(seed)
+	let keypair = deriveMyskyRootKeypair(seed)
+	if (pkOld.length !== keypair.publicKey.length) {
+		t.fail("new pubkey len does not match legacy pubkey len")
+		return
+	}
+	for (let i = 0; i < pkOld.length; i++) {
+		if (pkOld[i] !== keypair.publicKey[i]) {
+			t.fail("new pubkey does not match legacy pubkey")
+			return
+		}
+	}
+	if (skOld.length !== keypair.secretKey.length) {
+		t.fail("new pubkey len does not match legacy pubkey len")
+		return
+	}
+	for (let i = 0; i < skOld.length; i++) {
+		if (skOld[i] !== keypair.secretKey[i]) {
+			t.fail("new pubkey does not match legacy pubkey")
+			return
+		}
+	}
+}
+import nacl from "tweetnacl"
+const SALT_ROOT_DISCOVERABLE_KEY = "root discoverable key";
+function stringToUint8ArrayUtf8(str: string) {
+	return Uint8Array.from(Buffer.from(str, "utf-8"))
+}
+function hashWithSalt(message: Uint8Array, salt: string): Uint8Array {
+  return s512(new Uint8Array([...s512(salt), ...s512(message)]));
+}
+function genKeyPairFromSeed(seed: Uint8Array) {
+  const hash = hashWithSalt(seed, SALT_ROOT_DISCOVERABLE_KEY);
+  return genKeyPairFromHash(hash);
+}
+function genKeyPairFromHash(hash: Uint8Array) {
+  const hashBytes = hash.slice(0, 32);
+  const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes)
+  return [publicKey, secretKey]
+}
+function s512(message: Uint8Array | string): Uint8Array {
+  if (typeof message === "string") {
+    return nacl.hash(stringToUint8ArrayUtf8(message));
+  }
+  return nacl.hash(message);
 }
 
 runTest(TestGenerateSeedPhraseDeterministic)
