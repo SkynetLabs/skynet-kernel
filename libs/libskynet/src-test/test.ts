@@ -358,26 +358,26 @@ function TestMyskyEquivalence(t: any) {
 }
 import nacl from "tweetnacl"
 const SALT_ROOT_DISCOVERABLE_KEY = "root discoverable key";
-function stringToUint8ArrayUtf8(str: string) {
-	return Uint8Array.from(Buffer.from(str, "utf-8"))
-}
-function hashWithSalt(message: Uint8Array, salt: string): Uint8Array {
-  return s512(new Uint8Array([...s512(salt), ...s512(message)]));
-}
 function genKeyPairFromSeed(seed: Uint8Array) {
   const hash = hashWithSalt(seed, SALT_ROOT_DISCOVERABLE_KEY);
   return genKeyPairFromHash(hash);
 }
-function genKeyPairFromHash(hash: Uint8Array) {
-  const hashBytes = hash.slice(0, 32);
-  const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes)
-  return [publicKey, secretKey]
+function hashWithSalt(message: Uint8Array, salt: string): Uint8Array {
+  return s512(new Uint8Array([...s512(salt), ...s512(message)]));
 }
 function s512(message: Uint8Array | string): Uint8Array {
   if (typeof message === "string") {
     return nacl.hash(stringToUint8ArrayUtf8(message));
   }
   return nacl.hash(message);
+}
+function stringToUint8ArrayUtf8(str: string) {
+	return Uint8Array.from(Buffer.from(str, "utf-8"))
+}
+function genKeyPairFromHash(hash: Uint8Array) {
+  const hashBytes = hash.slice(0, 32);
+  const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes)
+  return [publicKey, secretKey]
 }
 
 runTest(TestGenerateSeedPhraseDeterministic)
