@@ -162,14 +162,18 @@ setTimeout(logLargeObjects, waitTime)
 // the user has control over changing accounts later, they can "change
 // accounts" by switching up their active seed and then reloading all modules.
 //
-// NOTE: If the activeSeed is changed at runtime, the myskyRootKeypair also
-// needs to be changed.
+// NOTE: If we ever add functionality to change the active seed (which would be
+// equivalent to the user switching accounts), we need to make sure that the
+// myskyRootKeypair is no longer being derived from the userSeed, but rather
+// changes its derivation to the new activeSeed. We only want to use the
+// userSeed as the root for the myskyRootKeypair if the active seed is the
+// "defaultUserActiveSeed".
 let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed")
 let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length)
 activeSeedPreimage.set(userSeed, 0)
 activeSeedPreimage.set(activeSeedSalt, userSeed.length)
 let activeSeed = blake2b(activeSeedPreimage).slice(0, 16)
-let myskyRootKeypair = deriveMyskyRootKeypair(activeSeed)
+let myskyRootKeypair = deriveMyskyRootKeypair(userSeed)
 
 // Write a log that declares the kernel version and distribution.
 log("init", "Skynet Kernel v" + kernelVersion + "-" + kernelDistro)
