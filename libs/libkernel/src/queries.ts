@@ -434,8 +434,10 @@ function newKernelQuery(
 	// cannot get the nonce until init() is complete. getNonce therefore
 	// implies that init is complete.
 	let getNonce: Promise<string> = new Promise((resolve) => {
-		kernelLoadedPromise.then(() => {
-			resolve(nextNonce())
+		init().then(() => {
+			kernelLoadedPromise.then(() => {
+				resolve(nextNonce())
+			})
 		})
 	})
 
