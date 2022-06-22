@@ -1,36 +1,36 @@
 {
 	"name": "secure-registry-module",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"description": "skynet kernel module to securely interact with the registry",
 	"main": "index.js",
 	"scripts": {
 		"deps": "npm install libkmodule@latest && npm install libskynet@latest",
-		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
+		"eslint": "eslint src --fix",
 		"lint": "npm run deps && npm run prettier && npm run eslint",
-		"webpack": "webpack --config webpack.config.js --mode=production",
-		"make-build-script": "tsc --project tsconfig.build.json",
-		"move-dist": "mv dist-build/build.js dist-build/build.mjs",
-		"build-prep": "npm run webpack && npm run make-build-script && npm run move-dist",
-		"build": "npm run build-prep && node ./dist-build/build.mjs dev",
-		"deploy": "npm run lint && npm run build-prep && node ./dist-build/build.mjs prod"
+		"build-script": "tsc --project tsconfig.build.json",
+		"compile": "npm run build-script && tsc && rollup -c",
+		"build": "npm run compile && node ./dist-build/build.js dev",
+		"deploy": "npm run compile && node ./dist-build/build.js prod"
 	},
 	"author": "David Vorick",
 	"license": "MIT",
+	"type": "module",
 	"devDependencies": {
+		"@rollup/plugin-node-resolve": "^13.3.0",
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
+		"cpy-cli": "^4.1.0",
 		"eslint": "^8.13.0",
-		"libkerneldev": "^0.0.39",
+		"libskynet": "^0.0.48",
+		"libskynetnode": "^0.1.2",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
-		"ts-loader": "^9.2.8",
-		"typescript": "^4.6.3",
-		"webpack": "^5.71.0",
-		"webpack-cli": "^4.9.2"
+		"rollup": "^2.75.6",
+		"rollup-plugin-terser": "^7.0.2",
+		"typescript": "^4.6.3"
 	},
 	"dependencies": {
-		"libkmodule": "^0.2.10",
-		"libskynet": "^0.0.32"
+		"libkmodule": "^0.2.11"
 	}
 }

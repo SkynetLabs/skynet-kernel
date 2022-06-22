@@ -19,6 +19,93 @@ import {
 // using another outside module.
 let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 
+// onmessage receives messages from the kernel. Note that most onmessage
+// functions will be a lot simpler, but because this is a test module we're
+// doing input checking on the responses of the kernel to ensure the kernel is
+// behaving correctly. Most modules can skip all of these checks because the
+// kernel does guarantee that these fields will be correct.
+onmessage = function (event: MessageEvent) {
+	// Check that the kernel included a method in the message.
+	//
+	// NOTE: A typical kernel module does not need to check that event.data
+	// contains a field called 'message', the kernel guarantees that the field
+	// will be there. This however is a module designed to test the kernel, so
+	// there are checks here to ensure that the kernel is properly following
+	// meeting its intended guarantees.
+	if (!("method" in event.data)) {
+		errors.push("received a message with no method")
+		logErr("received a message with no method: " + tryStringify(event.data))
+		return
+	}
+	// Hande 'presentSeed', which gives the module a seed. Similar to
+	// above, this version of the handler contains a lot of extra checks
+	// purely because this is a testing module. Most modules will not need
+	// to include all of these checks.
+	if (event.data.method === "presentSeed") {
+		checkPresentSeed(event)
+	}
+
+	// Check that all of the required fields are present.
+	//
+	// NOTE: Modules should not have to do input verification on these
+	// fields, they can trust that the kernel is not malicious and is
+	// sending them well formed messages. This module however is explicitly
+	// intended to check that the kernel is functioning correctly, so it
+	// does the checking here to ensure that there was no breaking change.
+	if (!("nonce" in event.data) && event.data.method !== "presentSeed") {
+		errors.push("received a message with no nonce")
+		logErr("received a message with no nonce")
+		// We can't call respondErr here because respondErr needs the
+		// nonce, and the nonce doesn't exist.
+		return
+	}
+	// Check that module data  was provided. This again is guaranteed to be
+	// provided by the kernel, most modules don't need this check.
+	if (!("data" in event.data)) {
+		errors.push("received a message with no data")
+		logErr("received a message with no data")
+		return
+	}
+
+	// Like 'data', the kernel guarantees that a domain will be provided.
+	// This check isn't necessary for most modules. The domain is not
+	// provided on queryUpdate, responseUpdate, or response messages.
+	let isResponse = event.data.method === "response"
+	let isResponseUpdate = event.data.method === "responseUpdate"
+	let isResponseNonce = event.data.method === "responseNonce"
+	let isResponseMsg = isResponse || isResponseUpdate || isResponseNonce
+	if (!("domain" in event.data) && !isResponseMsg) {
+		logErr("received a message with no domain: " + tryStringify(event.data))
+		errors.push("received a message with no domain")
+		return
+	}
+
+	// Pass what remains to the router.
+	handleMessage(event)
+}
+
+// Add handlers for various test functions.
+//
+// NOTE: most of these are for testing only and are not recommended methods
+// that should be implemented on a normal module. For example, 'viewSeed'
+// exposes the module's seed to anyone that calls into the module. But the
+// module's seed is supposed to be protected and should never be exposed over
+// the API normally. We make an exception here because this module is used for
+// testing purposes.
+addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential)
+addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel)
+addHandler("mirrorDomain", handleMirrorDomain)
+addHandler("sendTestToKernel", handleSendTestToKernel)
+addHandler("testCORS", handleTestCORS)
+addHandler("testLogging", handleTestLogging)
+addHandler("testerMirrorDomain", handleTesterMirrorDomain)
+addHandler("testResponseUpdate", handleTestResponseUpdate)
+addHandler("updateTest", handleUpdateTest)
+addHandler("viewHelperSeed", handleViewHelperSeed)
+addHandler("viewSeed", handleViewSeed)
+addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
+addHandler("viewErrors", handleViewErrors)
+
 // Set up a list of errors that can be queried by a caller. This is a long
 // running list of errors that will grow over time as errors are encountered.
 // Only unexpected errors that indicate a bug of some sort are added to this
@@ -404,91 +491,4 @@ async function handleViewOwnSeedThroughHelper(activeQuery: any) {
 // testing.
 function handleViewErrors(activeQuery: any) {
 	activeQuery.respond({ errors })
-}
-
-// Add handlers for various test functions.
-//
-// NOTE: most of these are for testing only and are not recommended methods
-// that should be implemented on a normal module. For example, 'viewSeed'
-// exposes the module's seed to anyone that calls into the module. But the
-// module's seed is supposed to be protected and should never be exposed over
-// the API normally. We make an exception here because this module is used for
-// testing purposes.
-addHandler("callModulePerformanceSequential", handleCallModulePerformanceSequential)
-addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel)
-addHandler("mirrorDomain", handleMirrorDomain)
-addHandler("sendTestToKernel", handleSendTestToKernel)
-addHandler("testCORS", handleTestCORS)
-addHandler("testLogging", handleTestLogging)
-addHandler("testerMirrorDomain", handleTesterMirrorDomain)
-addHandler("testResponseUpdate", handleTestResponseUpdate)
-addHandler("updateTest", handleUpdateTest)
-addHandler("viewHelperSeed", handleViewHelperSeed)
-addHandler("viewSeed", handleViewSeed)
-addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
-addHandler("viewErrors", handleViewErrors)
-
-// onmessage receives messages from the kernel. Note that most onmessage
-// functions will be a lot simpler, but because this is a test module we're
-// doing input checking on the responses of the kernel to ensure the kernel is
-// behaving correctly. Most modules can skip all of these checks because the
-// kernel does guarantee that these fields will be correct.
-onmessage = function (event: MessageEvent) {
-	// Check that the kernel included a method in the message.
-	//
-	// NOTE: A typical kernel module does not need to check that event.data
-	// contains a field called 'message', the kernel guarantees that the field
-	// will be there. This however is a module designed to test the kernel, so
-	// there are checks here to ensure that the kernel is properly following
-	// meeting its intended guarantees.
-	if (!("method" in event.data)) {
-		errors.push("received a message with no method")
-		logErr("received a message with no method: " + tryStringify(event.data))
-		return
-	}
-	// Hande 'presentSeed', which gives the module a seed. Similar to
-	// above, this version of the handler contains a lot of extra checks
-	// purely because this is a testing module. Most modules will not need
-	// to include all of these checks.
-	if (event.data.method === "presentSeed") {
-		checkPresentSeed(event)
-	}
-
-	// Check that all of the required fields are present.
-	//
-	// NOTE: Modules should not have to do input verification on these
-	// fields, they can trust that the kernel is not malicious and is
-	// sending them well formed messages. This module however is explicitly
-	// intended to check that the kernel is functioning correctly, so it
-	// does the checking here to ensure that there was no breaking change.
-	if (!("nonce" in event.data) && event.data.method !== "presentSeed") {
-		errors.push("received a message with no nonce")
-		logErr("received a message with no nonce")
-		// We can't call respondErr here because respondErr needs the
-		// nonce, and the nonce doesn't exist.
-		return
-	}
-	// Check that module data  was provided. This again is guaranteed to be
-	// provided by the kernel, most modules don't need this check.
-	if (!("data" in event.data)) {
-		errors.push("received a message with no data")
-		logErr("received a message with no data")
-		return
-	}
-
-	// Like 'data', the kernel guarantees that a domain will be provided.
-	// This check isn't necessary for most modules. The domain is not
-	// provided on queryUpdate, responseUpdate, or response messages.
-	let isResponse = event.data.method === "response"
-	let isResponseUpdate = event.data.method === "responseUpdate"
-	let isResponseNonce = event.data.method === "responseNonce"
-	let isResponseMsg = isResponse || isResponseUpdate || isResponseNonce
-	if (!("domain" in event.data) && !isResponseMsg) {
-		logErr("received a message with no domain: " + tryStringify(event.data))
-		errors.push("received a message with no domain")
-		return
-	}
-
-	// Pass what remains to the router.
-	handleMessage(event)
 }

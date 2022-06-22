@@ -11,7 +11,7 @@ import {
 	taggedRegistryEntryKeys,
 	validSeedPhrase,
 } from "libskynet"
-import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libkerneldev"
+import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libskynetnode"
 import read from "read"
 
 // Helper variables to make it easier to return empty values alongside errors.
@@ -239,8 +239,6 @@ function handlePassConfirm(password: string) {
 	console.log("Uploading module...")
 	upload(distFile, metadata)
 		.then((result) => {
-			console.log("Immutable Link for Module:", result)
-			console.log("Resolver Link for Module:", registryLink)
 			console.log("Updating module's registry entry...")
 			// Update the v2 skylink.
 			let [keypair, datakey, errSPTRK] = seedPhraseToRegistryKeys(seedPhrase)
@@ -252,8 +250,10 @@ function handlePassConfirm(password: string) {
 				return ["", addContextToErr(errBTB, "unable to decode skylink")]
 			}
 			overwriteRegistryEntry(keypair, datakey, bufLink)
-				.then((result: any) => {
+				.then(() => {
 					console.log("registry entry is updated")
+					console.log("Immutable Link for Module:", result)
+					console.log("Resolver Link for Module:", registryLink)
 				})
 				.catch((err: any) => {
 					console.log("unable to update registry entry:", err)

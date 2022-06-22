@@ -4,7 +4,7 @@
 	"description": "Template for new Kernel module",
 	"main": "index.js",
 	"scripts": {
-		"deps": "npm install libkernel@latest",
+		"deps": "npm install libkmodule@latest",
 		"prettier": "prettier --write .",
 		"eslint": "eslint src --fix",
 		"lint": "npm run deps && npm run prettier && npm run eslint",

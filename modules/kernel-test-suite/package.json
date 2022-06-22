@@ -4,25 +4,25 @@
 	"description": "skynet kernel module to test the kernel's APIs",
 	"main": "index.js",
 	"scripts": {
-		"deps": "npm install libkmodule@latest && npm install libskynetnode@latest",
+		"deps": "npm install libkmodule@latest",
 		"prettier": "prettier --write .",
 		"eslint": "eslint src --fix",
 		"lint": "npm run deps && npm run prettier && npm run eslint",
-		"rollup": "rollup -c rollup.conf.js",
 		"build-script": "tsc --project tsconfig.build.json",
-		"compile-1": "npm run lint && tsc && npm run rollup",
-		"compile-2": "npm run compile-1 && npm run build-script",
-		"compile": "npm run compile-2 && mv dist-build/build.js dist-build/build.mjs",
-		"build": "npm run compile && node ./dist-build/build.mjs dev",
-		"deploy": "npm run compile && node ./dist-build/build.mjs prod"
+		"compile": "npm run build-script && tsc && rollup -c",
+		"build": "npm run compile && node ./dist-build/build.js dev",
+		"deploy": "npm run compile && node ./dist-build/build.js prod"
 	},
 	"author": "David Vorick",
 	"license": "MIT",
+	"type": "module",
 	"devDependencies": {
 		"@rollup/plugin-node-resolve": "^13.3.0",
 		"@types/read": "^0.0.29",
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
+		"cpy-cli": "^4.1.0",
 		"eslint": "^8.13.0",
+		"libskynet": "^0.0.43",
 		"libskynetnode": "^0.1.2",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
@@ -31,6 +31,6 @@
 		"typescript": "^4.6.3"
 	},
 	"dependencies": {
-		"libkmodule": "^0.2.10"
+		"libkmodule": "^0.2.11"
 	}
 }
