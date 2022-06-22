@@ -4,7 +4,7 @@ import type { activeQuery } from "libkmodule"
 addHandler("methodName", handleMethodName)
 onmessage = handleMessage
 
-// handleSecureDownload will handle a call to secureDownload.
+// handleMethodName will handle a call to methodName.
 function handleMethodName(aq: activeQuery) {
 	// Check the inputs
 	// Here, expecting data to have a "message" field of string
