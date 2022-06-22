@@ -184,8 +184,8 @@ let blockForAuthPage: Promise<void> = new Promise((resolve) => {
 					resolve()
 				})
 			})
-	} catch {
-		authURL = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
+	} catch(err: any) {
+		kernelAuthPage = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
 		resolve()
 	}
 })
