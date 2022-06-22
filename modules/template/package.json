@@ -1,6 +1,6 @@
 {
 	"name": "kernel-module-template",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"description": "Template for new Kernel module",
 	"main": "index.js",
 	"scripts": {
