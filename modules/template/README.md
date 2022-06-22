@@ -19,7 +19,7 @@ meaning any developer that knows the deployment password can push changes into
 production.
 
 If the module has never been deployed before, `npm run deploy` will ask you to
-set a password. The password should be a secure password (more than 90 bits of
+set a password. The password should be a secure password (more than 100 bits of
 entropy), as anyone who is able to guess the password will be able to deploy
 changes to production.
 

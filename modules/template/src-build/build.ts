@@ -4,6 +4,7 @@ import * as fs from "fs"
 import {
 	addContextToErr,
 	b64ToBuf,
+	bufToHex,
 	deriveRegistryEntryID,
 	generateSeedPhraseDeterministic,
 	resolverLink,
@@ -52,6 +53,19 @@ function writeFile(fileName: string, fileData: string): string | null {
 	} catch (err) {
 		return "unable to write file: " + JSON.stringify(err)
 	}
+}
+
+// hardenedSeedPhrase will take a password, harden it with 100,000 iterations
+// of hashing, and then turn it into a seed phrase.
+function hardenedSeedPhrase(password: string): [string, string | null] {
+	let pw = password
+	// Add some hashing iterations to the password to make it stronger.
+	for(let i = 0; i < 1000000; i++) {
+		let passU8 = new TextEncoder().encode(password)
+		let hashIter = sha512(passU8)
+		password = bufToHex(hashIter)
+	}
+	return generateSeedPhraseDeterministic(password)
 }
 
 // seedPhraseToRegistryKeys will convert a seed phrase to the set of registry
@@ -158,7 +172,7 @@ function handlePassConfirm(password: string) {
 		}
 	} else if (!fs.existsSync(seedFile) && process.argv[2] === "prod") {
 		// Generate the seed phrase.
-		let [seedPhrase, errGSP] = generateSeedPhraseDeterministic(password)
+		let [seedPhrase, errGSP] = hardenedSeedPhrase(password)
 		if (errGSP !== null) {
 			console.error("Unable to generate seed phrase:", errGSP)
 			process.exit(1)
@@ -184,7 +198,7 @@ function handlePassConfirm(password: string) {
 	let registryLink: string
 	if (process.argv[2] === "prod") {
 		// Generate the seed phrase from the password.
-		let [sp, errGSP] = generateSeedPhraseDeterministic(password)
+		let [sp, errGSP] = hardenedSeedPhrase(password)
 		if (errGSP !== null) {
 			console.error("Unable to generate seed phrase: ", errGSP)
 			process.exit(1)
