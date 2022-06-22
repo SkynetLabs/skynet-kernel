@@ -1,4 +1,13 @@
-import { addContextToErr, addHandler, callModule, getSeed, handleMessage, logErr, tryStringify } from "libkmodule"
+import {
+	addContextToErr,
+	addHandler,
+	activeQuery,
+	callModule,
+	getSeed,
+	handleMessage,
+	logErr,
+	tryStringify,
+} from "libkmodule"
 
 // Track any errors that come up during execution. This is non-standard, most
 // modules will not need to do this.
@@ -19,27 +28,27 @@ addHandler("viewSeed", handleViewSeed)
 addHandler("viewTesterSeed", handleViewTesterSeed)
 
 // handleMirrorDomain returns the caller's domain to the caller.
-function handleMirrorDomain(activeQuery: any) {
-	activeQuery.accept({ domain: activeQuery.domain })
+function handleMirrorDomain(aq: activeQuery) {
+	aq.respond({ domain: aq.domain })
 }
 
 // handleUpdateTest engages with the tester module in a sort of ping-pong where
 // each module keeps incrementing 'progress' by 1 until it reaches 9, at which
 // point the helper module resovles the query.
-function handleUpdateTest(activeQuery: any) {
+function handleUpdateTest(aq: activeQuery) {
 	// Check the initial progress value that was sent to the update test.
-	if (!("progress" in activeQuery.callerInput)) {
-		activeQuery.reject("expecting progress field in input")
+	if (!("progress" in aq.callerInput)) {
+		aq.reject("expecting progress field in input")
 		return
 	}
-	if (activeQuery.callerInput.progress !== 0) {
-		activeQuery.reject("expecting call to kick off with progress 0")
+	if (aq.callerInput.progress !== 0) {
+		aq.reject("expecting call to kick off with progress 0")
 		return
 	}
 
 	// Send a responseUpdate that increments the progress counter, and
 	// establish what progress we expect when the caller sends a query update.
-	activeQuery.sendUpdate({ progress: 1 })
+	aq.sendUpdate({ progress: 1 })
 	let expectedProgress = 2
 
 	// Define the function that will receive updates. Track whether the query
@@ -52,61 +61,65 @@ function handleUpdateTest(activeQuery: any) {
 			return
 		}
 		if (!("progress" in update)) {
-			activeQuery.reject("expected a progress field in the queryUpdate")
+			aq.reject("expected a progress field in the queryUpdate")
 			resolved = true
 			return
 		}
 		if (typeof update.progress !== "number") {
-			activeQuery.reject("expected progress field of queryUpdate to be a number")
+			aq.reject("expected progress field of queryUpdate to be a number")
 			resolved = true
 			return
 		}
 		if (update.progress !== expectedProgress) {
 			let str = tryStringify(update.progress) + " :: " + tryStringify(expectedProgress)
-			activeQuery.reject("progress value appears incorrect: " + str)
+			aq.reject("progress value appears incorrect: " + str)
 			resolved = true
 			return
 		}
 		if (update.progress > 8) {
-			activeQuery.reject("too many updates, 8 should have been the final progress update")
+			aq.reject("too many updates, 8 should have been the final progress update")
 			resolved = true
 			return
 		}
 		if (update.progress === 8) {
-			activeQuery.accept({ progress: 9 })
+			aq.respond({ progress: 9 })
 			resolved = true
 			return
 		}
-		activeQuery.sendUpdate({ progress: expectedProgress + 1 })
+		aq.sendUpdate({ progress: expectedProgress + 1 })
 		expectedProgress += 2
 	}
-	activeQuery.setReceiveUpdate(receiveUpdate)
+	if (aq.setReceiveUpdate === undefined) {
+		aq.reject("handleUpdateTest was not configured to send updates")
+		return
+	}
+	aq.setReceiveUpdate(receiveUpdate)
 }
 
 // handleViewErrors exposes the errors object that accumulates all the errors
 // the module finds throughout testing.
-function handleViewErrors(activeQuery: any) {
-	activeQuery.accept({ errors })
+function handleViewErrors(aq: activeQuery) {
+	aq.respond({ errors })
 }
 
 // handle a call to 'viewSeed'. Most modules will not have any sort of support
 // for a function like 'viewSeed', the seed is supposed to be private. But we
 // need to make sure that the seed distribution from the kernel appears to be
 // working, so we expose the seed for this module.
-async function handleViewSeed(activeQuery: any) {
+async function handleViewSeed(aq: activeQuery) {
 	let seed = await getSeed()
-	activeQuery.accept({ seed })
+	aq.respond({ seed })
 }
 
 // handleViewTesterSeed makes a query to the tester module to grab its seed. It
 // then returns the seed of the tester module. This method is used by the
 // tester module to check that multi-hop module communication works.
-async function handleViewTesterSeed(activeQuery: any) {
+async function handleViewTesterSeed(aq: activeQuery) {
 	// Send the call to the tester module.
 	let [resp, err] = await callModule(testerModule, "viewSeed", {})
 	if (err !== null) {
 		errors.push(<string>addContextToErr(err, "could not call 'viewSeed' on tester module"))
-		activeQuery.reject(err)
+		aq.reject(err)
 		return
 	}
 
@@ -114,10 +127,10 @@ async function handleViewTesterSeed(activeQuery: any) {
 	if (!("seed" in resp)) {
 		let err = "tester module did not provide seed when 'viewSeed' was called"
 		errors.push(err)
-		activeQuery.reject(err)
+		aq.reject(err)
 		return
 	}
 
 	// Respond with the seed that the tester provided.
-	activeQuery.accept({ testerSeed: resp.seed })
+	aq.respond({ testerSeed: resp.seed })
 }
