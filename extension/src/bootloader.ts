@@ -151,34 +151,43 @@ window.addEventListener("message", (event: MessageEvent) => {
 // at runtime.
 let kernelFavicon: Uint8Array
 let blockForFavicon: Promise<void> = new Promise((resolve) => {
-	let faviconURL = browser.runtime.getURL("icon@2x.png")
-	fetch(faviconURL)
-		.then((response) => {
-			response.arrayBuffer().then((faviconData) => {
-				kernelFavicon = new Uint8Array(faviconData)
-				resolve()
+	// We wrap this whole block in a try-catch block to handle the case where
+	// "icon@2x.png" is not available. This can happen in 'browser' is not
+	// defined, which will happen if the bootloader is running on skt.us
+	// instead of in an extension.
+	try {
+		let faviconURL = browser.runtime.getURL("icon@2x.png")
+		fetch(faviconURL)
+			.then((response) => {
+				response.arrayBuffer().then((faviconData) => {
+					kernelFavicon = new Uint8Array(faviconData)
+					resolve()
+				})
 			})
-		})
-		.catch(() => {
-			// In the event of an error, just set the favicon to nothing.
-			kernelFavicon = new Uint8Array(0)
-			resolve()
-		})
+	} catch {
+		kernelFavicon = new Uint8Array(0)
+		resolve()
+	}
 })
 let kernelAuthPage: Uint8Array
 let blockForAuthPage: Promise<void> = new Promise((resolve) => {
-	let authURL = browser.runtime.getURL("auth.html")
-	fetch(authURL)
-		.then((response) => {
-			response.arrayBuffer().then((authData) => {
-				kernelAuthPage = new Uint8Array(authData)
-				resolve()
+	// We wrap this whole block in a try-catch block to handle the case where
+	// "auth.html" is not available. This can happen in 'browser' is not
+	// defined, which will happen if the bootloader is running on skt.us
+	// instead of in an extension.
+	try {
+		let authURL = browser.runtime.getURL("auth.html")
+		fetch(authURL)
+			.then((response) => {
+				response.arrayBuffer().then((authData) => {
+					kernelAuthPage = new Uint8Array(authData)
+					resolve()
+				})
 			})
-		})
-		.catch((err: any) => {
-			authURL = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
-			resolve()
-		})
+	} catch {
+		authURL = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
+		resolve()
+	}
 })
 function handleSkynetKernelRequestOverride(event: MessageEvent) {
 	if (event.source === null) {
