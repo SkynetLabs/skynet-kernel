@@ -5,13 +5,28 @@
 // set the return value to "[stringify failed]".
 function tryStringify(obj: any): string {
 	// Check for undefined input.
-	if (obj === undefined || obj === null) {
+	if (obj === undefined) {
 		return "[cannot stringify undefined input]"
+	}
+	if (obj === null) {
+		return "[null]"
 	}
 
 	// Parse the error into a string.
 	if (typeof obj === "string") {
 		return obj
+	}
+
+	// Check if the object has a 'toString' method defined on it. To ensure
+	// that we don't crash or throw, check that the toString is a function, and
+	// also that the return value of toString is a string.
+	if (Object.prototype.hasOwnProperty.call(obj, "toString")) {
+		if (typeof obj.toString === "function") {
+			let str = obj.toString()
+			if (typeof str === "string") {
+				return str
+			}
+		}
 	}
 
 	// If the object does not have a custom toString, attempt to perform a

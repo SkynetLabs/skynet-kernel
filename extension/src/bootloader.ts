@@ -29,6 +29,7 @@ import {
 	taggedRegistryEntryKeys,
 	tryStringify,
 	verifyRegistryReadResponse,
+	verifyRegistryWriteResponse,
 } from "libskynet"
 
 var browser: any // tsc
@@ -47,11 +48,15 @@ document.body.appendChild(header)
 // bootloaderWLog is a function that gets wrapped by bootloaderLog and
 // bootloaderErr.
 function bootloaderWLog(isErr: boolean, ...inputs: any) {
+	// Build the message, each item gets its own line. We do this because items
+	// are often full objects.
 	let message = "[skynet-kernel-bootloader]"
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
 		message += tryStringify(inputs[i])
 	}
+
+	// Create the log by sending it to the parent.
 	window.parent.postMessage(
 		{
 			method: "log",
@@ -60,7 +65,7 @@ function bootloaderWLog(isErr: boolean, ...inputs: any) {
 				message,
 			},
 		},
-		"*" as any // tsc
+		"*"
 	)
 }
 // Establish logging functions for the bootloader. The bootloader is in an
@@ -75,22 +80,29 @@ function logErr(...inputs: any) {
 
 // Set up the message handler that will process messages coming from pages or
 // from the background script.
-var handleMessage = function (event: MessageEvent) {
+//
+// NOTE: For some reason, calling this function 'handleMessage' seems to break
+// everything, so we call it 'handleIncomingMessage' instead.
+var handleIncomingMessage = function (event: MessageEvent) {
 	if (event.source === null) {
 		// tsc
+		return
+	}
+	if (event.source === window) {
+		// We want to ignore messages that are coming from ourself.
 		return
 	}
 
 	// Check that there's a nonce.
 	if (!("nonce" in event.data)) {
-		event.source.postMessage(
+		(event.source as WindowProxy).postMessage(
 			{
 				nonce: "N/A",
 				method: "response",
 				err: "message sent to kernel with no nonce",
 			},
-			"*" as any
-		) // tsc
+			event.origin
+		)
 		return
 	}
 
@@ -102,8 +114,8 @@ var handleMessage = function (event: MessageEvent) {
 				method: "response",
 				err: "message sent to kernel with no method",
 			},
-			"*" as any
-		) // tsc
+			event.origin
+		)
 		return
 	}
 
@@ -122,12 +134,12 @@ var handleMessage = function (event: MessageEvent) {
 			method: "response",
 			err: "unrecognized method (user may need to log in): " + event.data.method,
 		},
-		"*" as any
-	) // tsc
+		event.origin
+	)
 	return
 }
 window.addEventListener("message", (event: MessageEvent) => {
-	handleMessage(event)
+	handleIncomingMessage(event)
 })
 
 // handleSkynetKernelRequestOverride will respond to a request override
@@ -185,8 +197,7 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
 
 	// Establish the standard headers that we respond with.
 	let respondOverride = function (headers: any, body: Uint8Array) {
-		// tsc
-		event.source!.postMessage(
+		(event.source as WindowProxy).postMessage(
 			{
 				nonce: event.data.nonce,
 				method: "response",
@@ -197,8 +208,8 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
 					body,
 				},
 			},
-			"*" as any
-		) // tsc
+			event.origin
+		)
 	}
 
 	// Set up a return value for the favicon.
@@ -231,7 +242,7 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
 
 	// The override request was not recognized, tell the extension not to
 	// override this file.
-	event.source.postMessage(
+	(event.source as WindowProxy).postMessage(
 		{
 			nonce: event.data.nonce,
 			method: "response",
@@ -240,8 +251,8 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
 				override: false,
 			},
 		},
-		"*" as any
-	) // tsc
+		event.origin
+	)
 }
 
 // Establish a handler for storage events. The kernel is intended to overwrite
@@ -391,11 +402,11 @@ function setUserKernelAsDefault(keypair: ed25519Keypair, dataKey: Uint8Array) {
 	}
 
 	// Perform the fetch call.
-	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryReadResponse).then(
+	progressiveFetch(endpoint, fetchOpts, defaultPortalList, verifyRegistryWriteResponse).then(
 		(result: progressiveFetchResult) => {
 			// Return an error if the call failed.
 			if (result.success !== true) {
-				log("unable to update the user kernel registry entry\n", tryStringify(result.logs))
+				log("unable to update the user kernel registry entry\n", result.logs)
 				return
 			}
 			log("successfully updated the user kernel registry entry to the default kernel")
@@ -411,9 +422,7 @@ function downloadUserKernel(): Promise<[kernelCode: string, err: error]> {
 		// create a child seed here so that the user's kernel entry seed can be
 		// exported without exposing the user's root seed. It's unlikely that
 		// this will ever matter, but it's also trivial to implement.
-		log("user seed", bufToHex(userSeed))
 		let kernelEntrySeed = deriveChildSeed(userSeed, "userPreferredKernel2")
-		log("kern seed", bufToHex(kernelEntrySeed))
 
 		// Get the registry keys.
 		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(kernelEntrySeed, "user kernel")
@@ -421,7 +430,6 @@ function downloadUserKernel(): Promise<[kernelCode: string, err: error]> {
 			resolve(["", addContextToErr(errTREK, "unable to create user kernel registry keys")])
 			return
 		}
-		log("user keys", bufToHex(keypair.publicKey))
 
 		// Get the entry id for the user's kernel entry.
 		let [entryID, errREID] = deriveRegistryEntryID(keypair.publicKey, dataKey)
@@ -430,7 +438,6 @@ function downloadUserKernel(): Promise<[kernelCode: string, err: error]> {
 			return
 		}
 		let userKernelSkylink = entryIDToSkylink(entryID)
-		log("user link", userKernelSkylink)
 
 		// Perform the download of the user kernel. If the user kernel is a 404, we
 		// need to establish the default kernel of this  as the user's
@@ -517,7 +524,7 @@ function sendAuthUpdate() {
 				logoutComplete: logoutComplete,
 			},
 		},
-		"*" as any // tsc
+		"*"
 	)
 }
 sendAuthUpdate()

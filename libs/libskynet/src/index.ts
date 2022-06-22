@@ -18,7 +18,7 @@ export {
 	taggedRegistryEntryKeys,
 	verifyRegistrySignature,
 } from "./registry.js"
-export { verifyRegistryReadResponse } from "./registryverify.js"
+export { verifyRegistryReadResponse, verifyRegistryWriteResponse } from "./registryverify.js"
 export {
 	deriveChildSeed,
 	deriveMyskyRootKeypair,

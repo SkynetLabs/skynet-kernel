@@ -79,4 +79,17 @@ function verifyRegistryReadResponse(resp: Response, pubkey: Uint8Array, datakey:
 	})
 }
 
-export { verifyRegistryReadResponse }
+// verifyRegistryWriteResponse will verify that the response from a
+// registryWrite call is valid. There's not much to verify beyond looking for
+// the right response code, as the portal is not providing us with data, just
+// confirming that a write succeeded.
+function verifyRegistryWriteResponse(resp: Response): Promise<error> {
+	return new Promise((resolve) => {
+		if (resp.status === 204) {
+			resolve(null)
+		}
+		resolve("expecting 200 status code for registry write, got:" + resp.status.toString())
+	})
+}
+
+export { verifyRegistryReadResponse, verifyRegistryWriteResponse }

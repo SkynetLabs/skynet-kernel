@@ -9,15 +9,13 @@
 // by typescript. If you know how to get rid of any of these, please let us
 // know. These areas are marked with a 'tsc' comment.
 
-import { dataFn, errTuple, kernelAuthStatus, requestOverrideResponse, tryStringify } from "libskynet"
+import { dataFn, kernelAuthStatus, requestOverrideResponse } from "libskynet"
 
 declare var browser: any // tsc
 
 // Set up the code for handling queries and ports. They are both objects that
 // can suffer memory leaks, so we declare them together alongside a tracker
 // that will log when it appears like there's a memory leak.
-//
-// TODO: Ports will be in use later.
 let queriesNonce = 1
 let queries: any = new Object()
 let portsNonce = 0
@@ -80,7 +78,15 @@ function queryKernel(query: any): Promise<any> {
 			queriesNonce += 1
 			query.nonce = nonce
 			queries[nonce] = receiveResponse
-			kernelFrame.contentWindow!.postMessage(query, "http://kernel.skynet")
+			if (kernelFrame.contentWindow !== null) {
+				kernelFrame.contentWindow.postMessage(query, "http://kernel.skynet")
+			} else {
+				// I'm not sure when this can happen, but perhaps if the
+				// kernelFrame internally calls window.close() or some
+				// equivalent call, the contentWindow of the kernelFrame might
+				// be null.
+				console.error("kernelFrame.contentWindow was null, cannot send message!")
+			}
 		})
 	})
 }
@@ -112,6 +118,9 @@ function handleKernelMessage(event: MessageEvent) {
 			authStatusResolve()
 			authStatusKnown = true
 			console.log("bootloader is now initialized")
+			if (authStatus.loginComplete !== true) {
+				console.log("user is not logged in: waiting until login is confirmed")
+			}
 		}
 
 		// Need to pass the new auth to all ports that are connected to the
@@ -121,7 +130,11 @@ function handleKernelMessage(event: MessageEvent) {
 		for (let [, port] of Object.entries(openPorts)) {
 			try {
 				(port as any).postMessage(event.data)
-			} catch { }
+			} catch {
+				// Nothing to do here, sometimes there can be errors if the
+				// page closed unexpectedly. No need to log or otherwise handle
+				// the error.
+			}
 		}
 
 		// If the kernel is signaling that there has been a logout, reload the
@@ -135,7 +148,11 @@ function handleKernelMessage(event: MessageEvent) {
 			for (let [, port] of Object.entries(openPorts)) {
 				try {
 					(port as any).disconnect()
-				} catch { }
+				} catch {
+					// Nothing to do here, sometimes there can be errors if the
+					// page closed unexpectedly. No need to log or otherwise
+					// handle the error.
+				}
 			}
 
 			// Reset the openPorts object.
@@ -258,10 +275,6 @@ browser.runtime.onConnect.addListener(bridgeListener)
 // The proxy itself has a hard-coded carve-out for 'kernel.skynet' to allow the
 // kernel to load. It communicates with the kernel to determine what other
 // pages to proxy.
-//
-// TODO: Need to add an extension-level override for the proxy destination. The
-// kernel can specify whether the extension-specific proxies get to take
-// priority or not.
 function handleProxyRequest(info: any) {
 	// Hardcode an exception for 'kernel.skynet'. We need this exception
 	// because that's where the kernel exists, and the kernel needs to be
@@ -272,11 +285,6 @@ function handleProxyRequest(info: any) {
 	// through the options in order until one of the proxies succeeds. By
 	// having a list, we ensure that even if one of the major services is
 	// down, the kernel extension and all pages will still work.
-	//
-	// TODO: Add a default set of proxies the same way that we do for
-	// default portals. And really, all of a user's default portals should
-	// be included in this list.
-	let start = performance.now()
 	let hostname = new URL(info.url).hostname
 	if (hostname === "kernel.skynet") {
 		return [
@@ -336,8 +344,11 @@ function onBeforeRequestListener(details: any) {
 		// Get the filter and swallow any response from the server. Setting
 		// 'onData' to a blank function will swallow all data from the server.
 		let filter = browser.webRequest.filterResponseData(details.requestId)
-		filter.ondata = () => {}
-		filter.onstop = (event: any) => {
+		filter.ondata = () => {
+			// By setting 'ondata' to the emtpy function, we effectively ensure
+			// that none of the data will be processed.
+		}
+		filter.onstop = () => {
 			faviconPromise.then((result: requestOverrideResponse) => {
 				filter.write(result.body)
 				filter.close()
@@ -364,8 +375,11 @@ function onBeforeRequestListener(details: any) {
 		// Get the filter and swallow any response from the server. Setting
 		// 'onData' to a blank function will swallow all data from the server.
 		let filter = browser.webRequest.filterResponseData(details.requestId)
-		filter.ondata = () => {}
-		filter.onstop = (event: any) => {
+		filter.ondata = () => {
+			// By setting 'ondata' to the emtpy function, we effectively ensure
+			// that none of the data will be processed.
+		}
+		filter.onstop = () => {
 			authPagePromise.then((result: requestOverrideResponse) => {
 				filter.write(result.body)
 				filter.close()

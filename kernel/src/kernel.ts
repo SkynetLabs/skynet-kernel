@@ -71,7 +71,7 @@ import { moduleQuery, presentSeedData } from "libkmodule"
 // kernel while informing applications about the auth state of the kernel.
 //
 // The kernel is encouraged to overwrite these functions with new values.
-declare var handleMessage: Function
+declare var handleIncomingMessage: Function
 declare var handleSkynetKernelRequestOverride: Function
 declare var handleSkynetKernelProxyInfo: Function
 
@@ -88,7 +88,7 @@ declare var userSeed: Uint8Array
 // At some point we may want something like a capabilities array, but the
 // ecosystem isn't mature enough to need that.
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.4.2"
+const kernelVersion = "0.5.0"
 
 // defaultMyskyRootModules lists out the set of modules that are allowed to
 // receive the user's MySky root seed by default.
@@ -579,19 +579,21 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		})
 }
 
-// Overwrite the handleMessage function that gets called at the end of the
+// Overwrite the handleIncomingMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
-handleMessage = function (event: any) {
+handleIncomingMessage = function (event: any) {
+	// Ignore all messages from ourself.
+	if (event.source === window) {
+		return
+	}
+
 	// Input validation.
 	if (!("method" in event.data)) {
-		logErr("handleMessage", "kernel request is missing 'method' field")
+		logErr("handleIncomingMessage", "kernel request is missing 'method' field")
 		return
 	}
 	if (!("nonce" in event.data)) {
-		// TODO: Need to figure out why the one thing isn't stringifying
-		// correctly.
-		logErr("handleMessage", "message sent to kernel with no nonce field", JSON.stringify(event.data))
-		logErr("handleMessage", "message sent to kernel with no nonce field", event.data)
+		logErr("handleIncomingMessage", "message sent to kernel with no nonce field", event.data)
 		return
 	}
 

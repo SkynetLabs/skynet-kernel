@@ -6,6 +6,7 @@ import { sha512 } from "../src/sha512.js"
 import { bufToHex, bufToB64 } from "../src/encoding.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
+import { tryStringify } from "../src/stringifytry.js"
 
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
@@ -315,6 +316,50 @@ function TestSkylinkV1Bitfield(t: any) {
 	}
 }
 
+// TestTryStringify will attempt to stringify various objects and check that
+// the expected results are returned.
+function TestTryStringify(t: any) {
+	// Try undefined and null.
+	let undefinedVar
+	if (tryStringify(undefinedVar) !== "[cannot stringify undefined input]") {
+		t.fail("bad stringify on undefined object")
+		return
+	}
+	let nullVar = null
+	if (tryStringify(nullVar) !== "[null]") {
+		t.fail("bad stringify on null object")
+		return
+	}
+
+	// Try a string.
+	if (tryStringify("asdf") !== "asdf") {
+		t.fail("bad stringify on string input")
+		return
+	}
+	let strVar = "asdfasdf"
+	if (tryStringify(strVar) !== "asdfasdf") {
+		t.fail("bad stringify on string var")
+		return
+	}
+
+	// Try an object.
+	let objVar = { a: "b", b: 7 }
+	if (tryStringify(objVar) !== '{"a":"b","b":7}') {
+		t.fail("bad strinigfy on string var")
+		console.error(tryStringify(objVar))
+		return
+	}
+
+	// Try an object with a defined toString
+	objVar.toString = function () {
+		return "b7"
+	}
+	if (tryStringify(objVar) !== "b7") {
+		t.fail("toString is not being called")
+		return
+	}
+}
+
 // TestMyskyEquivalence is a test that checks that the way libskynet derives
 // the mysky seed for a user matches the code that derived a mysky seed for a
 // user in skynet-mysky. Following the test are some unique dependencies so
@@ -357,27 +402,27 @@ function TestMyskyEquivalence(t: any) {
 	}
 }
 import nacl from "tweetnacl"
-const SALT_ROOT_DISCOVERABLE_KEY = "root discoverable key";
+const SALT_ROOT_DISCOVERABLE_KEY = "root discoverable key"
 function genKeyPairFromSeed(seed: Uint8Array) {
-  const hash = hashWithSalt(seed, SALT_ROOT_DISCOVERABLE_KEY);
-  return genKeyPairFromHash(hash);
+	const hash = hashWithSalt(seed, SALT_ROOT_DISCOVERABLE_KEY)
+	return genKeyPairFromHash(hash)
 }
 function hashWithSalt(message: Uint8Array, salt: string): Uint8Array {
-  return s512(new Uint8Array([...s512(salt), ...s512(message)]));
+	return s512(new Uint8Array([...s512(salt), ...s512(message)]))
 }
 function s512(message: Uint8Array | string): Uint8Array {
-  if (typeof message === "string") {
-    return nacl.hash(stringToUint8ArrayUtf8(message));
-  }
-  return nacl.hash(message);
+	if (typeof message === "string") {
+		return nacl.hash(stringToUint8ArrayUtf8(message))
+	}
+	return nacl.hash(message)
 }
 function stringToUint8ArrayUtf8(str: string) {
 	return Uint8Array.from(Buffer.from(str, "utf-8"))
 }
 function genKeyPairFromHash(hash: Uint8Array) {
-  const hashBytes = hash.slice(0, 32);
-  const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes)
-  return [publicKey, secretKey]
+	const hashBytes = hash.slice(0, 32)
+	const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes)
+	return [publicKey, secretKey]
 }
 
 runTest(TestGenerateSeedPhraseDeterministic)
@@ -385,6 +430,7 @@ runTest(TestEd25519)
 runTest(TestRegistry)
 runTest(TestValidateSkyfilePath)
 runTest(TestSkylinkV1Bitfield)
+runTest(TestTryStringify)
 runTest(TestMyskyEquivalence)
 
 console.log()
