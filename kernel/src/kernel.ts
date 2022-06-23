@@ -421,13 +421,7 @@ function createModule(workerCode: Uint8Array, domain: string): [module, error] {
 	}
 
 	// Check if the module is on the whitelist to receive the mysky seed.
-	let sendMyskyRoot = false
-	for (let i = 0; i < defaultMyskyRootModules.length; i++) {
-		if (domain === defaultMyskyRootModules[i]) {
-			sendMyskyRoot = true
-			break
-		}
-	}
+	let sendMyskyRoot = defaultMyskyRootModules.includes(domain)
 
 	// Send the seed to the module.
 	let path = "moduleSeedDerivation" + domain

@@ -1,10 +1,14 @@
 {
-	"name": "libskynet",
+	"name": "@skynetlabs/libskynet",
 	"version": "0.0.48",
+	"author": "Skynet Labs",
 	"description": "helper library to interact with skynet's low level primitives",
 	"main": "dist/index.js",
 	"type": "module",
 	"types": "dist/index.d.js",
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"/dist"
 	],
@@ -15,7 +19,6 @@
 		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/src-test/test.js",
 		"prepare": "npm run lint && npm run test"
 	},
-	"author": "David Vorick",
 	"devDependencies": {
 		"@types/node": "^17.0.23",
 		"@typescript-eslint/eslint-plugin": "^5.19.0",

@@ -1,10 +1,14 @@
 {
-	"name": "libkmodule",
+	"name": "@skynetlabs/libkmodule",
 	"version": "0.2.11",
+	"author": "Skynet Labs",
 	"description": "helper library to interact with the skynet kernel from a module",
 	"main": "dist/index.js",
 	"type": "module",
 	"types": "dist/index.d.js",
+	"publishConfig": {
+		"access": "public"
+	},
 	"files": [
 		"/dist"
 	],
@@ -16,7 +20,6 @@
 		"deps": "npm install libskynet@latest",
 		"prepare": "npm run lint && npm run deps && npm run test"
 	},
-	"author": "David Vorick",
 	"devDependencies": {
 		"@types/node": "^17.0.23",
 		"@typescript-eslint/eslint-plugin": "^5.19.0",
@@ -24,6 +27,6 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.41"
+		"libskynet": "^0.0.48"
 	}
 }

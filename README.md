@@ -39,12 +39,8 @@ creators the moment they join a new application or platform.
 The extension will prevent the web browser from working at all if there is no
 Internet connection. This is medium priority to fix.
 
-When loaded in skt.us, the kernel will reveal information to third parties
-about the user's extension settings. This only happens if the user provided a
-seed to skt.us, but it's still a vulnerability that should be cleaned up.
-
 This browser extension does not work in Chrome. There is a general pessimism
-that getting it to work in chrome is possible.
+that getting it to work in chrome is not possible.
 
 ## Repository Structure
 
@@ -706,70 +702,14 @@ nonce will be ignored or met with an error.
 + Need a specification for the file that loads the user's portal preferences.
   This file should be encrypted and padded.
 
-+ Need some easy way for an application to tell if the user is logged in
-
 + We should add a version number for loading the user's kernel. v1 means the
   kernel is not encrypted, v2 means the kernel is encrypted. Higher versions
   can be used to indicate that the browser extension is not safe and needs to
   be updated.
 
-+ Modify the set of default portals. Since the user is creating a seed when
-  they first use the kernel, we should be able to support free signup-required
-  portals.
-
 + The registry lookup needs to change the method of signature verification if
   the type is set to '2', we can't blindly assume the portal is malicious just
   because a registry entry is type 2.
 
-+ Update all of the crypto functions so that they can be overwritten by the
-  kernel, and namespace them so they don't get in the way of future cryptos.
-  The annoying thing here is that the crypto libraries use 'var' everywhere
-  instead of 'let', and I'm not completely sure if there are any performance
-  hacks which make use of the general scoping of 'var', so I'm not confident we
-  can blindly transition them all to 'let' declarations.
-
-+ There are places where we could potentially switch the typescript types to be
-  using fixed size arrays, which would eliminate the need for some of the
-  functions to be doing length checking.
-
 + Add UI elements to the extension that allows a user to change the set of
   hardcoded portals which get used to bootstrap the kernel.
-
-+ There are a bunch of places where we are using the 'number' type when we
-  probably should be using the BigInt type. Especially in the trustless pieces
-  of the download code, like with the merkle tree stuff.
-
-## TODO: Full Kernel Roadmap
-
-+ We need to update the progressiveFetch protocol to parse and display the
-  error in the event of a 400 response from the portal. We should probably
-  still assume malice in that case but at the very least we want to relay the
-  error back to the user in case it's a genuine problem with the applicaiton.
-
-+ We need to update the progressiveFetch API so that in the event of a
-  malicious portal (or even a dysfuncitonal one), we can track that portal for
-  the given API endpoint. This includes changing the way we handle the catch for
-  5XX calls, because the caller needs to know that one of the portals failed...
-
-+ The downloadSkylink call needs to be extended so that it can verify large
-  file downloads on top of small file downloads. This should probably happen in
-  the full kernel, and we should probably avoid any situation where the full
-  kernel gets to be more than what can fit in a standard base sector. At roughly
-  4 MB in size, we should be able to avoid having the kernel get larger.
-
-+ Create all of the overwrites in the kernel to replace the default functions
-  loaded by the extension. We want to make sure that the user gets a consistent
-  experience, and we don't trust all browser extensions to use exactly the same
-  default functions.
-
-+ Adjust the log function so that it's not using localStorage
-
-+ Create an API in the kernel for changing the logging settings.
-
-+ Either the progressiveFetch or the download+registry calls need to be updated
-  so that they correctly manage 429 responses. Probably do it at the
-  download/registry level, as the best behavior might be different depending on
-  request type.
-
-+ update the 'skynetKernelLoaded' message to include the user's pubkey if they
-  have successfully logged in.
