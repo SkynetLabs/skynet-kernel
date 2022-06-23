@@ -1,0 +1,11 @@
+{
+	"compilerOptions": {
+		"target": "esnext",
+		"declaration": true,
+		"moduleResolution": "node",
+		"outDir": "./build",
+		"strict": true
+	},
+	"include": ["src"],
+	"exclude": ["node_modules", "**/__tests__/*"]
+}

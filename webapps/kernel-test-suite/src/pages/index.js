@@ -28,6 +28,7 @@ function nextTest() {
 // Real modules that we use during testing.
 const kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g";
 const helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA";
+const myskyModule = "IABOv7_dkJwtuaFBeB6eTR32mSvtLsBRVffEY9yYL0v0rA"
 
 // Fake modules to check error conditions.
 const moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo9no3XJpUydcDCjw7VJy8lG1MCZ3g";
@@ -167,6 +168,20 @@ function TestModulePresentSeed() {
         reject("expecting an error for using a forbidden method");
       });
   });
+}
+
+// TestModuleMyskySeed messages a special module designed to receive the mysky
+// kepair and verify that it's a valid keypair.
+function TestModuleMyskySeed() {
+	return new Promise((resolve, reject) => {
+		kernel.callModule(myskyModule, "confirmMyskyRoot", {}).then(([data, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			resolve(data)
+		})
+	})
 }
 
 // TestModuleQueryKernel opens a query with the test module that has the test
@@ -828,7 +843,7 @@ function TestModuleSpeedParallel20k() {
   });
 }
 
-// TestModuleHasErrors asks the TestModule whether it has encountered any
+// TestModuleHasErrors asks the test module whether it has encountered any
 // errors during the test cycle.
 function TestModuleHasErrors() {
   return new Promise((resolve, reject) => {
@@ -852,8 +867,7 @@ function TestModuleHasErrors() {
   });
 }
 
-// Check whether any errors showed up in the helper module of the testing
-// module.
+// Check whether any errors showed up in the helper module.
 function TestHelperModuleHasErrors() {
   return new Promise((resolve, reject) => {
     kernel.callModule(helperModule, "viewErrors", {}).then(([data, err]) => {
@@ -872,6 +886,29 @@ function TestHelperModuleHasErrors() {
         return;
       }
       resolve("helper module did not accumulate any errors");
+    });
+  });
+}
+
+// Check whether any errors showed up in the mysky module.
+function TestMyskyModuleHasErrors() {
+  return new Promise((resolve, reject) => {
+    kernel.callModule(myskyModule, "viewErrors", {}).then(([data, err]) => {
+      if (err !== null) {
+        reject(err);
+        return;
+      }
+      if (!("errors" in data)) {
+        reject("viewErrors in mysky module did not return a data.errors");
+        return;
+      }
+      if (data.errors.length !== 0) {
+        reject(
+          "mysky module has acculumated errors: " + JSON.stringify(data.errors)
+        );
+        return;
+      }
+      resolve("mysky module did not accumulate any errors");
     });
   });
 }
@@ -1019,6 +1056,11 @@ const IndexPage = () => {
         turn={getTurn()}
       />
       <TestCard
+        name="TestModuleMyskySeed"
+        test={TestModuleMyskySeed}
+        turn={getTurn()}
+      />
+      <TestCard
         name="TestModuleQueryKernel"
         test={TestModuleQueryKernel}
         turn={getTurn()}
@@ -1107,6 +1149,11 @@ const IndexPage = () => {
       <TestCard
         name="TestHelperModuleHasErrors"
         test={TestHelperModuleHasErrors}
+        turn={getTurn()}
+      />
+      <TestCard
+        name="TestMyskyModuleHasErrors"
+        test={TestMyskyModuleHasErrors}
         turn={getTurn()}
       />
     </main>

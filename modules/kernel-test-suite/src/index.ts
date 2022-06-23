@@ -80,6 +80,14 @@ onmessage = function (event: MessageEvent) {
 		return
 	}
 
+	// Check for mysky root in presentSeed - the test module is not supposed to
+	// have access to the mysky seed.
+	if (event.data.method === "presentSeed") {
+		if (event.data.data.myskyRootKeypair !== undefined) {
+			errors.push("received a presentSeed with the mysky root")
+		}
+	}
+
 	// Pass what remains to the router.
 	handleMessage(event)
 }

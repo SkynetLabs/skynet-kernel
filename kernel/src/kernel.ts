@@ -92,7 +92,10 @@ const kernelVersion = "0.5.0"
 
 // defaultMyskyRootModules lists out the set of modules that are allowed to
 // receive the user's MySky root seed by default.
-const defaultMyskyRootModules = ["AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ"]
+const defaultMyskyRootModules = [
+	"AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ", // Resolver link for Redsolver's Mysky Module
+	"IABOv7_dkJwtuaFBeB6eTR32mSvtLsBRVffEY9yYL0v0rA", // Immutable link for the mysky test module
+]
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
