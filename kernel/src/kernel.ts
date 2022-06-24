@@ -18,40 +18,6 @@ import {
 } from "libskynet"
 import { moduleQuery, presentSeedData } from "libkmodule"
 
-// TODO: Need to make sure the portal module is setting the field that the
-// bootloader uses to get the user's default set of portals to use for
-// bootloading. The bootloader will probably need to be updated to decrypt API
-// keys that the user has with the portal.
-
-// TODO: Need to figure out some way to avoid race conditions when a module is
-// upgrading itself. The potential race is that an RPC gets called on the
-// module in the middle of a module upgrade. There might also be codependent
-// calls happening. Module A calls B, which calls A again. We don't want the
-// first call to have a different version than the second call. At least, I
-// don't think.
-
-// TODO: We are going to need to implement an upgrade procedure for modules so
-// that they have some way to lock others out of accessing the data while a
-// transformation operation is being performed. This is a bit of a distributed
-// systems issue because we **will** have multiple modules from multiple
-// machines all getting the upgrade at once, and you probably only want one of
-// them performing any operations on the data. You need a way to tell that one
-// of the transformations has failed or only made partial progress, you need a
-// way to pause everyone else while the transformer is going, you need a way to
-// isolate the transformation so you can start over if it fails or corrupts.
-
-// TODO: One of the consistency errors that we could run into when upgrading
-// the kernel is having two windows open on different devices that are each
-// running different versions of the kernel. That could cause data corruption
-// and inconsistency if they aren't coordinating around the upgrade together
-// effectively.
-
-// TODO: Need our workers to auto-update when new code is shipped.
-
-// TODO: Need to set up a system for tracking the number of workers that we
-// have open and deciding when to terminate workers when we reach some
-// threshold of "too many".
-
 // TODO: Need some way to control the total number of queries that are open so
 // that we don't leak memory. This needs to be handled at all layers where a
 // query map exists. This gets tricky when you have multiple layers of queries
@@ -59,12 +25,6 @@ import { moduleQuery, presentSeedData } from "libkmodule"
 // moduleCall, which means the kernel also has a query going to the worker. We
 // need to make sure that the worker query fails eventually, and we also need
 // to make sure that when it does fail we close out the webapp query as well.
-
-// TODO: We need to make a sort of task manager app to kill workers. As far as
-// I know though there's no easy way to tell how much memory and cpu each
-// worker is consuming.
-
-// TODO: Need some better fix for the 'var queries = {} as any' line
 
 // These three functions are expected to have already been declared by the
 // bootloader. They are necessary for getting started and downloading the
@@ -88,7 +48,7 @@ declare var userSeed: Uint8Array
 // At some point we may want something like a capabilities array, but the
 // ecosystem isn't mature enough to need that.
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.5.0"
+const kernelVersion = "0.5.2"
 
 // defaultMyskyRootModules lists out the set of modules that are allowed to
 // receive the user's MySky root seed by default.
@@ -151,11 +111,21 @@ function logErr(tag: string, ...inputs: any) {
 var queriesNonce = 0
 var queries = {} as any
 var modules = {} as any
+var modulesLoading = {} as any
+var notableErrors: string[] = []
 let waitTime = 30000
 function logLargeObjects() {
 	let queriesLenStr = Object.keys(queries).length.toString()
 	let modulesLenStr = Object.keys(modules).length.toString()
-	log("open queries :: open modules : " + queriesLenStr + " :: " + modulesLenStr)
+	let modulesLoadingLenStr = Object.keys(modulesLoading).length.toString()
+	log(
+		"open queries :: open modules :: modules loading : " +
+			queriesLenStr +
+			" :: " +
+			modulesLenStr +
+			" :: " +
+			modulesLoadingLenStr
+	)
 	waitTime *= 1.25
 	setTimeout(logLargeObjects, waitTime)
 }
@@ -544,11 +514,25 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		return
 	}
 
-	// TODO: Check localStorage for the module.
+	// Check if another thread is already fetching the module.
+	if (moduleDomain in modulesLoading) {
+		let p = modulesLoading[moduleDomain]
+		p.then((errML: error) => {
+			if (errML !== null) {
+				respondErr(event, messagePortal, isWorker, addContextToErr(errML, "module could not be loaded"))
+				return
+			}
+			let module = modules[moduleDomain]
+			newModuleQuery(module)
+		})
+	}
 
-	// Download the code for the worker.
-	downloadSkylink(finalModule)
-		.then(([moduleData, errDS]) => {
+	// Create a promise that will resolve when the module has been fetched.
+	let moduleLoadedPromise = new Promise((resolve) => {
+		// TODO: Check localStorage for the module.
+
+		// Download the code for the worker.
+		downloadSkylink(finalModule).then(([moduleData, errDS]) => {
 			// TODO: Save the result to localStorage. Can't do that until
 			// subscriptions are in place so that localStorage can sync
 			// with any updates from the remote module.
@@ -556,6 +540,8 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 			// Check for a 404.
 			if (errDS === "404") {
 				respondErr(event, messagePortal, isWorker, "could not load module, received 404")
+				resolve("received 404")
+				delete modulesLoading[moduleDomain]
 				return
 			}
 
@@ -563,17 +549,30 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 			let [module, errCM] = createModule(moduleData, moduleDomain)
 			if (errCM !== null) {
 				respondErr(event, messagePortal, isWorker, addContextToErr(errCM, "unable to create module"))
+				resolve(errCM)
+				delete modulesLoading[moduleDomain]
 				return
 			}
 
-			// Add the module to the list of modules.
+			// Check that some parallel process didn't already create the
+			// module. We only want one module running at a time.
+			if (moduleDomain in modules) {
+				// Though this is an error, we do already have the module so we
+				// use the one we already loaded.
+				logErr("a module that was already loaded has been loaded")
+				notableErrors.push("module loading experienced a race condition")
+				let module = modules[moduleDomain]
+				newModuleQuery(module)
+				resolve(null)
+				return
+			}
 			modules[moduleDomain] = module
 			newModuleQuery(module)
+			resolve(null)
+			delete modulesLoading[moduleDomain]
 		})
-		.catch((err) => {
-			logErr("moduleCall", "unable to download module", err)
-			respondErr(event, messagePortal, isWorker, "unable to download module: " + err)
-		})
+	})
+	modulesLoading[moduleDomain] = moduleLoadedPromise
 }
 
 // Overwrite the handleIncomingMessage function that gets called at the end of the
@@ -608,7 +607,24 @@ handleIncomingMessage = function (event: any) {
 				data: {
 					distribution: kernelDistro,
 					version: kernelVersion,
-					err: null,
+				},
+			},
+			event.origin
+		)
+		return
+	}
+
+	// Establish a debugging handler to return any noteworthy errors that the
+	// kernel has encountered. This is mainly intended to be used by the test
+	// suite.
+	if (event.data.method === "checkErrs") {
+		event.source.postMessage(
+			{
+				nonce: event.data.nonce,
+				method: "response",
+				err: null,
+				data: {
+					errs: notableErrors,
 				},
 			},
 			event.origin

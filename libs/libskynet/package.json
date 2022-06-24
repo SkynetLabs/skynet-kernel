@@ -1,5 +1,5 @@
 {
-	"name": "@skynetlabs/libskynet",
+	"name": "libskynet",
 	"version": "0.0.48",
 	"author": "Skynet Labs",
 	"description": "helper library to interact with skynet's low level primitives",

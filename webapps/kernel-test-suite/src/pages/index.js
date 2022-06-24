@@ -69,6 +69,47 @@ function TestGetKernelVersion() {
   });
 }
 
+// TestModuleLoadingRace will load the tester module multiple times to see if
+// there's a race condition where loading the same module multiple times all in
+// a row causes a race.
+//
+// NOTE: This method needs to run first, before anything else runs.
+function TestModuleLoadingRace() {
+	return new Promise((resolve, reject) => {
+		let promises = []
+		for (let i = 0; i < 10; i++) {
+			let p = kernel.callModule(kernelTestSuite, "viewSeed", {})
+			promises.push(p)
+		}
+		Promise.all(promises).then((results) => {
+			for (let i = 0; i < results.length; i++) {
+				let err = results[i][1]
+				if (err !== null) {
+					reject(err)
+					return
+				}
+			}
+
+			// Run the query again to make sure cleanup is working.
+			promises = []
+			for (let i = 0; i < 10; i++) {
+				let p = kernel.callModule(kernelTestSuite, "viewSeed", {})
+				promises.push(p)
+			}
+			Promise.all(promises).then((results) => {
+				for (let i = 0; i < results.length; i++) {
+					let err = results[i][1]
+					if (err !== null) {
+						reject(err)
+						return
+					}
+				}
+				resolve("race conditions initially okay, need to check checkErrs on the kernel")
+			})
+		})
+	})
+}
+
 // TestModuleHasSeed checks that the test module was given a seed by the
 // kernel. This is one of the fundamental priveledges of being a kernel module:
 // receiving a secure and unique seed for module-specific user data.
@@ -913,6 +954,28 @@ function TestMyskyModuleHasErrors() {
   });
 }
 
+// Check whether any errors showed up in the kernel.
+function TestKernelHasErrors() {
+	return new Promise((resolve, reject) => {
+		let [, query] = kernel.newKernelQuery("version", {}, false)
+		query.then(([result, err]) => {
+			if (err !== null) {
+				reject(err)
+				return
+			}
+			if (!("errs" in result)) {
+				reject(result)
+				return
+			}
+			if (result.errs.length !== 0) {
+				reject(result.errs)
+			}
+			return
+		})
+		resolve("no errors in kernel")
+	})
+}
+
 // TestCard is a react component that runs a test and reports the result.
 function TestCard(props) {
   const [testStatus, setTestStatus] = React.useState("test is waiting");
@@ -1028,6 +1091,11 @@ const IndexPage = () => {
       <TestCard
         name="TestGetKernelVersion"
         test={TestGetKernelVersion}
+        turn={getTurn()}
+      />
+      <TestCard
+        name="TestModuleLoadingRace"
+        test={TestModuleLoadingRace}
         turn={getTurn()}
       />
       <TestCard
@@ -1154,6 +1222,11 @@ const IndexPage = () => {
       <TestCard
         name="TestMyskyModuleHasErrors"
         test={TestMyskyModuleHasErrors}
+        turn={getTurn()}
+      />
+      <TestCard
+        name="TestKernelHasErrors"
+        test={TestKernelHasErrors}
         turn={getTurn()}
       />
     </main>

@@ -234,6 +234,7 @@ function messageBridge() {
 		kernelSource = window
 		kernelOrigin = window.origin
 		kernelAuthLocation = "http://kernel.skynet/auth.html"
+		console.log("established connection to bridge, using browser extension for kernel")
 	})
 
 	// Add the handler to the queries map.

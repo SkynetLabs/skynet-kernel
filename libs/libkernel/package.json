@@ -1,6 +1,6 @@
 {
-	"name": "@skynetlabs/libkernel",
-	"version": "0.1.38",
+	"name": "libkernel",
+	"version": "0.1.41",
 	"author": "Skynet Labs",
 	"description": "helper library to interact with skynet and the skynet kernel",
 	"main": "dist/index.js",
@@ -26,6 +26,7 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
+		"@skynetlabs/libskynet": "^0.0.48",
 		"libskynet": "^0.0.19"
 	}
 }

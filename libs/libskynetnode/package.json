@@ -1,6 +1,6 @@
 {
-	"name": "@skynetlabs/libskynetnode",
-	"version": "0.1.2",
+	"name": "libskynetnode",
+	"version": "0.1.3",
 	"author": "Skynet Labs",
 	"description": "libksynet, but the non-isomorphic functions are written for node instead of the browser",
 	"main": "dist/index.js",
