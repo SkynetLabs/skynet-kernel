@@ -487,12 +487,12 @@ function TestOTPEncrypt(t: any) {
 
 // TestOTPEncryptSpeed measures the performance of encrypting a 20 MB file using otpEncrypt.
 function TestOTPEncryptSpeed(t: any) {
+	let key = new TextEncoder().encode("any key")
+	let data = new Uint8Array(20 * 1024 * 1024)
 	let start = performance.now()
-	let data = new Uint8Array(20000000)
-	let key = sha512(data)
 	otpEncrypt(key, data)
 	let total = performance.now() - start
-	t.log("milliseconds to encrypt 20 MB:", total)
+	t.log("milliseconds to encrypt 20 MiB:", total)
 }
 
 // TestPaddedFileSize checks that files are being suggested the correct amount

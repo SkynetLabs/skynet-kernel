@@ -6,6 +6,173 @@ import { sha512 } from "./sha512.js"
 import { jsonStringify } from "./stringifyjson.js"
 import { error } from "./types.js"
 
+// decryptFile will decrypt a file that was encrypted by encryptFile. The input
+// is the seed, the inode, and the encrypted data. The output will be the
+// metadata and the filedata. The metadata will be presented as an object.
+//
+// WARNING: The fullData is decrypted in-place, and the fileData is provided as
+// a slice of the fullData.
+function decryptFile(seed: Uint8Array, inode: string, fullData: Uint8Array): [metadata: any, fileData: Uint8Array, err: error] {
+	// Create the encryption key.
+	let truncHash = fullData.slice(0, 16)
+	let encryptionTag = new TextEncoder().encode(":encryptionTag:" + inode)
+	let keyPreimage = new Uint8Array(seed.length + truncHash.length + encryptionTag.length)
+	keyPreimage.set(seed, 0)
+	keyPreimage.set(truncHash, seed.length)
+	keyPreimage.set(encryptionTag, seed.length+truncHash.length)
+	let encryptionKey = sha512(keyPreimage).slice(0, 16)
+
+	// Perform the decryption. otpEncrypt is just a fancy XOR, so it can be
+	// called for decryption.
+	otpEncrypt(encryptionKey, fullData.slice(16, fullData.length))
+
+	// Verify that the decryption was correct. We can verify it by hashing the
+	// decrypted data and comparing it to the truncHash.
+	let verify = sha512(fullData.slice(16, fullData.length))
+	for (let i = 0; i < 16; i++) {
+		if (verify[i] !== truncHash[i]) {
+			return [{}, new Uint8Array(0), "decryption key appears to be incorrect"]
+		}
+	}
+
+	// Pull out the length prefixes for the metadata and data.
+	let [metadataBI, errDU641] = decodeU64(fullData.slice(24, 32))
+	if (errDU641 !== null) {
+		return [{}, new Uint8Array(0), addContextToErr(errDU641, "unable to decode metadata length")]
+	}
+	let metadataLen = Number(metadataBI)
+	let [fileDataBI, errDU642] = decodeU64(fullData.slice(32, 40))
+	if (errDU642 !== null) {
+		return [{}, new Uint8Array(0), addContextToErr(errDU642, "unable to decode file data length")]
+	}
+	let fileDataLen = Number(fileDataBI)
+
+	// Parse the metadata into an object. Note that parseJSON will read all
+	// incoming numbers as bigints.
+	let [metadata, errPJ] = parseJSON(fullData.slice(40, 40+metadataLen))
+	if (errPJ !== null) {
+		return [{}, new Uint8Array(0), addContextToErr(errPJ, "unable to parse metadata")]
+	}
+
+	// Extract the fileData and return
+	let fileData = fullData.slice(40+metadatLen, 40+metadataLen+fileDataLen)
+	return [metadata, fileData, null]
+}
+
+// encryptFile takes a seed, an inode, a revision number, the file metadata,
+// and the filedata and then produces an encrypted bundle that contains all of
+// the information. The output is a securely encrypted file that is protected
+// from a wide variety of privacy attacks.
+//
+// The revision number is part of the encryption key derivation. This is useful
+// because it means a user can frequently update a file, and an attacker cannot
+// tell if a user has reverted a file to a previous state. This type of
+// protection is particularly important for metadata encryption, as metadata
+// often updates in predicatable ways.
+//
+// encryptFile will also pad the file out by up to 10%, padding the file to a
+// standard boundary determined by 'getPaddedFileSize'. This protects the user
+// against attacks which learn information based on the size of files.
+//
+// There is an optional argument 'minFullSize' which can be provided to ensure
+// a padded file does not shrink between versions. This is important for files
+// that may be close to a padding boundary (for example, files that are around
+// 4000 bytes) - if you are close to a padding boundary, you may oscillate
+// between file sizes in a way that leaks information to an attacker. By
+// providing a minimum size (the largest size the file has ever been is what we
+// recommend), you protect against oscillations and avoid leaking information
+// to an attacker.
+//
+// It is recommended that the metadata contain a filename, and the filename
+// does not need to match the inode string.
+//
+// The file will be able to be decrypted by providing the encrypted data, the
+// seed, and the inode.
+//
+// NOTE: All numbers in the metadata will be decoded as BigInts.
+function encryptFile(seed: Uint8Array, inode: string, revision: bigint, metadata: any, fileData: Uint8Array, minFullSize?: number): [encryptedData: Uint8Array, err: error] {
+	// Get a json encoding of the metadata. We need to know the size of the
+	// metadata before allocating the full data for the file.
+	let [metadataStr, errJS] = jsonStringify(metadata)
+	if (errJS !== null) {
+		return [new Uint8Array(0), addContextToErr(errJS, "unable to stringify the metadata")]
+	}
+	let metadataBytes = new TextEncoder().encode(metadataStr)
+
+	// Establish the size of the raw file. There's 16 bytes for the hash of the
+	// data, then 8 bytes to establish the length of the metadata, then 8 bytes
+	// to establish the length of the file data, then the metadata itself, then
+	// the file data itself.
+	//
+	// The hash includes the revision, the two length prefixes, all of the
+	// metadataBytes and the file data bytes as well.
+	//
+	// The hash only needs to be 16 bytes because we don't need collision
+	// resistance. A collision is only possible to create by someone who knows
+	// the secret that will be used with the hash to create the encryption key,
+	// and if they know the secret they can decrypt the full file anyway.
+	let rawSize = 16+8+8+8+metadataBytes.length+fileData.length
+
+	// Get the padded size of the file and create the full data array. If a
+	// minFullSize has been passed in by the caller, ensure that the fullData
+	// is at least as large as the minFullSize.
+	let paddedSize = getPaddedFileSize(rawSize)
+	if (minFullSize !== undefined && paddedSize < minFullSize) {
+		paddedSize = getPAddedFileSize(minFullSize)
+	}
+	let fullData = new Uint8Array(paddedSize)
+
+	// Create the prefixes that we need for the full data. This includes the
+	// revision number, because the revision number is used as an extra step of
+	// protection for the user. If the user updates their file to a new
+	// version, then switches back to an old version of the file, an onlooker
+	// will not be able to determine that the file has been reverted to a prior
+	// state.
+	let [encodedRevision, errEU643] = encodeU64(revision)
+	if (errEU643 !== null) {
+		return [new Uint8Array(), addContextToErr(errEU643, "unable to encode revision number")]
+	}
+	let [encodedMetadataSize, errEU642]  = encodeU64(BigInt(metadataBytes.length))
+	if (errEU642 !== null) {
+		return [new Uint8Array(), addContextToErr(errEU642, "unable to encode metadata size")]
+	}
+	let [encodedFileSize, errEU641] = encodeU64(BigInt(fileData.length))
+	if (errEU641 !== null) {
+		return [new Uint8Array(), addContextToErr(errEU641, "unable to encode file data size")]
+	}
+
+	// Fill out the fullData so that it can be hashed.
+	fullData.set(encodedRevision, 16)
+	fullData.set(encodedMetadataSize, 24)
+	fullData.set(encodedFileSize, 32)
+	fullData.set(metadataBytes, 40)
+	fullData.set(fileData, 40+metadataBytes.length)
+
+	// Get the hash of the full data and set it in the metadata.
+	let fullHash = sha512(fullData.slice(16, fullData.length))
+	let trucHash = fullHash.slice(0, 16)
+	fullData.set(truncHash, 0)
+
+	// Create the encryption key. We need to use the seed, the inode, and the
+	// truncHash. The truncHash includes the revision thus the revision will
+	// change the encryption key. Similarly, any change to the metadata or file
+	// data will also change the encryption key.
+	let encryptionTag = new TextEncoder().encode(":encryptionTag:" + inode)
+	let keyPreimage = new Uint8Array(seed.length + truncHash.length + encryptionTag.length)
+	keyPreimage.set(seed, 0)
+	keyPreimage.set(truncHash, seed.length)
+	keyPreimage.set(encryptionTag, seed.length+truncHash.length)
+	let encryptionKey = sha512(keyPreimage).slice(0, 16)
+
+	// Encrypt the file. Don't encrypt the truncHash, which needs to be visible
+	// to decrypt the file. The truncHash is just random data, and is not
+	// useful without the seed, and therefore is safe to leave as-is.
+	otpEncrypt(encryptionKey, fullData.slice(16, fullData.length))
+
+	// Return the encrypted data.
+	return [fullData, null]
+}
+
 // getPaddedFileSize will pad the file out to a common filesize, to prevent
 // onlookers from learning about the file based on the file's size.
 //
@@ -42,93 +209,13 @@ function getPaddedFileSize(originalSize: number): number {
 	return finalSize
 }
 
-// saveFile takes a seed, an inode, and the fileData and then saves the file to
-// Skynet.
-//
-// The seed will be used to determine the privacy. The inode is used for
-// derivation - all files that use the same seed and inode will result in the
-// same resolver link.
-//
-// The revision number is required to ensure that data isn't overwritten
-// unintentionally. The caller needs to supply a revision number to show they
-// know what data they are expecting to overwrite.
-//
-// The metadata should contain a filename. If no filename is provided, the
-// inode name will be used, however the inode name is not intended to always
-// match the filename. By keeping the inode distinct, the file can be renamed
-// without having to change its resolver link.
-//
-// TODO: You didn't provide any way to tell if decryption key is correct. I
-// guess actually we should just be able to derive the tweak and know from
-// that.
-function saveFile(seed: Uint8Array, inode: string, revision: bigint, metadata: any, fileData: Uint8Array): error {
+/*
 	// Derive the registry entry keys. The registry entry keys need to be
 	// derived based solely on the seed and the inode.
 	let [keypair, datakey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
 	if (errTREK !== null) {
 		return addContextToErr(errTREK, "unable to derive registry entry keys")
 	}
+*/
 
-	// Get a json encoding of the metadata.
-	let [metadataStr, errJS] = jsonStringify(metadata)
-	if (errJS !== null) {
-		return addContextToErr(errJS, "unable to stringify the metadata")
-	}
-	let metadataBytes = new TextEncoder().encode(metadataStr)
-
-	// Create the array that will contain the full padded file. The full padded
-	// file will need to have the file data, the metadata, a size for each, and
-	// then a unique 16 byte prefix which will be used to tweak the encryption
-	// key.
-	//
-	// Tweaking the encryption key is necessary because the encryption we use
-	// functions like a one-time-pad - if different data gets encrypted, the
-	// key needs to be entirely altered. We get the encryption key tweak by
-	// hashing the full padded file, which will include the revision number
-	// stashed in front.
-	let rawSize = fileData.length+metadataBytes.length+16+8+8
-	let paddedSize = getPaddedFileSize(rawSize)
-	let fullData = new Uint8Array(paddedSize)
-	let [encodedFileSize, errEU641] = encodeU64(BigInt(fileData.length))
-	if (errEU641 !== null) {
-		return addContextToErr(errEU641, "unable to encode file data size")
-	}
-	let [encodedMetadataSize, errEU642]  = encodeU64(BigInt(metadataBytes.length))
-	if (errEU642 !== null) {
-		return addContextToErr(errEU642, "unable to encode metadata size")
-	}
-	let [encodedRevision, errEU643] = encodeU64(revision)
-	if (errEU643 !== null) {
-		return addContextToErr(errEU643, "unable to encode revision number")
-	}
-	fullData.set(encodedRevision, 0)
-	fullData.set(encodedFileSize, 16) // revision is hiding where the tweak will go, so we need to leave 16 bytes
-	fullData.set(encodedMetadataSize, 24)
-	fullData.set(metadataBytes, 32)
-	fullData.set(fileData, 32+metadataBytes.length)
-
-	// Create the encryption tweak and place it at the front of the fullData.
-	let fileHash = sha512(fullData)
-	let tweak = fileHash.slice(0, 16)
-	fullData.set(tweak, 0)
-
-	// Add the encryption. The revision number is used to derive the encryption
-	// key to minimize the chance of key reuse as files get modified.
-	let encryptionTag = new TextEncoder().encode(" encryption " + inode)
-	let preimage = new Uint8Array(seed.length + encryptionTag.length + tweak.length)
-	preimage.set(seed, 0)
-	preimage.set(encryptionTag, seed.length)
-	preimage.set(tweak, seed.length + encryptionTag.length)
-	let encryptionKey = sha512(preimage).slice(0, 16)
-
-	// Encrypt the file.
-	otpEncrypt(encryptionKey, fullData.slice(16, fullData.length))
-
-	// TODO: Upload the file.
-
-	// TODO: Update the registry entry.
-
-	return null
-}
-
-export { getPaddedFileSize, saveFile }
+export { decryptFile, encryptFile, getPaddedFileSize }
