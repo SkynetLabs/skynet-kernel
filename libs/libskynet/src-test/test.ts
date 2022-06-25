@@ -1,5 +1,7 @@
 import { dictionary } from "../src/dictionary.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
+import { otpEncrypt } from "../src/encrypt.js"
+import { getPaddedFileSize } from "../src/fileprivate.js"
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
@@ -425,6 +427,124 @@ function genKeyPairFromHash(hash: Uint8Array) {
 	return [publicKey, secretKey]
 }
 
+// TestOTPEncrypt checks that the otpEncrypt function is performant and appears
+// to actually be encrypting things.
+function TestOTPEncrypt(t: any) {
+	// Perform a basic encryption and ensure that the data changes.
+	let initialData1 = new TextEncoder().encode("this is a test string to encrypt")
+	let initialData2 = new TextEncoder().encode("this is a test string to encrypt")
+	let key1 = sha512(new TextEncoder().encode("this is a key preimage"))
+	let key2 = sha512(new TextEncoder().encode("this is a different key preimage"))
+	t.log("before encrypt:", bufToHex(initialData2))
+	otpEncrypt(key1, initialData2)
+	t.log("after encrypt: ", bufToHex(initialData2))
+	if (initialData1.length !== initialData2.length) {
+		t.fail("encrypted file did not keep the same size")
+		return
+	}
+	let different = false
+	for (let i = 0; i < initialData1.length; i++) {
+		if (initialData1[i] !== initialData2[i]) {
+			different = true
+			break
+		}
+	}
+	if (different === false) {
+		t.fail("encryption did not change the data")
+		return
+	}
+
+	// Check that decryption works.
+	otpEncrypt(key1, initialData2)
+	different = false
+	for (let i = 0; i < initialData1.length; i++) {
+		if (initialData1[i] !== initialData2[i]) {
+			different = true
+			break
+		}
+	}
+	if (different !== false) {
+		t.fail("decryption did not bring us back to the original data")
+		return
+	}
+
+	// Check that encrypting with a different key will give a different data.
+	otpEncrypt(key1, initialData1)
+	otpEncrypt(key2, initialData2)
+	t.log("different key: ", bufToHex(initialData2))
+	different = false
+	for (let i = 0; i < initialData1.length; i++) {
+		if (initialData1[i] !== initialData2[i]) {
+			different = true
+			break
+		}
+	}
+	if (different === false) {
+		t.fail("using a different key did not yield different data")
+		return
+	}
+}
+
+// TestOTPEncryptSpeed measures the performance of encrypting a 20 MB file using otpEncrypt.
+function TestOTPEncryptSpeed(t: any) {
+	let start = performance.now()
+	let data = new Uint8Array(20000000)
+	let key = sha512(data)
+	otpEncrypt(key, data)
+	let total = performance.now() - start
+	t.log("milliseconds to encrypt 20 MB:", total)
+}
+
+// TestPaddedFileSize checks that files are being suggested the correct amount
+// of padding by the pad function.
+function TestPaddedFileSize(t: any) {
+	let tests = [
+		{ trial: 0, expect: 4096 },
+		{ trial: 1, expect: 4096 },
+		{ trial: 100, expect: 4096 },
+		{ trial: 200, expect: 4096 },
+		{ trial: 4095, expect: 4096 },
+		{ trial: 4096, expect: 4096 },
+		{ trial: 4097, expect: 8192 },
+		{ trial: 8191, expect: 8192 },
+		{ trial: 8192, expect: 8192 },
+		{ trial: 8193, expect: 12288 },
+		{ trial: 12287, expect: 12288 },
+		{ trial: 12288, expect: 12288 },
+		{ trial: 12289, expect: 16384 },
+		{ trial: 16384, expect: 16384 },
+		{ trial: 32767, expect: 32768 },
+		{ trial: 32768, expect: 32768 },
+		{ trial: 32769, expect: 36864 },
+		{ trial: 36863, expect: 36864 },
+		{ trial: 36864, expect: 36864 },
+		{ trial: 36865, expect: 40960 },
+		{ trial: 45056, expect: 45056 },
+		{ trial: 45057, expect: 49152 },
+		{ trial: 65536, expect: 65536 },
+		{ trial: 65537, expect: 69632 },
+		{ trial: 106496, expect: 106496 },
+		{ trial: 106497, expect: 114688 },
+		{ trial: 163840, expect: 163840 },
+		{ trial: 163841, expect: 180224 },
+		{ trial: 491520, expect: 491520 },
+		{ trial: 491521, expect: 524288 },
+		{ trial: 720896, expect: 720896 },
+		{ trial: 720897, expect: 786432 },
+		{ trial: 1572864, expect: 1572864 },
+		{ trial: 1572865, expect: 1703936 },
+		{ trial: 3407872, expect: 3407872 },
+		{ trial: 3407873, expect: 3670016 },
+	]
+
+	for (let i = 0; i < tests.length; i++) {
+		let suggestion = getPaddedFileSize(tests[i].trial)
+		if (suggestion !== tests[i].expect) {
+			t.fail("got wrong result for", tests[i], "::", getPaddedFileSize(tests[i].trial))
+		}
+	}
+}
+
 runTest(TestGenerateSeedPhraseDeterministic)
 runTest(TestEd25519)
 runTest(TestRegistry)
@@ -432,6 +552,9 @@ runTest(TestValidateSkyfilePath)
 runTest(TestSkylinkV1Bitfield)
 runTest(TestTryStringify)
 runTest(TestMyskyEquivalence)
+runTest(TestOTPEncrypt)
+runTest(TestPaddedFileSize)
+runTest(TestOTPEncryptSpeed)
 
 console.log()
 if (failed) {
