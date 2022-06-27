@@ -1,7 +1,8 @@
-import { encodeU64 } from "./encoding.js"
+import { decodeU64, encodeU64 } from "./encoding.js"
 import { otpEncrypt } from "./encrypt.js"
 import { addContextToErr } from "./err.js"
-import { taggedRegistryEntryKeys } from "./registry.js"
+import { parseJSON } from "./parse.js"
+// import { taggedRegistryEntryKeys } from "./registry.js"
 import { sha512 } from "./sha512.js"
 import { jsonStringify } from "./stringifyjson.js"
 import { error } from "./types.js"
@@ -9,17 +10,21 @@ import { error } from "./types.js"
 // decryptFile will decrypt a file that was encrypted by encryptFile. The input
 // is the seed, the inode, and the encrypted data. The output will be the
 // metadata and the filedata. The metadata will be presented as an object.
-//
-// WARNING: The fullData is decrypted in-place, and the fileData is provided as
-// a slice of the fullData.
-function decryptFile(seed: Uint8Array, inode: string, fullData: Uint8Array): [metadata: any, fileData: Uint8Array, err: error] {
+function decryptFile(
+	seed: Uint8Array,
+	inode: string,
+	fullDataOrig: Uint8Array
+): [metadata: any, fileData: Uint8Array, err: error] {
+	// Make a copy of the fullData so that we don't modify our inputs.
+	let fullData = new Uint8Array(fullDataOrig)
+
 	// Create the encryption key.
 	let truncHash = fullData.slice(0, 16)
 	let encryptionTag = new TextEncoder().encode(":encryptionTag:" + inode)
 	let keyPreimage = new Uint8Array(seed.length + truncHash.length + encryptionTag.length)
 	keyPreimage.set(seed, 0)
 	keyPreimage.set(truncHash, seed.length)
-	keyPreimage.set(encryptionTag, seed.length+truncHash.length)
+	keyPreimage.set(encryptionTag, seed.length + truncHash.length)
 	let encryptionKey = sha512(keyPreimage).slice(0, 16)
 
 	// Perform the decryption. otpEncrypt is just a fancy XOR, so it can be
@@ -49,13 +54,14 @@ function decryptFile(seed: Uint8Array, inode: string, fullData: Uint8Array): [me
 
 	// Parse the metadata into an object. Note that parseJSON will read all
 	// incoming numbers as bigints.
-	let [metadata, errPJ] = parseJSON(fullData.slice(40, 40+metadataLen))
+	let metadataStr = fullData.slice(40, 40 + metadataLen).toString()
+	let [metadata, errPJ] = parseJSON(metadataStr)
 	if (errPJ !== null) {
 		return [{}, new Uint8Array(0), addContextToErr(errPJ, "unable to parse metadata")]
 	}
 
 	// Extract the fileData and return
-	let fileData = fullData.slice(40+metadatLen, 40+metadataLen+fileDataLen)
+	let fileData = fullData.slice(40 + metadataLen, 40 + metadataLen + fileDataLen)
 	return [metadata, fileData, null]
 }
 
@@ -90,7 +96,14 @@ function decryptFile(seed: Uint8Array, inode: string, fullData: Uint8Array): [me
 // seed, and the inode.
 //
 // NOTE: All numbers in the metadata will be decoded as BigInts.
-function encryptFile(seed: Uint8Array, inode: string, revision: bigint, metadata: any, fileData: Uint8Array, minFullSize?: number): [encryptedData: Uint8Array, err: error] {
+function encryptFile(
+	seed: Uint8Array,
+	inode: string,
+	revision: bigint,
+	metadata: any,
+	fileData: Uint8Array,
+	minFullSize?: number
+): [encryptedData: Uint8Array, err: error] {
 	// Get a json encoding of the metadata. We need to know the size of the
 	// metadata before allocating the full data for the file.
 	let [metadataStr, errJS] = jsonStringify(metadata)
@@ -111,14 +124,14 @@ function encryptFile(seed: Uint8Array, inode: string, revision: bigint, metadata
 	// resistance. A collision is only possible to create by someone who knows
 	// the secret that will be used with the hash to create the encryption key,
 	// and if they know the secret they can decrypt the full file anyway.
-	let rawSize = 16+8+8+8+metadataBytes.length+fileData.length
+	let rawSize = 16 + 8 + 8 + 8 + metadataBytes.length + fileData.length
 
 	// Get the padded size of the file and create the full data array. If a
 	// minFullSize has been passed in by the caller, ensure that the fullData
 	// is at least as large as the minFullSize.
 	let paddedSize = getPaddedFileSize(rawSize)
 	if (minFullSize !== undefined && paddedSize < minFullSize) {
-		paddedSize = getPAddedFileSize(minFullSize)
+		paddedSize = getPaddedFileSize(minFullSize)
 	}
 	let fullData = new Uint8Array(paddedSize)
 
@@ -132,7 +145,7 @@ function encryptFile(seed: Uint8Array, inode: string, revision: bigint, metadata
 	if (errEU643 !== null) {
 		return [new Uint8Array(), addContextToErr(errEU643, "unable to encode revision number")]
 	}
-	let [encodedMetadataSize, errEU642]  = encodeU64(BigInt(metadataBytes.length))
+	let [encodedMetadataSize, errEU642] = encodeU64(BigInt(metadataBytes.length))
 	if (errEU642 !== null) {
 		return [new Uint8Array(), addContextToErr(errEU642, "unable to encode metadata size")]
 	}
@@ -146,11 +159,11 @@ function encryptFile(seed: Uint8Array, inode: string, revision: bigint, metadata
 	fullData.set(encodedMetadataSize, 24)
 	fullData.set(encodedFileSize, 32)
 	fullData.set(metadataBytes, 40)
-	fullData.set(fileData, 40+metadataBytes.length)
+	fullData.set(fileData, 40 + metadataBytes.length)
 
 	// Get the hash of the full data and set it in the metadata.
 	let fullHash = sha512(fullData.slice(16, fullData.length))
-	let trucHash = fullHash.slice(0, 16)
+	let truncHash = fullHash.slice(0, 16)
 	fullData.set(truncHash, 0)
 
 	// Create the encryption key. We need to use the seed, the inode, and the
@@ -161,7 +174,7 @@ function encryptFile(seed: Uint8Array, inode: string, revision: bigint, metadata
 	let keyPreimage = new Uint8Array(seed.length + truncHash.length + encryptionTag.length)
 	keyPreimage.set(seed, 0)
 	keyPreimage.set(truncHash, seed.length)
-	keyPreimage.set(encryptionTag, seed.length+truncHash.length)
+	keyPreimage.set(encryptionTag, seed.length + truncHash.length)
 	let encryptionKey = sha512(keyPreimage).slice(0, 16)
 
 	// Encrypt the file. Don't encrypt the truncHash, which needs to be visible
@@ -196,14 +209,14 @@ function getPaddedFileSize(originalSize: number): number {
 	// Determine the rounding factor.
 	let blockSize = 4096
 	let largestAllowed = 1024 * 80
-	while(largestAllowed < originalSize) {
+	while (largestAllowed < originalSize) {
 		largestAllowed *= 2
 		blockSize *= 2
 	}
 
 	// Perform the rounding.
 	let finalSize = blockSize
-	while(finalSize < originalSize) {
+	while (finalSize < originalSize) {
 		finalSize += blockSize
 	}
 	return finalSize

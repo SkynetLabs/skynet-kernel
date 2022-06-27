@@ -1,11 +1,11 @@
 import { dictionary } from "../src/dictionary.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
+import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js"
 import { otpEncrypt } from "../src/encrypt.js"
 import { getPaddedFileSize } from "../src/fileprivate.js"
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
-import { bufToHex, bufToB64 } from "../src/encoding.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
 import { tryStringify } from "../src/stringifytry.js"
@@ -220,6 +220,39 @@ function TestRegistry(t: any) {
 		return
 	}
 	t.log("example resolver link:", rl)
+}
+
+// TestDecodeU64 checks that decodeU64 matches encodeU64.
+//
+// NOTE: encodeU64 is already well tested and has compatibility constraints
+// with the Skynet protocol.
+function TestDecodeU64(t: any) {
+	let tests = [
+		0n,
+		1n,
+		2n,
+		35n,
+		500n,
+		12345n,
+		642156n,
+		9591335n,
+		64285292n,
+	]
+	for (let i = 0; i < tests.length; i++) {
+		let [enc, errEU64] = encodeU64(tests[i])
+		if (errEU64 !== null) {
+			t.fail("trial could not be encoded", i)
+			return
+		}
+		let [dec, errDU64] = decodeU64(enc)
+		if (errDU64 !== null) {
+			t.fail("trial could not be decoded", i)
+			return
+		}
+		if (dec !== tests[i]) {
+			t.fail("encode did not match decode:", tests[i])
+		}
+	}
 }
 
 // TestValidateSkyfilePath runs basic testing for the skyfile path validator.
@@ -545,15 +578,104 @@ function TestPaddedFileSize(t: any) {
 	}
 }
 
+// TestEncryptFile performs testing on the encryptFile and decryptFile
+// functions, ensuring that padding is happening, that the key is being
+// adjusted, that authentication is happening, etc.
+/*
+function TestEncryptFile(t: any) {
+	// Get a seed.
+	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky")
+	if (errGSPD !== null) {
+		t.fail(errGSPD)
+		return
+	}
+	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	if (errVSP !== null) {
+		t.fail(errVSP)
+		return
+	}
+
+	// Establish the other inputs.
+	let inode = "testFile"
+	let revision = BigInt(0)
+	let metadata = {
+		filename: "test.txt",
+	}
+	let fileData = new TextEncoder().encode("this is some file data")
+
+	// Attempt to encrypt the file.
+	let [encryptedData, errEF] = encryptFile(seed, inode, revision, metadata, fileData)
+	if (errEF !== null) {
+		t.fail(errEF)
+		return
+	}
+	if (encryptedData.length !== 4096) {
+		t.fail("encrypted data is supposed to be 4096 bytes")
+		return
+	}
+	// Get the hash of the original encryptedData so we can verify it does not
+	// change when the decryption happens.
+	let encryptedDataHash = sha512(encryptedData)
+
+	// Attempt to decrypt the file.
+	let [recoveredMetadata, recoveredFileData, errDF] = decryptFile(seed, inode, encryptedData)
+	if (errDF !== null) {
+		t.fail("received error when decrypting file")
+		return
+	}
+
+	// Check that decryption did not change the encrypted data.
+	let encryptedDataHash2 = sha512(encryptedData)
+	for (let i = 0; i < encrytpedDataHash.length; i++) {
+		if (encryptedDataHash[i] !== encryptedDataHash2[i]) {
+			t.fail("encrypted data appears to have been modified during decryption")
+			return
+		}
+	}
+
+	// Check that the file data matches the original file data.
+	if (recoveredFileDAta.length !== fileData.length) {
+		t.fail("decryption failed, fileData does not match")
+		return
+	}
+	for (let i = 0; i < recoveredFileData.length; i++) {
+		if (reoveredFileData[i] !== fileData[i]) {
+			t.fail("recovered data does not equal original file data")
+			return
+		}
+	}
+
+	// Check that the metadata is intact.
+	if (recoveredMetadata.filename !== metadata.filename) {
+		t.fail("metadata seems to have changed")
+		return
+	}
+
+	// TODO: Check that changing the revision number changes the data.
+	//
+	// Check that changing the seed changes the data
+	//
+	// Check that changing the file changes the data
+	//
+	// Check that a modified file fails decryption
+	//
+	// Check that a bad seed fails decryption
+	//
+	// Write a performance benchamrk
+}
+*/
+
 runTest(TestGenerateSeedPhraseDeterministic)
 runTest(TestEd25519)
 runTest(TestRegistry)
+runTest(TestDecodeU64)
 runTest(TestValidateSkyfilePath)
 runTest(TestSkylinkV1Bitfield)
 runTest(TestTryStringify)
 runTest(TestMyskyEquivalence)
 runTest(TestOTPEncrypt)
 runTest(TestPaddedFileSize)
+// runTest(TestEncryptFile)
 runTest(TestOTPEncryptSpeed)
 
 console.log()

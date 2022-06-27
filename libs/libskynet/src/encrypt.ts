@@ -25,21 +25,19 @@ function otpEncrypt(key: Uint8Array, data: Uint8Array): void {
 	preimageHolder.set(key, 0)
 
 	// Iterate over the data and encrypt each section.
-	let hashes = 0
 	for (let i = 0; i < data.length; i += sha512HashSize) {
 		// Set the nonce for this shard and then create the pad data.
-		let [iBytes, ] = encodeU64(BigInt(i))
+		let [iBytes] = encodeU64(BigInt(i))
 		preimageHolder.set(iBytes, key.length)
 		let keyData = sha512(preimageHolder)
-		hashes++
 
 		// XOR the keyData with the data. Watch for out-of-bounds on the
 		// file data.
 		for (let j = 0; j < keyData.length; j++) {
-			if (data.length <= i+j) {
+			if (data.length <= i + j) {
 				break
 			}
-			data[i+j] = data[i+j] ^ keyData[j]
+			data[i + j] = data[i + j] ^ keyData[j]
 		}
 	}
 }

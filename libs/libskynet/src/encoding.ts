@@ -1,11 +1,12 @@
 import { addContextToErr } from "./err.js"
+import { error } from "./types.js"
 
 // Helper consts to make it easy to return empty values alongside errors.
 const nu8 = new Uint8Array(0)
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
-function b64ToBuf(b64: string): [Uint8Array, string | null] {
+function b64ToBuf(b64: string): [Uint8Array, error] {
 	// Check that the final string is valid base64.
 	let b64regex = /^[0-9a-zA-Z-_/+=]*$/
 	if (!b64regex.test(b64)) {
@@ -41,7 +42,7 @@ function bufToB64(buf: Uint8Array): string {
 
 // bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
 // will check for invalid characters.
-function bufToStr(buf: ArrayBuffer): [string, string | null] {
+function bufToStr(buf: ArrayBuffer): [string, error] {
 	try {
 		let text = new TextDecoder("utf-8", { fatal: true }).decode(buf)
 		return [text, null]
@@ -51,7 +52,7 @@ function bufToStr(buf: ArrayBuffer): [string, string | null] {
 }
 
 // decodeBigint will take an 8 byte Uint8Array and decode it as a bigint.
-function decodeBigint(buf: Uint8Array): [bigint, string | null] {
+function decodeBigint(buf: Uint8Array): [bigint, error] {
 	if (buf.length !== 8) {
 		return [0n, "a number is expected to be 8 bytes"]
 	}
@@ -63,10 +64,27 @@ function decodeBigint(buf: Uint8Array): [bigint, string | null] {
 	return [num, null]
 }
 
+// decodeU64 is the opposite of encodeU64, it takes a uint64 encoded as 8 bytes
+// and decodes them into a BigInt.
+function decodeU64(u8: Uint8Array): [bigint, error] {
+	// Check the input.
+	if (u8.length !== 8) {
+		return [0n, "input should be 8 bytes"]
+	}
+
+	// Process the input.
+	let num = 0n
+	for (let i = u8.length-1; i >= 0; i--) {
+		num *= 256n
+		num += BigInt(u8[i])
+	}
+	return [num, null]
+}
+
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
 // that has the length prefixed as an 8 byte prefix. The input can be at most 4
 // GiB.
-function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, string | null] {
+function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, error] {
 	let len = bytes.length
 	if (len > 4294968295) {
 		return [nu8, "input is too large to be encoded"]
@@ -81,7 +99,7 @@ function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, string | null] {
 
 // encodeU64 will encode a bigint in the range of a uint64 to an 8 byte
 // Uint8Array.
-function encodeU64(num: bigint): [Uint8Array, string | null] {
+function encodeU64(num: bigint): [Uint8Array, error] {
 	// Check the bounds on the bigint.
 	if (num < 0) {
 		return [nu8, "expected a positive integer"]
@@ -102,7 +120,7 @@ function encodeU64(num: bigint): [Uint8Array, string | null] {
 
 // hexToBuf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
-function hexToBuf(hex: string): [Uint8Array, string | null] {
+function hexToBuf(hex: string): [Uint8Array, error] {
 	// Check that the length makes sense.
 	if (hex.length % 2 != 0) {
 		return [nu8, "input has incorrect length"]
@@ -123,4 +141,4 @@ function hexToBuf(hex: string): [Uint8Array, string | null] {
 	return [u8, null]
 }
 
-export { b64ToBuf, bufToHex, bufToB64, bufToStr, decodeBigint, encodePrefixedBytes, encodeU64, hexToBuf }
+export { b64ToBuf, bufToHex, bufToB64, bufToStr, decodeBigint, decodeU64, encodePrefixedBytes, encodeU64, hexToBuf }
