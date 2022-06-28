@@ -54,7 +54,8 @@ function decryptFile(
 
 	// Parse the metadata into an object. Note that parseJSON will read all
 	// incoming numbers as bigints.
-	let metadataStr = fullData.slice(40, 40 + metadataLen).toString()
+	let metadataBytes = fullData.slice(40, 40 + metadataLen)
+	let metadataStr = new TextDecoder().decode(metadataBytes)
 	let [metadata, errPJ] = parseJSON(metadataStr)
 	if (errPJ !== null) {
 		return [{}, new Uint8Array(0), addContextToErr(errPJ, "unable to parse metadata")]

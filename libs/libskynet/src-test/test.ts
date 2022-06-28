@@ -2,7 +2,7 @@ import { dictionary } from "../src/dictionary.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js"
 import { otpEncrypt } from "../src/encrypt.js"
-import { getPaddedFileSize } from "../src/fileprivate.js"
+import { decryptFile, encryptFile, getPaddedFileSize } from "../src/fileprivate.js"
 import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
@@ -518,16 +518,6 @@ function TestOTPEncrypt(t: any) {
 	}
 }
 
-// TestOTPEncryptSpeed measures the performance of encrypting a 20 MB file using otpEncrypt.
-function TestOTPEncryptSpeed(t: any) {
-	let key = new TextEncoder().encode("any key")
-	let data = new Uint8Array(20 * 1024 * 1024)
-	let start = performance.now()
-	otpEncrypt(key, data)
-	let total = performance.now() - start
-	t.log("milliseconds to encrypt 20 MiB:", total)
-}
-
 // TestPaddedFileSize checks that files are being suggested the correct amount
 // of padding by the pad function.
 function TestPaddedFileSize(t: any) {
@@ -581,7 +571,6 @@ function TestPaddedFileSize(t: any) {
 // TestEncryptFile performs testing on the encryptFile and decryptFile
 // functions, ensuring that padding is happening, that the key is being
 // adjusted, that authentication is happening, etc.
-/*
 function TestEncryptFile(t: any) {
 	// Get a seed.
 	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky")
@@ -620,13 +609,13 @@ function TestEncryptFile(t: any) {
 	// Attempt to decrypt the file.
 	let [recoveredMetadata, recoveredFileData, errDF] = decryptFile(seed, inode, encryptedData)
 	if (errDF !== null) {
-		t.fail("received error when decrypting file")
+		t.fail("received error when decrypting file", errDF)
 		return
 	}
 
 	// Check that decryption did not change the encrypted data.
 	let encryptedDataHash2 = sha512(encryptedData)
-	for (let i = 0; i < encrytpedDataHash.length; i++) {
+	for (let i = 0; i < encryptedDataHash.length; i++) {
 		if (encryptedDataHash[i] !== encryptedDataHash2[i]) {
 			t.fail("encrypted data appears to have been modified during decryption")
 			return
@@ -634,12 +623,12 @@ function TestEncryptFile(t: any) {
 	}
 
 	// Check that the file data matches the original file data.
-	if (recoveredFileDAta.length !== fileData.length) {
+	if (recoveredFileData.length !== fileData.length) {
 		t.fail("decryption failed, fileData does not match")
 		return
 	}
 	for (let i = 0; i < recoveredFileData.length; i++) {
-		if (reoveredFileData[i] !== fileData[i]) {
+		if (recoveredFileData[i] !== fileData[i]) {
 			t.fail("recovered data does not equal original file data")
 			return
 		}
@@ -663,7 +652,60 @@ function TestEncryptFile(t: any) {
 	//
 	// Write a performance benchamrk
 }
-*/
+
+// TestOTPEncryptSpeed measures the performance of encrypting a 20 MB file using otpEncrypt.
+function TestOTPEncryptSpeed(t: any) {
+	let key = new TextEncoder().encode("any key")
+	let data = new Uint8Array(20 * 1024 * 1024)
+	let start = performance.now()
+	otpEncrypt(key, data)
+	let total = performance.now() - start
+	t.log("milliseconds to encrypt 20 MiB:", total)
+}
+
+// TestEncryptDecryptSpeed measures the time it takes to encrypt and then
+// decrypt a 20 MB file.
+function TestEncryptDecryptSpeed(t: any) {
+	// Get a seed.
+	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-speed")
+	if (errGSPD !== null) {
+		t.fail(errGSPD)
+		return
+	}
+	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	if (errVSP !== null) {
+		t.fail(errVSP)
+		return
+	}
+
+	// Establish the other inputs.
+	let inode = "testFileSpeed"
+	let revision = BigInt(0)
+	let metadata = {
+		filename: "testSpeed.txt",
+	}
+	let fileData = new Uint8Array(20 * 1000 * 1000)
+
+	// Attempt to encrypt the file.
+	let encStart = performance.now()
+	let [encryptedData, errEF] = encryptFile(seed, inode, revision, metadata, fileData)
+	if (errEF !== null) {
+		t.fail(errEF)
+		return
+	}
+	let encStop = performance.now()
+	t.log("time to encrypt 20 MB:", encStop-encStart)
+
+	// Attempt to decrypt the file.
+	let decStart = performance.now()
+	let [recoveredMetadata, recoveredFileData, errDF] = decryptFile(seed, inode, encryptedData)
+	if (errDF !== null) {
+		t.fail("received error when decrypting file", errDF)
+		return
+	}
+	let decStop = performance.now()
+	t.log("time to decrypt 20 MB:", decStop-decStart)
+}
 
 runTest(TestGenerateSeedPhraseDeterministic)
 runTest(TestEd25519)
@@ -675,8 +717,9 @@ runTest(TestTryStringify)
 runTest(TestMyskyEquivalence)
 runTest(TestOTPEncrypt)
 runTest(TestPaddedFileSize)
-// runTest(TestEncryptFile)
+runTest(TestEncryptFile)
 runTest(TestOTPEncryptSpeed)
+runTest(TestEncryptDecryptSpeed)
 
 console.log()
 if (failed) {
