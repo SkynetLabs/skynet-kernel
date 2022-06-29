@@ -1,6 +1,12 @@
 import { callModule } from "./queries.js"
 import { ed25519Keypair, error, errTuple } from "libskynet"
 
+interface registryReadResult {
+	exists: boolean
+	entryData?: Uint8Array
+	revision?: bigint
+}
+
 // registryRead will perform a registry read on a portal. readEntry does not
 // guarantee that the latest revision has been provided, however it does
 // guarantee that the provided data has a matching signature.
@@ -8,13 +14,25 @@ import { ed25519Keypair, error, errTuple } from "libskynet"
 // registryRead returns the full registry entry object provided by the module
 // because the object is relatively complex and all of the fields are more or
 // less required.
-function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<errTuple> {
-	let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
-	let data = {
-		publicKey,
-		dataKey,
-	}
-	return callModule(registryModule, "readEntry", data)
+function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[registryReadResult, error]> {
+	return new Promise((resolve) => {
+		let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
+		let data = {
+			publicKey,
+			dataKey,
+		}
+		callModule(registryModule, "readEntry", data).then(([result, err]) => {
+			if (err !== null) {
+				resolve([{} as any, addContextToErr(err, "readEntry module call failed")])
+				return
+			}
+			resolve([{
+				exists: result.exists,
+				entryData: result.entryData,
+				revision: result.revision,
+			}, null])
+		}
+	})
 }
 
 // registryWrite will perform a registry write on a portal.

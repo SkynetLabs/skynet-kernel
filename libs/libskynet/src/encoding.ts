@@ -74,7 +74,7 @@ function decodeU64(u8: Uint8Array): [bigint, error] {
 
 	// Process the input.
 	let num = 0n
-	for (let i = u8.length-1; i >= 0; i--) {
+	for (let i = u8.length - 1; i >= 0; i--) {
 		num *= 256n
 		num += BigInt(u8[i])
 	}

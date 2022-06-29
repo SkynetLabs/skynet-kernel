@@ -2,7 +2,6 @@ import { decodeU64, encodeU64 } from "./encoding.js"
 import { otpEncrypt } from "./encrypt.js"
 import { addContextToErr } from "./err.js"
 import { parseJSON } from "./parse.js"
-// import { taggedRegistryEntryKeys } from "./registry.js"
 import { sha512 } from "./sha512.js"
 import { jsonStringify } from "./stringifyjson.js"
 import { error } from "./types.js"
@@ -222,14 +221,5 @@ function getPaddedFileSize(originalSize: number): number {
 	}
 	return finalSize
 }
-
-/*
-	// Derive the registry entry keys. The registry entry keys need to be
-	// derived based solely on the seed and the inode.
-	let [keypair, datakey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
-	if (errTREK !== null) {
-		return addContextToErr(errTREK, "unable to derive registry entry keys")
-	}
-*/
 
 export { decryptFile, encryptFile, getPaddedFileSize }

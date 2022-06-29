@@ -1,5 +1,5 @@
 import { blake2b } from "./blake2b.js"
-import { bufToB64, encodePrefixedBytes, encodeU64 } from "./encoding.js"
+import { bufToB64, b64ToBuf, encodePrefixedBytes, encodeU64 } from "./encoding.js"
 import { addContextToErr } from "./err.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
@@ -95,17 +95,15 @@ function entryIDToSkylink(entryID: Uint8Array): string {
 	return bufToB64(v2Skylink)
 }
 
-// resolverLink will take a registryEntryID and return the corresponding
-// resolver link.
-function resolverLink(entryID: Uint8Array): [string, string | null] {
-	if (entryID.length !== 32) {
-		return ["", "provided entry ID has the wrong length"]
-	}
-	let v2Skylink = new Uint8Array(34)
-	v2Skylink.set(entryID, 2)
-	v2Skylink[0] = 1
-	let skylink = bufToB64(v2Skylink)
-	return [skylink, null]
+// skylinkToResolverEntryData will convert a skylink to the Uint8Array that can
+// be set as the entry data of a resolver link to create a working resolver
+// link.
+//
+// It's just a passthrough to b64ToBuf, but that's not obvious unless you are
+// familiar with the internals of how resolver skylinks work. This function is
+// provided as an intuitive alternative.
+function skylinkToResolverEntryData(skylink: string): [Uint8Array, error] {
+	return b64ToBuf(skylink)
 }
 
 // registryEntryKeys will use the user's seed to derive a keypair and a datakey
@@ -200,7 +198,7 @@ export {
 	computeRegistrySignature,
 	deriveRegistryEntryID,
 	entryIDToSkylink,
-	resolverLink,
+	skylinkToResolverEntryData,
 	taggedRegistryEntryKeys,
 	verifyRegistrySignature,
 }

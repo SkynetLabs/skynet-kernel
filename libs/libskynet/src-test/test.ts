@@ -227,17 +227,7 @@ function TestRegistry(t: any) {
 // NOTE: encodeU64 is already well tested and has compatibility constraints
 // with the Skynet protocol.
 function TestDecodeU64(t: any) {
-	let tests = [
-		0n,
-		1n,
-		2n,
-		35n,
-		500n,
-		12345n,
-		642156n,
-		9591335n,
-		64285292n,
-	]
+	let tests = [0n, 1n, 2n, 35n, 500n, 12345n, 642156n, 9591335n, 64285292n]
 	for (let i = 0; i < tests.length; i++) {
 		let [enc, errEU64] = encodeU64(tests[i])
 		if (errEU64 !== null) {
@@ -694,7 +684,7 @@ function TestEncryptDecryptSpeed(t: any) {
 		return
 	}
 	let encStop = performance.now()
-	t.log("time to encrypt 20 MB:", encStop-encStart)
+	t.log("time to encrypt 20 MB:", encStop - encStart)
 
 	// Attempt to decrypt the file.
 	let decStart = performance.now()
@@ -704,7 +694,7 @@ function TestEncryptDecryptSpeed(t: any) {
 		return
 	}
 	let decStop = performance.now()
-	t.log("time to decrypt 20 MB:", decStop-decStart)
+	t.log("time to decrypt 20 MB:", decStop - decStart)
 }
 
 runTest(TestGenerateSeedPhraseDeterministic)

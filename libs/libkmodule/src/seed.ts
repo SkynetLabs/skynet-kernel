@@ -1,5 +1,4 @@
 import { activeQuery } from "./messages.js"
-import { b64ToBuf } from "libskynet"
 
 // Define a set of helper variables that track whether the seed has been
 // received by the kernel yet.
