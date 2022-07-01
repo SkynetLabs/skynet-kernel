@@ -2,8 +2,8 @@ import { dictionary } from "../src/dictionary.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js"
 import { otpEncrypt } from "../src/encrypt.js"
-import { decryptFile, encryptFile, getPaddedFileSize } from "../src/fileprivate.js"
-import { taggedRegistryEntryKeys, deriveRegistryEntryID, resolverLink } from "../src/registry.js"
+import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "../src/fileprivate.js"
+import { deriveRegistryEntryID, entryIDToSkylink, taggedRegistryEntryKeys } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
@@ -13,12 +13,11 @@ import { tryStringify } from "../src/stringifytry.js"
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
 function fail(errStr: string, ...inputs: any) {
-	if (!t.failed) {
-		console.error(t.testName, "has failed")
-	}
+	console.error("\nXXXXXXXXXXXXX\n", t.testName, "has failed")
 	failed = true
 	t.failed = true
 	console.log("\t", errStr, ...inputs)
+	console.error("XXXXXXXXXXXXX\n")
 }
 function log(...inputs: any) {
 	console.log("\t", ...inputs)
@@ -214,11 +213,7 @@ function TestRegistry(t: any) {
 	}
 	t.log("example entry id:     ", bufToHex(entryID))
 	// Convert to resolver link.
-	let [rl, errRL] = resolverLink(entryID)
-	if (errRL !== null) {
-		t.fail(errRL, "could not get resolver link")
-		return
-	}
+	let rl = entryIDToSkylink(entryID)
 	t.log("example resolver link:", rl)
 }
 
@@ -558,10 +553,10 @@ function TestPaddedFileSize(t: any) {
 	}
 }
 
-// TestEncryptFile performs testing on the encryptFile and decryptFile
-// functions, ensuring that padding is happening, that the key is being
-// adjusted, that authentication is happening, etc.
-function TestEncryptFile(t: any) {
+// TestEncryptFileSmall performs testing on the encryptFileSmall and
+// decryptFileSmall functions, ensuring that padding is happening, that the key
+// is being adjusted, that authentication is happening, etc.
+function TestEncryptFileSmall(t: any) {
 	// Get a seed.
 	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky")
 	if (errGSPD !== null) {
@@ -583,7 +578,7 @@ function TestEncryptFile(t: any) {
 	let fileData = new TextEncoder().encode("this is some file data")
 
 	// Attempt to encrypt the file.
-	let [encryptedData, errEF] = encryptFile(seed, inode, revision, metadata, fileData)
+	let [encryptedData, errEF] = encryptFileSmall(seed, inode, revision, metadata, fileData)
 	if (errEF !== null) {
 		t.fail(errEF)
 		return
@@ -597,7 +592,7 @@ function TestEncryptFile(t: any) {
 	let encryptedDataHash = sha512(encryptedData)
 
 	// Attempt to decrypt the file.
-	let [recoveredMetadata, recoveredFileData, errDF] = decryptFile(seed, inode, encryptedData)
+	let [recoveredMetadata, recoveredFileData, errDF] = decryptFileSmall(seed, inode, encryptedData)
 	if (errDF !== null) {
 		t.fail("received error when decrypting file", errDF)
 		return
@@ -630,17 +625,133 @@ function TestEncryptFile(t: any) {
 		return
 	}
 
-	// TODO: Check that changing the revision number changes the data.
-	//
-	// Check that changing the seed changes the data
-	//
+	// Check that if the file gets encrypted again using a new revision number,
+	// the resulting data is different.
+	let [encData2, err] = encryptFileSmall(seed, inode, revision + 1n, metadata, fileData)
+	if (err !== null) {
+		t.fail("could not encrypt file for revision test")
+		return
+	}
+	if (encData2.length !== encryptedData.length) {
+		t.fail("encrypted data length should match when revision number changes")
+		return
+	}
+	let matches = 0
+	for (let i = 0; i < encData2.length; i++) {
+		if (encData2[i] === encryptedData[i]) {
+			matches += 1
+		}
+	}
+	if (matches > encData2.length / 30) {
+		t.fail("new encrypted data is very similar to old encrypted data", matches, encData2.length)
+		return
+	}
+
+	// Check that changing the seed changes the encrypted output.
+	let [spd, errGSPD2] = generateSeedPhraseDeterministic("a different seed")
+	if (errGSPD2 !== null) {
+		t.fail(errGSPD2)
+		return
+	}
+	let [seed2, errVSP2] = validSeedPhrase(spd)
+	if (errVSP2 !== null) {
+		t.fail(errVSP2)
+		return
+	}
+
+	let [encData3, errEFS] = encryptFileSmall(seed2, inode, revision, metadata, fileData)
+	if (errEFS !== null) {
+		t.fail("could not encrypt file for revision test")
+		return
+	}
+	if (encData3.length !== encryptedData.length) {
+		t.fail("encrypted data length should match when revision number changes")
+		return
+	}
+	matches = 0
+	for (let i = 0; i < encData3.length; i++) {
+		if (encData3[i] === encryptedData[i]) {
+			matches += 1
+		}
+	}
+	if (matches > encData3.length / 30) {
+		t.fail("new encrypted data is very similar to old encrypted data", matches, encData3.length)
+		return
+	}
+
 	// Check that changing the file changes the data
-	//
-	// Check that a modified file fails decryption
-	//
+	let fileDataAlt = new TextEncoder().encode("this is somm file data")
+	// Attempt to encrypt the file.
+	let [encFD, errFD] = encryptFileSmall(seed, inode, revision, metadata, fileDataAlt)
+	if (errFD !== null) {
+		t.fail(errFD)
+		return
+	}
+	if (encFD.length !== encryptedData.length) {
+		t.fail("encrypted data length should match when revision number changes")
+		return
+	}
+	matches = 0
+	for (let i = 0; i < encFD.length; i++) {
+		if (encFD[i] === encryptedData[i]) {
+			matches += 1
+		}
+	}
+	if (matches > encryptedData.length / 30) {
+		t.fail("new encrypted data is very similar to old encrypted data", matches, encFD.length)
+		return
+	}
+
+	// Check that a modified file fails decryption. Try several different modifications.
+	encFD[250] += 1
+	let [, , errFD1] = decryptFileSmall(seed, inode, encFD)
+	if (errFD1 === null) {
+		t.fail("expecting an error when decrypting modified file")
+		return
+	}
+	encFD[250] -= 1
+	encFD[0] += 1
+	let [, , errFD2] = decryptFileSmall(seed, inode, encFD)
+	if (errFD2 === null) {
+		t.fail("expecting an error when decrypting modified file")
+		return
+	}
+	encFD[0] -= 1
+	encFD[4095] += 1
+	let [, , errFD3] = decryptFileSmall(seed, inode, encFD)
+	if (errFD3 === null) {
+		t.fail("expecting an error when decrypting modified file")
+		return
+	}
+	encFD[4095] -= 1
+	// This time try withtout the modification to make sure decryption still
+	// works.
+	let [decFDMeta, decFDData, errFD4] = decryptFileSmall(seed, inode, encFD)
+	if (errFD4 !== null) {
+		t.fail("file was reset to original state, should decrypt now")
+		return
+	}
+	if (decFDMeta.filename !== "test.txt") {
+		t.fail("metadata did not decrypt correctly")
+		return
+	}
+	if (fileDataAlt.length !== decFDData.length) {
+		t.fail("decrypted file has wrong length")
+		return
+	}
+	for (let i = 0; i < fileDataAlt.length; i++) {
+		if (fileDataAlt[i] !== decFDData[i]) {
+			t.fail("encrypted data appears to have been modified during decryption")
+			return
+		}
+	}
+
 	// Check that a bad seed fails decryption
-	//
-	// Write a performance benchamrk
+	let [x, y, errFD5] = decryptFileSmall(seed2, inode, encFD)
+	if (errFD5 === null) {
+		t.fail("expecting an error when decrypting with the wrong seed")
+		return
+	}
 }
 
 // TestOTPEncryptSpeed measures the performance of encrypting a 20 MB file using otpEncrypt.
@@ -678,7 +789,7 @@ function TestEncryptDecryptSpeed(t: any) {
 
 	// Attempt to encrypt the file.
 	let encStart = performance.now()
-	let [encryptedData, errEF] = encryptFile(seed, inode, revision, metadata, fileData)
+	let [encryptedData, errEF] = encryptFileSmall(seed, inode, revision, metadata, fileData)
 	if (errEF !== null) {
 		t.fail(errEF)
 		return
@@ -688,7 +799,7 @@ function TestEncryptDecryptSpeed(t: any) {
 
 	// Attempt to decrypt the file.
 	let decStart = performance.now()
-	let [recoveredMetadata, recoveredFileData, errDF] = decryptFile(seed, inode, encryptedData)
+	let [recoveredMetadata, recoveredFileData, errDF] = decryptFileSmall(seed, inode, encryptedData)
 	if (errDF !== null) {
 		t.fail("received error when decrypting file", errDF)
 		return
@@ -707,7 +818,7 @@ runTest(TestTryStringify)
 runTest(TestMyskyEquivalence)
 runTest(TestOTPEncrypt)
 runTest(TestPaddedFileSize)
-runTest(TestEncryptFile)
+runTest(TestEncryptFileSmall)
 runTest(TestOTPEncryptSpeed)
 runTest(TestEncryptDecryptSpeed)
 

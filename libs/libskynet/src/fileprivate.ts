@@ -6,10 +6,13 @@ import { sha512 } from "./sha512.js"
 import { jsonStringify } from "./stringifyjson.js"
 import { error } from "./types.js"
 
-// decryptFile will decrypt a file that was encrypted by encryptFile. The input
-// is the seed, the inode, and the encrypted data. The output will be the
-// metadata and the filedata. The metadata will be presented as an object.
-function decryptFile(
+// decryptFileSmall will decrypt a file that was encrypted by encryptFileSmall.
+// The input is the seed, the inode, and the encrypted data. The output will be
+// the metadata and the filedata. The metadata will be presented as an object.
+//
+// There is no support for partial decryption, the whole file must be decrypted
+// all at once.
+function decryptFileSmall(
 	seed: Uint8Array,
 	inode: string,
 	fullDataOrig: Uint8Array
@@ -28,7 +31,7 @@ function decryptFile(
 
 	// Perform the decryption. otpEncrypt is just a fancy XOR, so it can be
 	// called for decryption.
-	otpEncrypt(encryptionKey, fullData.slice(16, fullData.length))
+	otpEncrypt(encryptionKey, fullData, 16)
 
 	// Verify that the decryption was correct. We can verify it by hashing the
 	// decrypted data and comparing it to the truncHash.
@@ -65,10 +68,12 @@ function decryptFile(
 	return [metadata, fileData, null]
 }
 
-// encryptFile takes a seed, an inode, a revision number, the file metadata,
-// and the filedata and then produces an encrypted bundle that contains all of
-// the information. The output is a securely encrypted file that is protected
-// from a wide variety of privacy attacks.
+// encryptFileSmall takes a seed, an inode, a revision number, the file
+// metadata, and the filedata and then produces an encrypted bundle that
+// contains all of the information. The output is a securely encrypted file
+// that is protected from a wide variety of privacy attacks. This is meant for
+// small files: every update to a file encrypted using this scheme will need to
+// re-write the full file, and there is no support for partial decryption.
 //
 // The revision number is part of the encryption key derivation. This is useful
 // because it means a user can frequently update a file, and an attacker cannot
@@ -96,7 +101,7 @@ function decryptFile(
 // seed, and the inode.
 //
 // NOTE: All numbers in the metadata will be decoded as BigInts.
-function encryptFile(
+function encryptFileSmall(
 	seed: Uint8Array,
 	inode: string,
 	revision: bigint,
@@ -180,7 +185,7 @@ function encryptFile(
 	// Encrypt the file. Don't encrypt the truncHash, which needs to be visible
 	// to decrypt the file. The truncHash is just random data, and is not
 	// useful without the seed, and therefore is safe to leave as-is.
-	otpEncrypt(encryptionKey, fullData.slice(16, fullData.length))
+	otpEncrypt(encryptionKey, fullData, 16)
 
 	// Return the encrypted data.
 	return [fullData, null]
@@ -222,4 +227,4 @@ function getPaddedFileSize(originalSize: number): number {
 	return finalSize
 }
 
-export { decryptFile, encryptFile, getPaddedFileSize }
+export { decryptFileSmall, encryptFileSmall, getPaddedFileSize }

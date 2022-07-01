@@ -7,15 +7,18 @@
 // TODO: Need to implement delete using the special registry value that
 // signifies a deleted file.
 
+// TODO: Need to implement registry subscriptions so that we can detect if the
+// file has been modified elsewhere and invalidate the file.
+
 import { download } from "./messagedownload.js"
 import { registryRead, registryWrite } from "./messageregistry.js"
 import { upload } from "./messageupload.js"
 import {
 	addContextToErr,
-	decryptFile,
+	decryptFileSmall,
 	deriveRegistryEntryID,
 	ed25519Keypair,
-	encryptFile,
+	encryptFileSmall,
 	entryIDToSkylink,
 	error,
 	skylinkToResolverEntryData,
@@ -26,13 +29,13 @@ import {
 // independentFile.
 type overwriteDataFn = (newData: Uint8Array) => Promise<error>
 
-// independentFileMetadata defines the established metadata for an
+// independentFileMetadataSmall defines the established metadata for an
 // independentFile. The metadata is not allowed to be adjusted because we want
 // to keep the api for an independentFile as simple as possible.
 //
 // We track the largestHistoricSize of the file so that we can protect the user
 // from leaking information if they shrink the size of the file between writes.
-interface independentFileMetadata {
+interface independentFileSmallMetadata {
 	filename: string
 	largestHistoricSize: number
 }
@@ -51,7 +54,7 @@ interface independentFileMetadata {
 // Independent files are **secure**. They are encrypted using the user's seed,
 // they are padded, and they can be used freely and updated freely with no
 // concern of exposing
-interface independentFile {
+interface independentFileSmall {
 	dataKey: Uint8Array
 	inode: string
 	keypair: ed25519Keypair
@@ -68,11 +71,11 @@ interface independentFile {
 //
 // If an independent file with the provided inode already exists, an error will
 // be returned.
-function createIndependentFile(
+function createIndependentFileSmall(
 	seed: Uint8Array,
 	inode: string,
 	fileData: Uint8Array
-): Promise<[independentFile, error]> {
+): Promise<[independentFileSmall, error]> {
 	return new Promise(async (resolve) => {
 		// Derive the registry entry keys for the file at this inode.
 		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
@@ -102,7 +105,7 @@ function createIndependentFile(
 			largestHistoricSize: fileData.length,
 		}
 		let revision = 0n
-		let [encryptedData, errEF] = encryptFile(seed, inode, revision, metadata, fileData, metadata.largestHistoricSize)
+		let [encryptedData, errEF] = encryptFileSmall(seed, inode, revision, metadata, fileData, metadata.largestHistoricSize)
 		if (errEF !== null) {
 			resolve([{} as any, addContextToErr(errEF, "unable to encrypt file")])
 			return
@@ -150,9 +153,9 @@ function createIndependentFile(
 	})
 }
 
-// openIndependentFile is used to open an already existing independent file. If
+// openIndependentFileSmall is used to open an already existing independent file. If
 // one does not exist, an error will be returned.
-function openIndependentFile(seed: Uint8Array, inode: string): Promise<[independentFile, error]> {
+function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[independentFile, error]> {
 	return new Promise(async (resolve) => {
 		// Derive the registry entry keys for the file at this inode.
 		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
@@ -187,7 +190,7 @@ function openIndependentFile(seed: Uint8Array, inode: string): Promise<[independ
 		}
 
 		// Decrypt the file to read the metadata.
-		let [metadata, , errDF] = decryptFile(seed, inode, encryptedData)
+		let [metadata, , errDF] = decryptFileSmall(seed, inode, encryptedData)
 		if (errDF !== null) {
 			resolve([{} as any, addContextToErr(errDF, "unable to decrypt file")])
 			return
@@ -212,12 +215,12 @@ function openIndependentFile(seed: Uint8Array, inode: string): Promise<[independ
 	})
 }
 
-// overwriteIndependentFile will replace the fileData of the file with the
+// overwriteIndependentFileSmall will replace the fileData of the file with the
 // provided data.
 //
 // NOTE: This function is not thread safe, it should only be called by one
 // process at a time.
-function overwriteIndependentFile(file: independentFile, newData: Uint8Array): Promise<error> {
+function overwriteIndependentFileSmall(file: independentFile, newData: Uint8Array): Promise<error> {
 	return new Promise(async (resolve) => {
 		// Create a new metadata for the file based on the current file
 		// metadata. Need to update the largest historic size.
@@ -234,7 +237,7 @@ function overwriteIndependentFile(file: independentFile, newData: Uint8Array): P
 		// NOTE: Need to supply the data that would be in place after a
 		// successful update, which means using the new metadata and also using
 		// an incremented revision number.
-		let [encryptedData, errEF] = encryptFile(
+		let [encryptedData, errEF] = encryptFileSmall(
 			file.seed,
 			file.inode,
 			file.revision + 1n,

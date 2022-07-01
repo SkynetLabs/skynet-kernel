@@ -7,7 +7,7 @@ export { fileDataObj, verifyDownloadResponse } from "./downloadverifyresponse.js
 export { ed25519Keypair, ed25519Sign, ed25519Verify } from "./ed25519.js"
 export { b64ToBuf, bufToB64, bufToHex, bufToStr, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js"
 export { addContextToErr, composeErr } from "./err.js"
-export { decryptFile, encryptFile } from "./fileprivate.js"
+export { decryptFileSmall, encryptFileSmall } from "./fileprivate.js"
 export { blake2bAddLeafBytesToProofStack, blake2bMerkleRoot, blake2bProofStackRoot } from "./merkle.js"
 export { parseJSON } from "./parse.js"
 export { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
@@ -15,7 +15,6 @@ export {
 	computeRegistrySignature,
 	deriveRegistryEntryID,
 	entryIDToSkylink,
-	resolverLink,
 	skylinkToResolverEntryData,
 	taggedRegistryEntryKeys,
 	verifyRegistrySignature,

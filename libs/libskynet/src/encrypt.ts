@@ -11,21 +11,27 @@ import { sha512, sha512HashSize } from "./sha512.js"
 // attacker could flip bits undetected if an authentication layer is not added
 // on top.
 //
-// Data is encrypted in-place.
+// Data is encrypted in-place. The optional value 'skip' allows the caller to
+// specify a number of bytes to skip initially.
 //
 // NOTE: otpEncrypt can be useful over other encryption methods because it does
 // not introduce any new dependencies. For the Skynet Kernel bootloader, the
 // only cryptography present is ed25519 signatures (which includes sha512 as a
 // dependency). This is a tiny piece of code that can provide encryption
 // support without needing to add a full encryption library as a dependency.
-function otpEncrypt(key: Uint8Array, data: Uint8Array): void {
+function otpEncrypt(key: Uint8Array, data: Uint8Array, skip?: number): Uint8Array {
+	// If the optional variable is not set, set it.
+	if (skip === undefined) {
+		skip = 0
+	}
+
 	// Build an array to hold the preimage for each step of encryption. We are
 	// just going to be altering the final 8 bytes as we encrypt the file.
 	let preimageHolder = new Uint8Array(key.length + 8)
 	preimageHolder.set(key, 0)
 
 	// Iterate over the data and encrypt each section.
-	for (let i = 0; i < data.length; i += sha512HashSize) {
+	for (let i = skip; i < data.length; i += sha512HashSize) {
 		// Set the nonce for this shard and then create the pad data.
 		let [iBytes] = encodeU64(BigInt(i))
 		preimageHolder.set(iBytes, key.length)
@@ -40,6 +46,7 @@ function otpEncrypt(key: Uint8Array, data: Uint8Array): void {
 			data[i + j] = data[i + j] ^ keyData[j]
 		}
 	}
+	return data
 }
 
 export { otpEncrypt }
