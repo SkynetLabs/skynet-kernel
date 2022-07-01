@@ -6,7 +6,7 @@
   "author": "David Vorick",
   "license": "MIT",
   "dependencies": {
-    "libkernel": "^0.1.40",
+    "libkernel": "^0.1.41",
     "libskynet": "^0.0.48",
     "gatsby": "^4.8.1",
     "prettier": "^2.6.2",
