@@ -1,16 +1,17 @@
-export { blake2b } from "./blake2b.js"
+export { downloadSkylink } from "./apidownloadskylink.js"
+export { verifyDownload } from "./apidownloadverify.js"
+export { fileDataObj, verifyDownloadResponse } from "./apidownloadverifyresponse.js"
+export { progressiveFetch, progressiveFetchResult } from "./apiprogressivefetch.js"
+export { verifyRegistryReadResponse, verifyRegistryWriteResponse } from "./apiregistryverify.js"
+export { blake2b, BLAKE2B_HASH_SIZE } from "./blake2b.js"
 export { defaultPortalList } from "./defaultportals.js"
 export { dictionary } from "./dictionary.js"
-export { downloadSkylink } from "./downloadskylink.js"
-export { verifyDownload } from "./downloadverify.js"
-export { fileDataObj, verifyDownloadResponse } from "./downloadverifyresponse.js"
 export { ed25519Keypair, ed25519Sign, ed25519Verify } from "./ed25519.js"
 export { b64ToBuf, bufToB64, bufToHex, bufToStr, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js"
 export { addContextToErr, composeErr } from "./err.js"
 export { decryptFileSmall, encryptFileSmall } from "./fileprivate.js"
 export { blake2bAddLeafBytesToProofStack, blake2bMerkleRoot, blake2bProofStackRoot } from "./merkle.js"
 export { parseJSON } from "./parse.js"
-export { progressiveFetch, progressiveFetchResult } from "./progressivefetch.js"
 export {
 	computeRegistrySignature,
 	deriveRegistryEntryID,
@@ -19,7 +20,6 @@ export {
 	taggedRegistryEntryKeys,
 	verifyRegistrySignature,
 } from "./registry.js"
-export { verifyRegistryReadResponse, verifyRegistryWriteResponse } from "./registryverify.js"
 export {
 	deriveChildSeed,
 	deriveMyskyRootKeypair,

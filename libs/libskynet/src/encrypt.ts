@@ -19,6 +19,12 @@ import { sha512, sha512HashSize } from "./sha512.js"
 // only cryptography present is ed25519 signatures (which includes sha512 as a
 // dependency). This is a tiny piece of code that can provide encryption
 // support without needing to add a full encryption library as a dependency.
+//
+// WARNING: otpEncrypt is not a "safe" function. It's a useful cryptographic
+// primitive, but there are easy ways to misuse it and create insecure
+// encryption schemes. Please avoid using this function unless you have a
+// strong understanding of encryption techniques and typical encryption
+// attacks.
 function otpEncrypt(key: Uint8Array, data: Uint8Array, skip?: number): Uint8Array {
 	// If the optional variable is not set, set it.
 	if (skip === undefined) {

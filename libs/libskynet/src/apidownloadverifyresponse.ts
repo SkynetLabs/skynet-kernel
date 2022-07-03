@@ -1,4 +1,4 @@
-import { verifyDownload } from "./downloadverify.js"
+import { verifyDownload } from "./apidownloadverify.js"
 import { addContextToErr } from "./err.js"
 import { parseJSON } from "./parse.js"
 import { parseSkylinkBitfield } from "./skylinkbitfield.js"

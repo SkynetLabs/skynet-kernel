@@ -202,11 +202,13 @@ function blake2bFinal(ctx: any) {
 	return out
 }
 
+const BLAKE2B_HASH_SIZE = 32
+
 // Computes the blake2b hash of the input. Returns 32 bytes.
-let blake2b = function (input: Uint8Array): Uint8Array {
+function blake2b(input: Uint8Array): Uint8Array {
 	const ctx = blake2bInit()
 	blake2bUpdate(ctx, input)
 	return blake2bFinal(ctx)
 }
 
-export { blake2b }
+export { blake2b, BLAKE2B_HASH_SIZE }

@@ -9,6 +9,7 @@ import {
 	encodeU64,
 	error,
 	hexToBuf,
+	parseJSON,
 	progressiveFetch,
 	progressiveFetchResult,
 	jsonStringify,
@@ -55,43 +56,49 @@ function handleReadEntry(aq: activeQuery) {
 	}
 
 	// Perform the fetch.
+	//
+	// TODO: Need to adapt this to handle deleted entries.
 	progressiveFetch(endpoint, {}, defaultPortalList, verifyFunc).then((result: progressiveFetchResult) => {
-		if (result.success === true) {
-			// TODO: response.json() is not fully correct because it doesn't
-			// properly parse  large revision numbers. We need to use a custom
-			// json library here that will pull the numbers in to bigints.
-			result.response
-				.json()
-				.then((j: any) => {
-					let [entryData, errBTH] = hexToBuf(j.data)
-					if (errBTH !== null) {
-						aq.reject(addContextToErr(errBTH, "unable to decode entry data"))
-						return
-					}
+		// Check for a negative result.
+		if (result.success !== true) {
+			for (let i = 0; i < result.responsesFailed.length; i++) {
+				if (result.responsesFailed[i].status === 404) {
 					aq.respond({
-						exists: true,
-						entryData,
-						revision: BigInt(j.revision),
+						exists: false,
 					})
-				})
-				.catch((err: any) => {
-					let errStr = tryStringify(err)
-					aq.reject(addContextToErr(errStr, "unable to parse final response despite passing verification"))
-				})
+					return
+				}
+			}
+			aq.reject("unable to read registry entry\n" + tryStringify(result))
 			return
 		}
 
-		// Check for a 404.
-		for (let i = 0; i < result.responsesFailed.length; i++) {
-			if (result.responsesFailed[i].status === 404) {
-				aq.respond({
-					exists: false,
-				})
+		// Parse the response.
+		result.response.text().then((t: string) => {
+			// We need to use our own custom parseJSON to extract the numbers
+			// into bigints, the default call to response.json() will drop
+			// precision on revision numbers, which is problematic.
+			let [obj, errPJ] = parseJSON(t)
+			if (errPJ !== null) {
+				aq.reject(addContextToErr(errPJ, "unable to parse registry response despite it passing verification"))
 				return
 			}
-		}
 
-		aq.reject("unable to read registry entry\n" + tryStringify(result))
+			// Parse the entry data into a uint8array.
+			let [entryData, errHTB] = hexToBuf(obj.data)
+			if (errHTB !== null) {
+				aq.reject(addContextToErr(errHTB, "unable to parse data despite passing verification"))
+				return
+			}
+
+			// Pass the response to the caller.
+			aq.respond({
+				exists: true,
+				deleted: false,
+				entryData,
+				revision: obj.revision,
+			})
+		})
 	})
 }
 

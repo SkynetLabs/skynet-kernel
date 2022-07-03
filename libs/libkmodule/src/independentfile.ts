@@ -40,9 +40,9 @@ interface independentFileSmallMetadata {
 	largestHistoricSize: number
 }
 
-// independentFile is a safe object for working with independent files. It
-// supports the 'overwriteData' function, which will replace the existing data
-// in the file with new data.
+// independentFileSmall is a safe object for working with small independent
+// files. It supports the 'overwriteData' function, which will replace the
+// existing data in the file with new data.
 //
 // The file is called 'independent' because it is not connected to any
 // filesystem. The only way to look up the file is to use its inode. An inode
@@ -54,11 +54,16 @@ interface independentFileSmallMetadata {
 // Independent files are **secure**. They are encrypted using the user's seed,
 // they are padded, and they can be used freely and updated freely with no
 // concern of exposing
+//
+// The small independent files keep all of the data in memory at all times.
+// When making modifications to a small independent file, the entire file needs
+// to be re-encrypted and re-uploaded. We recommend small files stay under 4
+// MB, however there's no formal limitation in the size of an independent file.
 interface independentFileSmall {
 	dataKey: Uint8Array
 	inode: string
 	keypair: ed25519Keypair
-	metadata: independentFileMetadata
+	metadata: independentFileSmallMetadata
 	overwriteData: overwriteDataFn
 	revision: bigint
 	seed: Uint8Array
@@ -100,12 +105,19 @@ function createIndependentFileSmall(
 		}
 
 		// Create the encrypted file blob.
-		let metadata: independentFileMetadata = {
+		let metadata: independentFileSmallMetadata = {
 			filename: inode,
 			largestHistoricSize: fileData.length,
 		}
 		let revision = 0n
-		let [encryptedData, errEF] = encryptFileSmall(seed, inode, revision, metadata, fileData, metadata.largestHistoricSize)
+		let [encryptedData, errEF] = encryptFileSmall(
+			seed,
+			inode,
+			revision,
+			metadata,
+			fileData,
+			metadata.largestHistoricSize
+		)
 		if (errEF !== null) {
 			resolve([{} as any, addContextToErr(errEF, "unable to encrypt file")])
 			return
@@ -124,7 +136,7 @@ function createIndependentFileSmall(
 			resolve([{} as any, addContextToErr(errSTRED, "could not create resovler link from upload skylink")])
 			return
 		}
-		let [entryID, errRW] = await registryWrite(keypair, dataKey, entryData, revision)
+		let [, errRW] = await registryWrite(keypair, dataKey, entryData, revision)
 		if (errRW !== null) {
 			resolve([{} as any, addContextToErr(errRW, "could not write to registry entry")])
 			return
@@ -137,7 +149,7 @@ function createIndependentFileSmall(
 		// in the event of a write from another location.
 
 		// Create and return the independentFile.
-		let ifile: independentFile = {
+		let ifile: independentFileSmall = {
 			dataKey,
 			inode,
 			keypair,
@@ -146,7 +158,7 @@ function createIndependentFileSmall(
 			seed,
 
 			overwriteData: function (newData: Uint8Array): Promise<error> {
-				return overwriteIndependentFile(ifile, newData)
+				return overwriteIndependentFileSmall(ifile, newData)
 			},
 		}
 		resolve([ifile, null])
@@ -155,7 +167,7 @@ function createIndependentFileSmall(
 
 // openIndependentFileSmall is used to open an already existing independent file. If
 // one does not exist, an error will be returned.
-function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[independentFile, error]> {
+function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[independentFileSmall, error]> {
 	return new Promise(async (resolve) => {
 		// Derive the registry entry keys for the file at this inode.
 		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
@@ -199,7 +211,7 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 		// TODO: May want to subscribe to the registry etnry to watch for changes
 		// that other instances of this user's account might be making.
 
-		let ifile: independentFile = {
+		let ifile: independentFileSmall = {
 			dataKey,
 			inode,
 			keypair,
@@ -208,7 +220,7 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 			seed,
 
 			overwriteData: function (newData: Uint8Array): Promise<error> {
-				return overwriteIndependentFile(ifile, newData)
+				return overwriteIndependentFileSmall(ifile, newData)
 			},
 		}
 		resolve([ifile, null])
@@ -220,11 +232,11 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 //
 // NOTE: This function is not thread safe, it should only be called by one
 // process at a time.
-function overwriteIndependentFileSmall(file: independentFile, newData: Uint8Array): Promise<error> {
+function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint8Array): Promise<error> {
 	return new Promise(async (resolve) => {
 		// Create a new metadata for the file based on the current file
 		// metadata. Need to update the largest historic size.
-		let newMetadata: independentFileMetadata = {
+		let newMetadata: independentFileSmallMetadata = {
 			filename: file.metadata.filename,
 			largestHistoricSize: file.metadata.largestHistoricSize,
 		}
@@ -264,7 +276,7 @@ function overwriteIndependentFileSmall(file: independentFile, newData: Uint8Arra
 			return
 		}
 		// NOTE: Don't forget to increment the revision here.
-		let [entryID, errRW] = await registryWrite(file.keypair, file.dataKey, entryData, file.revision + 1n)
+		let [, errRW] = await registryWrite(file.keypair, file.dataKey, entryData, file.revision + 1n)
 		if (errRW !== null) {
 			resolve(addContextToErr(errRW, "could not write to registry entry"))
 			return
@@ -277,4 +289,4 @@ function overwriteIndependentFileSmall(file: independentFile, newData: Uint8Arra
 	})
 }
 
-export { createIndependentFile }
+export { createIndependentFileSmall, openIndependentFileSmall }

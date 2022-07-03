@@ -28,6 +28,7 @@ Output:
 ```ts
 {
 	exists: <boolean>,
+	deleted?: <boolean>,
 	entryData?: <Uint8Array>,
 	revision?: <BigInt>,
 }
@@ -37,9 +38,12 @@ If the entry does not exist, the 'exists' field of the output will be set to
 false. This field should always be checked first. If the entry does not exist,
 the other fields will be omitted.
 
-If the entry does exists, 'entryData' will contain the binary contents of the
-registry entry. 'revisionNumber' will contain the revision number of the
-registry entry.
+'deleted' will be set to true if the registry entry exists, but currently has a
+value that indicates the data was deleted. If 'deleted' is set to true, a
+revision number will be provided, but no entryData will be provided.
+
+If the entry exists and has not been deleted, 'entryData' will contain the
+binary contents of the registry entry.
 
 #### writeEntry
 

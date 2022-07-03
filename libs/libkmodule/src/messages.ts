@@ -1,4 +1,3 @@
-import { respondErr } from "./err.js"
 import { logErr } from "./log.js"
 import {
 	clearIncomingQuery,
@@ -227,6 +226,18 @@ function handleMessage(event: MessageEvent) {
 		}
 		respondErr(event, finalErr)
 	}
+}
+
+// respondErr will send an error to the kernel as a response to a moduleCall.
+function respondErr(event: MessageEvent, err: string) {
+	let strErr = tryStringify(err)
+	postMessage({
+		nonce: event.data.nonce,
+		method: "response",
+		err: strErr,
+		data: null,
+	})
+	clearIncomingQuery(event.data.nonce)
 }
 
 export { activeQuery, addHandler, dataFn, handleMessage }

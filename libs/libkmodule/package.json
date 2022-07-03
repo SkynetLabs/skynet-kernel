@@ -1,6 +1,6 @@
 {
 	"name": "libkmodule",
-	"version": "0.2.12",
+	"version": "0.2.13",
 	"author": "Skynet Labs",
 	"description": "helper library to interact with the skynet kernel from a module",
 	"main": "dist/index.js",
@@ -13,11 +13,11 @@
 		"/dist"
 	],
 	"scripts": {
+		"deps": "npm install libskynet@latest",
 		"eslint": "eslint src --fix",
 		"prettier": "prettier --write .",
-		"lint": "npm run prettier && npm run eslint",
+		"lint": "npm run deps && npm run prettier && npm run eslint",
 		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/test.js",
-		"deps": "npm install libskynet@latest",
 		"prepare": "npm run lint && npm run deps && npm run test"
 	},
 	"devDependencies": {
@@ -27,6 +27,6 @@
 		"prettier": "^2.6.2"
 	},
 	"dependencies": {
-		"libskynet": "^0.0.49"
+		"libskynet": "^0.0.50"
 	}
 }
