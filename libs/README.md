@@ -3,19 +3,19 @@
 This folder contains libraries that are useful for working with and developing
 the Skynet kernel.
 
-### libkernel
+#### libkernel
 
 Libkernel is a library that is intended to be used by skapps to interact with
 the skynet kernel. It is a minimal library with not too many functions, but
 provides all core functionality for basic Skynet interactions.
 
-### libkmodule
+#### libkmodule
 
 Libkmodule is a library that is intended to be used by kernel modules. It is a
 minimal library that provides all core functionality for basic Skynet and
 kernel interactions, and for all basic module behaviors.
 
-### libskynet
+#### libskynet
 
 Libskynet is a library for people working with the actual Skynet protocol. Most
 developers will not need to use libskynet, but it is used heavily thorughout
@@ -27,7 +27,7 @@ perform actual network calls. It is not certain yet whether this is a desirable
 spit. If the api calls are pulled out into their own library, libskynet becomes
 fully isomorphic.
 
-### libskynetnode
+#### libskynetnode
 
 Libskynetnode is a library that implements skynet API calls using nodejs
 libraries. There is no isomorphic support for the 'fetch' call, and we elected
