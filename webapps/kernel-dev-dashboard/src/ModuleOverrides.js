@@ -1,7 +1,7 @@
 import { Field, FieldArray, Form, Formik } from "formik";
 
 function ModuleOverrides() {
-  const overrides = window.postMessage({ method: "getModuleOverrides" }) // TODO: actually call kernel to retrieve overrides
+  const overrides = {}; //window.postMessage({ method: "getModuleOverrides" }) // TODO: actually call kernel to retrieve overrides
 
   const overridesArr = Object.entries(overrides).map(([id, { override, notes }]) => ({
     id,
@@ -29,6 +29,7 @@ function ModuleOverrides() {
             return agg;
           }, {});
 
+          console.log('setModuleOverrides', overridesObj)
           window.postMessage({ method: "setModuleOverrides", data: overridesObj }) // TODO: actually call kernel to persist overrides
         }}
       >
