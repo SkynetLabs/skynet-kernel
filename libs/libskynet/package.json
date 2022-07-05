@@ -1,0 +1,30 @@
+{
+	"name": "libskynet",
+	"version": "0.1.0",
+	"author": "Skynet Labs",
+	"description": "helper library to interact with skynet's low level primitives",
+	"main": "dist/index.js",
+	"type": "module",
+	"types": "dist/index.d.js",
+	"publishConfig": {
+		"access": "public"
+	},
+	"files": [
+		"/dist"
+	],
+	"scripts": {
+		"eslint": "eslint src --fix",
+		"prettier": "prettier --write .",
+		"lint": "npm run prettier && npm run eslint",
+		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/src-test/test.js",
+		"prepare": "npm run lint && npm run test"
+	},
+	"devDependencies": {
+		"@types/node": "^17.0.23",
+		"@typescript-eslint/eslint-plugin": "^5.19.0",
+		"eslint": "^8.13.0",
+		"prettier": "^2.6.2",
+		"skynet-js": "^4.3.0",
+		"tweetnacl": "^1.0.3"
+	}
+}
