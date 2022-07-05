@@ -23,7 +23,7 @@
 		"cpy-cli": "^4.1.0",
 		"eslint": "^8.13.0",
 		"libskynet": "^0.0.43",
-		"libskynetnode": "^0.1.2",
+		"libskynetnode": "^0.1.3",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
 		"rollup": "^2.75.6",
