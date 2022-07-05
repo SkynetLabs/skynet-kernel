@@ -4,23 +4,18 @@ notes
 out.txt
 
 # Folders created in the build process
+.cache
 build
 build-cache
 bundle
 dist
 dist-test
 dist-build
-
-# http-server executable
-http-server/http-server
-
-# gatsby related files
-.cache
 node_modules
 public
 
-# ignore the build.js for secure-upload
-modules/secure-upload/build.js
+# http-server executable
+http-server/http-server
 
 # Code Editors
 .vscode
