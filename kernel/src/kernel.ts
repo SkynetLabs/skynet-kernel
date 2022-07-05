@@ -10,11 +10,13 @@ import {
 	addContextToErr,
 	blake2b,
 	bufToB64,
+	b64ToBuf,
 	deriveMyskyRootKeypair,
 	downloadSkylink,
 	encodeU64,
 	error,
 	tryStringify,
+	validSkylink,
 } from "libskynet"
 import { moduleQuery, presentSeedData } from "libkmodule"
 
@@ -48,7 +50,7 @@ declare var userSeed: Uint8Array
 // At some point we may want something like a capabilities array, but the
 // ecosystem isn't mature enough to need that.
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.5.2"
+const kernelVersion = "0.6.0"
 
 // defaultMyskyRootModules lists out the set of modules that are allowed to
 // receive the user's MySky root seed by default.
@@ -108,11 +110,11 @@ function logErr(tag: string, ...inputs: any) {
 // Cluster all of the large state objects at the top so that we can easily
 // track memory leaks. We log exponentially less frequently throughout the
 // lifetime of the program to ensure we don't send too many messages total.
-var queriesNonce = 0
-var queries = {} as any
-var modules = {} as any
-var modulesLoading = {} as any
-var notableErrors: string[] = []
+let queriesNonce = 0
+let queries = {} as any
+let modules = {} as any
+let modulesLoading = {} as any
+let notableErrors: string[] = []
 let waitTime = 30000
 function logLargeObjects() {
 	let queriesLenStr = Object.keys(queries).length.toString()
@@ -130,6 +132,9 @@ function logLargeObjects() {
 	setTimeout(logLargeObjects, waitTime)
 }
 setTimeout(logLargeObjects, waitTime)
+
+// Establish the stateful variable for tracking module overrides.
+let moduleOverrideList = {} as any
 
 // Derive the active seed for this session. We define an active seed so that
 // the user has control over changing accounts later, they can "change
@@ -575,6 +580,120 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	modulesLoading[moduleDomain] = moduleLoadedPromise
 }
 
+// handleSkynetKernelGetModuleOverrides handles a kernel message that is
+// requesting the list of module overrides. This is a restricted call that can
+// only be used by priviledged pages.
+function handleSkynetKernelGetModuleOverrides(event: MessageEvent) {
+	// Implement the access control.
+	if (event.origin !== "http://kernel.skynet/dashboard.html") {
+		respondErr(event, event.source, false, "this page is not allowed to call the restricted endpoint")
+		return
+	}
+
+	// Provide the list of module overrides.
+	if (event.source === null) {
+		return
+	}
+	event.source.postMessage(
+		{
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: moduleOverrideList,
+		},
+		event.origin as any // tsc
+	)
+}
+
+// handleSkynetKernelSetModuleOverrides handles a kernel message that is
+// attempting to update the list of module overrides. This is a restricted call
+// that can only be used by priviledged pages.
+function handleSkynetKernelSetModuleOverrides(event: MessageEvent) {
+	// Implement the access control.
+	if (event.origin !== "http://kernel.skynet/dashboard.html") {
+		respondErr(event, event.source, false, "this page is not allowed to call the restricted endpoint")
+		return
+	}
+
+	// Have to check for null independently because 'typeof null' will evaluate
+	// to "object".
+	if (event.data.data === null || event.data.data === undefined) {
+		respondErr(event, event.source, false, "provided call data is not an object")
+		return
+	}
+	let newOverrides = event.data.data.newOverrides
+	if (newOverrides === null || typeof newOverrides !== "object") {
+		respondErr(event, event.source, false, "newOverrides needs to be a key-value list of module overrides")
+		return
+	}
+
+	// Iterate over the keys and values of the object and ensure that all of
+	// them are legal override objects.
+	for (let [key, value] of Object.entries(newOverrides)) {
+		// Check that the key is a valid skylink. This key represents a module.
+		if (typeof key !== "string") {
+			respondErr(event, event.source, false, "module identifiers should be strings")
+			return
+		}
+		let [skylinkU8, errBTB] = b64ToBuf(key)
+		if (errBTB !== null) {
+			respondErr(event, event.source, false, addContextToErr(errBTB, "unable to decode key"))
+			return
+		}
+		if (!validSkylink(skylinkU8)) {
+			respondErr(event, event.source, false, "module identifiers should be valid skylinks")
+			return
+		}
+
+		// Check that the value is an object.
+		if (value === undefined) {
+			respondErr(event, event.source, false, "provided data is not a valid list of module overrides")
+			return
+		}
+		// Check that the notes field exists and is a string.
+		if (typeof (value as any).notes !== "string") {
+			respondErr(event, event.source, false, "every module override should have a notes field")
+			return
+		}
+		// Check that the notes field isn't too large.
+		if ((value as any).notes.length > 140) {
+			respondErr(event, event.source, false, "every module override should have a notes field")
+			return
+		}
+		// Check that the override field exists and is a string.
+		if (typeof (value as any).override !== "string") {
+			respondErr(event, event.source, false, "every module override should have an override field")
+			return
+		}
+		let [overrideU8, errBTB2] = b64ToBuf((value as any).override)
+		if (errBTB2 !== null) {
+			respondErr(event, event.source, false, addContextToErr(errBTB, "unable to decode override value"))
+			return
+		}
+		if (!validSkylink(overrideU8)) {
+			respondErr(event, event.source, false, addContextToErr(errBTB, "override is not a valid skylink"))
+			return
+		}
+	}
+
+	// Update the overrides list and respond with success.
+	moduleOverrideList = newOverrides
+	if (event.source === null) {
+		return
+	}
+	event.source.postMessage(
+		{
+			nonce: event.data.nonce,
+			method: "response",
+			err: null,
+			data: {
+				success: true,
+			},
+		},
+		event.origin as any
+	)
+}
+
 // Overwrite the handleIncomingMessage function that gets called at the end of the
 // event handler, allowing us to support custom messages.
 handleIncomingMessage = function (event: any) {
@@ -681,6 +800,14 @@ handleIncomingMessage = function (event: any) {
 	}
 	if (event.data.method === "proxyInfo") {
 		handleSkynetKernelProxyInfo(event)
+		return
+	}
+	if (event.data.method === "getModuleOverrides") {
+		handleSkynetKernelGetModuleOverrides(event)
+		return
+	}
+	if (event.data.method === "setModuleOverrides") {
+		handleSkynetKernelSetModuleOverrides(event)
 		return
 	}
 

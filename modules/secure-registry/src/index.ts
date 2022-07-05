@@ -1,4 +1,4 @@
-import { activeQuery, addContextToErr, addHandler, handleMessage } from "libkmodule"
+import { activeQuery, addContextToErr, addHandler, handleMessage, t_registryReadResult } from "libkmodule"
 import {
 	blake2b,
 	bufToHex,
@@ -92,12 +92,13 @@ function handleReadEntry(aq: activeQuery) {
 			}
 
 			// Pass the response to the caller.
-			aq.respond({
+			let resp: t_registryReadResult = {
 				exists: true,
 				deleted: false,
 				entryData,
 				revision: obj.revision,
-			})
+			}
+			aq.respond(resp)
 		})
 	})
 }

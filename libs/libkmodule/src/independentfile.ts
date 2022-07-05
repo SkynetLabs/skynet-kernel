@@ -5,7 +5,7 @@
 // not meant to be shared.
 
 // TODO: Need to implement delete using the special registry value that
-// signifies a deleted file.
+// signifies a deleted file, then implement deleteFile on independentFileSmall.
 
 // TODO: Need to implement registry subscriptions so that we can detect if the
 // file has been modified elsewhere and invalidate the file.
@@ -25,9 +25,19 @@ import {
 	taggedRegistryEntryKeys,
 } from "libskynet"
 
+const ERR_EXISTS = "exists"
+
 // overwriteDataFn is the function signature for calling 'overwriteData' on an
 // independentFile.
 type overwriteDataFn = (newData: Uint8Array) => Promise<error>
+
+// readDataFn defines the function signature for calling 'readData' on an
+// indepdendentFile.
+//
+// NOTE: When implementing a full sized independent file, the 'readData'
+// function should either return an error or return the full file. To do
+// partial reads, use/implement the function 'read'.
+type readDataFn = () => Uint8Array
 
 // independentFileMetadataSmall defines the established metadata for an
 // independentFile. The metadata is not allowed to be adjusted because we want
@@ -61,12 +71,21 @@ interface independentFileSmallMetadata {
 // MB, however there's no formal limitation in the size of an independent file.
 interface independentFileSmall {
 	dataKey: Uint8Array
+	fileData: Uint8Array
 	inode: string
 	keypair: ed25519Keypair
 	metadata: independentFileSmallMetadata
-	overwriteData: overwriteDataFn
 	revision: bigint
 	seed: Uint8Array
+
+	// overwriteData is a function that takes the new file data (a uint8array)
+	// as input and updates the file on Skynet to contain the new data.
+	overwriteData: overwriteDataFn
+
+	// readData is a function that returns the fileData of the independentFile.
+	// It is a safe passthrough to fileData - it makes a copy before returning
+	// the data.
+	readData: readDataFn
 }
 
 // createIndependentFile will create a new independent file with the provided
@@ -90,17 +109,16 @@ function createIndependentFileSmall(
 		}
 
 		// Read from the registry entry to check that this file doesn't already
-		// exist. If it does, return an error.
+		// exist. If it does, return an error. We need to check both the exists
+		// and deleted value on the registry entry because the registry entry
+		// may exist yet still indicate that the file has been deleted.
 		let [result, errRR] = await registryRead(keypair.publicKey, dataKey)
 		if (errRR !== null) {
 			resolve([{} as any, addContextToErr(errRR, "unable to read registry entry for file")])
 			return
 		}
-		if (result.exists === true) {
-			resolve([
-				{} as any,
-				"cannot create new file, a file already exists at this inode. Use openIndepdendentFile instead",
-			])
+		if (result.exists === true && result.deleted === false) {
+			resolve([{} as any, "exists"])
 			return
 		}
 
@@ -151,14 +169,23 @@ function createIndependentFileSmall(
 		// Create and return the independentFile.
 		let ifile: independentFileSmall = {
 			dataKey,
+			fileData,
 			inode,
 			keypair,
 			metadata,
 			revision,
 			seed,
 
+			// overwriteData will replace the fileData with the provided
+			// newData.
 			overwriteData: function (newData: Uint8Array): Promise<error> {
 				return overwriteIndependentFileSmall(ifile, newData)
+			},
+			// readData will return the data contained in the file.
+			readData: function (): Uint8Array {
+				let data = new Uint8Array(ifile.fileData.length)
+				data.set(ifile.fileData, 0)
+				return data
 			},
 		}
 		resolve([ifile, null])
@@ -177,13 +204,16 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 		}
 
 		// Read from the registry entry to check that this file doesn't already
-		// exist. If it does, return an error.
+		// exist. If it does, return an error. We need to check both the
+		// 'exists' value and the 'deleted' value on the registry result to
+		// know if a file exists, because the registry entry may exist yet
+		// still indicate the file was deleted.
 		let [result, errRR] = await registryRead(keypair.publicKey, dataKey)
 		if (errRR !== null) {
 			resolve([{} as any, addContextToErr(errRR, "unable to read registry entry for file")])
 			return
 		}
-		if (result.exists !== true) {
+		if (result.exists !== true || result.deleted === true) {
 			resolve([{} as any, "cannot open file, file does not appear to exist"])
 			return
 		}
@@ -202,7 +232,7 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 		}
 
 		// Decrypt the file to read the metadata.
-		let [metadata, , errDF] = decryptFileSmall(seed, inode, encryptedData)
+		let [metadata, fileData, errDF] = decryptFileSmall(seed, inode, encryptedData)
 		if (errDF !== null) {
 			resolve([{} as any, addContextToErr(errDF, "unable to decrypt file")])
 			return
@@ -213,14 +243,23 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 
 		let ifile: independentFileSmall = {
 			dataKey,
+			fileData,
 			inode,
 			keypair,
 			metadata,
 			revision: result.revision!,
 			seed,
 
+			// overwriteData will replace the fileData with the provided
+			// newData.
 			overwriteData: function (newData: Uint8Array): Promise<error> {
 				return overwriteIndependentFileSmall(ifile, newData)
+			},
+			// readData will return the data contained in the file.
+			readData: function (): Uint8Array {
+				let data = new Uint8Array(ifile.fileData.length)
+				data.set(ifile.fileData, 0)
+				return data
 			},
 		}
 		resolve([ifile, null])
@@ -285,8 +324,9 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		// File update was successful, update the file metadata.
 		file.revision += 1n
 		file.metadata = newMetadata
+		file.fileData = newData
 		resolve(null)
 	})
 }
 
-export { createIndependentFileSmall, openIndependentFileSmall }
+export { createIndependentFileSmall, openIndependentFileSmall, ERR_EXISTS }
