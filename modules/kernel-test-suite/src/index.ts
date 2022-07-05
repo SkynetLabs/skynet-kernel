@@ -302,9 +302,76 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 		aq.reject(addContextToErr(errOIF, "unable to open the test file"))
 		return
 	}
-	if (errOIF === ERR_EXISTS) {
-		// Create the file.
-		let initialFileData = 
+
+	// If the file doesn't exist, which can happen, we need to create a new
+	// one.
+	let newFile = false
+	if (errOIF === ERR_NOT_EXISTS) {
+		let initialFileData = new TextEncoder().encode("this is my initial file")
+		let [newFile, errCIFS] = await createIndependentFileSmall(seed, "testFile", initialFileData)
+		if (errCIFS !== null) {
+			aq.reject(addContextToErr(errCIFS, "unable to create test file"))
+			return
+		}
+		testFile = newFile
+		newFile = true
+	}
+
+	// Fetch the contents of the file and compare them to the expected
+	// contents.
+	let [fileData, errRD] = await testFile.readData()
+	if (errRD !== null) {
+		aq.reject(addContextToErr(errRD, "unable to read test file"))
+		return
+	}
+	let	expectedData = new TextEncoder().encode("this is my initial file")
+	if (filedData.length !== expectedData.length) {
+		aq.reject("file has unexpected data")
+		return
+	}
+	for (let i = 0; i < fileData.length; i++) {
+		if (fileData[i] !== expectedData[i]) {
+			aq.reject("file has unexpected data")
+			return
+		}
+	}
+
+	// Try overwriting the file with new data.
+	let newFileData = new TextEncoder().encode("this is an overwritten file")
+	let errOD = await testFile.overwriteData(newFileData)
+	if (errOD !== null) {
+		aq.reject(addContextToErr(errOD, "could not overwrite file"))
+		return
+	}
+
+	// Open a separate file to the same inode to check that the overwrite
+	// actually succeeded.
+	let [testFile2, errOIF2] = await openIndependentFile(seed, "testFile")
+	if (errOIF2 !== null) {
+		aq.reject(addContextToErr(errOIF2, "could not open file"))
+		return
+	}
+	let [tf2Data, errRF2] = await testFile2.readData()
+	if (errRF2 !== null) {
+		aq.reject(addContextToErr(errRF2, "unable to read second test file"))
+		return
+	}
+	if (tf2Data.length !== newFileData.length) {
+		aq.reject("overwrite file does not have the correct length when being opened again")
+		return
+	}
+	for (let i = 0; i < tf2Data.length; i++) {
+		if (tf2Data[i] !== newFileData[i]) {
+			aq.reject("overwritten file does not match the target data")
+			return
+		}
+	}
+
+	// Set the data back to the initial data for the next test.
+	let errOF2 = testFile2.overwriteData(expectedData)
+	if (errOF2 !== null) {
+		aq.reject("unable to finalize the file with the old data")
+		return
 	}
 }
 
@@ -456,9 +523,6 @@ async function handleViewHelperSeed(activeQuery: any) {
 		activeQuery.reject(err)
 		return
 	}
-
-	// Check that the seed is well formed
-	let seed = await  
 }
 
 // handleTestLogging writes a bunch of logs to allow the operator to verify

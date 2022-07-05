@@ -8,7 +8,8 @@
 // signifies a deleted file, then implement deleteFile on independentFileSmall.
 
 // TODO: Need to implement registry subscriptions so that we can detect if the
-// file has been modified elsewhere and invalidate the file.
+// file has been modified elsewhere and invalidate the file / update the
+// caller.
 
 import { download } from "./messagedownload.js"
 import { registryRead, registryWrite } from "./messageregistry.js"
@@ -26,6 +27,7 @@ import {
 } from "libskynet"
 
 const ERR_EXISTS = "exists"
+const ERR_NOT_EXISTS = "DNE"
 
 // overwriteDataFn is the function signature for calling 'overwriteData' on an
 // independentFile.
@@ -37,7 +39,7 @@ type overwriteDataFn = (newData: Uint8Array) => Promise<error>
 // NOTE: When implementing a full sized independent file, the 'readData'
 // function should either return an error or return the full file. To do
 // partial reads, use/implement the function 'read'.
-type readDataFn = () => Uint8Array
+type readDataFn = () => Promise<[Uint8Array, error]>
 
 // independentFileMetadataSmall defines the established metadata for an
 // independentFile. The metadata is not allowed to be adjusted because we want
@@ -160,12 +162,6 @@ function createIndependentFileSmall(
 			return
 		}
 
-		// TODO: May want to subscribe to the registry etnry to watch for
-		// changes that other instances of this user's account might be making.
-		// Basically it'd be some hook inside of the indyFile that would
-		// cause the independent file to be updated or produce an error or something
-		// in the event of a write from another location.
-
 		// Create and return the independentFile.
 		let ifile: independentFileSmall = {
 			dataKey,
@@ -182,10 +178,12 @@ function createIndependentFileSmall(
 				return overwriteIndependentFileSmall(ifile, newData)
 			},
 			// readData will return the data contained in the file.
-			readData: function (): Uint8Array {
-				let data = new Uint8Array(ifile.fileData.length)
-				data.set(ifile.fileData, 0)
-				return data
+			readData: function (): Promise<[Uint8Array, error]> {
+				return new Promise((resolve) => {
+					let data = new Uint8Array(ifile.fileData.length)
+					data.set(ifile.fileData, 0)
+					resolve([data, null])
+				})
 			},
 		}
 		resolve([ifile, null])
@@ -214,7 +212,7 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 			return
 		}
 		if (result.exists !== true || result.deleted === true) {
-			resolve([{} as any, "cannot open file, file does not appear to exist"])
+			resolve([{} as any, ERR_NOT_EXISTS])
 			return
 		}
 
@@ -238,9 +236,6 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 			return
 		}
 
-		// TODO: May want to subscribe to the registry etnry to watch for changes
-		// that other instances of this user's account might be making.
-
 		let ifile: independentFileSmall = {
 			dataKey,
 			fileData,
@@ -256,10 +251,12 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 				return overwriteIndependentFileSmall(ifile, newData)
 			},
 			// readData will return the data contained in the file.
-			readData: function (): Uint8Array {
-				let data = new Uint8Array(ifile.fileData.length)
-				data.set(ifile.fileData, 0)
-				return data
+			readData: function (): Promise<[Uint8Array, error]> {
+				return new Promise((resolve) => {
+					let data = new Uint8Array(ifile.fileData.length)
+					data.set(ifile.fileData, 0)
+					resolve([data, null])
+				})
 			},
 		}
 		resolve([ifile, null])
@@ -329,4 +326,4 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 	})
 }
 
-export { createIndependentFileSmall, openIndependentFileSmall, ERR_EXISTS }
+export { createIndependentFileSmall, openIndependentFileSmall, ERR_EXISTS, ERR_NOT_EXISTS }
