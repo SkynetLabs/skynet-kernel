@@ -485,9 +485,6 @@ function TestIgnoreResponseUpdates() {
 // when using libkernel. It uses the same method on the helper module that the
 // tester module uses to verify connectModule in libkmodule, which gives us
 // confidence that the libraries are equivalent.
-//
-// TODO: Need to find some way to abort a query. Maybe that's per-module or
-// something I'm not sure.
 function TestLibkernelQueryUpdates() {
   // Track whether or not we've called accept/reject.
   let resolved = false;

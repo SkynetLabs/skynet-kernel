@@ -5,8 +5,8 @@ import {
 	addContextToErr,
 	b64ToBuf,
 	deriveRegistryEntryID,
+	entryIDToSkylink,
 	generateSeedPhraseDeterministic,
-	resolverLink,
 	sha512,
 	taggedRegistryEntryKeys,
 	validSeedPhrase,
@@ -79,10 +79,7 @@ function seedPhraseToRegistryLink(seedPhrase: string): [string, string | null] {
 	if (errDREID !== null) {
 		return ["", addContextToErr(errDREID, "unable to compute registry entry id")]
 	}
-	let [registryLink, errRL] = resolverLink(entryID)
-	if (errRL !== null) {
-		return ["", addContextToErr(errRL, "unable to compute registry link")]
-	}
+	let registryLink = entryIDToSkylink(entryID)
 	return [registryLink, null]
 }
 

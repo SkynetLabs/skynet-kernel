@@ -20,14 +20,6 @@ import {
 } from "libskynet"
 import { moduleQuery, presentSeedData } from "libkmodule"
 
-// TODO: Need some way to control the total number of queries that are open so
-// that we don't leak memory. This needs to be handled at all layers where a
-// query map exists. This gets tricky when you have multiple layers of queries
-// going for a request. For example, a webapp has a query to a kernel that's a
-// moduleCall, which means the kernel also has a query going to the worker. We
-// need to make sure that the worker query fails eventually, and we also need
-// to make sure that when it does fail we close out the webapp query as well.
-
 // These three functions are expected to have already been declared by the
 // bootloader. They are necessary for getting started and downloading the
 // kernel while informing applications about the auth state of the kernel.
@@ -58,6 +50,10 @@ const defaultMyskyRootModules = [
 	"AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ", // Resolver link for Redsolver's Mysky Module
 	"IABOv7_dkJwtuaFBeB6eTR32mSvtLsBRVffEY9yYL0v0rA", // Immutable link for the mysky test module
 ]
+
+// IS_EXTENSION is a boolean that indicates whether or not the kernel is
+// running in a browser extension.
+const IS_EXTENSION = window.origin === "http://kernel.skynet"
 
 // Set up a system to track messages that are sent to workers and to connect
 // the responses. queriesNonce is a field to help ensure there is only one
@@ -580,12 +576,26 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	modulesLoading[moduleDomain] = moduleLoadedPromise
 }
 
+// callerIsDashboard checks that the caller of a method is the secure dashboard
+// of the kernel.
+function callerIsDashboard(event: MessageEvent): boolean {
+	let extensionDash == "http://kernel.skynet/dashboard.html"
+	let sktDash = "https://skt.us/dashboard.html"
+	if (isExtension && event.origin !== extensionDash) {
+		return false
+	}
+	if (event.origin !== sktDash && event.origin !== extensionDash) {
+		return false
+	}
+	return true
+}
+
 // handleSkynetKernelGetModuleOverrides handles a kernel message that is
 // requesting the list of module overrides. This is a restricted call that can
 // only be used by priviledged pages.
 function handleSkynetKernelGetModuleOverrides(event: MessageEvent) {
 	// Implement the access control.
-	if (event.origin !== "http://kernel.skynet/dashboard.html") {
+	if (!callerIsDashboard(event)) {
 		respondErr(event, event.source, false, "this page is not allowed to call the restricted endpoint")
 		return
 	}
@@ -610,7 +620,7 @@ function handleSkynetKernelGetModuleOverrides(event: MessageEvent) {
 // that can only be used by priviledged pages.
 function handleSkynetKernelSetModuleOverrides(event: MessageEvent) {
 	// Implement the access control.
-	if (event.origin !== "http://kernel.skynet/dashboard.html") {
+	if (!callerIsDashboard(event)) {
 		respondErr(event, event.source, false, "this page is not allowed to call the restricted endpoint")
 		return
 	}
