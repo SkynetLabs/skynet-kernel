@@ -30,9 +30,15 @@ function tryStringify(obj: any): string {
 	}
 
 	// If the object does not have a custom toString, attempt to perform a
-	// JSON.stringify.
+	// JSON.stringify. We add custom handling for bigints so that objects with
+	// bigints in them can still be stringified.
 	try {
-		return JSON.stringify(obj)
+		return JSON.stringify(obj, (_, v) => {
+			if (typeof v === "bigint") {
+				return v.toString()+"n"
+			}
+			return v
+		})
 	} catch {
 		return "[stringify failed]"
 	}
