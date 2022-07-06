@@ -107,7 +107,7 @@ function encryptFileSmall(
 	revision: bigint,
 	metadata: any,
 	fileData: Uint8Array,
-	minFullSize?: number
+	minFullSize?: bigint
 ): [encryptedData: Uint8Array, err: error] {
 	// Get a json encoding of the metadata. We need to know the size of the
 	// metadata before allocating the full data for the file.
@@ -129,7 +129,7 @@ function encryptFileSmall(
 	// resistance. A collision is only possible to create by someone who knows
 	// the secret that will be used with the hash to create the encryption key,
 	// and if they know the secret they can decrypt the full file anyway.
-	let rawSize = 16 + 8 + 8 + 8 + metadataBytes.length + fileData.length
+	let rawSize = BigInt(16 + 8 + 8 + 8 + metadataBytes.length + fileData.length)
 
 	// Get the padded size of the file and create the full data array. If a
 	// minFullSize has been passed in by the caller, ensure that the fullData
@@ -138,7 +138,7 @@ function encryptFileSmall(
 	if (minFullSize !== undefined && paddedSize < minFullSize) {
 		paddedSize = getPaddedFileSize(minFullSize)
 	}
-	let fullData = new Uint8Array(paddedSize)
+	let fullData = new Uint8Array(Number(paddedSize))
 
 	// Create the prefixes that we need for the full data. This includes the
 	// revision number, because the revision number is used as an extra step of
@@ -210,13 +210,13 @@ function encryptFileSmall(
 // should avoid if at all possible downsizing the file, as this can leak
 // information, especially if the file is being resized frequently and is also
 // right along a padding boundary.
-function getPaddedFileSize(originalSize: number): number {
+function getPaddedFileSize(originalSize: bigint): bigint {
 	// Determine the rounding factor.
-	let blockSize = 4096
-	let largestAllowed = 1024 * 80
+	let blockSize = 4096n
+	let largestAllowed = 1024n * 80n
 	while (largestAllowed < originalSize) {
-		largestAllowed *= 2
-		blockSize *= 2
+		largestAllowed *= 2n
+		blockSize *= 2n
 	}
 
 	// Perform the rounding.

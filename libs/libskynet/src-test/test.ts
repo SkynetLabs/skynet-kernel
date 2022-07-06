@@ -2,12 +2,14 @@ import { dictionary } from "../src/dictionary.js"
 import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js"
 import { otpEncrypt } from "../src/encrypt.js"
+import { addContextToErr } from "../src/err.js"
 import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "../src/fileprivate.js"
 import { deriveRegistryEntryID, entryIDToSkylink, taggedRegistryEntryKeys } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
+import { jsonStringify } from "../src/stringifyjson.js"
 import { tryStringify } from "../src/stringifytry.js"
 
 // Establish a global set of functions and objects for testing flow control.
@@ -380,6 +382,53 @@ function TestTryStringify(t: any) {
 	}
 }
 
+// TestJSONStringify runs some inputs through jsonStringify to make sure they
+// are being built correctly.
+function TestJSONStringify(t: any) {
+	// Start simple.
+	let basicObj = {
+		test: 5,
+	}
+	let [str1, err1] = jsonStringify(basicObj)
+	if (err1 !== null) {
+		t.fail(addContextToErr(err1, "unable to stringify basicObj"))
+		return
+	}
+	// Count the number of quotes in str1, we are expecting 2.
+	let quotes = 0
+	for (let i = 0; i < str1.length; i++) {
+		if (str1[i] === '"') {
+			quotes += 1
+		}
+	}
+	if (quotes !== 2) {
+		t.fail("expecting 2 quotes in stringify output")
+		t.log(str1)
+	}
+
+	// Try encoding a bignum.
+	let bigNumObj = {
+		test: 5n,
+		testBig: 122333444455555666666777777788888888999999999000000000012345n,
+	}
+	let [str2, err2] = jsonStringify(bigNumObj)
+	if (err2 !== null) {
+		t.fail(addContextToErr(err2, "unable to stringify bigNumObj"))
+		return
+	}
+	// Count the number of quotes in str2, we are expecting 4.
+	quotes = 0
+	for (let i = 0; i < str2.length; i++) {
+		if (str2[i] === '"') {
+			quotes += 1
+		}
+	}
+	if (quotes !== 4) {
+		t.fail("expecting 4 quotes in stringify output")
+		t.log(str2)
+	}
+}
+
 // TestMyskyEquivalence is a test that checks that the way libskynet derives
 // the mysky seed for a user matches the code that derived a mysky seed for a
 // user in skynet-mysky. Following the test are some unique dependencies so
@@ -507,42 +556,42 @@ function TestOTPEncrypt(t: any) {
 // of padding by the pad function.
 function TestPaddedFileSize(t: any) {
 	let tests = [
-		{ trial: 0, expect: 4096 },
-		{ trial: 1, expect: 4096 },
-		{ trial: 100, expect: 4096 },
-		{ trial: 200, expect: 4096 },
-		{ trial: 4095, expect: 4096 },
-		{ trial: 4096, expect: 4096 },
-		{ trial: 4097, expect: 8192 },
-		{ trial: 8191, expect: 8192 },
-		{ trial: 8192, expect: 8192 },
-		{ trial: 8193, expect: 12288 },
-		{ trial: 12287, expect: 12288 },
-		{ trial: 12288, expect: 12288 },
-		{ trial: 12289, expect: 16384 },
-		{ trial: 16384, expect: 16384 },
-		{ trial: 32767, expect: 32768 },
-		{ trial: 32768, expect: 32768 },
-		{ trial: 32769, expect: 36864 },
-		{ trial: 36863, expect: 36864 },
-		{ trial: 36864, expect: 36864 },
-		{ trial: 36865, expect: 40960 },
-		{ trial: 45056, expect: 45056 },
-		{ trial: 45057, expect: 49152 },
-		{ trial: 65536, expect: 65536 },
-		{ trial: 65537, expect: 69632 },
-		{ trial: 106496, expect: 106496 },
-		{ trial: 106497, expect: 114688 },
-		{ trial: 163840, expect: 163840 },
-		{ trial: 163841, expect: 180224 },
-		{ trial: 491520, expect: 491520 },
-		{ trial: 491521, expect: 524288 },
-		{ trial: 720896, expect: 720896 },
-		{ trial: 720897, expect: 786432 },
-		{ trial: 1572864, expect: 1572864 },
-		{ trial: 1572865, expect: 1703936 },
-		{ trial: 3407872, expect: 3407872 },
-		{ trial: 3407873, expect: 3670016 },
+		{ trial: 0n, expect: 4096n },
+		{ trial: 1n, expect: 4096n },
+		{ trial: 100n, expect: 4096n },
+		{ trial: 200n, expect: 4096n },
+		{ trial: 4095n, expect: 4096n },
+		{ trial: 4096n, expect: 4096n },
+		{ trial: 4097n, expect: 8192n },
+		{ trial: 8191n, expect: 8192n },
+		{ trial: 8192n, expect: 8192n },
+		{ trial: 8193n, expect: 12288n },
+		{ trial: 12287n, expect: 12288n },
+		{ trial: 12288n, expect: 12288n },
+		{ trial: 12289n, expect: 16384n },
+		{ trial: 16384n, expect: 16384n },
+		{ trial: 32767n, expect: 32768n },
+		{ trial: 32768n, expect: 32768n },
+		{ trial: 32769n, expect: 36864n },
+		{ trial: 36863n, expect: 36864n },
+		{ trial: 36864n, expect: 36864n },
+		{ trial: 36865n, expect: 40960n },
+		{ trial: 45056n, expect: 45056n },
+		{ trial: 45057n, expect: 49152n },
+		{ trial: 65536n, expect: 65536n },
+		{ trial: 65537n, expect: 69632n },
+		{ trial: 106496n, expect: 106496n },
+		{ trial: 106497n, expect: 114688n },
+		{ trial: 163840n, expect: 163840n },
+		{ trial: 163841n, expect: 180224n },
+		{ trial: 491520n, expect: 491520n },
+		{ trial: 491521n, expect: 524288n },
+		{ trial: 720896n, expect: 720896n },
+		{ trial: 720897n, expect: 786432n },
+		{ trial: 1572864n, expect: 1572864n },
+		{ trial: 1572865n, expect: 1703936n },
+		{ trial: 3407872n, expect: 3407872n },
+		{ trial: 3407873n, expect: 3670016n },
 	]
 
 	for (let i = 0; i < tests.length; i++) {
@@ -815,6 +864,7 @@ runTest(TestDecodeU64)
 runTest(TestValidateSkyfilePath)
 runTest(TestSkylinkV1Bitfield)
 runTest(TestTryStringify)
+runTest(TestJSONStringify)
 runTest(TestMyskyEquivalence)
 runTest(TestOTPEncrypt)
 runTest(TestPaddedFileSize)

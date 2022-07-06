@@ -1189,6 +1189,11 @@ const IndexPage = () => {
         test={TestLibkernelQueryUpdates}
         turn={getTurn()}
       />
+      <TestCard
+        name="TestIndependentFileSmall"
+        test={TestIndependentFileSmall}
+        turn={getTurn()}
+      />
       <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
       <TestCard
         name="TestSecureRegistry"
@@ -1198,11 +1203,6 @@ const IndexPage = () => {
       <TestCard
         name="TestSecureUploadAndDownload"
         test={TestSecureUploadAndDownload}
-        turn={getTurn()}
-      />
-      <TestCard
-        name="TestIndependentFileSmall"
-        test={TestIndependentFileSmall}
         turn={getTurn()}
       />
       <TestCard

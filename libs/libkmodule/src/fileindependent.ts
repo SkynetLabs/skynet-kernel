@@ -24,10 +24,12 @@ import {
 	error,
 	skylinkToResolverEntryData,
 	taggedRegistryEntryKeys,
+	tryStringify,
 } from "libskynet"
 
 const ERR_EXISTS = "exists"
 const ERR_NOT_EXISTS = "DNE"
+const STD_FILENAME = "file"
 
 // overwriteDataFn is the function signature for calling 'overwriteData' on an
 // independentFile.
@@ -49,7 +51,7 @@ type readDataFn = () => Promise<[Uint8Array, error]>
 // from leaking information if they shrink the size of the file between writes.
 interface independentFileSmallMetadata {
 	filename: string
-	largestHistoricSize: number
+	largestHistoricSize: bigint
 }
 
 // independentFileSmall is a safe object for working with small independent
@@ -127,7 +129,7 @@ function createIndependentFileSmall(
 		// Create the encrypted file blob.
 		let metadata: independentFileSmallMetadata = {
 			filename: inode,
-			largestHistoricSize: fileData.length,
+			largestHistoricSize: BigInt(fileData.length),
 		}
 		let revision = 0n
 		let [encryptedData, errEF] = encryptFileSmall(
@@ -144,7 +146,7 @@ function createIndependentFileSmall(
 		}
 
 		// Upload the data to get the immutable link.
-		let [skylink, errU] = await upload(metadata.filename, encryptedData)
+		let [skylink, errU] = await upload(STD_FILENAME, encryptedData)
 		if (errU !== null) {
 			resolve([{} as any, addContextToErr(errU, "upload failed")])
 			return
@@ -216,13 +218,15 @@ function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[ind
 			return
 		}
 
-		// Download the file to read the metadata.
+		// Determine the skylink of the encrypted file.
 		let [entryID, errDREID] = deriveRegistryEntryID(keypair.publicKey, dataKey)
 		if (errDREID !== null) {
 			resolve([{} as any, addContextToErr(errDREID, "unable to derive registry entry id")])
 			return
 		}
 		let skylink = entryIDToSkylink(entryID)
+
+		// Download the file to load the metadata and file data.
 		let [encryptedData, errD] = await download(skylink)
 		if (errD !== null) {
 			resolve([{} as any, addContextToErr(errD, "unable to download file metadata")])
@@ -274,10 +278,10 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		// metadata. Need to update the largest historic size.
 		let newMetadata: independentFileSmallMetadata = {
 			filename: file.metadata.filename,
-			largestHistoricSize: file.metadata.largestHistoricSize,
+			largestHistoricSize: BigInt(file.metadata.largestHistoricSize),
 		}
-		if (newData.length > newMetadata.largestHistoricSize) {
-			newMetadata.largestHistoricSize = newData.length
+		if (BigInt(newData.length) > newMetadata.largestHistoricSize) {
+			newMetadata.largestHistoricSize = BigInt(newData.length)
 		}
 
 		// Create a new encrypted blob for the data.
@@ -299,7 +303,7 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		}
 
 		// Upload the data to get the immutable link.
-		let [skylink, errU] = await upload(file.metadata.filename, encryptedData)
+		let [skylink, errU] = await upload(STD_FILENAME, encryptedData)
 		if (errU !== null) {
 			resolve(addContextToErr(errU, "new data upload failed"))
 			return
