@@ -27,6 +27,6 @@
 	},
 	"dependencies": {
 		"@skynetlabs/libskynet": "^0.0.48",
-		"libskynet": "^0.0.19"
+		"libskynet": "^0.0.52"
 	}
 }
