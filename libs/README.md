@@ -39,9 +39,11 @@ most functions in libskynet are isomorphic.
 
 All libraries should be written in typescript.
 
-Consts should always be all caps with underscores: `EXAMPLE_CONST`
+Constants should always be all caps with underscores: `EXAMPLE_CONST`
 
-Types should always be prefixed by `t_`
+Functions should always use a lowerCase naming format.
+
+Types should always use an UpperCase naming format.
 
 Functions should not throw under any circumstances. All potential throws should
 be caught inside of the function, and an error should be returned instead.
@@ -55,3 +57,6 @@ each format, and we want to make sure we track their types well.
 	+ use 'skylink32' for base32 skylinks formatted as strings (uncommon)
 	+ use 'skylink64' for base64 skylinks formatted as strings (common)
 	+ use 'skylinkU8' for Uint8Array skylinks (common)
+
+All conditionals should be multi-line with an open brace and a closing brace.
+Single line conditionals and ternaries are a common source of accidental bugs.
