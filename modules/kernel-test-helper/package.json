@@ -22,7 +22,7 @@
 		"@typescript-eslint/eslint-plugin": "^5.18.0",
 		"cpy-cli": "^4.1.0",
 		"eslint": "^8.13.0",
-		"libskynet": "^0.0.43",
+		"libskynet": "^0.0.52",
 		"libskynetnode": "^0.1.2",
 		"prettier": "^2.6.2",
 		"read": "^1.0.7",
