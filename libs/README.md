@@ -43,7 +43,7 @@ Constants should always be all caps with underscores: `EXAMPLE_CONST`
 
 Functions, variables and object properties should always use a camelCase naming format.
 
-Types should always use an UpperCase naming format.
+Types, classes and constructor functions should always use a PascalCase naming format.
 
 Functions should not throw under any circumstances. All potential throws should
 be caught inside of the function, and an error should be returned instead.
