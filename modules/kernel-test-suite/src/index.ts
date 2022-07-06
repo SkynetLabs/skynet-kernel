@@ -286,8 +286,13 @@ function handleTestCORS(activeQuery: any) {
 // handleTestIndependentFileSmall runs tests on the libkmodule object
 // 'independentFileSmall'.
 async function handleTestIndependentFileSmall(aq: activeQuery) {
+	// Since this is a long test, we log the progress with timers.
+	let startTime = performance.now()
+
 	// Grab the seed so that we can work with files.
 	let seed = await getSeed()
+	let seedTime = performance.now()
+	log("testIndependentFileSmall - getSeed:", seedTime - startTime)
 
 	// Try to open a file that does not exist.
 	let [, errBF] = await openIndependentFileSmall(seed, "fileDoesNotExist")
@@ -295,6 +300,8 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 		aq.reject("should not be able to open a file that does not exist")
 		return
 	}
+	let openFileDNETime = performance.now()
+	log("testIndependentFileSmall - openFileDNE:", openFileDNETime - startTime)
 
 	// Try to open a test file. If this is the first time that we have tried
 	// this file on this seed, it will fail and we will have to create the
@@ -305,6 +312,8 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 		aq.reject(addContextToErr(errOIF, "unable to open the test file"))
 		return
 	}
+	let openFile1Time = performance.now()
+	log("testIndependentFileSmall - openFile1:", openFile1Time - startTime)
 
 	// If the file doesn't exist, which can happen, we need to create a new
 	// one.
@@ -323,6 +332,8 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 			return
 		}
 	}
+	let writeFile1Time = performance.now()
+	log("testIndependentFileSmall - writeFile1:", writeFile1Time - startTime)
 
 	// Fetch the contents of the file and compare them to the expected
 	// contents.
@@ -351,6 +362,8 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 		aq.reject(addContextToErr(errOD, "could not overwrite file"))
 		return
 	}
+	let overwrite1Time = performance.now()
+	log("testIndependentFileSmall - overwrite1Time:", overwrite1Time - startTime)
 
 	// Open a separate file to the same inode to check that the overwrite
 	// actually succeeded.
@@ -374,6 +387,8 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 			return
 		}
 	}
+	let openFile2Time = performance.now()
+	log("testIndependentFileSmall - openFile2:", openFile2Time - startTime)
 
 	// Set the data back to the initial data for the next test.
 	let errOF2 = await testFile2.overwriteData(expectedData)
@@ -381,6 +396,9 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 		aq.reject(addContextToErr(errOF2, "unable to finalize the file with the old data"))
 		return
 	}
+	let overwrite2Time = performance.now()
+	log("testIndependentFileSmall - overwrite2Time:", overwrite2Time - startTime)
+	aq.respond({})
 }
 
 // handleTestLogging writes a bunch of logs to allow the operator to verify

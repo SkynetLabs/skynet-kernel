@@ -24,7 +24,6 @@ import {
 	error,
 	skylinkToResolverEntryData,
 	taggedRegistryEntryKeys,
-	tryStringify,
 } from "libskynet"
 
 const ERR_EXISTS = "exists"

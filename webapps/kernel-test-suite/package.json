@@ -6,9 +6,9 @@
   "author": "David Vorick",
   "license": "MIT",
   "dependencies": {
-    "libkernel": "^0.1.40",
-    "libskynet": "^0.0.48",
     "gatsby": "^4.8.1",
+    "libkernel": "^0.1.42",
+    "libskynet": "^0.0.48",
     "prettier": "^2.6.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2"

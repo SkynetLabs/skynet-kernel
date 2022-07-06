@@ -35,7 +35,7 @@ function tryStringify(obj: any): string {
 	try {
 		return JSON.stringify(obj, (_, v) => {
 			if (typeof v === "bigint") {
-				return v.toString()+"n"
+				return v.toString() + "n"
 			}
 			return v
 		})
