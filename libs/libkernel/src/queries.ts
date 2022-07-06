@@ -104,7 +104,13 @@ function handleMessage(event: MessageEvent) {
 		// at a minimum is working.
 		if (initResolved === false) {
 			initResolved = true
-			initResolve()
+
+			// We can't actually establish that init is complete until the
+			// kernel source has been set. This happens async and might happen
+			// after we receive the auth message.
+			sourcePromise.then(() => {
+				initResolve()
+			})
 		}
 
 		// If the auth status message says that login is complete, it means
@@ -190,6 +196,7 @@ function launchKernelFrame() {
 	kernelSource = <Window>iframe.contentWindow
 	kernelOrigin = "https://skt.us"
 	kernelAuthLocation = "https://skt.us/auth.html"
+	sourceResolve()
 
 	// Set a timer to fail the login process if the kernel doesn't load in
 	// time.
@@ -235,6 +242,7 @@ function messageBridge() {
 		kernelOrigin = window.origin
 		kernelAuthLocation = "http://kernel.skynet/auth.html"
 		console.log("established connection to bridge, using browser extension for kernel")
+		sourceResolve()
 	})
 
 	// Add the handler to the queries map.
@@ -288,6 +296,8 @@ let kernelLoadedPromise: Promise<error>
 let logoutResolved = false // set to true once the user is logged out
 let logoutResolve: () => void
 let logoutPromise: Promise<void>
+let sourceResolve: () => void
+let sourcePromise: Promise<void> // resolves when the source is known and set
 function init(): Promise<void> {
 	// If init has already been called, just return the init promise.
 	if (initialized === true) {
@@ -312,6 +322,9 @@ function init(): Promise<void> {
 	})
 	logoutPromise = new Promise((resolve) => {
 		logoutResolve = resolve
+	})
+	sourcePromise = new Promise((resolve) => {
+		sourceResolve = resolve
 	})
 
 	// Return the initPromise, which will resolve when bootloader init is
@@ -447,16 +460,14 @@ function newKernelQuery(
 	// kernel provides a 'response' message. The other is for internal use and
 	// will resolve once the query has been created.
 	let p!: Promise<errTuple>
-	let queryCreated: dataFn
-	let haveQueryCreated: Promise<string> = new Promise((resolve) => {
-		queryCreated = resolve
+	let haveQueryCreated: Promise<string> = new Promise((queryCreatedResolve) => {
 		p = new Promise((resolve) => {
 			getNonce.then((nonce: string) => {
 				queries[nonce] = { resolve }
 				if (receiveUpdate !== null && receiveUpdate !== undefined) {
 					queries[nonce]["receiveUpdate"] = receiveUpdate
 				}
-				queryCreated(nonce)
+				queryCreatedResolve(nonce)
 			})
 		})
 	})

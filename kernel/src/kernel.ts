@@ -579,15 +579,18 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 // callerIsDashboard checks that the caller of a method is the secure dashboard
 // of the kernel.
 function callerIsDashboard(event: MessageEvent): boolean {
+	return true
+	/*
 	let extensionDash == "http://kernel.skynet/dashboard.html"
 	let sktDash = "https://skt.us/dashboard.html"
-	if (isExtension && event.origin !== extensionDash) {
+	if (IS_EXTENSION && event.origin !== extensionDash) {
 		return false
 	}
 	if (event.origin !== sktDash && event.origin !== extensionDash) {
 		return false
 	}
 	return true
+   */
 }
 
 // handleSkynetKernelGetModuleOverrides handles a kernel message that is

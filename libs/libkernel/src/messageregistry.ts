@@ -1,5 +1,5 @@
 import { callModule } from "./queries.js"
-import { ed25519Keypair, error, errTuple } from "libskynet"
+import { addContextToErr, ed25519Keypair, error } from "libskynet"
 
 interface registryReadResult {
 	exists: boolean
@@ -26,12 +26,15 @@ function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[regi
 				resolve([{} as any, addContextToErr(err, "readEntry module call failed")])
 				return
 			}
-			resolve([{
-				exists: result.exists,
-				entryData: result.entryData,
-				revision: result.revision,
-			}, null])
-		}
+			resolve([
+				{
+					exists: result.exists,
+					entryData: result.entryData,
+					revision: result.revision,
+				},
+				null,
+			])
+		})
 	})
 }
 
