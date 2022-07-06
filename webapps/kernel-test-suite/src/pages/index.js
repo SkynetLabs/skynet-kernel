@@ -792,6 +792,20 @@ function TestSecureUploadAndDownload() {
 	})
 }
 
+// TestIndependentFileSmall checks that the general functions of the
+// independentFileSmall object in libkmodule are working correctly.
+function TestIndependentFileSmall() {
+  return new Promise((resolve, reject) => {
+    kernel.callModule(kernelTestSuite, "testIndependentFileSmall", {}).then(([data, err]) => {
+      if (err !== null) {
+        reject(err);
+        return;
+      }
+      resolve("testIndpendentFileSmall appears to have passed")
+    });
+  });
+}
+
 // TestMsgSpeedSequential5k will send ten thousand messages to the kernel
 // sequentially.
 function TestMsgSpeedSequential5k() {
@@ -1173,6 +1187,11 @@ const IndexPage = () => {
       <TestCard
         name="TestLibkernelQueryUpdates"
         test={TestLibkernelQueryUpdates}
+        turn={getTurn()}
+      />
+      <TestCard
+        name="TestIndependentFileSmall"
+        test={TestIndependentFileSmall}
         turn={getTurn()}
       />
       <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />

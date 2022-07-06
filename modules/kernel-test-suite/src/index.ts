@@ -6,12 +6,15 @@ import {
 	addHandler,
 	callModule,
 	connectModule,
+	createIndependentFileSmall,
 	getSeed,
 	handleMessage,
 	log,
 	logErr,
 	newKernelQuery,
+	openIndependentFileSmall,
 	tryStringify,
+	ERR_NOT_EXISTS,
 } from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
@@ -287,7 +290,7 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 	let seed = await getSeed()
 
 	// Try to open a file that does not exist.
-	let [, errBF] = await openIndependentFile(seed, "fileDoesNotExist")
+	let [, errBF] = await openIndependentFileSmall(seed, "fileDoesNotExist")
 	if (errBF === null) {
 		aq.reject("should not be able to open a file that does not exist")
 		return
@@ -297,168 +300,87 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 	// this file on this seed, it will fail and we will have to create the
 	// file. Otherwise it will succeed. We need to handle this call like a
 	// normal user would.
-	let [testFile, errOIF] = await openIndependentFile(seed, "testFile")
-	if (errOIF !== ERR_EXISTS && errOIF !== null) {
+	let [testFile, errOIF] = await openIndependentFileSmall(seed, "testFile")
+	if (errOIF !== ERR_NOT_EXISTS && errOIF !== null) {
 		aq.reject(addContextToErr(errOIF, "unable to open the test file"))
 		return
 	}
-	if (errOIF === ERR_EXISTS) {
-		// Create the file.
-		let initialFileData = 
-	}
-}
 
-// handleTestLogging writes a bunch of logs to allow the operator to verify
-// that logging is working.
-function handleTestLogging(aq: activeQuery) {
-	log("this is a test log")
-	log("this", "is", "a", "multi-arg", "log")
-	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
-	logErr("this is an intentional error from the kernel test suite module")
-	aq.respond({})
-}
-
-// handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
-// module will call 'mirrorDomain' on the helper module and return the result.
-async function handleTesterMirrorDomain(activeQuery: any) {
-	let [resp, err] = await callModule(helperModule, "mirrorDomain", {})
-	if (err !== null) {
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-
-	if (!("domain" in resp)) {
-		let err = "helper module response did not have data.domain field: " + tryStringify(resp)
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-	activeQuery.respond({ domain: resp.domain })
-}
-
-// handleTestResponseUpdate will respond to a query with three updates spaced
-// 200 milliseconds apart, and then finally respond with a full response to
-// close out the message. The value 'eventProgress' is used to distinguish what
-// order the responses are supposed to arrive in.
-function handleTestResponseUpdate(activeQuery: any) {
-	setTimeout(() => {
-		activeQuery.sendUpdate({ eventProgress: 25 })
-	}, 200)
-	setTimeout(() => {
-		activeQuery.sendUpdate({ eventProgress: 50 })
-	}, 400)
-	setTimeout(() => {
-		activeQuery.sendUpdate({ eventProgress: 75 })
-	}, 600)
-	setTimeout(() => {
-		activeQuery.respond({ eventProgress: 100 })
-	}, 800)
-}
-
-// handleUpdateTest handles a call to the method "updateTest", which triggers a
-// communication between the test module and the helper module that makes use
-// of both 'responseUpdate' messages and also 'queryUpdate' messages.
-async function handleUpdateTest(activeQuery: any) {
-	// Track whether or not 'reject' or 'respond' has already been called.
-	let resolved = false
-
-	// Create the function that will receive responseUpdate messages from the
-	// helper module. It will receive 'progress' values in the order of '1',
-	// '3', '5', '7'. Only 4 updates should be received total.
-	let sendUpdate: any
-	let expectedProgress = 1
-	let receiveUpdate = function (data: any) {
-		// Need to write code to ensure that we are only rejecting once.
-		// libkmodule will protect us against this, but it's still considered
-		// an error the handle this incorrectly.
-		if (resolved) {
+	// If the file doesn't exist, which can happen, we need to create a new
+	// one.
+	let initialFileData = new TextEncoder().encode("this is my initial file")
+	if (errOIF === ERR_NOT_EXISTS) {
+		let [newFile, errCIFS] = await createIndependentFileSmall(seed, "testFile", initialFileData)
+		if (errCIFS !== null) {
+			aq.reject(addContextToErr(errCIFS, "unable to create test file"))
 			return
 		}
-
-		// Check that the 'progress' value is well formed.
-		if (!("progress" in data)) {
-			activeQuery.reject("expecting 'progress' field: " + tryStringify(data))
-			resolved = true
+		testFile = newFile
+	} else {
+		let errOD = await testFile.overwriteData(initialFileData)
+		if (errOD !== null) {
+			aq.reject(addContextToErr(errOD, "could not overwrite file"))
 			return
 		}
-		if (typeof data.progress !== "number") {
-			activeQuery.reject("expecting 'progress' to be a number: " + tryStringify(data))
-			resolved = true
+	}
+
+	// Fetch the contents of the file and compare them to the expected
+	// contents.
+	let [fileData, errRD] = await testFile.readData()
+	if (errRD !== null) {
+		aq.reject(addContextToErr(errRD, "unable to read test file"))
+		return
+	}
+	let expectedData = new TextEncoder().encode("this is my initial file")
+	if (fileData.length !== expectedData.length) {
+		let text = new TextDecoder().decode(fileData)
+		aq.reject("file has unexpected data: " + text)
+		return
+	}
+	for (let i = 0; i < fileData.length; i++) {
+		if (fileData[i] !== expectedData[i]) {
+			aq.reject("file has unexpected data")
 			return
 		}
-		if (expectedProgress !== data.progress) {
-			let str = tryStringify(data) + "::" + tryStringify(expectedProgress)
-			activeQuery.reject("progress has wrong value: " + str)
-			resolved = true
+	}
+
+	// Try overwriting the file with new data.
+	let newFileData = new TextEncoder().encode("this is an overwritten file")
+	let errOD = await testFile.overwriteData(newFileData)
+	if (errOD !== null) {
+		aq.reject(addContextToErr(errOD, "could not overwrite file"))
+		return
+	}
+
+	// Open a separate file to the same inode to check that the overwrite
+	// actually succeeded.
+	let [testFile2, errOIF2] = await openIndependentFileSmall(seed, "testFile")
+	if (errOIF2 !== null) {
+		aq.reject(addContextToErr(errOIF2, "could not open file"))
+		return
+	}
+	let [tf2Data, errRF2] = await testFile2.readData()
+	if (errRF2 !== null) {
+		aq.reject(addContextToErr(errRF2, "unable to read second test file"))
+		return
+	}
+	if (tf2Data.length !== newFileData.length) {
+		aq.reject("overwrite file does not have the correct length when being opened again")
+		return
+	}
+	for (let i = 0; i < tf2Data.length; i++) {
+		if (tf2Data[i] !== newFileData[i]) {
+			aq.reject("overwritten file does not match the target data")
 			return
 		}
-		if (data.progress > 7) {
-			activeQuery.reject("progress is larger than 7, expecting response now")
-			resolved = true
-			return
-		}
-
-		// Send the helper module an update with an increased progress.
-		sendUpdate({ progress: data.progress + 1 })
-		expectedProgress += 2
 	}
 
-	// Create the query and grab the ability to send updates.
-	let [sendUpdateFn, respPromise] = connectModule(helperModule, "updateTest", { progress: 0 }, receiveUpdate)
-	sendUpdate = sendUpdateFn
-
-	// Block for the final response, where progress should be equal to 9.
-	let [resp, err] = await respPromise
-	if (err !== null) {
-		activeQuery.reject(addContextToErr(err, "received an error from the helper module in handleUpdateTest"))
-		resolved = true
+	// Set the data back to the initial data for the next test.
+	let errOF2 = await testFile2.overwriteData(expectedData)
+	if (errOF2 !== null) {
+		aq.reject(addContextToErr(errOF2, "unable to finalize the file with the old data"))
 		return
 	}
-	if (resp.progress !== 9) {
-		activeQuery.reject("expecting to get { progress: 9 } but instead got " + tryStringify(resp))
-		resolved = true
-		return
-	}
-	activeQuery.respond("successfully sent and received updates")
-	resolved = true
-}
-
-// handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
-// module for its seed and then compares the helper module's seed to its own
-// seed.
-async function handleViewHelperSeed(activeQuery: any) {
-	// Perform the module call.
-	let [resp, err] = await callModule(helperModule, "viewSeed", {})
-	if (err !== null) {
-		logErr("error when using callModule to viewSeed on the helper module", err)
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-
-	// Check that the return value contains a seed.
-	if (!("seed" in resp)) {
-		let err = "helper module response did not have seed field: " + tryStringify(resp)
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-	if (!(resp.seed instanceof Uint8Array)) {
-		let err = "helper module seed is wrong type: " + tryStringify(resp)
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-	if (resp.seed.length !== 16) {
-		let err = "helper module seed is wrong size: " + tryStringify(resp)
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-
-	// Check that the seed is well formed
-	let seed = await  
 }
 
 // handleTestLogging writes a bunch of logs to allow the operator to verify
