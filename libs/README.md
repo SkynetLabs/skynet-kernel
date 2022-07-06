@@ -41,7 +41,7 @@ All libraries should be written in typescript.
 
 Constants should always be all caps with underscores: `EXAMPLE_CONST`
 
-Functions should always use a lowerCase naming format.
+Functions, variables and object properties should always use a camelCase naming format.
 
 Types should always use an UpperCase naming format.
 
