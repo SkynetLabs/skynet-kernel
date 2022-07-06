@@ -22,6 +22,7 @@ import {
 	encryptFileSmall,
 	entryIDToSkylink,
 	error,
+	namespaceInode,
 	skylinkToResolverEntryData,
 	taggedRegistryEntryKeys,
 } from "libskynet"
@@ -100,10 +101,19 @@ interface independentFileSmall {
 // be returned.
 function createIndependentFileSmall(
 	seed: Uint8Array,
-	inode: string,
+	userInode: string,
 	fileData: Uint8Array
 ): Promise<[independentFileSmall, error]> {
 	return new Promise(async (resolve) => {
+		// Namespace the inode so that inodes created by the user using
+		// different filetypes cannot be accessed by calling the wrong
+		// function.
+		let [inode, errNI] = namespaceInode("independentFileSmall", userInode)
+		if (errNI !== null) {
+			resolve([{} as any, addContextToErr(errNI, "unable to namespace inode")])
+			return
+		}
+
 		// Derive the registry entry keys for the file at this inode.
 		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
 		if (errTREK !== null) {
@@ -193,8 +203,17 @@ function createIndependentFileSmall(
 
 // openIndependentFileSmall is used to open an already existing independent file. If
 // one does not exist, an error will be returned.
-function openIndependentFileSmall(seed: Uint8Array, inode: string): Promise<[independentFileSmall, error]> {
+function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<[independentFileSmall, error]> {
 	return new Promise(async (resolve) => {
+		// Namespace the inode so that inodes created by the user using
+		// different filetypes cannot be accessed by calling the wrong
+		// function.
+		let [inode, errNI] = namespaceInode("independentFileSmall", userInode)
+		if (errNI !== null) {
+			resolve([{} as any, addContextToErr(errNI, "unable to namespace inode")])
+			return
+		}
+
 		// Derive the registry entry keys for the file at this inode.
 		let [keypair, dataKey, errTREK] = taggedRegistryEntryKeys(seed, inode, inode)
 		if (errTREK !== null) {
