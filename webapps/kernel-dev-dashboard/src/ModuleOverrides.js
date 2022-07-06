@@ -1,7 +1,14 @@
 import { Field, FieldArray, Form, Formik } from "formik";
+import { newKernelQuery } from "libkernel";
 
 function ModuleOverrides() {
   const overrides = {}; //window.postMessage({ method: "getModuleOverrides" }) // TODO: actually call kernel to retrieve overrides
+	let [result, errGMO] = await newKernelQuery("getModuleOverrides", {}, false)
+	if (errGMO !== null) {
+		console.error("can't get overrides", errGMO)
+	} else {
+		console.log(result)
+	}
 
   const overridesArr = Object.entries(overrides).map(([id, { override, notes }]) => ({
     id,
@@ -30,7 +37,12 @@ function ModuleOverrides() {
           }, {});
 
           console.log('setModuleOverrides', overridesObj)
-          window.postMessage({ method: "setModuleOverrides", data: overridesObj }) // TODO: actually call kernel to persist overrides
+          let [result, errSMO] = await newKernelQuery("setModuleOverrides", overridesObj, false)
+		  if (errSMO !== null) {
+			  console.error("can't set overrides", errSMO)
+			 } else {
+				 console.log(result)
+			 }
         }}
       >
         {({ isSubmitting, values, setFieldValue }) => (
