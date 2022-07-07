@@ -55,20 +55,6 @@ const defaultMyskyRootModules = [
 // running in a browser extension.
 const IS_EXTENSION = window.origin === "http://kernel.skynet"
 
-// Set up a system to track messages that are sent to workers and to connect
-// the responses. queriesNonce is a field to help ensure there is only one
-// query for each nonce. queries is a map from a nonce to an openQuery.
-//
-// TODO: Apparently this interface is just never used. Maybe we don't need it?
-interface openQuery {
-	isWorker: boolean
-	domain: string
-	source: any
-	origin: any
-	dest: any
-	nonce: string
-}
-
 // ModuleLaunchFn defines the type signature for the launch function of a
 // module.
 type ModuleLaunchFn = () => error
