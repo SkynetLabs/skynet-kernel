@@ -4,11 +4,11 @@ import type { ActiveQuery } from "libkmodule";
 // Required for libkmodule to work.
 onmessage = handleMessage;
 
-// Will route calls to "methodName" to handleMethodName.
-addHandler("methodName", handleMethodName);
+// Will route calls to "repeatMessage" to handleRepeatMessage.
+addHandler("repeatMessage", handleRepeatMessage);
 
-// handleMethodName will handle a call to methodName.
-function handleMethodName(aq: ActiveQuery) {
+// handleRepeatMessage will handle a call to repeatMessage.
+function handleRepeatMessage(aq: ActiveQuery) {
   // We are expecting there to be one input field
   // 'message' which has a string value.
   if (typeof aq.callerInput.message !== "string") {
@@ -17,5 +17,5 @@ function handleMethodName(aq: ActiveQuery) {
   }
 
   // Respond to query with data
-  aq.respond({ resp: "got message:" + aq.callerInput.message });
+  aq.respond({ resp: "got message: " + aq.callerInput.message });
 }

@@ -1,8 +1,43 @@
 # Skynet Module Template
 
-This folder contains the template for creating a new Skynet Kernel module.
+This folder contains the template for creating a new Skynet Kernel module. The
+template contains one example API endpoint with documentation, and it contains
+build scripts for deploying the module plus instructions for using the build
+scripts.
 
-### Building and Deploying
+## Usage
+
+#### repeatMessage
+
+repeatMessage is an example API that repeats an input message back to the
+caller. It will prepend a "got message: " string
+
+###### Input:
+
+Provide an input called 'message' to receive a response.
+
+```ts
+{
+	module: "<change me>",
+	method: "repeatMessage",
+	data: {
+		message: <string>,
+	},
+}
+```
+
+###### Output:
+
+```ts
+{
+	resp: <string>,
+}
+```
+
+The output contains a field called 'resp' which contains a modified version of
+the provided message.
+
+## Building and Deploying
 
 The build and deploy scripts are ready to use. Copy the files, update
 `package.json` then run `npm install` and `npm run build` to get started. The
