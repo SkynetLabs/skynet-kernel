@@ -1,8 +1,11 @@
 import { addHandler, handleMessage } from "libkmodule";
 import type { ActiveQuery } from "libkmodule";
 
-addHandler("methodName", handleMethodName);
+// Required for libkmodule to work.
 onmessage = handleMessage;
+
+// Will route calls to "methodName" to handleMethodName.
+addHandler("methodName", handleMethodName);
 
 // handleMethodName will handle a call to methodName.
 function handleMethodName(aq: ActiveQuery) {
