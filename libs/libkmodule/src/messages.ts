@@ -10,13 +10,13 @@ import {
 import { handlePresentSeed } from "./seed.js"
 import { addContextToErr, dataFn, errFn, tryStringify } from "libskynet"
 
-// handlerFn takes an activeQuery as input and has no return value. The return
+// handlerFn takes an ActiveQuery as input and has no return value. The return
 // is expected to come in the form of calling aq.accept or aq.reject.
-type handlerFn = (aq: activeQuery) => void
+type handlerFn = (aq: ActiveQuery) => void
 
-// activeQuery is an object that gets provided to the handler of a query and
+// ActiveQuery is an object that gets provided to the handler of a query and
 // contains all necessary elements for interacting with the query.
-interface activeQuery {
+interface ActiveQuery {
 	// callerInput is arbitrary input provided by the caller that is not
 	// checked by the kernel. Modules should verify the callerInput before
 	// using any fields.
@@ -52,8 +52,8 @@ interface activeQuery {
 // updates and defaults to false. If it is set to false, any queryUpdate
 // messages that get sent will be discarded. If it is set to 'true', any
 // queryUpdate messages that get sent will be held until the handler provides a
-// 'receiveUpdate' function to the activeQuery object using the
-// activeQuery.setReceiveUpdate function.
+// 'receiveUpdate' function to the ActiveQuery object using the
+// ActiveQuery.setReceiveUpdate function.
 interface addHandlerOptions {
 	receiveUpdates?: boolean
 }
@@ -112,7 +112,7 @@ function addHandler(method: string, handler: handlerFn, options?: addHandlerOpti
 // for the 'queryUpdate', 'response', and 'responseUpdate' messages. Otherwise,
 // it will use the router to connect moduleCalls to the appropriate handler.
 //
-// When passing a call off to a handler, it will create an 'activeQuery' object
+// When passing a call off to a handler, it will create an 'ActiveQuery' object
 // that the handler can work with.
 function handleMessage(event: MessageEvent) {
 	// Special handling for "response" messages.
@@ -201,7 +201,7 @@ function handleMessage(event: MessageEvent) {
 	// for example providing the domain of the caller. We used an object for
 	// this final field so that it could be extended later.
 	try {
-		let activeQuery: activeQuery = {
+		let activeQuery: ActiveQuery = {
 			callerInput: event.data.data,
 			respond,
 			reject,
@@ -240,4 +240,4 @@ function respondErr(event: MessageEvent, err: string) {
 	clearIncomingQuery(event.data.nonce)
 }
 
-export { activeQuery, addHandler, dataFn, handleMessage }
+export { ActiveQuery, addHandler, dataFn, handleMessage }

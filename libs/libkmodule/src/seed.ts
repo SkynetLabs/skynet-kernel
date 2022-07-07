@@ -1,4 +1,4 @@
-import { activeQuery } from "./messages.js"
+import { ActiveQuery } from "./messages.js"
 
 // Define a set of helper variables that track whether the seed has been
 // received by the kernel yet.
@@ -14,7 +14,7 @@ function getSeed(): Promise<Uint8Array> {
 
 // handlePresentSeed will accept a seed from the kernel and unblock any method
 // that is waiting for the seed.
-function handlePresentSeed(aq: activeQuery) {
+function handlePresentSeed(aq: ActiveQuery) {
 	resolveSeed(aq.callerInput.seed)
 }
 
