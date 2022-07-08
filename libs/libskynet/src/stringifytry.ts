@@ -40,8 +40,8 @@ function tryStringify(obj: any): string {
       }
       return v;
     });
-  } catch {
-    return "[stringify failed]";
+  } catch (ex) {
+    return `[stringify failed]: ${ex.message}`;
   }
 }
 
