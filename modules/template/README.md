@@ -7,7 +7,7 @@ scripts.
 
 ## Usage
 
-#### repeatMessage
+### repeatMessage
 
 repeatMessage is an example API that repeats an input message back to the
 caller. It will prepend a "got message: " string

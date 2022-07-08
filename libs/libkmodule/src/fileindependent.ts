@@ -1,7 +1,7 @@
 // independentfile.ts defines an API for working with independent files. This
 // is the easiest way to put private data onto Skynet. This ease of use comes
 // with some tradeoffs: namely the list of files cannot be queried (you have to
-// already know the file by its filename), and files created using this API are
+// already know the file by its inode), and files created using this API are
 // not meant to be shared.
 
 // TODO: Need to implement delete using the special registry value that
@@ -17,6 +17,7 @@ import { upload } from "./messageupload.js"
 import {
 	addContextToErr,
 	decryptFileSmall,
+	deriveChildSeed,
 	deriveRegistryEntryID,
 	ed25519Keypair,
 	encryptFileSmall,
@@ -50,7 +51,6 @@ type readDataFn = () => Promise<[Uint8Array, error]>
 // We track the largestHistoricSize of the file so that we can protect the user
 // from leaking information if they shrink the size of the file between writes.
 interface independentFileSmallMetadata {
-	filename: string
 	largestHistoricSize: bigint
 }
 
@@ -81,6 +81,11 @@ interface independentFileSmall {
 	metadata: independentFileSmallMetadata
 	revision: bigint
 	seed: Uint8Array
+
+	// These fields allow the file to be shared in read-only mode. Someone who
+	// has this data can read the file, but cannot update the file.
+	skylink: string
+	viewKey: Uint8Array
 
 	// overwriteData is a function that takes the new file data (a uint8array)
 	// as input and updates the file on Skynet to contain the new data.
@@ -135,14 +140,17 @@ function createIndependentFileSmall(
 			return
 		}
 
-		// Create the encrypted file blob.
+		// Create the encrypted file blob. When creating the encrypted file
+		// blob, we derive a separate seed so that we can provide the seed as a
+		// view key for this file. The seed will depend on the inode so that
+		// view keys for individual files can be passed around.
+		let viewKey = deriveChildSeed(seed, inode)
 		let metadata: independentFileSmallMetadata = {
-			filename: inode,
 			largestHistoricSize: BigInt(fileData.length),
 		}
 		let revision = 0n
 		let [encryptedData, errEF] = encryptFileSmall(
-			seed,
+			viewKey,
 			inode,
 			revision,
 			metadata,
@@ -155,16 +163,16 @@ function createIndependentFileSmall(
 		}
 
 		// Upload the data to get the immutable link.
-		let [skylink, errU] = await upload(STD_FILENAME, encryptedData)
+		let [immutableSkylink, errU] = await upload(STD_FILENAME, encryptedData)
 		if (errU !== null) {
 			resolve([{} as any, addContextToErr(errU, "upload failed")])
 			return
 		}
 
 		// Write to the registry entry.
-		let [entryData, errSTRED] = skylinkToResolverEntryData(skylink)
+		let [entryData, errSTRED] = skylinkToResolverEntryData(immutableSkylink)
 		if (errSTRED !== null) {
-			resolve([{} as any, addContextToErr(errSTRED, "could not create resovler link from upload skylink")])
+			resolve([{} as any, addContextToErr(errSTRED, "couldn't create resovler link from upload skylink")])
 			return
 		}
 		let [, errRW] = await registryWrite(keypair, dataKey, entryData, revision)
@@ -172,6 +180,14 @@ function createIndependentFileSmall(
 			resolve([{} as any, addContextToErr(errRW, "could not write to registry entry")])
 			return
 		}
+
+		// Get the skylink for this file.
+		let [entryID, errDREID] = deriveRegistryEntryID(keypair.publicKey, dataKey)
+		if (errDREID !== null) {
+			resolve([{} as any, addContextToErr(errDREID, "could not compute entry id")])
+			return
+		}
+		let skylink = entryIDToSkylink(entryID)
 
 		// Create and return the independentFile.
 		let ifile: independentFileSmall = {
@@ -183,12 +199,12 @@ function createIndependentFileSmall(
 			revision,
 			seed,
 
-			// overwriteData will replace the fileData with the provided
-			// newData.
+			skylink,
+			viewKey,
+
 			overwriteData: function (newData: Uint8Array): Promise<error> {
 				return overwriteIndependentFileSmall(ifile, newData)
 			},
-			// readData will return the data contained in the file.
 			readData: function (): Promise<[Uint8Array, error]> {
 				return new Promise((resolve) => {
 					let data = new Uint8Array(ifile.fileData.length)
@@ -252,7 +268,8 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 		}
 
 		// Decrypt the file to read the metadata.
-		let [metadata, fileData, errDF] = decryptFileSmall(seed, inode, encryptedData)
+		let viewKey = deriveChildSeed(seed, inode)
+		let [metadata, fileData, errDF] = decryptFileSmall(viewKey, inode, encryptedData)
 		if (errDF !== null) {
 			resolve([{} as any, addContextToErr(errDF, "unable to decrypt file")])
 			return
@@ -266,6 +283,9 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 			metadata,
 			revision: result.revision!,
 			seed,
+
+			skylink,
+			viewKey,
 
 			// overwriteData will replace the fileData with the provided
 			// newData.
@@ -295,7 +315,6 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		// Create a new metadata for the file based on the current file
 		// metadata. Need to update the largest historic size.
 		let newMetadata: independentFileSmallMetadata = {
-			filename: file.metadata.filename,
 			largestHistoricSize: BigInt(file.metadata.largestHistoricSize),
 		}
 		if (BigInt(newData.length) > newMetadata.largestHistoricSize) {
@@ -308,7 +327,7 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		// successful update, which means using the new metadata and also using
 		// an incremented revision number.
 		let [encryptedData, errEF] = encryptFileSmall(
-			file.seed,
+			file.viewKey,
 			file.inode,
 			file.revision + 1n,
 			newMetadata,

@@ -1,9 +1,9 @@
 import { callModule } from "./queries.js"
 import { addContextToErr, ed25519Keypair, error } from "libskynet"
 
-// t_registryReadResult establishes the return type for a registry read
-// performed on the registry module.
-interface t_registryReadResult {
+// RegistryReadResult establishes the return type for a registry read performed
+// on the registry module.
+interface RegistryReadResult {
 	exists: boolean
 	deleted?: boolean
 	entryData?: Uint8Array
@@ -13,7 +13,7 @@ interface t_registryReadResult {
 // registryRead will perform a registry read on a portal. readEntry does not
 // guarantee that the latest revision has been provided, however it does
 // guarantee that the provided data has a matching signature.
-function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[t_registryReadResult, error]> {
+function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[RegistryReadResult, error]> {
 	return new Promise((resolve) => {
 		// Build the module call.
 		let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
@@ -73,4 +73,4 @@ function registryWrite(
 	})
 }
 
-export { registryRead, registryWrite, t_registryReadResult }
+export { registryRead, registryWrite, RegistryReadResult }

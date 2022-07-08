@@ -1,7 +1,8 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
 import {
-	activeQuery,
+	ERR_NOT_EXISTS,
+	ActiveQuery,
 	addContextToErr,
 	addHandler,
 	callModule,
@@ -14,7 +15,6 @@ import {
 	newKernelQuery,
 	openIndependentFileSmall,
 	tryStringify,
-	ERR_NOT_EXISTS,
 } from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
@@ -177,7 +177,7 @@ function checkPresentSeed(event: MessageEvent) {
 
 // callModulePerformanceSequential will run the 'viewSeed' method on the helper
 // module the provided number of times in series.
-async function handleCallModulePerformanceSequential(aq: activeQuery) {
+async function handleCallModulePerformanceSequential(aq: ActiveQuery) {
 	// Check that a proper number of iterations was provided.
 	if (!("iterations" in aq.callerInput)) {
 		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
@@ -206,7 +206,7 @@ async function handleCallModulePerformanceSequential(aq: activeQuery) {
 
 // callModulePerformanceParallel will run the 'viewSeed' method on the helper
 // module the provided number of times in parallel.
-function handleCallModulePerformanceParallel(activeQuery: any) {
+function handleCallModulePerformanceParallel(activeQuery: ActiveQuery) {
 	// Check that a proper number of iterations was provided.
 	if (!("iterations" in activeQuery.callerInput)) {
 		errors.push("callModulePerformanceSequential called without providing an 'iterations' field")
@@ -238,14 +238,14 @@ function handleCallModulePerformanceParallel(activeQuery: any) {
 }
 
 // handleMirrorDomain handles a call to mirrorDomain.
-function handleMirrorDomain(activeQuery: any) {
+function handleMirrorDomain(activeQuery: ActiveQuery) {
 	activeQuery.respond({ domain: activeQuery.domain })
 }
 
 // handleSendTestToKernel handles a call to "sendTestToKernel". It sends a test
 // message to the kernel and then checks that it properly receives the
 // response.
-async function handleSendTestToKernel(activeQuery: any) {
+async function handleSendTestToKernel(activeQuery: ActiveQuery) {
 	// When performing a kernel query, we don't need to provide a function to
 	// handle responseUpdates because we don't care about them. Typically this
 	// is abstracted more, but this is a special case where we need to call
@@ -271,7 +271,7 @@ async function handleSendTestToKernel(activeQuery: any) {
 // handleTestCORS checks that the webworker is able to make webrequests to at
 // least one portal. If not, this indicates that CORS is not set up correctly
 // somewhere in the client.
-function handleTestCORS(activeQuery: any) {
+function handleTestCORS(activeQuery: ActiveQuery) {
 	fetch("https://siasky.net")
 		.then((response) => {
 			activeQuery.respond({ url: response.url })
@@ -285,7 +285,7 @@ function handleTestCORS(activeQuery: any) {
 
 // handleTestIndependentFileSmall runs tests on the libkmodule object
 // 'independentFileSmall'.
-async function handleTestIndependentFileSmall(aq: activeQuery) {
+async function handleTestIndependentFileSmall(aq: ActiveQuery) {
 	// Since this is a long test, we log the progress with timers.
 	let startTime = performance.now()
 
@@ -363,7 +363,7 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 		return
 	}
 	let overwrite1Time = performance.now()
-	log("testIndependentFileSmall - overwrite1Time:", overwrite1Time - startTime)
+	log("testIndependentFileSmall - overwrite1:", overwrite1Time - startTime)
 
 	// Open a separate file to the same inode to check that the overwrite
 	// actually succeeded.
@@ -403,7 +403,7 @@ async function handleTestIndependentFileSmall(aq: activeQuery) {
 
 // handleTestLogging writes a bunch of logs to allow the operator to verify
 // that logging is working.
-function handleTestLogging(activeQuery: any) {
+function handleTestLogging(activeQuery: ActiveQuery) {
 	log("this is a test log")
 	log("this", "is", "a", "multi-arg", "log")
 	log({ another: "test", multi: "arg" }, "log", { extra: "arg" })
@@ -413,7 +413,7 @@ function handleTestLogging(activeQuery: any) {
 
 // handleTesterMirrorDomain handles a call to 'testerMirrorDomain'. The tester
 // module will call 'mirrorDomain' on the helper module and return the result.
-async function handleTesterMirrorDomain(activeQuery: any) {
+async function handleTesterMirrorDomain(activeQuery: ActiveQuery) {
 	let [resp, err] = await callModule(helperModule, "mirrorDomain", {})
 	if (err !== null) {
 		errors.push(err)
@@ -434,7 +434,7 @@ async function handleTesterMirrorDomain(activeQuery: any) {
 // 200 milliseconds apart, and then finally respond with a full response to
 // close out the message. The value 'eventProgress' is used to distinguish what
 // order the responses are supposed to arrive in.
-function handleTestResponseUpdate(activeQuery: any) {
+function handleTestResponseUpdate(activeQuery: ActiveQuery) {
 	setTimeout(() => {
 		activeQuery.sendUpdate({ eventProgress: 25 })
 	}, 200)
@@ -452,7 +452,7 @@ function handleTestResponseUpdate(activeQuery: any) {
 // handleUpdateTest handles a call to the method "updateTest", which triggers a
 // communication between the test module and the helper module that makes use
 // of both 'responseUpdate' messages and also 'queryUpdate' messages.
-async function handleUpdateTest(activeQuery: any) {
+async function handleUpdateTest(activeQuery: ActiveQuery) {
 	// Track whether or not 'reject' or 'respond' has already been called.
 	let resolved = false
 
@@ -520,7 +520,7 @@ async function handleUpdateTest(activeQuery: any) {
 // handleViewHelperSeed handles a call to 'viewHelperSeed', it asks the helper
 // module for its seed and then compares the helper module's seed to its own
 // seed.
-async function handleViewHelperSeed(activeQuery: any) {
+async function handleViewHelperSeed(activeQuery: ActiveQuery) {
 	// Perform the module call.
 	let [resp, err] = await callModule(helperModule, "viewSeed", {})
 	if (err !== null) {
@@ -570,7 +570,7 @@ async function handleViewHelperSeed(activeQuery: any) {
 
 // handleViewSeed responds to a query asking to see the specific seed for the
 // module.
-async function handleViewSeed(activeQuery: any) {
+async function handleViewSeed(activeQuery: ActiveQuery) {
 	let seed = await getSeed()
 	activeQuery.respond({ seed: seed })
 }
@@ -578,7 +578,7 @@ async function handleViewSeed(activeQuery: any) {
 // handleViewOwnSeedThroughHelper handles a call to 'viewOwnSeedThroughHelper'.
 // It asks the helper module to ask the tester module (ourself) for its seed.
 // If all goes well, the helper module should respond with our seed.
-async function handleViewOwnSeedThroughHelper(activeQuery: any) {
+async function handleViewOwnSeedThroughHelper(activeQuery: ActiveQuery) {
 	let [resp, err] = await callModule(helperModule, "viewTesterSeed", {})
 	if (err !== null) {
 		activeQuery.reject(err)
@@ -619,6 +619,6 @@ async function handleViewOwnSeedThroughHelper(activeQuery: any) {
 
 // handleViewErrors will return the set of errors that have accumulated during
 // testing.
-function handleViewErrors(activeQuery: any) {
+function handleViewErrors(activeQuery: ActiveQuery) {
 	activeQuery.respond({ errors })
 }
