@@ -15,6 +15,7 @@ import {
 	newKernelQuery,
 	openIndependentFileSmall,
 	tryStringify,
+	viewIndependentFileSmall,
 } from "libkmodule"
 
 // Establish the module name of the helper module that we'll be using to test
@@ -398,6 +399,32 @@ async function handleTestIndependentFileSmall(aq: ActiveQuery) {
 	}
 	let overwrite2Time = performance.now()
 	log("testIndependentFileSmall - overwrite2Time:", overwrite2Time - startTime)
+
+	// Try to open a view only file.
+	let [viewFile, errVF] = await viewIndependentFileSmall(testFile2.skylink, testFile2.viewKey)
+	if (errVF !== null) {
+		console.log(testFile2.skylink)
+		aq.reject(addContextToErr(errVF, "unable to view file using viewKey"))
+		return
+	}
+	let [viewData, errRD3] = await viewFile.readData()
+	if (errRD3 !== null) {
+		aq.reject(addContextToErr(errRD3, "unable to read data from viewFile"))
+		return
+	}
+	if (viewData.length !== expectedData.length) {
+		aq.reject("view file does not have the correct length when being opened again")
+		return
+	}
+	for (let i = 0; i < viewData.length; i++) {
+		if (viewData[i] !== expectedData[i]) {
+			aq.reject("overwritten file does not match the target data")
+			return
+		}
+	}
+	let viewFileTime = performance.now()
+	log("testIndependentFileSmall - viewFile:", viewFileTime - startTime)
+
 	aq.respond({})
 }
 

@@ -1,6 +1,6 @@
 {
 	"name": "libkmodule",
-	"version": "0.2.31",
+	"version": "0.2.34",
 	"author": "Skynet Labs",
 	"description": "helper library to interact with the skynet kernel from a module",
 	"main": "dist/index.js",

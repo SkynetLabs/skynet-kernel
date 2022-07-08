@@ -34,6 +34,8 @@ import { registryRead, registryWrite } from "./messageregistry.js"
 import { upload } from "./messageupload.js"
 import {
 	addContextToErr,
+	b64ToBuf,
+	bufToB64,
 	decryptFileSmall,
 	deriveChildSeed,
 	deriveRegistryEntryID,
@@ -104,11 +106,24 @@ interface independentFileSmall {
 	// These fields allow the file to be shared in read-only mode. Someone who
 	// has this data can read the file, but cannot update the file.
 	skylink: string
-	viewKey: Uint8Array
+	viewKey: string
 
 	// overwriteData is a function that takes the new file data (a uint8array)
 	// as input and updates the file on Skynet to contain the new data.
 	overwriteData: overwriteDataFn
+
+	// readData is a function that returns the fileData of the independentFile.
+	// It is a safe passthrough to fileData - it makes a copy before returning
+	// the data.
+	readData: readDataFn
+}
+
+// independentFileSmallViewer allows someone with a viewKey to read from an
+// independentFileSmall, without giving them any write access.
+interface independentFileSmallViewer {
+	fileData: Uint8Array
+	skylink: string
+	viewKey: string
 
 	// readData is a function that returns the fileData of the independentFile.
 	// It is a safe passthrough to fileData - it makes a copy before returning
@@ -163,7 +178,7 @@ function createIndependentFileSmall(
 		// blob, we derive a separate seed so that we can provide the seed as a
 		// view key for this file. The seed will depend on the inode so that
 		// view keys for individual files can be passed around.
-		let viewKey = deriveChildSeed(seed, inode)
+		let encryptionKey = deriveChildSeed(seed, inode)
 		let metadata: independentFileSmallMetadata = {
 			largestHistoricSize: BigInt(fileData.length),
 		}
@@ -171,14 +186,13 @@ function createIndependentFileSmall(
 		// Compute the revision number. We need the revision number to be
 		// random, but deterministic so parallel writes will use the same
 		// number as we do. Every update increments the revision by a random
-		// number between 0 and 255.
+		// number between 0 and 2^16.
 		let revisionSeed = new Uint8Array(seed.length + 8)
 		revisionSeed.set(seed, 0)
 		let revisionKey = deriveChildSeed(revisionSeed, inode)
-		let revision = (BigInt(revisionKey[0]) * 256n) + BigInt(revisionKey[1])
-
+		let revision = BigInt(revisionKey[0]) * 256n + BigInt(revisionKey[1])
 		let [encryptedData, errEF] = encryptFileSmall(
-			viewKey,
+			encryptionKey,
 			inode,
 			revision,
 			metadata,
@@ -216,6 +230,11 @@ function createIndependentFileSmall(
 			return
 		}
 		let skylink = entryIDToSkylink(entryID)
+
+		// Create the view key, which is a composition of the inode and the
+		// encryption key.
+		let encStr = bufToB64(encryptionKey)
+		let viewKey = encStr + inode
 
 		// Create and return the independentFile.
 		let ifile: independentFileSmall = {
@@ -291,17 +310,21 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 		// Download the file to load the metadata and file data.
 		let [encryptedData, errD] = await download(skylink)
 		if (errD !== null) {
-			resolve([{} as any, addContextToErr(errD, "unable to download file metadata")])
+			resolve([{} as any, addContextToErr(errD, "unable to download file")])
 			return
 		}
 
 		// Decrypt the file to read the metadata.
-		let viewKey = deriveChildSeed(seed, inode)
-		let [metadata, fileData, errDF] = decryptFileSmall(viewKey, inode, encryptedData)
+		let encryptionKey = deriveChildSeed(seed, inode)
+		let [metadata, fileData, errDF] = decryptFileSmall(encryptionKey, inode, encryptedData)
 		if (errDF !== null) {
 			resolve([{} as any, addContextToErr(errDF, "unable to decrypt file")])
 			return
 		}
+
+		// Create the view key
+		let encStr = bufToB64(encryptionKey)
+		let viewKey = encStr + inode
 
 		let ifile: independentFileSmall = {
 			dataKey,
@@ -320,6 +343,50 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 			overwriteData: function (newData: Uint8Array): Promise<error> {
 				return overwriteIndependentFileSmall(ifile, newData)
 			},
+			// readData will return the data contained in the file.
+			readData: function (): Promise<[Uint8Array, error]> {
+				return new Promise((resolve) => {
+					let data = new Uint8Array(ifile.fileData.length)
+					data.set(ifile.fileData, 0)
+					resolve([data, null])
+				})
+			},
+		}
+		resolve([ifile, null])
+	})
+}
+
+// viewIndependentFileSmall creates a viewer object that allows the caller to
+// download and decrypt the file. The file cannot be updated using this
+// function.
+function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[independentFileSmallViewer, error]> {
+	return new Promise(async (resolve) => {
+		// Download the file to load the metadata and file data.
+		let [encryptedData, errD] = await download(skylink)
+		if (errD !== null) {
+			resolve([{} as any, addContextToErr(errD, "unable to download file")])
+			return
+		}
+		// Break the viewKey into the inode and encryption key.
+		let encStr = viewKey.slice(0, 22)
+		let [encryptionKey, errBTB] = b64ToBuf(encStr)
+		if (errBTB !== null) {
+			resolve([{} as any, addContextToErr(errBTB, "unable to extract encryption key from view key")])
+			return
+		}
+		let inode = viewKey.slice(22, viewKey.length)
+		let [, fileData, errDF] = decryptFileSmall(encryptionKey, inode, encryptedData)
+		if (errDF !== null) {
+			resolve([{} as any, addContextToErr(errDF, "unable to decrypt file")])
+			return
+		}
+
+		// Create and return the viewer file.
+		let ifile: independentFileSmallViewer = {
+			fileData,
+			skylink,
+			viewKey,
+
 			// readData will return the data contained in the file.
 			readData: function (): Promise<[Uint8Array, error]> {
 				return new Promise((resolve) => {
@@ -364,13 +431,16 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		let revisionKey = deriveChildSeed(revisionSeed, file.inode)
 		let newRevision = file.revision + BigInt(revisionKey[0]) + 1n
 
+		// Get the encryption key.
+		let encryptionKey = deriveChildSeed(file.seed, file.inode)
+
 		// Create a new encrypted blob for the data.
 		//
 		// NOTE: Need to supply the data that would be in place after a
 		// successful update, which means using the new metadata and revision
 		// number.
 		let [encryptedData, errEFS] = encryptFileSmall(
-			file.viewKey,
+			encryptionKey,
 			file.inode,
 			newRevision,
 			newMetadata,
@@ -409,4 +479,4 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 	})
 }
 
-export { createIndependentFileSmall, openIndependentFileSmall, ERR_EXISTS, ERR_NOT_EXISTS }
+export { createIndependentFileSmall, openIndependentFileSmall, viewIndependentFileSmall, ERR_EXISTS, ERR_NOT_EXISTS }
