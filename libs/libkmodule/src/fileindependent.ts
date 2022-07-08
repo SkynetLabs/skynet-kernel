@@ -11,6 +11,24 @@
 // file has been modified elsewhere and invalidate the file / update the
 // caller.
 
+// NOTE: One thing that happens in this file is the randomization of the
+// revision number, to help hide the total number of times that the user has
+// modified the file. The initial revision number starts between 0 and 2^16,
+// and then each revision after that randomly adds between 1 and 256 to the
+// revision number.
+//
+// If you do this naively (with truly randomly generated revision numbers), you
+// introduce safety issues. An outdated version of the file may be updated and
+// skip over the revision number of the most recent version of the file,
+// causing data loss.
+//
+// We avoid this by ensuring that the revision number sequence is deterministic
+// based on the seed and inode of the file. If an outdated version of the file
+// tries to make an update, it is guaranteed to not skip over the revision
+// number of the latest version of the file. If you repeat this pattern of
+// randomizing the revision number in your own code, please ensure that you
+// make the updates deterministic based on some secret.
+
 import { download } from "./messagedownload.js"
 import { registryRead, registryWrite } from "./messageregistry.js"
 import { upload } from "./messageupload.js"
@@ -20,6 +38,7 @@ import {
 	deriveChildSeed,
 	deriveRegistryEntryID,
 	ed25519Keypair,
+	encodeU64,
 	encryptFileSmall,
 	entryIDToSkylink,
 	error,
@@ -97,10 +116,10 @@ interface independentFileSmall {
 	readData: readDataFn
 }
 
-// createIndependentFile will create a new independent file with the provided
-// data. The revision number is intentionally set to '0' to ensure that any
-// existing file at the same inode will not be obliterated on accident in the
-// event of an erroneus call to 'createIndependentFile'.
+// createIndependentFileSmall will create a new independent file with the
+// provided data. The revision number is intentionally set to '0' to ensure
+// that any existing file at the same inode will not be obliterated on accident
+// in the event of an erroneus call to 'createIndependentFileSmall'.
 //
 // If an independent file with the provided inode already exists, an error will
 // be returned.
@@ -148,7 +167,16 @@ function createIndependentFileSmall(
 		let metadata: independentFileSmallMetadata = {
 			largestHistoricSize: BigInt(fileData.length),
 		}
-		let revision = 0n
+
+		// Compute the revision number. We need the revision number to be
+		// random, but deterministic so parallel writes will use the same
+		// number as we do. Every update increments the revision by a random
+		// number between 0 and 255.
+		let revisionSeed = new Uint8Array(seed.length + 8)
+		revisionSeed.set(seed, 0)
+		let revisionKey = deriveChildSeed(revisionSeed, inode)
+		let revision = (BigInt(revisionKey[0]) * 256n) + BigInt(revisionKey[1])
+
 		let [encryptedData, errEF] = encryptFileSmall(
 			viewKey,
 			inode,
@@ -321,21 +349,36 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 			newMetadata.largestHistoricSize = BigInt(newData.length)
 		}
 
+		// Compute the new revision number for the file. This is done
+		// deterministically using the seed and the current revision number, so
+		// that multiple concurrent updates will end up with the same revision.
+		// We use a random number between 1 and 256 for our increment.
+		let [encodedRevision, errEU64] = encodeU64(file.revision)
+		if (errEU64 !== null) {
+			resolve(addContextToErr(errEU64, "unable to encode revision"))
+			return
+		}
+		let revisionSeed = new Uint8Array(file.seed.length + encodedRevision.length)
+		revisionSeed.set(file.seed, 0)
+		revisionSeed.set(encodedRevision, file.seed.length)
+		let revisionKey = deriveChildSeed(revisionSeed, file.inode)
+		let newRevision = file.revision + BigInt(revisionKey[0]) + 1n
+
 		// Create a new encrypted blob for the data.
 		//
 		// NOTE: Need to supply the data that would be in place after a
-		// successful update, which means using the new metadata and also using
-		// an incremented revision number.
-		let [encryptedData, errEF] = encryptFileSmall(
+		// successful update, which means using the new metadata and revision
+		// number.
+		let [encryptedData, errEFS] = encryptFileSmall(
 			file.viewKey,
 			file.inode,
-			file.revision + 1n,
+			newRevision,
 			newMetadata,
 			newData,
 			newMetadata.largestHistoricSize
 		)
-		if (errEF !== null) {
-			resolve(addContextToErr(errEF, "unable to encrypt updated file"))
+		if (errEFS !== null) {
+			resolve(addContextToErr(errEFS, "unable to encrypt updated file"))
 			return
 		}
 
@@ -349,18 +392,17 @@ function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint
 		// Write to the registry entry.
 		let [entryData, errSTRED] = skylinkToResolverEntryData(skylink)
 		if (errSTRED !== null) {
-			resolve(addContextToErr(errSTRED, "could not create resovler link from upload skylink"))
+			resolve(addContextToErr(errSTRED, "could not create resolver link from upload skylink"))
 			return
 		}
-		// NOTE: Don't forget to increment the revision here.
-		let [, errRW] = await registryWrite(file.keypair, file.dataKey, entryData, file.revision + 1n)
+		let [, errRW] = await registryWrite(file.keypair, file.dataKey, entryData, newRevision)
 		if (errRW !== null) {
 			resolve(addContextToErr(errRW, "could not write to registry entry"))
 			return
 		}
 
 		// File update was successful, update the file metadata.
-		file.revision += 1n
+		file.revision = newRevision
 		file.metadata = newMetadata
 		file.fileData = newData
 		resolve(null)
