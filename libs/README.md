@@ -60,3 +60,10 @@ each format, and we want to make sure we track their types well.
 
 All conditionals should be multi-line with an open brace and a closing brace.
 Single line conditionals and ternaries are a common source of accidental bugs.
+
+When writing exports, exports should be sorted alphabetically by file. When
+exporting multiple items from a single file, constants should be listed first,
+types should be listed second, and functions should be listed third. Within a
+group, everything should be listed alphabetically. This is closer to a
+guideline than a rule, having formal rules here reduces the number of
+unimportant decisions that a developer needs to make when writing a file.
