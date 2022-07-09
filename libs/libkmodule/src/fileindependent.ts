@@ -5,7 +5,7 @@
 // not meant to be shared.
 
 // TODO: Need to implement delete using the special registry value that
-// signifies a deleted file, then implement deleteFile on independentFileSmall.
+// signifies a deleted file, then implement deleteFile on IndependentFileSmall.
 
 // TODO: Need to implement registry subscriptions so that we can detect if the
 // file has been modified elsewhere and invalidate the file / update the
@@ -53,29 +53,31 @@ const ERR_EXISTS = "exists"
 const ERR_NOT_EXISTS = "DNE"
 const STD_FILENAME = "file"
 
-// overwriteDataFn is the function signature for calling 'overwriteData' on an
-// independentFile.
-type overwriteDataFn = (newData: Uint8Array) => Promise<error>
+// OverwriteDataFn is the function signature for calling 'overwriteData' on an
+// IndependentFile.
+type OverwriteDataFn = (newData: Uint8Array) => Promise<error>
 
-// readDataFn defines the function signature for calling 'readData' on an
+// ReadDataFn defines the function signature for calling 'readData' on an
 // indepdendentFile.
 //
 // NOTE: When implementing a full sized independent file, the 'readData'
 // function should either return an error or return the full file. To do
 // partial reads, use/implement the function 'read'.
-type readDataFn = () => Promise<[Uint8Array, error]>
+type ReadDataFn = () => Promise<[Uint8Array, error]>
 
-// independentFileMetadataSmall defines the established metadata for an
-// independentFile. The metadata is not allowed to be adjusted because we want
+type IndependentFileSmallType = IndependentFileSmall | IndependentFileSmallViewer
+
+// IndependentFileMetadataSmall defines the established metadata for an
+// IndependentFile. The metadata is not allowed to be adjusted because we want
 // to keep the api for an independentFile as simple as possible.
 //
 // We track the largestHistoricSize of the file so that we can protect the user
 // from leaking information if they shrink the size of the file between writes.
-interface independentFileSmallMetadata {
+interface IndependentFileSmallMetadata {
 	largestHistoricSize: bigint
 }
 
-// independentFileSmall is a safe object for working with small independent
+// IndependentFileSmall is a safe object for working with small independent
 // files. It supports the 'overwriteData' function, which will replace the
 // existing data in the file with new data.
 //
@@ -94,12 +96,12 @@ interface independentFileSmallMetadata {
 // When making modifications to a small independent file, the entire file needs
 // to be re-encrypted and re-uploaded. We recommend small files stay under 4
 // MB, however there's no formal limitation in the size of an independent file.
-interface independentFileSmall {
+interface IndependentFileSmall {
 	dataKey: Uint8Array
 	fileData: Uint8Array
 	inode: string
 	keypair: ed25519Keypair
-	metadata: independentFileSmallMetadata
+	metadata: IndependentFileSmallMetadata
 	revision: bigint
 	seed: Uint8Array
 
@@ -110,25 +112,25 @@ interface independentFileSmall {
 
 	// overwriteData is a function that takes the new file data (a uint8array)
 	// as input and updates the file on Skynet to contain the new data.
-	overwriteData: overwriteDataFn
+	overwriteData: OverwriteDataFn
 
-	// readData is a function that returns the fileData of the independentFile.
+	// readData is a function that returns the fileData of the IndependentFile.
 	// It is a safe passthrough to fileData - it makes a copy before returning
 	// the data.
-	readData: readDataFn
+	readData: ReadDataFn
 }
 
-// independentFileSmallViewer allows someone with a viewKey to read from an
-// independentFileSmall, without giving them any write access.
-interface independentFileSmallViewer {
+// IndependentFileSmallViewer allows someone with a viewKey to read from an
+// IndependentFileSmall, without giving them any write access.
+interface IndependentFileSmallViewer {
 	fileData: Uint8Array
 	skylink: string
 	viewKey: string
 
-	// readData is a function that returns the fileData of the independentFile.
+	// readData is a function that returns the fileData of the IndependentFile.
 	// It is a safe passthrough to fileData - it makes a copy before returning
 	// the data.
-	readData: readDataFn
+	readData: ReadDataFn
 }
 
 // createIndependentFileSmall will create a new independent file with the
@@ -142,12 +144,12 @@ function createIndependentFileSmall(
 	seed: Uint8Array,
 	userInode: string,
 	fileData: Uint8Array
-): Promise<[independentFileSmall, error]> {
+): Promise<[IndependentFileSmall, error]> {
 	return new Promise(async (resolve) => {
 		// Namespace the inode so that inodes created by the user using
 		// different filetypes cannot be accessed by calling the wrong
 		// function.
-		let [inode, errNI] = namespaceInode("independentFileSmall", userInode)
+		let [inode, errNI] = namespaceInode("IndependentFileSmall", userInode)
 		if (errNI !== null) {
 			resolve([{} as any, addContextToErr(errNI, "unable to namespace inode")])
 			return
@@ -179,7 +181,7 @@ function createIndependentFileSmall(
 		// view key for this file. The seed will depend on the inode so that
 		// view keys for individual files can be passed around.
 		let encryptionKey = deriveChildSeed(seed, inode)
-		let metadata: independentFileSmallMetadata = {
+		let metadata: IndependentFileSmallMetadata = {
 			largestHistoricSize: BigInt(fileData.length),
 		}
 
@@ -236,8 +238,8 @@ function createIndependentFileSmall(
 		let encStr = bufToB64(encryptionKey)
 		let viewKey = encStr + inode
 
-		// Create and return the independentFile.
-		let ifile: independentFileSmall = {
+		// Create and return the IndependentFile.
+		let ifile: IndependentFileSmall = {
 			dataKey,
 			fileData,
 			inode,
@@ -266,12 +268,12 @@ function createIndependentFileSmall(
 
 // openIndependentFileSmall is used to open an already existing independent file. If
 // one does not exist, an error will be returned.
-function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<[independentFileSmall, error]> {
+function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<[IndependentFileSmall, error]> {
 	return new Promise(async (resolve) => {
 		// Namespace the inode so that inodes created by the user using
 		// different filetypes cannot be accessed by calling the wrong
 		// function.
-		let [inode, errNI] = namespaceInode("independentFileSmall", userInode)
+		let [inode, errNI] = namespaceInode("IndependentFileSmall", userInode)
 		if (errNI !== null) {
 			resolve([{} as any, addContextToErr(errNI, "unable to namespace inode")])
 			return
@@ -326,7 +328,7 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 		let encStr = bufToB64(encryptionKey)
 		let viewKey = encStr + inode
 
-		let ifile: independentFileSmall = {
+		let ifile: IndependentFileSmall = {
 			dataKey,
 			fileData,
 			inode,
@@ -359,7 +361,7 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 // viewIndependentFileSmall creates a viewer object that allows the caller to
 // download and decrypt the file. The file cannot be updated using this
 // function.
-function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[independentFileSmallViewer, error]> {
+function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[IndependentFileSmallViewer, error]> {
 	return new Promise(async (resolve) => {
 		// Download the file to load the metadata and file data.
 		let [encryptedData, errD] = await download(skylink)
@@ -382,7 +384,7 @@ function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[in
 		}
 
 		// Create and return the viewer file.
-		let ifile: independentFileSmallViewer = {
+		let ifile: IndependentFileSmallViewer = {
 			fileData,
 			skylink,
 			viewKey,
@@ -405,11 +407,11 @@ function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[in
 //
 // NOTE: This function is not thread safe, it should only be called by one
 // process at a time.
-function overwriteIndependentFileSmall(file: independentFileSmall, newData: Uint8Array): Promise<error> {
+function overwriteIndependentFileSmall(file: IndependentFileSmall, newData: Uint8Array): Promise<error> {
 	return new Promise(async (resolve) => {
 		// Create a new metadata for the file based on the current file
 		// metadata. Need to update the largest historic size.
-		let newMetadata: independentFileSmallMetadata = {
+		let newMetadata: IndependentFileSmallMetadata = {
 			largestHistoricSize: BigInt(file.metadata.largestHistoricSize),
 		}
 		if (BigInt(newData.length) > newMetadata.largestHistoricSize) {
