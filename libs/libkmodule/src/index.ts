@@ -4,7 +4,7 @@ export {
 	viewIndependentFileSmall,
 	ERR_EXISTS,
 	ERR_NOT_EXISTS,
-} from "./fileindependent.js"
+} from "./independentfile.js"
 export { log, logErr } from "./log.js"
 export { download } from "./messagedownload.js"
 export { registryRead, registryWrite, RegistryReadResult } from "./messageregistry.js"
