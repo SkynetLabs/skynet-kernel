@@ -24,6 +24,7 @@
     "formik": "^2.2.9",
     "fs-extra": "^10.0.0",
     "identity-obj-proxy": "^3.0.0",
+    "libkernel": "^0.1.42",
     "mini-css-extract-plugin": "^2.4.5",
     "postcss": "^8.4.4",
     "postcss-flexbugs-fixes": "^5.0.2",

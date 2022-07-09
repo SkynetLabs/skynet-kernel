@@ -7,3 +7,8 @@ body {
   padding: 0;
   background: rgb(212 221 219 / 30%);
 }
+
+h1 {
+  font-size: 3rem;
+  font-weight: bold;
+}
