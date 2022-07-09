@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import ExternalLink from './ExternalLink';
 import Logo from './Logo';
 import './App.css';
@@ -9,13 +9,13 @@ function App() {
       <header className="sticky bg-white shadow-sm flex">
         <nav className="container mx-auto flex items-center">
           <ul className="flex divide-x divide-palette-200/50">
-            <li className="h-16 items-center flex px-4">
-              <a href="https://skynetlabs.com" target="_blank" rel="noreferrer">
+            <li className="h-16">
+              <a href="https://skynetlabs.com" target="_blank" rel="noreferrer" className="flex h-full px-4 items-center">
                 <Logo />
               </a>
             </li>
-            <li className="h-16 items-center flex px-4">
-              <Link to="/module-overrides" className={({ isActive }) => isActive ? "text-primary": "text-palette-300"}><span className="text-palette-400">Module overrides</span></Link>
+            <li className="h-16">
+              <NavLink to="/" className={({ isActive }) => `flex h-full px-4 items-center border-b ${isActive ? "border-b-primary": "border-b-palette-200"}`}>Module overrides</NavLink>
             </li>
           </ul>
         </nav>
