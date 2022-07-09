@@ -1,4 +1,4 @@
-import { callModule } from "./queries.js"
+import { callModule } from "./queries"
 import { addContextToErr, ed25519Keypair, error } from "libskynet"
 
 // RegistryReadResult establishes the return type for a registry read performed

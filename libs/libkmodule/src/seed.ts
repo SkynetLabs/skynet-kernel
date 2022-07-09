@@ -1,4 +1,4 @@
-import { ActiveQuery } from "./messages.js"
+import { ActiveQuery } from "./messages"
 
 // Define a set of helper variables that track whether the seed has been
 // received by the kernel yet.

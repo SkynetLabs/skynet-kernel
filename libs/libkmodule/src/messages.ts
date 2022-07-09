@@ -1,4 +1,4 @@
-import { logErr } from "./log.js"
+import { logErr } from "./log"
 import {
 	clearIncomingQuery,
 	getSetReceiveUpdate,
@@ -6,8 +6,8 @@ import {
 	handleResponse,
 	handleResponseNonce,
 	handleResponseUpdate,
-} from "./queries.js"
-import { handlePresentSeed } from "./seed.js"
+} from "./queries"
+import { handlePresentSeed } from "./seed"
 import { addContextToErr, dataFn, errFn, tryStringify } from "libskynet"
 
 // handlerFn takes an ActiveQuery as input and has no return value. The return

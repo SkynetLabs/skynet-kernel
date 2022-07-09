@@ -1,4 +1,4 @@
-import { callModule } from "./queries.js"
+import { callModule } from "./queries"
 import { addContextToErr, error } from "libskynet"
 
 // upload will take a filename and some file data and perform a secure upload
