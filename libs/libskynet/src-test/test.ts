@@ -343,12 +343,13 @@ function TestSkylinkV1Bitfield(t: any) {
 function TestTryStringify(t: any) {
 	// Try undefined and null.
 	let undefinedVar
-	if (objAsString(undefinedVar) !== "[cannot stringify undefined input]") {
+	if (objAsString(undefinedVar) !== "[cannot convert undefined to string]") {
+		t.log(objAsString(undefinedVar))
 		t.fail("bad stringify on undefined object")
 		return
 	}
 	let nullVar = null
-	if (objAsString(nullVar) !== "[null]") {
+	if (objAsString(nullVar) !== "[cannot convert null to string]") {
 		t.fail("bad stringify on null object")
 		return
 	}
