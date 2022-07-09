@@ -1,5 +1,5 @@
 import { callModule } from "./queries"
-import { addContextToErr, ed25519Keypair, error } from "libskynet"
+import { Ed25519Keypair, addContextToErr, error } from "libskynet"
 
 // RegistryReadResult establishes the return type for a registry read performed
 // on the registry module.
@@ -46,7 +46,7 @@ function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[Regi
 // misuse registryWrite such that user data will be lost. We recommend using a
 // safe set of functions for writing to the registry such as getsetjson.
 function registryWrite(
-	keypair: ed25519Keypair,
+	keypair: Ed25519Keypair,
 	dataKey: Uint8Array,
 	entryData: Uint8Array,
 	revision: BigInt

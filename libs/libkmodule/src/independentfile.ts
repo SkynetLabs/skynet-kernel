@@ -33,13 +33,13 @@ import { download } from "./messagedownload"
 import { registryRead, registryWrite } from "./messageregistry"
 import { upload } from "./messageupload"
 import {
+	Ed25519Keypair,
 	addContextToErr,
 	b64ToBuf,
 	bufToB64,
 	decryptFileSmall,
 	deriveChildSeed,
 	deriveRegistryEntryID,
-	ed25519Keypair,
 	encodeU64,
 	encryptFileSmall,
 	entryIDToSkylink,
@@ -64,8 +64,6 @@ type OverwriteDataFn = (newData: Uint8Array) => Promise<error>
 // function should either return an error or return the full file. To do
 // partial reads, use/implement the function 'read'.
 type ReadDataFn = () => Promise<[Uint8Array, error]>
-
-type IndependentFileSmallType = IndependentFileSmall | IndependentFileSmallViewer
 
 // IndependentFileMetadataSmall defines the established metadata for an
 // IndependentFile. The metadata is not allowed to be adjusted because we want
@@ -100,7 +98,7 @@ interface IndependentFileSmall {
 	dataKey: Uint8Array
 	fileData: Uint8Array
 	inode: string
-	keypair: ed25519Keypair
+	keypair: Ed25519Keypair
 	metadata: IndependentFileSmallMetadata
 	revision: bigint
 	seed: Uint8Array

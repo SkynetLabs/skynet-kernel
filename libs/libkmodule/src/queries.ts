@@ -1,6 +1,6 @@
 import { log, logErr } from "./log"
 import { dataFn } from "./messages"
-import { errTuple, tryStringify } from "libskynet"
+import { errTuple, objAsString } from "libskynet"
 
 // queryResolve defines the function that gets called to resolve a query. It's
 // the 'resolve' field of a promise that returns a tuple containing some data
@@ -102,7 +102,7 @@ async function handleQueryUpdate(event: MessageEvent) {
 function handleResponse(event: MessageEvent) {
 	// Look for the query with the corresponding nonce.
 	if (!(event.data.nonce in queries)) {
-		logErr("no open query found for provided nonce: " + tryStringify(event.data.data))
+		logErr("no open query found for provided nonce: " + objAsString(event.data.data))
 		return
 	}
 

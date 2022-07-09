@@ -14,7 +14,7 @@ import {
 	logErr,
 	newKernelQuery,
 	openIndependentFileSmall,
-	tryStringify,
+	objAsString,
 	viewIndependentFileSmall,
 } from "libkmodule"
 
@@ -38,7 +38,7 @@ onmessage = function (event: MessageEvent) {
 	// meeting its intended guarantees.
 	if (!("method" in event.data)) {
 		errors.push("received a message with no method")
-		logErr("received a message with no method: " + tryStringify(event.data))
+		logErr("received a message with no method: " + objAsString(event.data))
 		return
 	}
 	// Hande 'presentSeed', which gives the module a seed. Similar to
@@ -79,7 +79,7 @@ onmessage = function (event: MessageEvent) {
 	let isResponseNonce = event.data.method === "responseNonce"
 	let isResponseMsg = isResponse || isResponseUpdate || isResponseNonce
 	if (!("domain" in event.data) && !isResponseMsg) {
-		logErr("received a message with no domain: " + tryStringify(event.data))
+		logErr("received a message with no domain: " + objAsString(event.data))
 		errors.push("received a message with no domain")
 		return
 	}
@@ -262,7 +262,7 @@ async function handleSendTestToKernel(activeQuery: ActiveQuery) {
 		return
 	}
 	if (!("version" in resp)) {
-		errors.push("kernel response to test message didn't include a version:", tryStringify(resp))
+		errors.push("kernel response to test message didn't include a version:", objAsString(resp))
 		activeQuery.reject("no version provided by kernel 'test' method")
 		return
 	}
@@ -449,7 +449,7 @@ async function handleTesterMirrorDomain(activeQuery: ActiveQuery) {
 	}
 
 	if (!("domain" in resp)) {
-		let err = "helper module response did not have data.domain field: " + tryStringify(resp)
+		let err = "helper module response did not have data.domain field: " + objAsString(resp)
 		errors.push(err)
 		activeQuery.reject(err)
 		return
@@ -498,17 +498,17 @@ async function handleUpdateTest(activeQuery: ActiveQuery) {
 
 		// Check that the 'progress' value is well formed.
 		if (!("progress" in data)) {
-			activeQuery.reject("expecting 'progress' field: " + tryStringify(data))
+			activeQuery.reject("expecting 'progress' field: " + objAsString(data))
 			resolved = true
 			return
 		}
 		if (typeof data.progress !== "number") {
-			activeQuery.reject("expecting 'progress' to be a number: " + tryStringify(data))
+			activeQuery.reject("expecting 'progress' to be a number: " + objAsString(data))
 			resolved = true
 			return
 		}
 		if (expectedProgress !== data.progress) {
-			let str = tryStringify(data) + "::" + tryStringify(expectedProgress)
+			let str = objAsString(data) + "::" + objAsString(expectedProgress)
 			activeQuery.reject("progress has wrong value: " + str)
 			resolved = true
 			return
@@ -536,7 +536,7 @@ async function handleUpdateTest(activeQuery: ActiveQuery) {
 		return
 	}
 	if (resp.progress !== 9) {
-		activeQuery.reject("expecting to get { progress: 9 } but instead got " + tryStringify(resp))
+		activeQuery.reject("expecting to get { progress: 9 } but instead got " + objAsString(resp))
 		resolved = true
 		return
 	}
@@ -559,19 +559,19 @@ async function handleViewHelperSeed(activeQuery: ActiveQuery) {
 
 	// Check that the return value contains a seed.
 	if (!("seed" in resp)) {
-		let err = "helper module response did not have seed field: " + tryStringify(resp)
+		let err = "helper module response did not have seed field: " + objAsString(resp)
 		errors.push(err)
 		activeQuery.reject(err)
 		return
 	}
 	if (!(resp.seed instanceof Uint8Array)) {
-		let err = "helper module seed is wrong type: " + tryStringify(resp)
+		let err = "helper module seed is wrong type: " + objAsString(resp)
 		errors.push(err)
 		activeQuery.reject(err)
 		return
 	}
 	if (resp.seed.length !== 16) {
-		let err = "helper module seed is wrong size: " + tryStringify(resp)
+		let err = "helper module seed is wrong size: " + objAsString(resp)
 		errors.push(err)
 		activeQuery.reject(err)
 		return
@@ -613,13 +613,13 @@ async function handleViewOwnSeedThroughHelper(activeQuery: ActiveQuery) {
 	}
 
 	if (!("testerSeed" in resp)) {
-		let err = "helper module response did not have data.testerSeed field: " + tryStringify(resp)
+		let err = "helper module response did not have data.testerSeed field: " + objAsString(resp)
 		errors.push(err)
 		activeQuery.reject(err)
 		return
 	}
 	if (resp.testerSeed.length !== 16) {
-		let err = "helper module seed is wrong size: " + tryStringify(resp)
+		let err = "helper module seed is wrong size: " + objAsString(resp)
 		errors.push(err)
 		activeQuery.reject(err)
 		return

@@ -680,11 +680,7 @@ function TestSecureRegistry() {
 			reject(skynet.addContextToErr(errRW, "error when calling registry module"))
 			return
 		}
-		let [resolverLink, errRL] = skynet.resolverLink(entryID)
-		if (errRL !== null) {
-			reject(skynet.addContextToErr(errRL, "could not convert entryID to resolver link"))
-			return
-		}
+		let resolverLink = skynet.entryIDToSkylink(entryID)
 		resolve(resolverLink)
 	})
 }
@@ -762,14 +758,8 @@ function TestSecureUploadAndDownload() {
 			return
 		}
 
-		// Convert the entryID to a resovler skylink.
-		let [resolverLink, errRL] = skynet.resolverLink(entryID)
-		if (errRL !== null) {
-			reject(kernel.addContextToErr(errRL, "unable to convert resp.entryID to resolver link"))
-			return
-		}
-
 		// Perform a skylink download using the resolver link.
+		let resolverLink = skynet.entryIDToSkylink(entryID)
 		let [resolverData, errD2] = await kernel.download(resolverLink)
 		console.log("TestSecureUploadAndDownload: download completed after", performance.now()-start)
 		if (errD2 !== null) {
@@ -777,12 +767,12 @@ function TestSecureUploadAndDownload() {
 			return
 		}
 		if (fileDataUp.length !== resolverData.length) {
-			reject("uploaded data and resolver downloaded data do not match: "+skynet.tryStringify({uploaded: fileDataUp, downloaded: resolverData}))
+			reject("uploaded data and resolver downloaded data do not match: "+skynet.objAsString({uploaded: fileDataUp, downloaded: resolverData}))
 			return
 		}
 		for (let i = 0; i < fileDataUp.length; i++) {
 			if (fileDataUp[i] !== resolverData[i]) {
-				reject("uploaded data and downloaded data do not match: "+skynet.tryStringify({uploaded: fileDataUp, downloaded: resolverData}))
+				reject("uploaded data and downloaded data do not match: "+skynet.objAsString({uploaded: fileDataUp, downloaded: resolverData}))
 				return
 			}
 		}

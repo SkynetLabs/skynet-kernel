@@ -8,7 +8,7 @@ import {
 	handleResponseUpdate,
 } from "./queries"
 import { handlePresentSeed } from "./seed"
-import { addContextToErr, dataFn, errFn, tryStringify } from "libskynet"
+import { addContextToErr, dataFn, errFn, objAsString } from "libskynet"
 
 // handlerFn takes an ActiveQuery as input and has no return value. The return
 // is expected to come in the form of calling aq.accept or aq.reject.
@@ -145,7 +145,7 @@ function handleMessage(event: MessageEvent) {
 	let respond = function (data: any) {
 		// Check if a response was already sent.
 		if (responded) {
-			let str = tryStringify(data)
+			let str = objAsString(data)
 			logErr("accept called after response already sent: " + str)
 			return
 		}
@@ -165,7 +165,7 @@ function handleMessage(event: MessageEvent) {
 	let reject = function (err: string) {
 		// Check if a response was already sent.
 		if (responded) {
-			let str = tryStringify(err)
+			let str = objAsString(err)
 			logErr("reject called after response already sent: " + str)
 			return
 		}
@@ -178,7 +178,7 @@ function handleMessage(event: MessageEvent) {
 	// Define the function that will allow the handler to send an update.
 	let sendUpdate = function (updateData: any) {
 		if (responded) {
-			let str = tryStringify(updateData)
+			let str = objAsString(updateData)
 			logErr("sendUpdate called after response already sent: " + str)
 			return
 		}
@@ -214,9 +214,9 @@ function handleMessage(event: MessageEvent) {
 		router[event.data.method].handler(activeQuery)
 	} catch (err: any) {
 		// Convert the thrown error and log it. We know that strErr is a string
-		// because tryStringify must return a string, and addContextToErr only
+		// because objAsString must return a string, and addContextToErr only
 		// returns null if strErr is null.
-		let strErr = tryStringify(err)
+		let strErr = objAsString(err)
 		let finalErr = <string>addContextToErr(strErr, "module threw an error")
 		logErr(finalErr)
 
@@ -230,7 +230,7 @@ function handleMessage(event: MessageEvent) {
 
 // respondErr will send an error to the kernel as a response to a moduleCall.
 function respondErr(event: MessageEvent, err: string) {
-	let strErr = tryStringify(err)
+	let strErr = objAsString(err)
 	postMessage({
 		nonce: event.data.nonce,
 		method: "response",

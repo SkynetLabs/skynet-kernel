@@ -1,4 +1,4 @@
-import { tryStringify } from "libskynet"
+import { objAsString } from "libskynet"
 
 // logHelper is a helper function that runs the code for both log and logErr.
 // It takes a boolean indiciating whether the log should be an error, and then
@@ -10,7 +10,7 @@ function logHelper(isErr: boolean, ...inputs: any) {
 		if (i !== 0) {
 			message += "\n"
 		}
-		message += tryStringify(inputs[i])
+		message += objAsString(inputs[i])
 	}
 	postMessage({
 		method: "log",
