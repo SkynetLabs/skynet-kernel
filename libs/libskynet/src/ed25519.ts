@@ -1,24 +1,24 @@
 import { addContextToErr } from "./err.js"
 import { sha512internal } from "./sha512.js"
 
-let crypto_sign_BYTES = 64,
+const crypto_sign_BYTES = 64,
 	crypto_sign_PUBLICKEYBYTES = 32,
 	crypto_sign_SECRETKEYBYTES = 64,
 	crypto_sign_SEEDBYTES = 32
 
-let gf = function () {
-	let r = new Float64Array(16)
+const gf = function () {
+	const r = new Float64Array(16)
 	return r
 }
 
-let gfi = function (init: number[]) {
-	let i,
-		r = new Float64Array(16)
+const gfi = function (init: number[]) {
+	let i
+	const r = new Float64Array(16)
 	if (init) for (i = 0; i < init.length; i++) r[i] = init[i]
 	return r
 }
 
-let gf0 = gf(),
+const gf0 = gf(),
 	gf1 = gfi([1]),
 	D = gfi([
 		0x78a3, 0x1359, 0x4dca, 0x75eb, 0xd8ab, 0x4141, 0x0a4d, 0x0070, 0xe898, 0x7779, 0x4079, 0x8cc7, 0xfe73, 0x2b6f,
@@ -70,8 +70,8 @@ function car25519(o: Float64Array) {
 }
 
 function sel25519(p: Float64Array, q: Float64Array, b: number) {
-	let t,
-		c = ~(b - 1)
+	let t
+	const c = ~(b - 1)
 	for (let i = 0; i < 16; i++) {
 		t = c & (p[i] ^ q[i])
 		p[i] ^= t
@@ -81,7 +81,7 @@ function sel25519(p: Float64Array, q: Float64Array, b: number) {
 
 function pack25519(o: Uint8Array, n: Float64Array) {
 	let i, j, b
-	let m = gf(),
+	const m = gf(),
 		t = gf()
 	for (i = 0; i < 16; i++) t[i] = n[i]
 	car25519(t)
@@ -105,7 +105,7 @@ function pack25519(o: Uint8Array, n: Float64Array) {
 }
 
 function neq25519(a: Float64Array, b: Float64Array) {
-	let c = new Uint8Array(32),
+	const c = new Uint8Array(32),
 		d = new Uint8Array(32)
 	pack25519(c, a)
 	pack25519(d, b)
@@ -113,7 +113,7 @@ function neq25519(a: Float64Array, b: Float64Array) {
 }
 
 function par25519(a: Float64Array) {
-	let d = new Uint8Array(32)
+	const d = new Uint8Array(32)
 	pack25519(d, a)
 	return d[0] & 1
 }
@@ -165,8 +165,8 @@ function M(o: Float64Array, a: Float64Array, b: Float64Array) {
 		t27 = 0,
 		t28 = 0,
 		t29 = 0,
-		t30 = 0,
-		b0 = b[0],
+		t30 = 0
+	const b0 = b[0],
 		b1 = b[1],
 		b2 = b[2],
 		b3 = b[3],
@@ -600,7 +600,7 @@ function S(o: Float64Array, a: Float64Array) {
 }
 
 function inv25519(o: Float64Array, i: Float64Array) {
-	let c = gf()
+	const c = gf()
 	let a
 	for (a = 0; a < 16; a++) c[a] = i[a]
 	for (a = 253; a >= 0; a--) {
@@ -611,7 +611,7 @@ function inv25519(o: Float64Array, i: Float64Array) {
 }
 
 function pow2523(o: Float64Array, i: Float64Array) {
-	let c = gf()
+	const c = gf()
 	let a
 	for (a = 0; a < 16; a++) c[a] = i[a]
 	for (a = 250; a >= 0; a--) {
@@ -622,7 +622,7 @@ function pow2523(o: Float64Array, i: Float64Array) {
 }
 
 function add(p: Float64Array[], q: Float64Array[]) {
-	let a = gf(),
+	const a = gf(),
 		b = gf(),
 		c = gf(),
 		d = gf(),
@@ -661,7 +661,7 @@ function cswap(p: Float64Array[], q: Float64Array[], b: number) {
 }
 
 function pack(r: Uint8Array, p: Float64Array[]) {
-	let tx = gf(),
+	const tx = gf(),
 		ty = gf(),
 		zi = gf()
 	inv25519(zi, p[2])
@@ -687,7 +687,7 @@ function scalarmult(p: Float64Array[], q: Float64Array[], s: Uint8Array) {
 }
 
 function scalarbase(p: Float64Array[], s: Uint8Array) {
-	let q = [gf(), gf(), gf(), gf()]
+	const q = [gf(), gf(), gf(), gf()]
 	set25519(q[0], X)
 	set25519(q[1], Y)
 	set25519(q[2], gf1)
@@ -695,7 +695,7 @@ function scalarbase(p: Float64Array[], s: Uint8Array) {
 	scalarmult(p, q, s)
 }
 
-let L = new Float64Array([
+const L = new Float64Array([
 	0xed, 0xd3, 0xf5, 0x5c, 0x1a, 0x63, 0x12, 0x58, 0xd6, 0x9c, 0xf7, 0xa2, 0xde, 0xf9, 0xde, 0x14, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0x10,
 ])
@@ -726,7 +726,7 @@ function modL(r: Uint8Array, x: Float64Array) {
 }
 
 function unpackneg(r: Float64Array[], p: Uint8Array) {
-	let t = gf(),
+	const t = gf(),
 		chk = gf(),
 		num = gf(),
 		den = gf(),
@@ -768,16 +768,16 @@ function unpackneg(r: Float64Array[], p: Uint8Array) {
 }
 
 function reduce(r: Uint8Array) {
-	let x = new Float64Array(64),
-		i
+	const x = new Float64Array(64)
+	let i
 	for (i = 0; i < 64; i++) x[i] = r[i]
 	for (i = 0; i < 64; i++) r[i] = 0
 	modL(r, x)
 }
 
 function crypto_sign_keypair(pk: Uint8Array, sk: Uint8Array) {
-	let d = new Uint8Array(64)
-	let p = [gf(), gf(), gf(), gf()]
+	const d = new Uint8Array(64)
+	const p = [gf(), gf(), gf(), gf()]
 	let i
 
 	sha512internal(d, sk, 32)
@@ -794,9 +794,9 @@ function crypto_sign_keypair(pk: Uint8Array, sk: Uint8Array) {
 
 function crypto_sign_open(m: Uint8Array, sm: Uint8Array, n: number, pk: Uint8Array) {
 	let i
-	let t = new Uint8Array(32),
+	const t = new Uint8Array(32),
 		h = new Uint8Array(64)
-	let p = [gf(), gf(), gf(), gf()],
+	const p = [gf(), gf(), gf(), gf()],
 		q = [gf(), gf(), gf(), gf()]
 
 	if (n < 64) return -1
@@ -825,20 +825,19 @@ function crypto_sign_open(m: Uint8Array, sm: Uint8Array, n: number, pk: Uint8Arr
 
 // Note: difference from C - smlen returned, not passed as argument.
 function crypto_sign(sm: Uint8Array, m: Uint8Array, n: number, sk: Uint8Array) {
-	let d = new Uint8Array(64),
+	const d = new Uint8Array(64),
 		h = new Uint8Array(64),
 		r = new Uint8Array(64)
-	let i,
-		j,
-		x = new Float64Array(64)
-	let p = [gf(), gf(), gf(), gf()]
+	let i, j
+	const x = new Float64Array(64)
+	const p = [gf(), gf(), gf(), gf()]
 
 	sha512internal(d, sk, 32)
 	d[0] &= 248
 	d[31] &= 127
 	d[31] |= 64
 
-	let smlen = n + 64
+	const smlen = n + 64
 	for (i = 0; i < n; i++) sm[64 + i] = m[i]
 	for (i = 0; i < 32; i++) sm[32 + i] = d[32 + i]
 
@@ -863,8 +862,8 @@ function crypto_sign(sm: Uint8Array, m: Uint8Array, n: number, sk: Uint8Array) {
 	return smlen
 }
 
-// ed25519Keypair defines a keypair that can be used for signing messages.
-interface ed25519Keypair {
+// Ed25519Keypair defines a keypair that can be used for signing messages.
+interface Ed25519Keypair {
 	publicKey: Uint8Array
 	secretKey: Uint8Array
 }
@@ -887,9 +886,9 @@ function checkAllUint8Array(...args: any[]): string | null {
 
 // ed25519KeypairFromEntropy is a function that generates an ed25519 keypair
 // from the provided entropy.
-function ed25519KeypairFromEntropy(seed: Uint8Array): [ed25519Keypair, string | null] {
+function ed25519KeypairFromEntropy(seed: Uint8Array): [Ed25519Keypair, string | null] {
 	// Input checking.
-	let errU8 = checkAllUint8Array(seed)
+	const errU8 = checkAllUint8Array(seed)
 	if (errU8 !== null) {
 		return [nkp, addContextToErr(errU8, "seed is invalid")]
 	}
@@ -898,8 +897,8 @@ function ed25519KeypairFromEntropy(seed: Uint8Array): [ed25519Keypair, string | 
 	}
 
 	// Build the keypair.
-	let pk = new Uint8Array(crypto_sign_PUBLICKEYBYTES)
-	let sk = new Uint8Array(crypto_sign_SECRETKEYBYTES)
+	const pk = new Uint8Array(crypto_sign_PUBLICKEYBYTES)
+	const sk = new Uint8Array(crypto_sign_SECRETKEYBYTES)
 	for (let i = 0; i < 32; i++) {
 		sk[i] = seed[i]
 	}
@@ -917,7 +916,7 @@ function ed25519KeypairFromEntropy(seed: Uint8Array): [ed25519Keypair, string | 
 // ed25519Sign will produce an ed25519 signature of a given input.
 function ed25519Sign(msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, string | null] {
 	// Input checking.
-	let errU8 = checkAllUint8Array(msg, secretKey)
+	const errU8 = checkAllUint8Array(msg, secretKey)
 	if (errU8 !== null) {
 		return [nu8, addContextToErr(errU8, "inputs are invalid")]
 	}
@@ -926,9 +925,9 @@ function ed25519Sign(msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, strin
 	}
 
 	// Build the signature.
-	let signedMsg = new Uint8Array(crypto_sign_BYTES + msg.length)
+	const signedMsg = new Uint8Array(crypto_sign_BYTES + msg.length)
 	crypto_sign(signedMsg, msg, msg.length, secretKey)
-	let sig = new Uint8Array(crypto_sign_BYTES)
+	const sig = new Uint8Array(crypto_sign_BYTES)
 	for (let i = 0; i < sig.length; i++) {
 		sig[i] = signedMsg[i]
 	}
@@ -938,7 +937,7 @@ function ed25519Sign(msg: Uint8Array, secretKey: Uint8Array): [Uint8Array, strin
 // ed25519Verify will check whether a signature is valid against the given
 // publicKey and message.
 function ed25519Verify(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array): boolean {
-	let errU8 = checkAllUint8Array(msg, sig, publicKey)
+	const errU8 = checkAllUint8Array(msg, sig, publicKey)
 	if (errU8 !== null) {
 		return false
 	}
@@ -949,8 +948,8 @@ function ed25519Verify(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array):
 		return false
 	}
 
-	let sm = new Uint8Array(crypto_sign_BYTES + msg.length)
-	let m = new Uint8Array(crypto_sign_BYTES + msg.length)
+	const sm = new Uint8Array(crypto_sign_BYTES + msg.length)
+	const m = new Uint8Array(crypto_sign_BYTES + msg.length)
 	let i
 	for (i = 0; i < crypto_sign_BYTES; i++) {
 		sm[i] = sig[i]
@@ -961,4 +960,4 @@ function ed25519Verify(msg: Uint8Array, sig: Uint8Array, publicKey: Uint8Array):
 	return crypto_sign_open(m, sm, sm.length, publicKey) >= 0
 }
 
-export { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify }
+export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify }

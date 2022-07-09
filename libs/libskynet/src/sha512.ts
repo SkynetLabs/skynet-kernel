@@ -1,4 +1,4 @@
-const HASH_SIZE = 64
+const SHA512_HASH_SIZE = 64
 
 const K = [
 	0x428a2f98, 0xd728ae22, 0x71374491, 0x23ef65cd, 0xb5c0fbcf, 0xec4d3b2f, 0xe9b5dba5, 0x8189dbbc, 0x3956c25b,
@@ -33,34 +33,9 @@ function ts64(x: Uint8Array, i: number, h: number, l: number) {
 }
 
 function crypto_hashblocks_hl(hh: Int32Array, hl: Int32Array, m: Uint8Array, n: number) {
-	let wh = new Int32Array(16),
-		wl = new Int32Array(16),
-		bh0,
-		bh1,
-		bh2,
-		bh3,
-		bh4,
-		bh5,
-		bh6,
-		bh7,
-		bl0,
-		bl1,
-		bl2,
-		bl3,
-		bl4,
-		bl5,
-		bl6,
-		bl7,
-		th,
-		tl,
-		i,
-		j,
-		h,
-		l,
-		a,
-		b,
-		c,
-		d
+	const wh = new Int32Array(16),
+		wl = new Int32Array(16)
+	let bh0, bh1, bh2, bh3, bh4, bh5, bh6, bh7, bl0, bl1, bl2, bl3, bl4, bl5, bl6, bl7, th, tl, i, j, h, l, a, b, c, d
 
 	let ah0 = hh[0],
 		ah1 = hh[1],
@@ -492,11 +467,11 @@ function crypto_hashblocks_hl(hh: Int32Array, hl: Int32Array, m: Uint8Array, n: 
 }
 
 const sha512internal = function (out: Uint8Array, m: Uint8Array, n: number) {
-	let hh = new Int32Array(8),
+	const hh = new Int32Array(8),
 		hl = new Int32Array(8),
 		x = new Uint8Array(256),
-		i,
 		b = n
+	let i
 
 	hh[0] = 0x6a09e667
 	hh[1] = 0xbb67ae85
@@ -536,11 +511,9 @@ const sha512internal = function (out: Uint8Array, m: Uint8Array, n: number) {
 // default choice for Skynet operations, though many of the Sia protocol
 // standards use blake2b instead, so you will see both.
 function sha512(m: Uint8Array): Uint8Array {
-	const out = new Uint8Array(HASH_SIZE)
+	const out = new Uint8Array(SHA512_HASH_SIZE)
 	sha512internal(out, m, m.length)
 	return out
 }
 
-const sha512HashSize = HASH_SIZE
-
-export { sha512, sha512internal, sha512HashSize }
+export { SHA512_HASH_SIZE, sha512, sha512internal }

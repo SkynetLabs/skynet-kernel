@@ -1,5 +1,5 @@
 import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js"
-import { ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
+import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
 import { sha512 } from "./sha512.js"
 import { addContextToErr } from "./err.js"
 
@@ -24,7 +24,7 @@ function deriveChildSeed(parentSeed: Uint8Array, derivationTag: string): Uint8Ar
 //
 // NOTE: This is code is to provide legacy compatibility with the MySky
 // ecosystem. Compatibility cannot be broken here.
-function deriveMyskyRootKeypair(userSeed: Uint8Array): ed25519Keypair {
+function deriveMyskyRootKeypair(userSeed: Uint8Array): Ed25519Keypair {
 	let saltBytes = new TextEncoder().encode("root discoverable key")
 	let saltHash = sha512(saltBytes)
 	let userSeedHash = sha512(userSeed)

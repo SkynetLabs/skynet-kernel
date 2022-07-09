@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import { tryStringify } from "./stringifytry.js"
+import { objAsString } from "./objAsString.js"
 import { error } from "./types.js"
 
 // json_parse extracted from the json-bigint npm library
@@ -369,7 +369,7 @@ function parseJSON(json: string): [any, error] {
 		let obj = json_parse({ alwaysParseAsBig: true })(json)
 		return [obj, null]
 	} catch (err: any) {
-		return [{}, tryStringify(err)]
+		return [{}, objAsString(err)]
 	}
 }
 

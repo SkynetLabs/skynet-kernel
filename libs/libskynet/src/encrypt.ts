@@ -1,5 +1,5 @@
 import { encodeU64 } from "./encoding.js"
-import { sha512, sha512HashSize } from "./sha512.js"
+import { SHA512_HASH_SIZE, sha512 } from "./sha512.js"
 
 // otpEncrypt takes a key and some data and encrypts the data with the key. The
 // encryption happens by generating a sequence of bytes using sha512 hashes and
@@ -37,7 +37,7 @@ function otpEncrypt(key: Uint8Array, data: Uint8Array, skip?: number): Uint8Arra
 	preimageHolder.set(key, 0)
 
 	// Iterate over the data and encrypt each section.
-	for (let i = skip; i < data.length; i += sha512HashSize) {
+	for (let i = skip; i < data.length; i += SHA512_HASH_SIZE) {
 		// Set the nonce for this shard and then create the pad data.
 		let [iBytes] = encodeU64(BigInt(i))
 		preimageHolder.set(iBytes, key.length)

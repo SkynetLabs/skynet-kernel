@@ -1,16 +1,16 @@
 import { dictionary } from "../src/dictionary.js"
-import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
+import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js"
 import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js"
 import { otpEncrypt } from "../src/encrypt.js"
 import { addContextToErr } from "../src/err.js"
 import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "../src/fileprivate.js"
+import { objAsString } from "../src/objAsString.js"
 import { deriveRegistryEntryID, entryIDToSkylink, taggedRegistryEntryKeys } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
 import { jsonStringify } from "../src/stringifyjson.js"
-import { tryStringify } from "../src/stringifytry.js"
 
 // Establish a global set of functions and objects for testing flow control.
 let failed = false
@@ -52,7 +52,7 @@ function u8sEqual(a: Uint8Array, b: Uint8Array): boolean {
 	}
 	return true
 }
-function keypairsEqual(a: ed25519Keypair, b: ed25519Keypair): boolean {
+function keypairsEqual(a: Ed25519Keypair, b: Ed25519Keypair): boolean {
 	if (!u8sEqual(a.publicKey, b.publicKey)) {
 		return false
 	}
@@ -343,32 +343,32 @@ function TestSkylinkV1Bitfield(t: any) {
 function TestTryStringify(t: any) {
 	// Try undefined and null.
 	let undefinedVar
-	if (tryStringify(undefinedVar) !== "[cannot stringify undefined input]") {
+	if (objAsString(undefinedVar) !== "[cannot stringify undefined input]") {
 		t.fail("bad stringify on undefined object")
 		return
 	}
 	let nullVar = null
-	if (tryStringify(nullVar) !== "[null]") {
+	if (objAsString(nullVar) !== "[null]") {
 		t.fail("bad stringify on null object")
 		return
 	}
 
 	// Try a string.
-	if (tryStringify("asdf") !== "asdf") {
+	if (objAsString("asdf") !== "asdf") {
 		t.fail("bad stringify on string input")
 		return
 	}
 	let strVar = "asdfasdf"
-	if (tryStringify(strVar) !== "asdfasdf") {
+	if (objAsString(strVar) !== "asdfasdf") {
 		t.fail("bad stringify on string var")
 		return
 	}
 
 	// Try an object.
 	let objVar = { a: "b", b: 7 }
-	if (tryStringify(objVar) !== '{"a":"b","b":7}') {
+	if (objAsString(objVar) !== '{"a":"b","b":7}') {
 		t.fail("bad strinigfy on string var")
-		console.error(tryStringify(objVar))
+		console.error(objAsString(objVar))
 		return
 	}
 
@@ -376,7 +376,7 @@ function TestTryStringify(t: any) {
 	objVar.toString = function () {
 		return "b7"
 	}
-	if (tryStringify(objVar) !== "b7") {
+	if (objAsString(objVar) !== "b7") {
 		t.fail("toString is not being called")
 		return
 	}

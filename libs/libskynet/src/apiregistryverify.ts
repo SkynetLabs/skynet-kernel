@@ -1,8 +1,8 @@
 import { hexToBuf } from "./encoding.js"
 import { addContextToErr } from "./err.js"
+import { objAsString } from "./objAsString.js"
 import { parseJSON } from "./parse.js"
 import { verifyRegistrySignature } from "./registry.js"
-import { tryStringify } from "./stringifytry.js"
 import { error } from "./types.js"
 
 // verifyDecodedResp will verify the decoded response from a portal for a
@@ -10,7 +10,7 @@ import { error } from "./types.js"
 function verifyDecodedResp(resp: Response, data: any, pubkey: Uint8Array, datakey: Uint8Array): error {
 	// Status is expected to be 200.
 	if (resp.status !== 200) {
-		return "expected 200 response status, got: " + tryStringify(resp.status)
+		return "expected 200 response status, got: " + objAsString(resp.status)
 	}
 
 	// Verify that all required fields were provided.
@@ -74,7 +74,7 @@ function verifyRegistryReadResponse(resp: Response, pubkey: Uint8Array, datakey:
 				resolve(null)
 			})
 			.catch((err: any) => {
-				resolve(addContextToErr(tryStringify(err), "unable to decode response"))
+				resolve(addContextToErr(objAsString(err), "unable to decode response"))
 			})
 	})
 }

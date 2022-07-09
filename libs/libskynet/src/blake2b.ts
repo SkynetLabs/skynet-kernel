@@ -211,4 +211,4 @@ function blake2b(input: Uint8Array): Uint8Array {
 	return blake2bFinal(ctx)
 }
 
-export { blake2b, BLAKE2B_HASH_SIZE }
+export { BLAKE2B_HASH_SIZE, blake2b }

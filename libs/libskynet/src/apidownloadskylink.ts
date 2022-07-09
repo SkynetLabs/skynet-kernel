@@ -1,10 +1,10 @@
 import { verifyDownloadResponse } from "./apidownloadverifyresponse.js"
 import { progressiveFetch, progressiveFetchResult } from "./apiprogressivefetch.js"
+import { defaultPortalList } from "./defaultportals.js"
 import { addContextToErr } from "./err.js"
 import { b64ToBuf } from "./encoding.js"
-import { defaultPortalList } from "./defaultportals.js"
+import { objAsString } from "./objAsString.js"
 import { validSkylink } from "./skylinkvalidate.js"
-import { tryStringify } from "./stringifytry.js"
 import { error } from "./types.js"
 
 // downloadSkylink will download the provided skylink.
@@ -41,7 +41,7 @@ function downloadSkylink(skylink: string): Promise<[data: Uint8Array, err: error
 				}
 
 				// Error is not a 404, return the logs as the error.
-				let err = tryStringify(result.logs)
+				let err = objAsString(result.logs)
 				resolve([new Uint8Array(0), addContextToErr(err, "unable to complete download")])
 				return
 			}

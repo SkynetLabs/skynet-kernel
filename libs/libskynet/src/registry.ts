@@ -1,7 +1,7 @@
 import { blake2b } from "./blake2b.js"
 import { bufToB64, b64ToBuf, encodePrefixedBytes, encodeU64 } from "./encoding.js"
 import { addContextToErr } from "./err.js"
-import { ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js"
+import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
 import { sha512 } from "./sha512.js"
 import { error } from "./types.js"
@@ -122,7 +122,7 @@ function taggedRegistryEntryKeys(
 	seed: Uint8Array,
 	keypairTagStr: string,
 	datakeyTagStr?: string
-): [ed25519Keypair, Uint8Array, string | null] {
+): [Ed25519Keypair, Uint8Array, string | null] {
 	if (seed.length !== SEED_BYTES) {
 		return [nkp, nu8, "seed has the wrong length"]
 	}
