@@ -65,4 +65,4 @@ function openAuthWindow(): void {
 	})
 }
 
-export { kernelLoaded, loginComplete, logoutComplete, openAuthWindow }
+export { loginComplete, kernelLoaded, logoutComplete, openAuthWindow }

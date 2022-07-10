@@ -2,7 +2,7 @@
 // of the file is computed locally after the data is received to ensure that
 // the data matches the skylink.
 
-import { activeQuery, addContextToErr, addHandler, handleMessage, tryStringify } from "libkmodule"
+import { ActiveQuery, addContextToErr, addHandler, handleMessage, objAsString } from "libkmodule"
 
 import {
 	b64ToBuf,
@@ -18,7 +18,7 @@ addHandler("secureDownload", handleSecureDownload)
 onmessage = handleMessage
 
 // handleSecureDownload will handle a call to secureDownload.
-function handleSecureDownload(aq: activeQuery) {
+function handleSecureDownload(aq: ActiveQuery) {
 	// Check the inputs.
 	if (typeof aq.callerInput.skylink !== "string") {
 		aq.reject("filename is expected to be a string")
@@ -44,7 +44,7 @@ function handleSecureDownload(aq: activeQuery) {
 	}
 	progressiveFetch(endpoint, null, defaultPortalList, verify).then((result: progressiveFetchResult) => {
 		if (result.success !== true) {
-			let err = tryStringify({ logs: result.logs })
+			let err = objAsString({ logs: result.logs })
 			aq.reject(addContextToErr(err, "unable to download file"))
 			return
 		}

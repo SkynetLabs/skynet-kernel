@@ -1,5 +1,5 @@
-import { log, logErr } from "./log"
-import { dataFn } from "./messages"
+import { log, logErr } from "./log.js"
+import { dataFn } from "./messages.js"
 import { errTuple, objAsString } from "libskynet"
 
 // queryResolve defines the function that gets called to resolve a query. It's

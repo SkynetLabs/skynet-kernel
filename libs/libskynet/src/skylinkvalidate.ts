@@ -1,4 +1,5 @@
 import { addContextToErr } from "./err.js"
+import { b64ToBuf } from "./encoding.js"
 import { parseSkylinkBitfield } from "./skylinkbitfield.js"
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
@@ -97,11 +98,24 @@ function validateSkyfileMetadata(metadata: any): string | null {
 // validSkylink returns true if the provided Uint8Array is a valid skylink.
 // This is an alias for 'parseSkylinkBitfield', as both perform the same
 // validation.
-function validSkylink(skylink: Uint8Array): boolean {
-	if (skylink.length !== 34) {
+function validSkylink(skylink: string | Uint8Array): boolean {
+	// If the input is a string, convert it to a Uint8Array.
+	let u8Skylink: Uint8Array
+	if (typeof skylink === "string") {
+		let [buf, err] = b64ToBuf(skylink)
+		if (err !== null) {
+			return false
+		}
+		u8Skylink = buf
+	} else {
+		u8Skylink = skylink
+	}
+
+	// skylink is now a Uint8
+	if (u8Skylink.length !== 34) {
 		return false
 	}
-	let [, , , errPSB] = parseSkylinkBitfield(skylink)
+	let [, , , errPSB] = parseSkylinkBitfield(u8Skylink)
 	if (errPSB !== null) {
 		return false
 	}

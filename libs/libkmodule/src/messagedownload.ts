@@ -1,4 +1,4 @@
-import { callModule } from "./queries"
+import { callModule } from "./queries.js"
 import { addContextToErr, error } from "libskynet"
 
 // download will take a skylink and return the file data for that skylink. The
