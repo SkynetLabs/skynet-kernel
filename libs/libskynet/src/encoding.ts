@@ -109,7 +109,7 @@ function encodeU64(num: bigint): [Uint8Array, error] {
 // valid hex, and then converts the string to a Uint8Array.
 function hexToBuf(hex: string): [Uint8Array, error] {
   // Check that the length makes sense.
-  if (hex.length % 2 != 0) {
+  if (hex.length % 2 !== 0) {
     return [nu8, "input has incorrect length"];
   }
 
