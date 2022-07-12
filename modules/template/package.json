@@ -31,6 +31,6 @@
 		"typescript": "^4.6.3"
 	},
 	"dependencies": {
-		"libkmodule": "^0.2.27"
+		"libkmodule": "^0.2.40"
 	}
 }

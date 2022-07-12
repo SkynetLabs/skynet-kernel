@@ -25,17 +25,17 @@ import { error } from "libskynet"
 // not support resetting the auth stages, once stage 4 has been reached the app
 // needs to refresh.
 
+// loginComplete will resolve when the user has successfully logged in.
+function loginComplete(): Promise<void> {
+	return loginPromise
+}
+
 // kernelLoaded will resolve when the user has successfully loaded the kernel.
 // If there was an error in loading the kernel, the error will be returned.
 //
 // NOTE: kernelLoaded will not resolve until after loginComplete has resolved.
 function kernelLoaded(): Promise<error> {
 	return kernelLoadedPromise
-}
-
-// loginComplete will resolve when the user has successfully logged in.
-function loginComplete(): Promise<void> {
-	return loginPromise
 }
 
 // logoutComplete will resolve when the user has logged out. Note that
