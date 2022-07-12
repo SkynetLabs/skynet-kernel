@@ -4,7 +4,7 @@ export { fileDataObj, verifyDownloadResponse } from "./apidownloadverifyresponse
 export { progressiveFetch, progressiveFetchResult } from "./apiprogressivefetch.js"
 export { verifyRegistryReadResponse, verifyRegistryWriteResponse } from "./apiregistryverify.js"
 export { blake2b, BLAKE2B_HASH_SIZE } from "./blake2b.js"
-export { defaultPortalList } from "./defaultportals.js"
+export { defaultPortalList } from "./apidefaultportals.js"
 export { dictionary } from "./dictionary.js"
 export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js"
 export { b64ToBuf, bufToB64, bufToHex, bufToStr, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js"

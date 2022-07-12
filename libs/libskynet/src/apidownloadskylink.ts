@@ -1,6 +1,6 @@
 import { verifyDownloadResponse } from "./apidownloadverifyresponse.js"
 import { progressiveFetch, progressiveFetchResult } from "./apiprogressivefetch.js"
-import { defaultPortalList } from "./defaultportals.js"
+import { defaultPortalList } from "./apidefaultportals.js"
 import { addContextToErr } from "./err.js"
 import { b64ToBuf } from "./encoding.js"
 import { objAsString } from "./objAsString.js"
