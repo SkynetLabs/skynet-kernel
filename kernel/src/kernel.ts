@@ -42,7 +42,7 @@ declare var userSeed: Uint8Array
 // At some point we may want something like a capabilities array, but the
 // ecosystem isn't mature enough to need that.
 const kernelDistro = "SkynetLabs"
-const kernelVersion = "0.7.0"
+const kernelVersion = "0.8.0"
 
 // defaultMyskyRootModules lists out the set of modules that are allowed to
 // receive the user's MySky root seed by default.
