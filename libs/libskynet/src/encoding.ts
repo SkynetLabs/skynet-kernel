@@ -1,5 +1,5 @@
-import { addContextToErr } from "./err.js";
-import { error } from "./types.js";
+import { addContextToErr } from "./err";
+import { error } from "./types";
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.

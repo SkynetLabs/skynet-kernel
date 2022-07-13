@@ -1,5 +1,5 @@
-export { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js";
-export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js";
+export { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary";
+export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519";
 export {
   b64ToBuf,
   bufToHex,
@@ -9,8 +9,8 @@ export {
   encodePrefixedBytes,
   encodeU64,
   hexToBuf,
-} from "./encoding.js";
-export { addContextToErr } from "./err.js";
+} from "./encoding";
+export { addContextToErr } from "./err";
 export {
   SEED_BYTES,
   deriveChildSeed,
@@ -19,6 +19,6 @@ export {
   seedToChecksumWords,
   seedPhraseToSeed,
   validSeedPhrase,
-} from "./seed.js";
-export { SHA512_HASH_SIZE, sha512 } from "./sha512.js";
-export { objAsString } from "./objAsString.js";
+} from "./seed";
+export { SHA512_HASH_SIZE, sha512 } from "./sha512";
+export { objAsString } from "./objAsString";
