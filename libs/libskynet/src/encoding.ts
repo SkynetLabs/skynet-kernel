@@ -33,7 +33,7 @@ function bufToHex(buf: Uint8Array): string {
 // bufToB64 will convert a Uint8Array to a base64 string with URL encoding and
 // no padding characters.
 function bufToB64(buf: Uint8Array): string {
-  const b64Str = btoa(String.fromCharCode(...buf))
+  const b64Str = btoa(String.fromCharCode(...buf));
   return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
@@ -68,14 +68,14 @@ function decodeU64(u8: Uint8Array): [bigint, error] {
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
 // that has the length prefixed as an 8 byte prefix.
 function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, error] {
-	let [encodedLen, err] = encodeU64(BigInt(bytes.length))
-	if (err !== null) {
-		return [new Uint8Array(0), addContextToErr(err, "unable to encode array length")]
-	}
-	let prefixedArray = new Uint8Array(8 + bytes.length)
-	prefixedArray.set(encodedLen, 0)
-	prefixedArray.set(bytes, 8)
-	return [prefixedArray, null]
+  const [encodedLen, err] = encodeU64(BigInt(bytes.length));
+  if (err !== null) {
+    return [new Uint8Array(0), addContextToErr(err, "unable to encode array length")];
+  }
+  const prefixedArray = new Uint8Array(8 + bytes.length);
+  prefixedArray.set(encodedLen, 0);
+  prefixedArray.set(bytes, 8);
+  return [prefixedArray, null];
 }
 
 // encodeU64 will encode a bigint in the range of a uint64 to an 8 byte
