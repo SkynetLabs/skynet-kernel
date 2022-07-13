@@ -1,11 +1,11 @@
 import { addContextToErr } from "./err";
-import { error } from "./types";
+import { Err } from "./types";
 
 const MAX_UINT_64 = 18446744073709551615n
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
-function b64ToBuf(b64: string): [Uint8Array, error] {
+function b64ToBuf(b64: string): [Uint8Array, Err] {
   // Check that the final string is valid base64.
   const b64regex = /^[0-9a-zA-Z-_/+=]*$/;
   if (!b64regex.test(b64)) {
@@ -41,7 +41,7 @@ function bufToB64(buf: Uint8Array): string {
 
 // bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
 // will check for invalid characters.
-function bufToStr(buf: ArrayBuffer): [string, error] {
+function bufToStr(buf: ArrayBuffer): [string, Err] {
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
     return [text, null];
@@ -52,7 +52,7 @@ function bufToStr(buf: ArrayBuffer): [string, error] {
 
 // decodeU64 is the opposite of encodeU64, it takes a uint64 encoded as 8 bytes
 // and decodes them into a BigInt.
-function decodeU64(u8: Uint8Array): [bigint, error] {
+function decodeU64(u8: Uint8Array): [bigint, Err] {
   // Check the input.
   if (u8.length !== 8) {
     return [0n, "input should be 8 bytes"];
@@ -69,7 +69,7 @@ function decodeU64(u8: Uint8Array): [bigint, error] {
 
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
 // that has the length prefixed as an 8 byte prefix.
-function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, error] {
+function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, Err] {
   const [encodedLen, err] = encodeU64(BigInt(bytes.length));
   if (err !== null) {
     return [new Uint8Array(0), addContextToErr(err, "unable to encode array length")];
@@ -82,7 +82,7 @@ function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, error] {
 
 // encodeU64 will encode a bigint in the range of a uint64 to an 8 byte
 // Uint8Array.
-function encodeU64(num: bigint): [Uint8Array, error] {
+function encodeU64(num: bigint): [Uint8Array, Err] {
   // Check the bounds on the bigint.
   if (num < 0) {
     return [new Uint8Array(0), "expected a positive integer"];
@@ -103,7 +103,7 @@ function encodeU64(num: bigint): [Uint8Array, error] {
 
 // hexToBuf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
-function hexToBuf(hex: string): [Uint8Array, error] {
+function hexToBuf(hex: string): [Uint8Array, Err] {
   // Check that the length makes sense.
   if (hex.length % 2 !== 0) {
     return [new Uint8Array(0), "input has incorrect length"];
