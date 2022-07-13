@@ -4,5 +4,6 @@ export default {
   testEnvironment: "node",
   testPathIgnorePatterns: [
     "src-test/test.ts", // Don't run legacy tests with Jest
+    "dist-test/",
   ],
 };
