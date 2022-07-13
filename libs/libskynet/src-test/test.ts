@@ -1,13 +1,10 @@
+/*
 import { dictionary } from "../src/dictionary.js";
-import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js";
-import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js";
 // import { otpEncrypt } from "../src/encrypt.js"
 import { addContextToErr } from "../src/err.js";
 // import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "../src/fileprivate.js"
-import { objAsString } from "../src/objAsString.js";
 // import { deriveRegistryEntryID, entryIDToSkylink, taggedRegistryEntryKeys } from "../src/registry.js"
 import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js";
-import { sha512 } from "../src/sha512.js";
 // import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 // import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
 // import { jsonStringify } from "../src/stringifyjson.js"
@@ -62,157 +59,6 @@ function keypairsEqual(a: Ed25519Keypair, b: Ed25519Keypair): boolean {
   return true;
 }
 
-// Smoke testing for ed25519
-function TestEd25519(t: any) {
-  // Test some of the ed25519 functions by making some entropy, then making a
-  // keypair, then signing some data and verifying the signature.
-  let entropy = sha512(new TextEncoder().encode("fake entropy"));
-  let [keypair, errKPFE] = ed25519KeypairFromEntropy(entropy.slice(0, 32));
-  if (errKPFE !== null) {
-    t.fail(errKPFE, "kpfe failed");
-    return;
-  }
-  let message = new TextEncoder().encode("fake message");
-  let [signature, errS] = ed25519Sign(message, keypair.secretKey);
-  if (errS !== null) {
-    t.fail(errS, "sign failed");
-    return;
-  }
-  let validSig = ed25519Verify(message, signature, keypair.publicKey);
-  if (!validSig) {
-    t.fail("ed25519 sig not valid");
-  }
-}
-
-// TestDecodeU64 checks that decodeU64 matches encodeU64.
-//
-// NOTE: encodeU64 is already well tested and has compatibility constraints
-// with the Skynet protocol.
-function TestDecodeU64(t: any) {
-  let tests = [0n, 1n, 2n, 35n, 500n, 12345n, 642156n, 9591335n, 64285292n];
-  for (let i = 0; i < tests.length; i++) {
-    let [enc, errEU64] = encodeU64(tests[i]);
-    if (errEU64 !== null) {
-      t.fail("trial could not be encoded", i);
-      return;
-    }
-    let [dec, errDU64] = decodeU64(enc);
-    if (errDU64 !== null) {
-      t.fail("trial could not be decoded", i);
-      return;
-    }
-    if (dec !== tests[i]) {
-      t.fail("encode did not match decode:", tests[i]);
-    }
-  }
-}
-
-// TestObjAsString will attempt to stringify various objects and check that the
-// expected results are returned.
-function TestObjAsString(t: any) {
-  // Try undefined and null.
-  let undefinedVar;
-  if (objAsString(undefinedVar) !== "[cannot convert undefined to string]") {
-    t.log(objAsString(undefinedVar));
-    t.fail("bad stringify on undefined object");
-    return;
-  }
-  let nullVar = null;
-  if (objAsString(nullVar) !== "[cannot convert null to string]") {
-    t.fail("bad stringify on null object");
-    return;
-  }
-
-  // Try a string.
-  if (objAsString("asdf") !== "asdf") {
-    t.fail("bad stringify on string input");
-    return;
-  }
-  let strVar = "asdfasdf";
-  if (objAsString(strVar) !== "asdfasdf") {
-    t.fail("bad stringify on string var");
-    return;
-  }
-
-  // Try an object.
-  let objVar = { a: "b", b: 7 };
-  if (objAsString(objVar) !== '{"a":"b","b":7}') {
-    t.fail("bad strinigfy on string var");
-    console.error(objAsString(objVar));
-    return;
-  }
-
-  // Try an object with a defined toString
-  objVar.toString = function () {
-    return "b7";
-  };
-  if (objAsString(objVar) !== "b7") {
-    t.fail("toString is not being called");
-    return;
-  }
-}
-
-// TestBufToB64 unit tests converting a buffer to base64.
-function TestBufToB64(t: any) {
-  let tests = [
-    { trial: new Uint8Array(0), expect: "" },
-    { trial: new Uint8Array([1]), expect: "AQ" },
-    { trial: new Uint8Array([1, 2]), expect: "AQI" },
-    { trial: new Uint8Array([255]), expect: "_w" },
-    { trial: new Uint8Array([23, 51, 0]), expect: "FzMA" },
-    { trial: new Uint8Array([0]), expect: "AA" },
-    { trial: new Uint8Array([0, 0, 0]), expect: "AAAA" },
-    { trial: new Uint8Array([30, 1, 3, 45, 129, 127]), expect: "HgEDLYF_" },
-    { trial: new Uint8Array([155, 196, 150, 83, 71, 54, 205, 231, 249, 34]), expect: "m8SWU0c2zef5Ig" },
-    { trial: new Uint8Array([57, 58, 59, 60, 61, 62, 63, 64]), expect: "OTo7PD0-P0A" },
-  ];
-  for (let i = 0; i < tests.length; i++) {
-    let result = bufToB64(tests[i].trial);
-    if (result.length !== tests[i].expect.length) {
-      t.log("got", bufToB64(tests[i].trial));
-      t.fail("trial failed", tests[i].trial);
-      continue;
-    }
-    for (let j = 0; j < result.length; j++) {
-      if (result[j] !== tests[i].expect[j]) {
-        t.log("got", bufToB64(tests[i].trial));
-        t.fail("trial failed", tests[i].trial);
-        break;
-      }
-    }
-  }
-}
-
-// TestBufToHex unit tests converting a buffer to hexadecimal.
-function TestBufToHex(t: any) {
-  let tests = [
-    { trial: new Uint8Array(0), expect: "" },
-    { trial: new Uint8Array([1]), expect: "01" },
-    { trial: new Uint8Array([1, 2]), expect: "0102" },
-    { trial: new Uint8Array([255]), expect: "ff" },
-    { trial: new Uint8Array([23, 51, 0]), expect: "173300" },
-    { trial: new Uint8Array([3, 7, 63, 127, 200, 5]), expect: "03073f7fc805" },
-    { trial: new Uint8Array([0]), expect: "00" },
-    { trial: new Uint8Array([0, 0, 0]), expect: "000000" },
-  ];
-  for (let i = 0; i < tests.length; i++) {
-    let result = bufToHex(tests[i].trial);
-    if (result.length !== tests[i].expect.length) {
-      t.log("got", bufToHex(tests[i].trial));
-      t.fail("trial failed", tests[i].trial);
-      continue;
-    }
-    for (let j = 0; j < result.length; j++) {
-      if (result[j] !== tests[i].expect[j]) {
-        t.log("got", bufToHex(tests[i].trial));
-        t.fail("trial failed", tests[i].trial);
-        break;
-      }
-    }
-  }
-}
-
-/*
 // TestValidateSkyfilePath runs basic testing for the skyfile path validator.
 function TestValidateSkyfilePath(t: any) {
 	let tests = [
@@ -859,7 +705,6 @@ function TestEncryptDecryptSpeed(t: any) {
 	let decStop = performance.now()
 	t.log("time to decrypt 20 MB:", decStop - decStart)
 }
-*/
 
 runTest(TestEd25519);
 runTest(TestDecodeU64);
@@ -882,6 +727,7 @@ if (failed) {
   console.log("tests had errors");
   process.exit(1);
 }
+*/
 console.log("tests have passed");
 
 export {};

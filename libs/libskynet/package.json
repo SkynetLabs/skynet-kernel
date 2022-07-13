@@ -17,7 +17,6 @@
 		"prettier": "prettier --write .",
 		"lint": "npm run prettier && npm run eslint",
 		"test": "jest",
-		"test-legacy": "tsc && tsc --project tsconfig.test.json && node --experimental-specifier-resolution=node ./dist-test/src-test/test.js",
 		"prepare": "npm run lint && npm run test"
 	},
 	"devDependencies": {
