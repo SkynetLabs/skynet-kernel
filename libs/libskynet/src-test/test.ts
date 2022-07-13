@@ -211,6 +211,66 @@ function TestObjAsString(t: any) {
 	}
 }
 
+// TestBufToB64 unit tests converting a buffer to base64.
+function TestBufToB64(t: any) {
+	let tests = [
+		{ trial: new Uint8Array(0), expect: ""},
+		{ trial: new Uint8Array([1]), expect: "AQ"},
+		{ trial: new Uint8Array([1, 2]), expect: "AQI"},
+		{ trial: new Uint8Array([255]), expect: "_w"},
+		{ trial: new Uint8Array([23, 51, 0]), expect: "FzMA"},
+		{ trial: new Uint8Array([0]), expect: "AA"},
+		{ trial: new Uint8Array([0, 0, 0]), expect: "AAAA"},
+		{ trial: new Uint8Array([30, 1, 3, 45, 129, 127]), expect: "HgEDLYF_"},
+		{ trial: new Uint8Array([155, 196, 150, 83, 71, 54, 205, 231, 249, 34]), expect: "m8SWU0c2zef5Ig"},
+		{ trial: new Uint8Array([57, 58, 59, 60, 61, 62, 63, 64]), expect: "OTo7PD0-P0A"},
+	]
+	for (let i = 0; i < tests.length; i++) {
+		let result = bufToB64(tests[i].trial)
+		if (result.length !== tests[i].expect.length) {
+			t.log("got", bufToB64(tests[i].trial))
+			t.fail("trial failed", tests[i].trial)
+			continue
+		}
+		for (let j = 0; j < result.length; j++) {
+			if (result[j] !== tests[i].expect[j]) {
+				t.log("got", bufToB64(tests[i].trial))
+				t.fail("trial failed", tests[i].trial)
+				break
+			}
+		}
+	}
+}
+
+// TestBufToHex unit tests converting a buffer to hexadecimal.
+function TestBufToHex(t: any) {
+	let tests = [
+		{ trial: new Uint8Array(0), expect: ""},
+		{ trial: new Uint8Array([1]), expect: "01"},
+		{ trial: new Uint8Array([1, 2]), expect: "0102"},
+		{ trial: new Uint8Array([255]), expect: "ff"},
+		{ trial: new Uint8Array([23, 51, 0]), expect: "173300"},
+		{ trial: new Uint8Array([3, 7, 63, 127, 200, 5]), expect: "03073f7fc805"},
+		{ trial: new Uint8Array([0]), expect: "00"},
+		{ trial: new Uint8Array([0, 0, 0]), expect: "000000"},
+	]
+	for (let i = 0; i < tests.length; i++) {
+		let result = bufToHex(tests[i].trial)
+		if (result.length !== tests[i].expect.length) {
+			t.log("got", bufToHex(tests[i].trial))
+			t.fail("trial failed", tests[i].trial)
+			continue
+		}
+		for (let j = 0; j < result.length; j++) {
+			if (result[j] !== tests[i].expect[j]) {
+				t.log("got", bufToHex(tests[i].trial))
+				t.fail("trial failed", tests[i].trial)
+				break
+			}
+		}
+	}
+}
+
 /*
 // TestValidateSkyfilePath runs basic testing for the skyfile path validator.
 function TestValidateSkyfilePath(t: any) {
@@ -864,6 +924,8 @@ runTest(TestGenerateSeedPhraseDeterministic)
 runTest(TestEd25519)
 runTest(TestDecodeU64)
 runTest(TestObjAsString)
+runTest(TestBufToB64)
+runTest(TestBufToHex)
 // runTest(TestRegistry)
 // runTest(TestValidateSkyfilePath)
 // runTest(TestSkylinkV1Bitfield)

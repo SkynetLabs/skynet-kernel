@@ -1,16 +1,13 @@
 import { addContextToErr } from "./err.js";
 import { error } from "./types.js";
 
-// Helper consts to make it easy to return empty values alongside errors.
-const nu8 = new Uint8Array(0);
-
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
 function b64ToBuf(b64: string): [Uint8Array, error] {
   // Check that the final string is valid base64.
   const b64regex = /^[0-9a-zA-Z-_/+=]*$/;
   if (!b64regex.test(b64)) {
-    return [nu8, "provided string is not valid base64"];
+    return [new Uint8Array(0), "provided string is not valid base64"];
   }
 
   // Swap any '-' characters for '+', and swap any '_' characters for '/'
@@ -36,7 +33,7 @@ function bufToHex(buf: Uint8Array): string {
 // bufToB64 will convert a Uint8Array to a base64 string with URL encoding and
 // no padding characters.
 function bufToB64(buf: Uint8Array): string {
-  const b64Str = btoa(String.fromCharCode.apply(null, <number[]>(<unknown>buf)));
+  const b64Str = btoa(String.fromCharCode(...buf))
   return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
@@ -69,19 +66,16 @@ function decodeU64(u8: Uint8Array): [bigint, error] {
 }
 
 // encodePrefixedBytes takes a Uint8Array as input and returns a Uint8Array
-// that has the length prefixed as an 8 byte prefix. The input can be at most 4
-// GiB.
+// that has the length prefixed as an 8 byte prefix.
 function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, error] {
-  const len = bytes.length;
-  if (len > 4294968295) {
-    return [nu8, "input is too large to be encoded"];
-  }
-  const buf = new ArrayBuffer(8 + len);
-  const view = new DataView(buf);
-  view.setUint32(0, len, true);
-  const uint8Bytes = new Uint8Array(buf);
-  uint8Bytes.set(bytes, 8);
-  return [uint8Bytes, null];
+	let [encodedLen, err] = encodeU64(BigInt(bytes.length))
+	if (err !== null) {
+		return [new Uint8Array(0), addContextToErr(err, "unable to encode array length")]
+	}
+	let prefixedArray = new Uint8Array(8 + bytes.length)
+	prefixedArray.set(encodedLen, 0)
+	prefixedArray.set(bytes, 8)
+	return [prefixedArray, null]
 }
 
 // encodeU64 will encode a bigint in the range of a uint64 to an 8 byte
@@ -89,10 +83,10 @@ function encodePrefixedBytes(bytes: Uint8Array): [Uint8Array, error] {
 function encodeU64(num: bigint): [Uint8Array, error] {
   // Check the bounds on the bigint.
   if (num < 0) {
-    return [nu8, "expected a positive integer"];
+    return [new Uint8Array(0), "expected a positive integer"];
   }
   if (num > 18446744073709551615n) {
-    return [nu8, "expected a number no larger than a uint64"];
+    return [new Uint8Array(0), "expected a number no larger than a uint64"];
   }
 
   // Encode the bigint into a Uint8Array.
@@ -110,19 +104,19 @@ function encodeU64(num: bigint): [Uint8Array, error] {
 function hexToBuf(hex: string): [Uint8Array, error] {
   // Check that the length makes sense.
   if (hex.length % 2 != 0) {
-    return [nu8, "input has incorrect length"];
+    return [new Uint8Array(0), "input has incorrect length"];
   }
 
   // Check that all of the characters are legal.
   const match = /[0-9A-Fa-f]*/g;
   if (!match.test(hex)) {
-    return [nu8, "input has invalid character"];
+    return [new Uint8Array(0), "input has invalid character"];
   }
 
   // Create the buffer and fill it.
   const matches = hex.match(/.{1,2}/g);
   if (matches === null) {
-    return [nu8, "input is incomplete"];
+    return [new Uint8Array(0), "input is incomplete"];
   }
   const u8 = new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
   return [u8, null];
