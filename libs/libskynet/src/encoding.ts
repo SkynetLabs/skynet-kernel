@@ -1,6 +1,8 @@
 import { addContextToErr } from "./err";
 import { error } from "./types";
 
+const MAX_UINT_64 = 18446744073709551615n
+
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
 function b64ToBuf(b64: string): [Uint8Array, error] {
@@ -85,7 +87,7 @@ function encodeU64(num: bigint): [Uint8Array, error] {
   if (num < 0) {
     return [new Uint8Array(0), "expected a positive integer"];
   }
-  if (num > 18446744073709551615n) {
+  if (num > MAX_UINT_64) {
     return [new Uint8Array(0), "expected a number no larger than a uint64"];
   }
 
