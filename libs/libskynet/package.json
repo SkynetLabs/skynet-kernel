@@ -25,6 +25,7 @@
 		"@typescript-eslint/eslint-plugin": "^5.19.0",
 		"eslint": "^8.13.0",
 		"jest": "^28.1.2",
+		"jest-ts-webcompat-resolver": "^1.0.0",
 		"prettier": "^2.6.2",
 		"skynet-js": "^4.3.0",
 		"ts-jest": "^28.0.5",
