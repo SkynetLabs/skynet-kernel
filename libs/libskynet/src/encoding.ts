@@ -122,7 +122,7 @@ function hexToBuf(hex: string): [Uint8Array, Err] {
   }
 
   // Create the buffer and fill it.
-  const matches = hex.match(/.{1,2}/g);
+  const matches = hex.match(/.{2}/g);
   if (matches === null) {
     return [new Uint8Array(0), "input is incomplete"];
   }
