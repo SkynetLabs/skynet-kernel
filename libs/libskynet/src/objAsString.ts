@@ -27,7 +27,7 @@ function objAsString(obj: any): string {
   // Check if the object is an error, and return the message of the error if
   // so.
   if (obj instanceof Error) {
-	  return obj.message
+    return obj.message;
   }
 
   // Check if the object has a 'toString' method defined on it. To ensure

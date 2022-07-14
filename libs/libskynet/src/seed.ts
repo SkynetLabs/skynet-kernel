@@ -43,14 +43,14 @@ function deriveMyskyRootKeypair(userSeed: Uint8Array): Ed25519Keypair {
 function generateSeedPhraseDeterministic(password: string): [string, Err] {
   const u8 = new TextEncoder().encode(password);
   const buf = sha512(u8);
-  const randNums = Uint16Array.from(buf);
+  const entropy = Uint16Array.from(buf);
 
-  // Generate the seed phrase from the randNums.
+  // Generate the seed phrase from the entropy.
   const seedWords = [];
   for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
-    let wordIndex = randNums[i] % dictionary.length;
+    let wordIndex = entropy[i] % dictionary.length;
     if (i == SEED_ENTROPY_WORDS - 1) {
-      wordIndex = randNums[i] % (dictionary.length / 4);
+      wordIndex = entropy[i] % (dictionary.length / 4);
     }
     seedWords.push(dictionary[wordIndex]);
   }
@@ -77,11 +77,13 @@ function generateSeedPhraseDeterministic(password: string): [string, Err] {
 // if the seedPhrase is invalid.
 function seedPhraseToSeed(seedPhrase: string): [Uint8Array, Err] {
   // Create a helper function to make the below code more readable.
-  const prefix = function (s: string): string {
+  const prefix = (s: string): string => {
     return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
   };
 
-  // Pull the seed into its respective parts.
+  // Pull the seed phrase into its respective parts. First thirteen words are
+  // data words, ten bits each. The thriteenth word is only 8 bits. The final
+  // two words are checksum words.
   const seedWordsAndChecksum = seedPhrase.split(" ");
   const seedWords = seedWordsAndChecksum.slice(0, SEED_ENTROPY_WORDS);
   const checksumOne = seedWordsAndChecksum[SEED_ENTROPY_WORDS];
@@ -118,10 +120,14 @@ function seedToChecksumWords(seed: Uint8Array): [string, string, Err] {
     return ["", "", "SEED_CHECKSUM_WORDS is not set to 2"];
   }
 
-  // Get the hash.
+  // Get the hash of the seed and convert the hash into the checksum words. We
+  // use the first 20 bits of the hash to pick two checksum words. Because each
+  // byte of the seed is only 8 bits, we have to do some shifting to get all
+  // the bits in the right place. You also have to make sure you get the
+  // endian-ness correct.
+  //
+  // The below math is a product of trial-and-error and testing.
   const h = sha512(seed);
-
-  // Turn the hash into two words.
   let word1 = h[0] << 8;
   word1 += h[1];
   word1 >>= 6;
@@ -143,7 +149,8 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
     ];
   }
 
-  // We are getting 16 bytes of entropy.
+  // We are getting 16 bytes of entropy. This was ported from somewhere else
+  // and basically had to be massaged until all the testing passed.
   const bytes = new Uint8Array(SEED_BYTES);
   let curByte = 0;
   let curBit = 0;
@@ -187,8 +194,8 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
 // validSeedPhrase checks whether the provided seed phrase is valid, returning
 // an error if not.
 function validSeedPhrase(seedPhrase: string): Err {
-  let [, err] = seedPhraseToSeed(seedPhrase)
-  return err
+  const [, err] = seedPhraseToSeed(seedPhrase);
+  return err;
 }
 
 export {

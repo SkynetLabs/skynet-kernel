@@ -26,12 +26,12 @@ test("bufToB64", () => {
   ];
   for (let i = 0; i < tests.length; i++) {
     let result = bufToB64(tests[i].trial);
-	expect(result.length).toBe(tests[i].result.length)
+    expect(result.length).toBe(tests[i].result.length);
     for (let j = 0; j < result.length; j++) {
-      expect(result[j]).toBe(tests[i].result[j])
+      expect(result[j]).toBe(tests[i].result[j]);
     }
   }
-})
+});
 
 test("bufToHexAndBufToHex", () => {
   let tests = [
@@ -48,43 +48,37 @@ test("bufToHexAndBufToHex", () => {
   // Test hexToBuf
   for (let i = 0; i < tests.length; i++) {
     let result = bufToHex(tests[i].trial);
-	expect(result.length).toBe(tests[i].result.length)
+    expect(result.length).toBe(tests[i].result.length);
     for (let j = 0; j < result.length; j++) {
-		expect(result[j]).toBe(tests[i].result[j])
+      expect(result[j]).toBe(tests[i].result[j]);
     }
   }
 
   // Test bufToHex.
   for (let i = 0; i < tests.length; i++) {
     let [result, err] = hexToBuf(tests[i].result);
-	expect(err).toBe(null)
-	expect(result.length).toBe(tests[i].trial.length)
+    expect(err).toBe(null);
+    expect(result.length).toBe(tests[i].trial.length);
     for (let j = 0; j < result.length; j++) {
-		expect(result[j]).toBe(tests[i].trial[j])
+      expect(result[j]).toBe(tests[i].trial[j]);
     }
 
-	// Check that upper case is also okay.
-	let [result2, err2] = hexToBuf(tests[i].result.toUpperCase())
-	expect(err2).toBe(null)
-	expect(result2.length).toBe(tests[i].trial.length)
+    // Check that upper case is also okay.
+    let [result2, err2] = hexToBuf(tests[i].result.toUpperCase());
+    expect(err2).toBe(null);
+    expect(result2.length).toBe(tests[i].trial.length);
     for (let j = 0; j < result2.length; j++) {
-		expect(result2[j]).toBe(tests[i].trial[j])
+      expect(result2[j]).toBe(tests[i].trial[j]);
     }
   }
 
   // Create tests to check for invalid inputs.
-  let invalids = [
-	  "0",
-	  "000",
-	  "aX",
-	  "123O",
-	  "XX",
-  ];
+  let invalids = ["0", "000", "aX", "123O", "XX"];
   for (let i = 0; i < invalids.length; i++) {
-	  let [result, err] = hexToBuf(invalids[i])
-	  if (err === null) {
-		  console.log(invalids[i])
-		 }
-	  expect(err).not.toBe(null)
+    let [result, err] = hexToBuf(invalids[i]);
+    if (err === null) {
+      console.log(invalids[i]);
+    }
+    expect(err).not.toBe(null);
   }
-})
+});

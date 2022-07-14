@@ -1,7 +1,7 @@
 import { addContextToErr } from "./err";
 import { Err } from "./types";
 
-const MAX_UINT_64 = 18446744073709551615n
+const MAX_UINT_64 = 18446744073709551615n;
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
@@ -14,7 +14,7 @@ function b64ToBuf(b64: string): [Uint8Array, Err] {
 
   // Swap any '-' characters for '+', and swap any '_' characters for '/'
   // for use in the atob function.
-  b64 = b64.replace(/-/g, "+").replace(/_/g, "/");
+  b64 = b64.replaceAll("-", "+").replaceAll("_", "/");
 
   // Perform the conversion.
   const binStr = atob(b64);
@@ -36,7 +36,7 @@ function bufToHex(buf: Uint8Array): string {
 // no padding characters.
 function bufToB64(buf: Uint8Array): string {
   const b64Str = btoa(String.fromCharCode(...buf));
-  return b64Str.replaceAll("+","-").replaceAll("/", "_").replaceAll("=","")
+  return b64Str.replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
 // bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
@@ -108,7 +108,7 @@ function hexToBuf(hex: string): [Uint8Array, Err] {
   // The rest of the code doesn't handle zero length input well, so we handle
   // that separately. It's not an error, we just return an empty array.
   if (hex.length === 0) {
-	  return [new Uint8Array(0), null]
+    return [new Uint8Array(0), null];
   }
 
   // Check that the length makes sense.
@@ -117,7 +117,7 @@ function hexToBuf(hex: string): [Uint8Array, Err] {
   }
 
   // Check that all of the characters are legal.
-  if (!(allHex.test(hex))) {
+  if (!allHex.test(hex)) {
     return [new Uint8Array(0), "input has invalid character"];
   }
 
