@@ -5,9 +5,9 @@ const MAX_UINT_64 = 18446744073709551615n
 
 // b64ToBuf will take an untrusted base64 string and convert it into a
 // Uin8Array, returning an error if the input is not valid base64.
+const b64regex = /^[0-9a-zA-Z-_/+=]*$/;
 function b64ToBuf(b64: string): [Uint8Array, Err] {
   // Check that the final string is valid base64.
-  const b64regex = /^[0-9a-zA-Z-_/+=]*$/;
   if (!b64regex.test(b64)) {
     return [new Uint8Array(0), "provided string is not valid base64"];
   }
@@ -36,7 +36,7 @@ function bufToHex(buf: Uint8Array): string {
 // no padding characters.
 function bufToB64(buf: Uint8Array): string {
   const b64Str = btoa(String.fromCharCode(...buf));
-  return b64Str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return b64Str.replaceAll("+","-").replaceAll("/", "_").replaceAll("=","")
 }
 
 // bufToStr takes an ArrayBuffer as input and returns a text string. bufToStr
@@ -103,6 +103,7 @@ function encodeU64(num: bigint): [Uint8Array, Err] {
 
 // hexToBuf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
+const allHex = /^[0-9a-f]+$/i;
 function hexToBuf(hex: string): [Uint8Array, Err] {
   // The rest of the code doesn't handle zero length input well, so we handle
   // that separately. It's not an error, we just return an empty array.
@@ -116,7 +117,6 @@ function hexToBuf(hex: string): [Uint8Array, Err] {
   }
 
   // Check that all of the characters are legal.
-  const allHex = /^[0-9a-f]+$/i;
   if (!(allHex.test(hex))) {
     return [new Uint8Array(0), "input has invalid character"];
   }
