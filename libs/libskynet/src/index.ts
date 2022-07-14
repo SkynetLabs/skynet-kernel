@@ -1,5 +1,5 @@
-export { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary";
-export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519";
+export { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js";
+export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js";
 export {
   b64ToBuf,
   bufToHex,

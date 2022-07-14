@@ -1,7 +1,7 @@
-import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary";
-import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519";
-import { sha512 } from "./sha512";
-import { addContextToErr } from "./err";
+import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js";
+import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js";
+import { sha512 } from "./sha512.js";
+import { addContextToErr } from "./err.js";
 
 // Define the number of entropy words used when generating the seed.
 const SEED_ENTROPY_WORDS = 13;
