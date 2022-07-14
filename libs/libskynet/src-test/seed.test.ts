@@ -18,8 +18,8 @@ test("generateSeedPhraseDeterministic", () => {
   expect(phraseTestInput).not.toBe(phraseTestInput3);
 
   // Check that both seed phrases are valid.
-  let [, errVSP1] = validSeedPhrase(phraseTestInput);
-  let [, errVSP2] = validSeedPhrase(phraseTestInput3);
+  let errVSP1 = validSeedPhrase(phraseTestInput);
+  let errVSP2 = validSeedPhrase(phraseTestInput3);
   expect(errVSP1).toBe(null);
   expect(errVSP2).toBe(null);
 

@@ -1,7 +1,8 @@
 import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary";
 import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519";
-import { sha512 } from "./sha512";
 import { addContextToErr } from "./err";
+import { sha512 } from "./sha512";
+import { Err } from "./types";
 
 // Define the number of entropy words used when generating the seed.
 const SEED_ENTROPY_WORDS = 13;
@@ -39,7 +40,7 @@ function deriveMyskyRootKeypair(userSeed: Uint8Array): Ed25519Keypair {
 
 // generateSeedPhraseDeterministic will generate and verify a seed phrase for
 // the user.
-function generateSeedPhraseDeterministic(password: string): [string, string | null] {
+function generateSeedPhraseDeterministic(password: string): [string, Err] {
   const u8 = new TextEncoder().encode(password);
   const buf = sha512(u8);
   const randNums = Uint16Array.from(buf);
@@ -72,36 +73,9 @@ function generateSeedPhraseDeterministic(password: string): [string, string | nu
   return [seedPhrase, null];
 }
 
-// seedToChecksumWords will compute the two checksum words for the provided
-// seed. The two return values are the two checksum words.
-function seedToChecksumWords(seed: Uint8Array): [string, string, string | null] {
-  // Input validation.
-  if (seed.length !== SEED_BYTES) {
-    return ["", "", `seed has the wrong length: ${seed.length}`];
-  }
-  // This line is just to pacify the linter about SEED_CHECKSUM_WORDS.
-  if (SEED_CHECKSUM_WORDS !== 2) {
-    return ["", "", "SEED_CHECKSUM_WORDS is not set to 2"];
-  }
-
-  // Get the hash.
-  const h = sha512(seed);
-
-  // Turn the hash into two words.
-  let word1 = h[0] << 8;
-  word1 += h[1];
-  word1 >>= 6;
-  let word2 = h[1] << 10;
-  word2 &= 0xffff;
-  word2 += h[2] << 2;
-  word2 >>= 6;
-  return [dictionary[word1], dictionary[word2], null];
-}
-
-// validSeedPhrase checks whether the provided seed phrase is valid, returning
-// an error if not. If the seed phrase is valid, the full seed will be returned
-// as a Uint8Array.
-function validSeedPhrase(seedPhrase: string): [Uint8Array, string | null] {
+// seedPhraseToSeed converts a seed phrase to a Uint8Array, returning an error
+// if the seedPhrase is invalid.
+function seedPhraseToSeed(seedPhrase: string): [Uint8Array, Err] {
   // Create a helper function to make the below code more readable.
   const prefix = function (s: string): string {
     return s.slice(0, DICTIONARY_UNIQUE_PREFIX);
@@ -132,9 +106,35 @@ function validSeedPhrase(seedPhrase: string): [Uint8Array, string | null] {
   return [seed, null];
 }
 
+// seedToChecksumWords will compute the two checksum words for the provided
+// seed. The two return values are the two checksum words.
+function seedToChecksumWords(seed: Uint8Array): [string, string, Err] {
+  // Input validation.
+  if (seed.length !== SEED_BYTES) {
+    return ["", "", `seed has the wrong length: ${seed.length}`];
+  }
+  // This line is just to pacify the linter about SEED_CHECKSUM_WORDS.
+  if (SEED_CHECKSUM_WORDS !== 2) {
+    return ["", "", "SEED_CHECKSUM_WORDS is not set to 2"];
+  }
+
+  // Get the hash.
+  const h = sha512(seed);
+
+  // Turn the hash into two words.
+  let word1 = h[0] << 8;
+  word1 += h[1];
+  word1 >>= 6;
+  let word2 = h[1] << 10;
+  word2 &= 0xffff;
+  word2 += h[2] << 2;
+  word2 >>= 6;
+  return [dictionary[word1], dictionary[word2], null];
+}
+
 // seedWordsToSeed will convert a provided seed phrase to to a Uint8Array that
 // represents the cryptographic seed in bytes.
-function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
+function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
   // Input checking.
   if (seedWords.length !== SEED_ENTROPY_WORDS) {
     return [
@@ -184,11 +184,11 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, string | null] {
   return [bytes, null];
 }
 
-// seedPhraseToSeed will take a seed phrase and return the corresponding seed,
-// providing an error if the seed phrase is invalid. This is an alias of
-// validSeedPhrase.
-function seedPhraseToSeed(seedPhrase: string): [Uint8Array, string | null] {
-  return validSeedPhrase(seedPhrase);
+// validSeedPhrase checks whether the provided seed phrase is valid, returning
+// an error if not.
+function validSeedPhrase(seedPhrase: string): Err {
+  let [, err] = seedPhraseToSeed(seedPhrase)
+  return err
 }
 
 export {
