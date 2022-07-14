@@ -104,14 +104,20 @@ function encodeU64(num: bigint): [Uint8Array, Err] {
 // hexToBuf takes an untrusted string as input, verifies that the string is
 // valid hex, and then converts the string to a Uint8Array.
 function hexToBuf(hex: string): [Uint8Array, Err] {
+  // The rest of the code doesn't handle zero length input well, so we handle
+  // that separately. It's not an error, we just return an empty array.
+  if (hex.length === 0) {
+	  return [new Uint8Array(0), null]
+  }
+
   // Check that the length makes sense.
   if (hex.length % 2 !== 0) {
     return [new Uint8Array(0), "input has incorrect length"];
   }
 
   // Check that all of the characters are legal.
-  const match = /[0-9A-Fa-f]*/g;
-  if (!match.test(hex)) {
+  const allHex = /^[0-9a-f]+$/i;
+  if (!(allHex.test(hex))) {
     return [new Uint8Array(0), "input has invalid character"];
   }
 
