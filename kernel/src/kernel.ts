@@ -15,7 +15,7 @@ import {
 	downloadSkylink,
 	encodeU64,
 	error,
-	tryStringify,
+	objAsString,
 	validSkylink,
 } from "libskynet"
 import { moduleQuery, presentSeedData } from "libkmodule"
@@ -55,25 +55,30 @@ const defaultMyskyRootModules = [
 // running in a browser extension.
 const IS_EXTENSION = window.origin === "http://kernel.skynet"
 
-// ModuleLaunchFn defines the type signature for the launch function of a
-// module.
-type ModuleLaunchFn = () => error
+// WorkerLaunchFn is the type signature of the function that launches the
+// worker to set up for processing a query.
+type WorkerLaunchFn = () => [Worker, error]
 
 // modules is a hashmap that maps from a domain to the module that handles
-// queries to that domain.
+// queries to that domain. It maintains the domain and URL of the module so
+// that the worker doesn't need to be downloaded multiple times to keep
+// launching queries.
 //
-// We also keep the source code of the module so that we don't have to download
-// it again if it gets called multiple times.
-//
-// worker and openQueries will only be set if workerIsRunning is 'true'.
+// a new worker gets launched for every query.
 interface Module {
 	domain: string
 	url: string
-	workerIsRunning: boolean
-	worker?: Worker
-	openQueries?: number
+	launchWorker: WorkerLaunchFn
+}
 
-	launch: ModuleLaunchFn
+// OpenQuery holds all of the information necessary for managing an open query.
+interface OpenQuery {
+	isWorker: boolean
+	domain: string
+	source: any
+	dest: Worker
+	nonce: string
+	origin: string
 }
 
 // wLog is a wrapper for the log and logErr functions, to deduplicate code.
@@ -84,7 +89,7 @@ function wLog(isErr: boolean, tag: string, ...inputs: any) {
 	let message = "[skynet-kernel]\n" + tag
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
-		message += tryStringify(inputs[i])
+		message += objAsString(inputs[i])
 	}
 	window.parent.postMessage(
 		{
@@ -191,30 +196,16 @@ function respondErr(event: any, messagePortal: any, isWorker: boolean, err: stri
 //
 // TODO: We probably need to have timeouts for queries, if a query doesn't send
 // an update after a certain amount of time we drop it.
-function handleWorkerMessage(event: MessageEvent, mod: Module) {
+function handleWorkerMessage(event: MessageEvent, mod: Module, worker: Worker) {
 	// TODO: Use of respondErr here may not be correct, should only be using
 	// respondErr for functions that are expecting a response and aren't
 	// already part of a separate query. If they are part of a separate query
 	// we need to close that query out gracefully.
 
-	// Check that the module still has a running worker.
-	if (mod.workerIsRunning === false) {
-		let errStr = "received message from worker that supposedly isn't running"
-		logErr("worker", mod.domain, errStr)
-		respondErr(event, mod.worker, true, errStr)
-		return
-	}
-	if (mod.worker === undefined || mod.openQueries === undefined) {
-		let errStr = "received message but mod.worker or mod.openQueries is undefined"
-		logErr("worker", mod.domain, errStr)
-		respondErr(event, mod.worker, true, errStr)
-		return
-	}
-
 	// Perform input verification for a worker message.
 	if (!("method" in event.data)) {
 		logErr("worker", mod.domain, "received worker message with no method")
-		respondErr(event, mod.worker, true, "received message with no method")
+		respondErr(event, worker, true, "received message with no method")
 		return
 	}
 
@@ -223,12 +214,12 @@ function handleWorkerMessage(event: MessageEvent, mod: Module) {
 		// Perform the input verification for logging.
 		if (!("data" in event.data)) {
 			logErr("worker", mod.domain, "received worker log message with no data field")
-			respondErr(event, mod.worker, true, "received log messsage with no data field")
+			respondErr(event, worker, true, "received log messsage with no data field")
 			return
 		}
 		if (typeof event.data.data.message !== "string") {
 			logErr("worker", mod.domain, "worker log data.message is not of type 'string'")
-			respondErr(event, mod.worker, true, "received log messsage with no message field")
+			respondErr(event, worker, true, "received log messsage with no message field")
 			return
 		}
 		if (event.data.data.isErr === undefined) {
@@ -236,7 +227,7 @@ function handleWorkerMessage(event: MessageEvent, mod: Module) {
 		}
 		if (typeof event.data.data.isErr !== "boolean") {
 			logErr("worker", mod.domain, "worker log data.isErr is not of type 'boolean'")
-			respondErr(event, mod.worker, true, "received log messsage with invalid isErr field")
+			respondErr(event, worker, true, "received log messsage with invalid isErr field")
 			return
 		}
 
@@ -255,13 +246,13 @@ function handleWorkerMessage(event: MessageEvent, mod: Module) {
 	if (!("nonce" in event.data)) {
 		event.data.nonce = "N/A"
 		logErr("worker", mod.domain, "worker sent a message with no nonce", event.data)
-		respondErr(event, mod.worker, true, "received message with no nonce")
+		respondErr(event, worker, true, "received message with no nonce")
 		return
 	}
 
 	// Handle a version request.
 	if (event.data.method === "version") {
-		mod.worker.postMessage({
+		worker.postMessage({
 			nonce: event.data.nonce,
 			method: "response",
 			err: null,
@@ -276,7 +267,7 @@ function handleWorkerMessage(event: MessageEvent, mod: Module) {
 
 	// Handle a call from the worker to another module.
 	if (event.data.method === "moduleCall") {
-		handleModuleCall(event, mod.worker, mod.domain, true)
+		handleModuleCall(event, worker, mod.domain, true)
 		return
 	}
 
@@ -322,20 +313,10 @@ function handleWorkerMessage(event: MessageEvent, mod: Module) {
 		return
 	}
 
-	// Handle the queryUpdate message, we basically just need to forward the
-	// message to whatever module is processing the original query.
+	// If the message is a query update, relay the update to the worker.
 	if (isQueryUpdate) {
-		// Check that the module still exists before sending a queryUpdate to
-		// the module. If there was an error or an early termination it may not
-		// exist.
 		let dest = queries[event.data.nonce].dest
-		if (!(dest in modules)) {
-			logErr("worker", mod.domain, "worker is sending queryUpdate to module that was killed")
-			return
-		}
-
-		// Forward the update to the module.
-		modules[dest].worker.postMessage({
+		dest.postMessage({
 			nonce: event.data.nonce,
 			method: event.data.method,
 			data: event.data.data,
@@ -345,17 +326,9 @@ function handleWorkerMessage(event: MessageEvent, mod: Module) {
 
 	// Check that the err field is being used correctly for response messages.
 	if (isResponse) {
-		// Decrease the number of queries to the worker.
-		mod.openQueries -= 1
-		if (mod.openQueries < 0) {
-			logErr("openQueries for a module dropped below zero")
-		}
-		if (mod.openQueries === 0) {
-			mod.worker.terminate()
-			delete mod.worker
-			delete mod.openQueries
-			mod.workerIsRunning = false
-		}
+		// If the worker has sent a response, it means the query is over and
+		// the worker can be terminated.
+		worker.terminate()
 
 		// Check that the err field exists.
 		if (!("err" in event.data)) {
@@ -403,41 +376,35 @@ function createModule(workerCode: Uint8Array, domain: string): Module {
 	let url = URL.createObjectURL(new Blob([workerCode]))
 
 	// Create the module object.
-	let mod = {
+	let mod: Module = {
 		domain,
 		url,
-		workerIsRunning: false,
 
-		launch: function (): error {
-			return launchModule(mod)
+		launchWorker: function (): [Worker, error] {
+			return launchWorker(mod)
 		},
-	} as Module
+	}
 	return mod
 }
 
-// launchModule is the function that gets called in module.launch to launch a worker.
-function launchModule(mod: Module): error {
-	// Check if the worker is already running.
-	if (mod.workerIsRunning === true) {
-		return "cannot launch the module, the module is already running"
-	}
-
+// launchWorker will launch a worker and perform all the setup so that the
+// worker is ready to receive a query.
+function launchWorker(mod: Module): [Worker, error] {
 	// Create and launch the worker.
+	let worker: Worker
 	try {
-		mod.worker = new Worker(mod.url)
+		worker = new Worker(mod.url)
 	} catch (err: any) {
 		logErr("worker", mod.domain, "unable to create worker", mod.domain, err)
-		return addContextToErr(tryStringify(err), "unable to create worker")
+		return [{} as Worker, addContextToErr(objAsString(err), "unable to create worker")]
 	}
-	mod.workerIsRunning = true
-	mod.openQueries = 0
 
 	// Set the onmessage and onerror functions.
-	mod.worker.onmessage = function (event: MessageEvent) {
-		handleWorkerMessage(event, mod)
+	worker.onmessage = function (event: MessageEvent) {
+		handleWorkerMessage(event, mod, worker)
 	}
-	mod.worker.onerror = function (event: ErrorEvent) {
-		logErr("worker", mod.domain, addContextToErr(tryStringify(event.error), "received onerror event"))
+	worker.onerror = function (event: ErrorEvent) {
+		logErr("worker", mod.domain, addContextToErr(objAsString(event.error), "received onerror event"))
 	}
 
 	// Check if the module is on the whitelist to receive the mysky seed.
@@ -461,8 +428,8 @@ function launchModule(mod: Module): error {
 	if (sendMyskyRoot === true) {
 		msg.data.myskyRootKeypair = myskyRootKeypair
 	}
-	mod.worker.postMessage(msg)
-	return null
+	worker.postMessage(msg)
+	return [worker, null]
 }
 
 // handleModuleCall will handle a callModule message sent to the kernel from an
@@ -508,23 +475,13 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 	// caller with the kernel nonce for this query so that the caller can
 	// perform query updates.
 	let newModuleQuery = function (mod: Module) {
-		// Launch the worker if it is not running already.
-		if (mod.workerIsRunning === false) {
-			let err = mod.launch()
-			if (err !== null) {
-				let errCtx = addContextToErr(err, "unable to launch worker")
-				logErr("worker", errCtx)
-				respondErr(event, messagePortal, isWorker, errCtx)
-				return
-			}
+		let [worker, err] = mod.launchWorker()
+		if (err !== null) {
+			let errCtx = addContextToErr(err, "unable to launch worker")
+			logErr("worker", errCtx)
+			respondErr(event, messagePortal, isWorker, errCtx)
+			return
 		}
-
-		// Add one to the number of open queries on the module.
-		//
-		// We can ignore the undefined check because we checked above if the
-		// worker was running and called mod.launch(), which will create these
-		// fields if they don't already exist.
-		mod.openQueries! += 1
 
 		// Get the nonce for this query. The nonce is a
 		// cryptographically secure string derived from a number and
@@ -539,17 +496,18 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 		noncePreimage.set(nonceBytes, nonceSalt.length + activeSeed.length)
 		let nonce = bufToB64(blake2b(noncePreimage))
 		queriesNonce += 1
-		queries[nonce] = {
+		let query: OpenQuery = {
 			isWorker,
 			domain: callerDomain,
 			source: messagePortal,
-			dest: moduleDomain,
+			dest: worker,
 			nonce: event.data.nonce,
 			origin: event.origin,
 		}
+		queries[nonce] = query
 
 		// Send the message to the worker to start the query.
-		mod.worker!.postMessage({
+		worker.postMessage({
 			nonce: nonce,
 			domain: callerDomain,
 			method: event.data.data.method,
@@ -858,11 +816,7 @@ handleIncomingMessage = function (event: any) {
 			return
 		}
 		let dest = queries[event.data.nonce].dest
-		if (!(dest in modules)) {
-			logErr("workerMessage", "worker is sending queryUpdate to module that was killed")
-			return
-		}
-		modules[dest].worker.postMessage({
+		dest.postMessage({
 			nonce: event.data.nonce,
 			method: event.data.method,
 			data: event.data.data,
