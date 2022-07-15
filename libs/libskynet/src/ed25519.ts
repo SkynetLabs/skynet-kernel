@@ -1,5 +1,5 @@
-import { addContextToErr } from "./err.js"
-import { sha512internal } from "./sha512.js"
+import { addContextToErr } from "./err"
+import { sha512internal } from "./sha512"
 
 const crypto_sign_BYTES = 64,
 	crypto_sign_PUBLICKEYBYTES = 32,

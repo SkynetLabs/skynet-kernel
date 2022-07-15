@@ -1,4 +1,4 @@
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // namespaceInode is a function for namespacing inodes based on the type of
 // file that is being used, this way a file that is created using
@@ -8,7 +8,7 @@ import { error } from "./types.js"
 // files on Skynet.
 //
 // No cryptography is needed here, the inodes don't get exposed publicly.
-function namespaceInode(filetype: string, inode: string): [string, error] {
+function namespaceInode(filetype: string, inode: string): [string, Err] {
 	if (filetype.length > 32) {
 		return ["", "filetype can be at most 32 characters"]
 	}

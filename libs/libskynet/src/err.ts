@@ -1,4 +1,4 @@
-import { objAsString } from "./objAsString.js"
+import { objAsString } from "./objAsString"
 
 // addContextToErr is a helper function that standardizes the formatting of
 // adding context to an error.

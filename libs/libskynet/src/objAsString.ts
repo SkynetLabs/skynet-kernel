@@ -1,14 +1,15 @@
 // objAsString will try to return the provided object as a string. If the
 // object is already a string, it will be returned without modification. If the
-// object has a toString method, the toString method will be called and the
-// result will be returned. If the object is null or undefined, a special
-// string will be returned indicating that the undefined/null object cannot be
-// converted to a string. In all other cases, JSON.stringify is used.
+// object is an 'Error', the message of the error will be returned. If the object
+// has a toString method, the toString method will be called and the result
+// will be returned. If the object is null or undefined, a special string will
+// be returned indicating that the undefined/null object cannot be converted to
+// a string. In all other cases, JSON.stringify is used. If JSON.stringify
+// throws an exception, a message "[could not provide object as string]" will
+// be returned.
 //
-// NOTE: objAsString is intended to produce human readable output. It does not
-// always encode or serialize objects the same way that they get serialized in
-// other places in the code. If the output is intended to be consumed by a
-// machine, please use jsonStringify.
+// NOTE: objAsString is intended to produce human readable output. It is lossy,
+// and it is not intended to be used for serialization.
 function objAsString(obj: any): string {
 	// Check for undefined input.
 	if (obj === undefined) {
@@ -21,6 +22,12 @@ function objAsString(obj: any): string {
 	// Parse the error into a string.
 	if (typeof obj === "string") {
 		return obj
+	}
+
+	// Check if the object is an error, and return the message of the error if
+	// so.
+	if (obj instanceof Error) {
+		return obj.message
 	}
 
 	// Check if the object has a 'toString' method defined on it. To ensure

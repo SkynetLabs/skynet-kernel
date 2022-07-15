@@ -3,11 +3,11 @@ import { addContextToErr } from "./err.js"
 import { objAsString } from "./objAsString.js"
 import { parseJSON } from "./parse.js"
 import { verifyRegistrySignature } from "./registry.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // verifyDecodedResp will verify the decoded response from a portal for a
 // regRead call.
-function verifyDecodedResp(resp: Response, data: any, pubkey: Uint8Array, datakey: Uint8Array): error {
+function verifyDecodedResp(resp: Response, data: any, pubkey: Uint8Array, datakey: Uint8Array): Err {
 	// Status is expected to be 200.
 	if (resp.status !== 200) {
 		return "expected 200 response status, got: " + objAsString(resp.status)
@@ -56,7 +56,7 @@ function verifyDecodedResp(resp: Response, data: any, pubkey: Uint8Array, datake
 
 // verifyRegistryReadResponse will verify that the registry read response from
 // the portal was correct.
-function verifyRegistryReadResponse(resp: Response, pubkey: Uint8Array, datakey: Uint8Array): Promise<error> {
+function verifyRegistryReadResponse(resp: Response, pubkey: Uint8Array, datakey: Uint8Array): Promise<Err> {
 	return new Promise((resolve) => {
 		resp
 			.text()
@@ -83,7 +83,7 @@ function verifyRegistryReadResponse(resp: Response, pubkey: Uint8Array, datakey:
 // registryWrite call is valid. There's not much to verify beyond looking for
 // the right response code, as the portal is not providing us with data, just
 // confirming that a write succeeded.
-function verifyRegistryWriteResponse(resp: Response): Promise<error> {
+function verifyRegistryWriteResponse(resp: Response): Promise<Err> {
 	return new Promise((resolve) => {
 		if (resp.status === 204) {
 			resolve(null)

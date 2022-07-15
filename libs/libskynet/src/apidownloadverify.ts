@@ -1,4 +1,4 @@
-import { decodeBigint } from "./encoding.js"
+import { decodeU64 } from "./encoding.js"
 import { addContextToErr } from "./err.js"
 import { blake2bVerifySectorRangeProof } from "./merkle.js"
 
@@ -74,15 +74,15 @@ function verifyDownload(
 	let fileSizeBytes = skylinkData.slice(1, 9)
 	let mdSizeBytes = skylinkData.slice(9, 17)
 	let fanoutSizeBytes = skylinkData.slice(17, 25)
-	let [fileSize, errFSDN] = decodeBigint(fileSizeBytes)
+	let [fileSize, errFSDN] = decodeU64(fileSizeBytes)
 	if (errFSDN !== null) {
 		return [nu8, false, addContextToErr(errFSDN, "unable to decode filesize")]
 	}
-	let [mdSize, errMDDN] = decodeBigint(mdSizeBytes)
+	let [mdSize, errMDDN] = decodeU64(mdSizeBytes)
 	if (errMDDN !== null) {
 		return [nu8, false, addContextToErr(errMDDN, "unable to decode metadata size")]
 	}
-	let [fanoutSize, errFODN] = decodeBigint(fanoutSizeBytes)
+	let [fanoutSize, errFODN] = decodeU64(fanoutSizeBytes)
 	if (errFODN !== null) {
 		return [nu8, false, addContextToErr(errFODN, "unable to decode fanout size")]
 	}

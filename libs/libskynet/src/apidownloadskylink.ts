@@ -5,10 +5,10 @@ import { addContextToErr } from "./err.js"
 import { b64ToBuf } from "./encoding.js"
 import { objAsString } from "./objAsString.js"
 import { validSkylink } from "./skylinkvalidate.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // downloadSkylink will download the provided skylink.
-function downloadSkylink(skylink: string): Promise<[data: Uint8Array, err: error]> {
+function downloadSkylink(skylink: string): Promise<[data: Uint8Array, err: Err]> {
 	return new Promise((resolve) => {
 		// Get the Uint8Array of the input skylink.
 		let [u8Link, errBTB] = b64ToBuf(skylink)
@@ -24,7 +24,7 @@ function downloadSkylink(skylink: string): Promise<[data: Uint8Array, err: error
 		// Prepare the download call.
 		let endpoint = "/skynet/trustless/basesector/" + skylink
 		let fileDataPtr = { fileData: new Uint8Array(0), err: null }
-		let verifyFunction = function (response: Response): Promise<error> {
+		let verifyFunction = function (response: Response): Promise<Err> {
 			return verifyDownloadResponse(response, u8Link, fileDataPtr)
 		}
 

@@ -4,13 +4,13 @@ import { objAsString } from "./objAsString.js"
 import { parseJSON } from "./parse.js"
 import { parseSkylinkBitfield } from "./skylinkbitfield.js"
 import { verifyResolverLinkProofs } from "./skylinkverifyresolver.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // fileDataObj defines the fileData object that we use in
 // verifyDownloadResponse to return the fileData back to the caller.
 interface fileDataObj {
 	fileData: Uint8Array
-	err: error
+	err: Err
 }
 
 // Establish the function that verifies the result is correct.
@@ -21,7 +21,7 @@ interface fileDataObj {
 // called multiple times in a row if early portals fail to retrieve the data,
 // but the verify function doesn't write to the fileDataPtr until it knows that
 // the download is final.
-function verifyDownloadResponse(response: Response, u8Link: Uint8Array, fileDataPtr: fileDataObj): Promise<error> {
+function verifyDownloadResponse(response: Response, u8Link: Uint8Array, fileDataPtr: fileDataObj): Promise<Err> {
 	return new Promise((resolve) => {
 		// Currently the only valid successful response for a download is a
 		// 200. Anything else is unexpected and counts as an error.
