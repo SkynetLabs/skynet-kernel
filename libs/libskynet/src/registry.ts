@@ -4,7 +4,7 @@ import { addContextToErr } from "./err.js"
 import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js"
 import { SEED_BYTES } from "./seed.js"
 import { sha512 } from "./sha512.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // Define some empty values to make our return statements more concise.
 const nu8 = new Uint8Array(0)
@@ -18,7 +18,7 @@ function computeRegistrySignature(
 	dataKey: Uint8Array,
 	data: Uint8Array,
 	revision: bigint
-): [signature: Uint8Array, err: error] {
+): [signature: Uint8Array, err: Err] {
 	// Check that the data is the right size.
 	if (data.length > 86) {
 		return [nu8, "registry data must be at most 86 bytes"]
@@ -102,7 +102,7 @@ function entryIDToSkylink(entryID: Uint8Array): string {
 // It's just a passthrough to b64ToBuf, but that's not obvious unless you are
 // familiar with the internals of how resolver skylinks work. This function is
 // provided as an intuitive alternative.
-function skylinkToResolverEntryData(skylink: string): [Uint8Array, error] {
+function skylinkToResolverEntryData(skylink: string): [Uint8Array, Err] {
 	return b64ToBuf(skylink)
 }
 

@@ -1,6 +1,6 @@
 import { bufToB64 } from "./encoding.js"
-import { error } from "./types.js"
 import { sha512 } from "./sha512.js"
+import { Err } from "./types.js"
 
 // namespaceInode is a function for namespacing inodes based on the type of
 // file that is being used, this way a file that is created using
@@ -8,7 +8,7 @@ import { sha512 } from "./sha512.js"
 // 'openIndependentFile' - it can only be opened by 'openIndependentFileSmall'
 // as the two functions with the same inode will actually reference different
 // files on Skynet.
-function namespaceInode(filetype: string, inode: string): [string, error] {
+function namespaceInode(filetype: string, inode: string): [string, Err] {
 	// We pad out the filetype to 32 characters to ensure that two different
 	// filetypes can never have a filetype+inode combination that will collide.
 	// If the filetype is different, the final result will definitely also be

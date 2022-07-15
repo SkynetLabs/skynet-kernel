@@ -1,10 +1,10 @@
 import { addContextToErr } from "./err.js"
 import { objAsString } from "./objAsString.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // jsonStringify is a replacement for JSON.stringify that returns an error
 // rather than throwing.
-function jsonStringify(obj: any): [string, error] {
+function jsonStringify(obj: any): [string, Err] {
 	try {
 		let str = JSON.stringify(obj, (_, v) => {
 			if (typeof v === "bigint") {

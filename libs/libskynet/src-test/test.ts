@@ -6,7 +6,12 @@ import { addContextToErr } from "../src/err.js"
 import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "../src/fileprivate.js"
 import { objAsString } from "../src/objAsString.js"
 import { deriveRegistryEntryID, entryIDToSkylink, taggedRegistryEntryKeys } from "../src/registry.js"
-import { deriveMyskyRootKeypair, generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed.js"
+import {
+	deriveMyskyRootKeypair,
+	generateSeedPhraseDeterministic,
+	seedPhraseToSeed,
+	validSeedPhrase,
+} from "../src/seed.js"
 import { sha512 } from "../src/sha512.js"
 import { validateSkyfilePath } from "../src/skylinkvalidate.js"
 import { parseSkylinkBitfield, skylinkV1Bitfield } from "../src/skylinkbitfield.js"
@@ -87,8 +92,8 @@ function TestGenerateSeedPhraseDeterministic(t: any) {
 	}
 
 	// Check that all of the seed phrases are valid.
-	let [x1, errVSP1] = validSeedPhrase(phraseTestInput)
-	let [x2, errVSP2] = validSeedPhrase(phraseTestInput3)
+	let errVSP1 = validSeedPhrase(phraseTestInput)
+	let errVSP2 = validSeedPhrase(phraseTestInput3)
 	if (errVSP1 !== null) {
 		t.fail("vsp1 is not a valid seed phrase")
 	}
@@ -155,7 +160,7 @@ function TestRegistry(t: any) {
 		t.fail("could not get seed phrase")
 		return
 	}
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	let [seed, errVSP] = seedPhraseToSeed(seedPhrase)
 	if (errVSP !== null) {
 		t.fail("seed phrase is not valid")
 		return
@@ -442,7 +447,7 @@ function TestMyskyEquivalence(t: any) {
 		t.fail(errGSPD)
 		return
 	}
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	let [seed, errVSP] = seedPhraseToSeed(seedPhrase)
 	if (errVSP !== null) {
 		t.fail(errVSP)
 		return
@@ -613,7 +618,7 @@ function TestEncryptFileSmall(t: any) {
 		t.fail(errGSPD)
 		return
 	}
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	let [seed, errVSP] = seedPhraseToSeed(seedPhrase)
 	if (errVSP !== null) {
 		t.fail(errVSP)
 		return
@@ -703,7 +708,7 @@ function TestEncryptFileSmall(t: any) {
 		t.fail(errGSPD2)
 		return
 	}
-	let [seed2, errVSP2] = validSeedPhrase(spd)
+	let [seed2, errVSP2] = seedPhraseToSeed(spd)
 	if (errVSP2 !== null) {
 		t.fail(errVSP2)
 		return
@@ -823,7 +828,7 @@ function TestEncryptDecryptSpeed(t: any) {
 		t.fail(errGSPD)
 		return
 	}
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	let [seed, errVSP] = seedPhraseToSeed(seedPhrase)
 	if (errVSP !== null) {
 		t.fail(errVSP)
 		return

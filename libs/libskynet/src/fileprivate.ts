@@ -4,7 +4,7 @@ import { addContextToErr } from "./err.js"
 import { parseJSON } from "./parse.js"
 import { sha512 } from "./sha512.js"
 import { jsonStringify } from "./stringifyjson.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // decryptFileSmall will decrypt a file that was encrypted by encryptFileSmall.
 // The input is the seed, the inode, and the encrypted data. The output will be
@@ -16,7 +16,7 @@ function decryptFileSmall(
 	seed: Uint8Array,
 	inode: string,
 	fullDataOrig: Uint8Array
-): [metadata: any, fileData: Uint8Array, err: error] {
+): [metadata: any, fileData: Uint8Array, err: Err] {
 	// Make a copy of the fullData so that we don't modify our inputs.
 	let fullData = new Uint8Array(fullDataOrig)
 
@@ -108,7 +108,7 @@ function encryptFileSmall(
 	metadata: any,
 	fileData: Uint8Array,
 	minFullSize?: bigint
-): [encryptedData: Uint8Array, err: error] {
+): [encryptedData: Uint8Array, err: Err] {
 	// Get a json encoding of the metadata. We need to know the size of the
 	// metadata before allocating the full data for the file.
 	let [metadataStr, errJS] = jsonStringify(metadata)
