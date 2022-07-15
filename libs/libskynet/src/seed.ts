@@ -162,10 +162,10 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
   let curByte = 0;
   let curBit = 0;
   for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
-	// Determine which number corresponds to the next word. If the word isn't
-	// found, return an error. We only look at the first UNIQUE_PREFIX letters
-	// because we let the user mutate their seed beyond that if desired to
-	// make it easier to copy and or memorize.
+    // Determine which number corresponds to the next word. If the word isn't
+    // found, return an error. We only look at the first UNIQUE_PREFIX letters
+    // because we let the user mutate their seed beyond that if desired to
+    // make it easier to copy and or memorize.
     let word = -1;
     for (let j = 0; j < dictionary.length; j++) {
       if (seedWords[i].slice(0, DICTIONARY_UNIQUE_PREFIX) === dictionary[j].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
@@ -177,17 +177,17 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
       return [new Uint8Array(0), `word '${seedWords[i]}' at index ${i} not found in dictionary`];
     }
 
-	// The first twelve words provide 10 bits of information, and the
-	// thriteenth word provides 8 bits of information, giving us 128 bits (16
-	// bytes) of information, which is how much information is contained in a
-	// typical cryptographic seed.
+    // The first twelve words provide 10 bits of information, and the
+    // thriteenth word provides 8 bits of information, giving us 128 bits (16
+    // bytes) of information, which is how much information is contained in a
+    // typical cryptographic seed.
     let wordBits = 10;
     if (i === SEED_ENTROPY_WORDS - 1) {
       wordBits = 8;
     }
 
-	// Iterate over the each bit of the word and pack the bit into our bytes
-	// array. If we fill out a byte at any point, move on to the next byte.
+    // Iterate over the each bit of the word and pack the bit into our bytes
+    // array. If we fill out a byte at any point, move on to the next byte.
     for (let j = 0; j < wordBits; j++) {
       const bitSet = (word & (1 << (wordBits - j - 1))) > 0;
 
