@@ -36,4 +36,9 @@ test("objAsString", () => {
   (objVar as any).toString = "b7";
   let objResult2 = objAsString(objVar);
   expect(objResult2).toBe('{"a":"b","b":7,"toString":"b7"}');
+
+  // Try testing an error object.
+  let err1 = new Error("this is an error");
+  let err1Result = objAsString(err1);
+  expect(err1Result).toBe("this is an error");
 });

@@ -53,7 +53,7 @@ type ErrTuple = [data: any, err: Err];
 // auth cycle needs to reset.
 interface KernelAuthStatus {
   loginComplete: boolean;
-  kernelLoaded: string;
+  kernelLoaded: "not yet" | "success" | string;
   logoutComplete: boolean;
 }
 
