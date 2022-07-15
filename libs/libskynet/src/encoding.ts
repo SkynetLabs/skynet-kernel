@@ -1,5 +1,5 @@
-import { addContextToErr } from "./err"
-import { Err } from "./types"
+import { addContextToErr } from "./err.js"
+import { Err } from "./types.js"
 
 const MAX_UINT_64 = 18446744073709551615n
 

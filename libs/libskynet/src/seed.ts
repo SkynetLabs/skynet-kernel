@@ -5,11 +5,11 @@
 // the specification of the blog post, and keep compatibility with the other
 // libraries that implemented mysky seeds.
 
-import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary"
-import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519"
-import { addContextToErr } from "./err"
-import { sha512 } from "./sha512"
-import { Err } from "./types"
+import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js"
+import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519.js"
+import { addContextToErr } from "./err.js"
+import { sha512 } from "./sha512.js"
+import { Err } from "./types.js"
 
 // Define the number of entropy words used when generating the seed.
 const SEED_ENTROPY_WORDS = 13
