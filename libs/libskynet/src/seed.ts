@@ -1,3 +1,10 @@
+// seed.ts implements mysky seed as defined in
+// https://blog.sia.tech/a-technical-breakdown-of-mysky-seeds-ba9964505978
+//
+// At points some of the bitmath can get hairy, but it's just trying to match
+// the specification of the blog post, and keep compatibility with the other
+// libraries that implemented mysky seeds.
+
 import { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary";
 import { Ed25519Keypair, ed25519KeypairFromEntropy } from "./ed25519";
 import { addContextToErr } from "./err";
@@ -155,7 +162,10 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
   let curByte = 0;
   let curBit = 0;
   for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
-    // Determine which number corresponds to the next word.
+	// Determine which number corresponds to the next word. If the word isn't
+	// found, return an error. We only look at the first UNIQUE_PREFIX letters
+	// because we let the user mutate their seed beyond that if desired to
+	// make it easier to copy and or memorize.
     let word = -1;
     for (let j = 0; j < dictionary.length; j++) {
       if (seedWords[i].slice(0, DICTIONARY_UNIQUE_PREFIX) === dictionary[j].slice(0, DICTIONARY_UNIQUE_PREFIX)) {
@@ -166,12 +176,18 @@ function seedWordsToSeed(seedWords: string[]): [Uint8Array, Err] {
     if (word === -1) {
       return [new Uint8Array(0), `word '${seedWords[i]}' at index ${i} not found in dictionary`];
     }
+
+	// The first twelve words provide 10 bits of information, and the
+	// thriteenth word provides 8 bits of information, giving us 128 bits (16
+	// bytes) of information, which is how much information is contained in a
+	// typical cryptographic seed.
     let wordBits = 10;
     if (i === SEED_ENTROPY_WORDS - 1) {
       wordBits = 8;
     }
 
-    // Iterate over the bits of the 10- or 8-bit word.
+	// Iterate over the each bit of the word and pack the bit into our bytes
+	// array. If we fill out a byte at any point, move on to the next byte.
     for (let j = 0; j < wordBits; j++) {
       const bitSet = (word & (1 << (wordBits - j - 1))) > 0;
 
