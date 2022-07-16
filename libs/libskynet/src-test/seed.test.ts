@@ -1,9 +1,14 @@
-import { dictionary } from "../src/dictionary";
-import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519";
-import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding";
-import { objAsString } from "../src/objAsString";
-import { generateSeedPhraseDeterministic, validSeedPhrase } from "../src/seed";
-import { sha512 } from "../src/sha512";
+import { dictionary } from "../src/dictionary.js";
+import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js";
+import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js";
+import { objAsString } from "../src/objAsString.js";
+import {
+  deriveMyskyRootKeypair,
+  generateSeedPhraseDeterministic,
+  seedPhraseToSeed,
+  validSeedPhrase,
+} from "../src/seed.js";
+import { sha512 } from "../src/sha512.js";
 
 test("generateSeedPhraseDeterministic", () => {
   // Generate three seed phrases, two matching and one not matching. Make sure
@@ -39,5 +44,52 @@ test("generateSeedPhraseDeterministic", () => {
       }
     }
     expect(found).toBe(true);
+  }
+});
+
+// TestMyskyEquivalence is a test that checks that the way libskynet derives
+// the mysky seed for a user matches the code that derived a mysky seed for a
+// user in skynet-mysky. Following the test are some unique dependencies so
+// that the simulated mysky derivation is as close to the original code as
+// possible.
+import nacl from "tweetnacl";
+const SALT_ROOT_DISCOVERABLE_KEY = "root discoverable key";
+function genKeyPairFromSeed(seed: Uint8Array) {
+  const hash = hashWithSalt(seed, SALT_ROOT_DISCOVERABLE_KEY);
+  return genKeyPairFromHash(hash);
+}
+function hashWithSalt(message: Uint8Array, salt: string): Uint8Array {
+  return s512(new Uint8Array([...s512(salt), ...s512(message)]));
+}
+function s512(message: Uint8Array | string): Uint8Array {
+  if (typeof message === "string") {
+    return nacl.hash(stringToUint8ArrayUtf8(message));
+  }
+  return nacl.hash(message);
+}
+function stringToUint8ArrayUtf8(str: string) {
+  return Uint8Array.from(Buffer.from(str, "utf-8"));
+}
+function genKeyPairFromHash(hash: Uint8Array) {
+  const hashBytes = hash.slice(0, 32);
+  const { publicKey, secretKey } = nacl.sign.keyPair.fromSeed(hashBytes);
+  return [publicKey, secretKey];
+}
+test("myskyEquivalence", () => {
+  // Get a seed.
+  let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky");
+  expect(errGSPD).toBe(null);
+  let [seed, errVSP] = seedPhraseToSeed(seedPhrase);
+  expect(errVSP).toBe(null);
+
+  let [pkOld, skOld] = genKeyPairFromSeed(seed);
+  let keypair = deriveMyskyRootKeypair(seed);
+  expect(pkOld.length).toBe(keypair.publicKey.length);
+  for (let i = 0; i < pkOld.length; i++) {
+    expect(pkOld[i]).toBe(keypair.publicKey[i]);
+  }
+  expect(skOld.length).toBe(keypair.secretKey.length);
+  for (let i = 0; i < skOld.length; i++) {
+    expect(skOld[i]).toBe(keypair.secretKey[i]);
   }
 });
