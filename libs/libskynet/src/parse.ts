@@ -1,7 +1,7 @@
 // @ts-nocheck
 
 import { objAsString } from "./objAsString.js"
-import { error } from "./types.js"
+import { Err } from "./types.js"
 
 // json_parse extracted from the json-bigint npm library
 // regexpxs extracted from
@@ -364,7 +364,7 @@ let json_parse = function (options) {
 // because the skyd API uses 64 bit precision for all of its numbers, and
 // therefore cannot be parsed losslessly by javascript. The skyd API is
 // cryptographic, therefore full precision is required.
-function parseJSON(json: string): [any, error] {
+function parseJSON(json: string): [any, Err] {
 	try {
 		let obj = json_parse({ alwaysParseAsBig: true })(json)
 		return [obj, null]

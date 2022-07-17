@@ -796,6 +796,19 @@ function TestIndependentFileSmall() {
   });
 }
 
+// TestChildWorkersDie tests that when a module spins up a child worker, that
+// worker gets terminated along with the parent.
+function TestChildWorkersDie() {
+	return new Promise(async (resolve, reject) => {
+		let [resp, err] = await kernel.callModule(kernelTestSuite, "testChildWorkersDie", {})
+		if (err !== null) {
+			reject(kernel.addContextToErr(err, "error from testChildWorkersDie"))
+			return
+		}
+		resolve(resp)
+	})
+}
+
 // TestMsgSpeedSequential5k will send ten thousand messages to the kernel
 // sequentially.
 function TestMsgSpeedSequential5k() {
@@ -1181,11 +1194,6 @@ const IndexPage = () => {
       />
       <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
       <TestCard
-        name="TestIndependentFileSmall"
-        test={TestIndependentFileSmall}
-        turn={getTurn()}
-      />
-      <TestCard
         name="TestSecureRegistry"
         test={TestSecureRegistry}
         turn={getTurn()}
@@ -1195,6 +1203,12 @@ const IndexPage = () => {
         test={TestSecureUploadAndDownload}
         turn={getTurn()}
       />
+      <TestCard
+        name="TestIndependentFileSmall"
+        test={TestIndependentFileSmall}
+        turn={getTurn()}
+      />
+      <TestCard name="TestChildWorkersDie" test={TestChildWorkersDie} turn={getTurn()} />
       <TestCard
         name="TestMsgSpeedSequential5k"
         test={TestMsgSpeedSequential5k}

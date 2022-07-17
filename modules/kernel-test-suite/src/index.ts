@@ -1,5 +1,15 @@
 // kernel-test-suite is a kernel module that facilitates integration testing.
 
+// NOTE: Some of the tests can't really be verified programatically, for
+// example the logging is difficult to test programatically. Below is a list of
+// things that should be checked manually.
+//
+// testChildWorkersDie: After running testChildWorkersDie, you need to check
+// the CPU and see that there is no core running at 100%. If there is a core
+// running at 100%, it means that the webworker was not killed when the parent
+// worker was killed. To be extra sure, you should also watch the test and look
+// for roughly 5 seconds of 100% cpu burn while the test is running.
+
 import {
 	ERR_NOT_EXISTS,
 	ActiveQuery,
@@ -109,6 +119,7 @@ addHandler("callModulePerformanceParallel", handleCallModulePerformanceParallel)
 addHandler("mirrorDomain", handleMirrorDomain)
 addHandler("sendTestToKernel", handleSendTestToKernel)
 addHandler("testCORS", handleTestCORS)
+addHandler("testChildWorkersDie", handleTestChildWorkersDie)
 addHandler("testIndependentFileSmall", handleTestIndependentFileSmall)
 addHandler("testLogging", handleTestLogging)
 addHandler("testerMirrorDomain", handleTesterMirrorDomain)
@@ -282,6 +293,45 @@ function handleTestCORS(activeQuery: ActiveQuery) {
 			errors.push(err)
 			activeQuery.reject(err)
 		})
+}
+
+// handleTestChildWorkersDie launches a child worker mid-query which burns a
+// ton of CPU. When this query completes, the worker will be terminated by the
+// kernel, that should cause the child worker to be terminated as well.
+//
+// NOTE: You can tell the child worker is dead because the CPU is not being
+// consumed.
+function handleTestChildWorkersDie(aq: ActiveQuery) {
+	// Create the code for a new worker.
+	let workerCode = new TextEncoder().encode(`
+// Perform an expensive CPU operation repeatedly.
+let num = 12345
+for (let i = 0; i < 1000 * 1000 * 1000 * 1000; i++) {
+	num += i
+	num *= 1.05
+	num /= 1.0498
+	num -= i
+}
+`)
+	let url = URL.createObjectURL(new Blob([workerCode]))
+	let worker = new Worker(url)
+	/*
+	// Call the helper module and have it burn CPU. Wait for five seconds, and
+	// then accept the query as a success. The kernel should terminate this
+	// worker, and that should cause the child worker to be terminated too.
+	callModule(helperModule, "burnCPU", {})
+	if (err !== null) {
+		errors.push(err)
+		activeQuery.reject(err)
+		return
+	}
+*/
+
+	// Wait 5 seconds, and then repsond to the query, which will terminate the
+	// query. Hopefully the worker
+	setTimeout(() => {
+		aq.respond("success")
+	}, 5000)
 }
 
 // handleTestIndependentFileSmall runs tests on the libkmodule object

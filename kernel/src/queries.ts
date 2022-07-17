@@ -1,0 +1,483 @@
+import { notableErrors, respondErr } from "./err.js";
+import { log, logErr } from "./log.js";
+import { DEFAULT_MYSKY_ROOT_MODULES, activeSeed, myskyRootKeypair } from "./seed.js";
+import { KERNEL_DISTRO, KERNEL_VERSION } from "./version.js";
+import { Err, addContextToErr, bufToB64, downloadSkylink, encodeU64, objAsString, sha512 } from "libskynet";
+import { moduleQuery, presentSeedData } from "libkmodule";
+
+// WorkerLaunchFn is the type signature of the function that launches the
+// worker to set up for processing a query.
+type WorkerLaunchFn = () => [Worker, Err];
+
+// modules is a hashmap that maps from a domain to the module that handles
+// queries to that domain. It maintains the domain and URL of the module so
+// that the worker doesn't need to be downloaded multiple times to keep
+// launching queries.
+//
+// a new worker gets launched for every query.
+interface Module {
+  domain: string;
+  url: string;
+  launchWorker: WorkerLaunchFn;
+}
+
+// OpenQuery holds all of the information necessary for managing an open query.
+interface OpenQuery {
+  isWorker: boolean;
+  domain: string;
+  source: any;
+  dest: Worker;
+  nonce: string;
+  origin: string;
+}
+
+// Define the stateful variables for managing the modules. We track the set of
+// queries that are in progress, the set of modules that we've downloaded, and
+// the set of modules that are actively being downloaded.
+let queriesNonce = 0;
+let queries = {} as any;
+let modules = {} as any;
+let modulesLoading = {} as any;
+
+// Create a standard message handler for messages coming from workers.
+//
+// TODO: If the worker makes a mistake or has a bug that makes it seem
+// unstable, we should create some sort of debug log that can be viewed from
+// the kernel debug/control panel. We'll need to make sure the debug logs don't
+// consume too much memory, and we'll need to terminate workers that are
+// bugging out.
+//
+// TODO: Set up a ratelimiting system for modules making logs, we don't want
+// modules to be able to pollute the kernel and cause instability by logging
+// too much.
+//
+// TODO: Need to check that the postMessage call in respondErr isn't going to
+// throw or cause issuse in the event that the worker who sent the message has
+// been terminated.
+//
+// TODO: We probably need to have timeouts for queries, if a query doesn't send
+// an update after a certain amount of time we drop it.
+function handleWorkerMessage(event: MessageEvent, mod: Module, worker: Worker) {
+  // TODO: Use of respondErr here may not be correct, should only be using
+  // respondErr for functions that are expecting a response and aren't
+  // already part of a separate query. If they are part of a separate query
+  // we need to close that query out gracefully.
+
+  // Perform input verification for a worker message.
+  if (!("method" in event.data)) {
+    logErr("worker", mod.domain, "received worker message with no method");
+    respondErr(event, worker, true, "received message with no method");
+    return;
+  }
+
+  // Check whether this is a logging call.
+  if (event.data.method === "log") {
+    // Perform the input verification for logging.
+    if (!("data" in event.data)) {
+      logErr("worker", mod.domain, "received worker log message with no data field");
+      respondErr(event, worker, true, "received log messsage with no data field");
+      return;
+    }
+    if (typeof event.data.data.message !== "string") {
+      logErr("worker", mod.domain, "worker log data.message is not of type 'string'");
+      respondErr(event, worker, true, "received log messsage with no message field");
+      return;
+    }
+    if (event.data.data.isErr === undefined) {
+      event.data.data.isErr = false;
+    }
+    if (typeof event.data.data.isErr !== "boolean") {
+      logErr("worker", mod.domain, "worker log data.isErr is not of type 'boolean'");
+      respondErr(event, worker, true, "received log messsage with invalid isErr field");
+      return;
+    }
+
+    // Send the log to the parent so that the log can be put in the
+    // console.
+    if (event.data.data.isErr === false) {
+      log("worker", "[" + mod.domain + "]", event.data.data.message);
+    } else {
+      logErr("worker", "[" + mod.domain + "]", event.data.data.message);
+    }
+    return;
+  }
+
+  // Check for a nonce - log is the only message from a worker that does not
+  // need a nonce.
+  if (!("nonce" in event.data)) {
+    event.data.nonce = "N/A";
+    logErr("worker", mod.domain, "worker sent a message with no nonce", event.data);
+    respondErr(event, worker, true, "received message with no nonce");
+    return;
+  }
+
+  // Handle a version request.
+  if (event.data.method === "version") {
+    worker.postMessage({
+      nonce: event.data.nonce,
+      method: "response",
+      err: null,
+      data: {
+        distribution: KERNEL_DISTRO,
+        version: KERNEL_VERSION,
+        err: null,
+      },
+    });
+    return;
+  }
+
+  // Handle a call from the worker to another module.
+  if (event.data.method === "moduleCall") {
+    handleModuleCall(event, worker, mod.domain, true);
+    return;
+  }
+
+  // The only other methods allowed are the queryUpdate, responseUpdate,
+  // and response methods.
+  let isQueryUpdate = event.data.method === "queryUpdate";
+  let isResponseUpdate = event.data.method === "responseUpdate";
+  let isResponse = event.data.method === "response";
+  if (isQueryUpdate || isResponseUpdate || isResponse) {
+    handleModuleResponse(event, mod, worker);
+  }
+
+  // We don't know what this message was.
+  logErr("worker", mod.domain, "received message from worker with unrecognized method");
+}
+
+// createModule will create a module from the provided worker code and domain.
+// This call does not launch the worker, that should be done separately.
+function createModule(workerCode: Uint8Array, domain: string): Module {
+  // Generate the URL for the worker code.
+  let url = URL.createObjectURL(new Blob([workerCode]));
+
+  // Create the module object.
+  let mod: Module = {
+    domain,
+    url,
+
+    launchWorker: function (): [Worker, Err] {
+      return launchWorker(mod);
+    },
+  };
+  return mod;
+}
+
+// launchWorker will launch a worker and perform all the setup so that the
+// worker is ready to receive a query.
+function launchWorker(mod: Module): [Worker, Err] {
+  // Create and launch the worker.
+  let worker: Worker;
+  try {
+    worker = new Worker(mod.url);
+  } catch (err: any) {
+    logErr("worker", mod.domain, "unable to create worker", mod.domain, err);
+    return [{} as Worker, addContextToErr(objAsString(err), "unable to create worker")];
+  }
+
+  // Set the onmessage and onerror functions.
+  worker.onmessage = function (event: MessageEvent) {
+    handleWorkerMessage(event, mod, worker);
+  };
+  worker.onerror = function (event: ErrorEvent) {
+    logErr("worker", mod.domain, addContextToErr(objAsString(event.error), "received onerror event"));
+  };
+
+  // Check if the module is on the whitelist to receive the mysky seed.
+  let sendMyskyRoot = DEFAULT_MYSKY_ROOT_MODULES.includes(mod.domain);
+
+  // Send the seed to the module.
+  let path = "moduleSeedDerivation" + mod.domain;
+  let u8Path = new TextEncoder().encode(path);
+  let moduleSeedPreimage = new Uint8Array(u8Path.length + 16);
+  moduleSeedPreimage.set(u8Path, 0);
+  moduleSeedPreimage.set(activeSeed, u8Path.length);
+  let moduleSeed = sha512(moduleSeedPreimage).slice(0, 16);
+  let msgData: presentSeedData = {
+    seed: moduleSeed,
+  };
+  let msg: moduleQuery = {
+    method: "presentSeed",
+    domain: "root",
+    data: msgData,
+  };
+  if (sendMyskyRoot === true) {
+    msg.data.myskyRootKeypair = myskyRootKeypair;
+  }
+  worker.postMessage(msg);
+  return [worker, null];
+}
+
+// handleModuleCall will handle a callModule message sent to the kernel from an
+// extension or webpage.
+function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain: string, isWorker: boolean) {
+  if (!("data" in event.data) || !("module" in event.data.data)) {
+    logErr("moduleCall", "received moduleCall with no module field in the data", event.data);
+    respondErr(event, messagePortal, isWorker, "moduleCall is missing 'module' field: " + JSON.stringify(event.data));
+    return;
+  }
+  if (typeof event.data.data.module !== "string" || event.data.data.module.length != 46) {
+    logErr("moduleCall", "received moduleCall with malformed module");
+    respondErr(event, messagePortal, isWorker, "'module' field in moduleCall is expected to be a base64 skylink");
+    return;
+  }
+  if (!("method" in event.data.data)) {
+    logErr("moduleCall", "received moduleCall without a method set for the module");
+    respondErr(event, messagePortal, isWorker, "no 'data.method' specified, module does not know what method to run");
+    return;
+  }
+  if (typeof event.data.data.method !== "string") {
+    logErr("moduleCall", "recieved moduleCall with malformed method", event.data);
+    respondErr(event, messagePortal, isWorker, "'data.method' needs to be a string");
+    return;
+  }
+  if (event.data.data.method === "presentSeed") {
+    logErr("moduleCall", "received malicious moduleCall - only root is allowed to use presentSeed method");
+    respondErr(event, messagePortal, isWorker, "presentSeed is a priviledged method, only root is allowed to use it");
+    return;
+  }
+  if (!("data" in event.data.data)) {
+    logErr("moduleCall", "received moduleCall with no input for the module");
+    respondErr(event, messagePortal, isWorker, "no field data.data in moduleCall, data.data contains the module input");
+    return;
+  }
+
+  // TODO: Load any overrides.
+  let finalModule = event.data.data.module; // Can change with overrides.
+  let moduleDomain = event.data.data.module; // Does not change with overrides.
+
+  // Define a helper function to create a new query to the module. It will
+  // both open a query on the module and also send an update message to the
+  // caller with the kernel nonce for this query so that the caller can
+  // perform query updates.
+  let newModuleQuery = function (mod: Module) {
+    let [worker, err] = mod.launchWorker();
+    if (err !== null) {
+      let errCtx = addContextToErr(err, "unable to launch worker");
+      logErr("worker", errCtx);
+      respondErr(event, messagePortal, isWorker, errCtx);
+      return;
+    }
+
+    // Get the nonce for this query. The nonce is a
+    // cryptographically secure string derived from a number and
+    // the user's seed. We use 'kernelNonceSalt' as a salt to
+    // namespace the nonces and make sure other processes don't
+    // accidentally end up using the same hashes.
+    let nonceSalt = new TextEncoder().encode("kernelNonceSalt");
+    let [nonceBytes] = encodeU64(BigInt(queriesNonce));
+    let noncePreimage = new Uint8Array(nonceSalt.length + activeSeed.length + nonceBytes.length);
+    noncePreimage.set(nonceSalt, 0);
+    noncePreimage.set(activeSeed, nonceSalt.length);
+    noncePreimage.set(nonceBytes, nonceSalt.length + activeSeed.length);
+    let nonce = bufToB64(sha512(noncePreimage));
+    queriesNonce = queriesNonce + 1;
+    let query: OpenQuery = {
+      isWorker,
+      domain: callerDomain,
+      source: messagePortal,
+      dest: worker,
+      nonce: event.data.nonce,
+      origin: event.origin,
+    };
+    queries[nonce] = query;
+
+    // Send the message to the worker to start the query.
+    worker.postMessage({
+      nonce: nonce,
+      domain: callerDomain,
+      method: event.data.data.method,
+      data: event.data.data.data,
+    });
+
+    // If the caller is asking for the kernel nonce for this query,
+    // send the kernel nonce. We don't always send the kernel nonce
+    // because messages have material overhead.
+    if (event.data.sendKernelNonce === true) {
+      let msg = {
+        nonce: event.data.nonce,
+        method: "responseNonce",
+        data: {
+          nonce,
+        },
+      };
+      if (isWorker) {
+        messagePortal.postMessage(msg);
+      } else {
+        messagePortal.postMessage(msg, event.origin);
+      }
+    }
+  };
+
+  // Check the worker pool to see if this module is already available.
+  if (moduleDomain in modules) {
+    let module = modules[moduleDomain];
+    newModuleQuery(module);
+    return;
+  }
+
+  // Check if another thread is already fetching the module.
+  if (moduleDomain in modulesLoading) {
+    let p = modulesLoading[moduleDomain];
+    p.then((errML: Err) => {
+      if (errML !== null) {
+        respondErr(event, messagePortal, isWorker, addContextToErr(errML, "module could not be loaded"));
+        return;
+      }
+      let module = modules[moduleDomain];
+      newModuleQuery(module);
+    });
+  }
+
+  // Fetch the module in a background thread, and launch the query once the
+  // module is available.
+  let moduleLoadedPromise = new Promise(async (resolve) => {
+    // TODO: Check localStorage for the module.
+
+    // Download the code for the worker.
+    let [moduleData, errDS] = await downloadSkylink(finalModule);
+    if (errDS !== null) {
+      let err = addContextToErr(errDS, "unable to load module");
+      respondErr(event, messagePortal, isWorker, err);
+      resolve(err);
+      delete modulesLoading[moduleDomain];
+      return;
+    }
+
+    // TODO: Save the result to localStorage. Can't do that until
+    // subscriptions are in place so that localStorage can sync
+    // with any updates from the remote module.
+
+    // Create a new module.
+    let module = createModule(moduleData, moduleDomain);
+
+    // Check that some parallel process didn't already create the
+    // module. We only want one module running at a time.
+    if (moduleDomain in modules) {
+      // Though this is an error, we do already have the module so we
+      // use the one we already loaded.
+      logErr("a module that was already loaded has been loaded");
+      notableErrors.push("module loading experienced a race condition");
+      let module = modules[moduleDomain];
+      newModuleQuery(module);
+      resolve(null);
+      return;
+    }
+    modules[moduleDomain] = module;
+    newModuleQuery(module);
+    resolve(null);
+    delete modulesLoading[moduleDomain];
+  });
+  modulesLoading[moduleDomain] = moduleLoadedPromise;
+}
+
+function handleModuleResponse(event: MessageEvent, mod: Module, worker: Worker) {
+  // TODO: Need to figure out what to do with the errors here. Do we call
+  // 'respondErr'? That doesn't seem correct. It's not correct because if we
+  // end a query we need to let both sides know that the query was killed by
+  // the kernel.
+
+  // Technically the caller already computed these values, but it's easier to
+  // compute them again than to pass them as function args.
+  let isQueryUpdate = event.data.method === "queryUpdate";
+  let isResponse = event.data.method === "response";
+
+  // Check that the data field is present.
+  if (!("data" in event.data)) {
+    logErr("worker", mod.domain, "received response or update from worker with no data field");
+    return;
+  }
+
+  // Grab the query information so that we can properly relay the worker
+  // response to the original caller.
+  if (!(event.data.nonce in queries)) {
+    // If there's no corresponding query and this is a response, send an
+    // error.
+    if (isResponse === true) {
+      logErr("worker", mod.domain, "received response for an unknown nonce");
+      return;
+    }
+
+    // If there's no responding query and this isn't a response, it could
+    // just be an accident. queryUpdates and responseUpdates are async and
+    // can therefore be sent before both sides know that a query has been
+    // closed but not get processed untila afterwards.
+    //
+    // This can't happen with a 'response' message because the response
+    // message is the only message that can close the query, and there's
+    // only supposed to be one response message.
+    return;
+  }
+
+  // If the message is a query update, relay the update to the worker.
+  if (isQueryUpdate) {
+    let dest = queries[event.data.nonce].dest;
+    dest.postMessage({
+      nonce: event.data.nonce,
+      method: event.data.method,
+      data: event.data.data,
+    });
+    return;
+  }
+
+  // Check that the err field is being used correctly for response messages.
+  if (isResponse) {
+    // If the worker has sent a response, it means the query is over and
+    // the worker can be terminated.
+    worker.terminate();
+
+    // Check that the err field exists.
+    if (!("err" in event.data)) {
+      logErr("worker", mod.domain, "got response from worker with no err field");
+      return;
+    }
+
+    // Check that exactly one of 'err' and 'data' are null.
+    let errNull = event.data.err === null;
+    let dataNull = event.data.data === null;
+    if (errNull === dataNull) {
+      logErr("worker", mod.domain, "exactly one of err and data must be null");
+      return;
+    }
+  }
+
+  // We are sending either a response message or a responseUpdate message,
+  // all other possibilities have been handled.
+  let sourceIsWorker = queries[event.data.nonce].isWorker;
+  let sourceNonce = queries[event.data.nonce].nonce;
+  let source = queries[event.data.nonce].source;
+  let origin = queries[event.data.nonce].origin;
+  let msg: any = {
+    nonce: sourceNonce,
+    method: event.data.method,
+    data: event.data.data,
+  };
+  // For responses only, set an error and close out the query by deleting it
+  // from the query map.
+  if (isResponse) {
+    msg["err"] = event.data.err;
+    delete queries[event.data.nonce];
+  }
+  if (sourceIsWorker === true) {
+    source.postMessage(msg);
+  } else {
+    source.postMessage(msg, origin);
+  }
+}
+
+function handleQueryUpdate(event: MessageEvent) {
+  // Check that the module still exists before sending a queryUpdate to
+  // the module.
+  if (!(event.data.nonce in queries)) {
+    logErr("auth", "received queryUpdate but nonce is not recognized", event.data, queries);
+    return;
+  }
+  let dest = queries[event.data.nonce].dest;
+  dest.postMessage({
+    nonce: event.data.nonce,
+    method: event.data.method,
+    data: event.data.data,
+  });
+}
+
+export { Module, handleModuleCall, handleModuleResponse, handleQueryUpdate, modules, modulesLoading, queries };
