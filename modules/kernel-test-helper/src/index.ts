@@ -1,7 +1,13 @@
-import { ActiveQuery, addHandler, callModule, getSeed, handleMessage, logErr, objAsString } from "libkmodule"
-
-// Define the testerModule that we use to help coordinate testing.
-const TESTER_MODULE = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
+import {
+	ActiveQuery,
+	addContextToErr,
+	addHandler,
+	callModule,
+	getSeed,
+	handleMessage,
+	logErr,
+	objAsString,
+} from "libkmodule"
 
 // Establish 'onmessage' for the worker, we'll just be using the libkmodule
 // method 'handleMessage' nakedly.
@@ -10,8 +16,15 @@ onmessage = handleMessage
 // Add handlers for all of the methods that the helper supports.
 addHandler("mirrorDomain", handleMirrorDomain)
 addHandler("updateTest", handleUpdateTest, { receiveUpdates: true })
+addHandler("viewErrors", handleViewErrors)
 addHandler("viewSeed", handleViewSeed)
 addHandler("viewTesterSeed", handleViewTesterSeed)
+
+// Define the testerModule that we use to help coordinate testing.
+const TESTER_MODULE = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g"
+
+// Track any errors that come up during the execution of testing.
+let errors: string[] = []
 
 // handleMirrorDomain returns the caller's domain to the caller.
 function handleMirrorDomain(aq: ActiveQuery) {
@@ -82,6 +95,12 @@ function handleUpdateTest(aq: ActiveQuery) {
 	aq.setReceiveUpdate(receiveUpdate)
 }
 
+// handleViewErrors exposes the errors object that accumulates all the errors
+// the module finds throughout testing.
+function handleViewErrors(aq: ActiveQuery) {
+	aq.respond({ errors })
+}
+
 // handle a call to 'viewSeed'. Most modules will not have any sort of support
 // for a function like 'viewSeed', the seed is supposed to be private. But we
 // need to make sure that the seed distribution from the kernel appears to be
@@ -98,6 +117,7 @@ async function handleViewTesterSeed(aq: ActiveQuery) {
 	// Send the call to the tester module.
 	let [resp, err] = await callModule(TESTER_MODULE, "viewSeed", {})
 	if (err !== null) {
+		errors.push(addContextToErr(err, "could not call 'viewSeed' on tester module"))
 		aq.reject(err)
 		return
 	}
@@ -105,6 +125,7 @@ async function handleViewTesterSeed(aq: ActiveQuery) {
 	// Check that the tester module responded with a seed field.
 	if (!("seed" in resp)) {
 		let err = "tester module did not provide seed when 'viewSeed' was called"
+		errors.push(err)
 		aq.reject(err)
 		return
 	}
