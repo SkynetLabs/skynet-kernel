@@ -19,7 +19,7 @@ const DEFAULT_PERSISTENT_MODULES = [
   "AQAPFg2Wdtld0HoVP0sIAQjQlVnXC-KY34WWDxXBLtzfbw", // redsolvers-query-dac
   "AQDETEWOzNYZu5YeOIPhvwpqIn3aL6ghf-ccLpbj3O1EIw", // redsolvers-social-dac
   "AQCSRGL0vey8Nccy_Pqk3fYTMm0y2nE_dK0I8ro8bZyZ3Q", // redsolvers-feed-dac
-  "AQAKn33Pm9WPcm872JuxnRhowH5UA3Mm_hCb6CMT79nQdw", // redsovlers-bridge-dac
+  "AQAKn33Pm9WPcm872JuxnRhowH5UA3Mm_hCb6CMT79nQdw", // redsolvers-bridge-dac
 ];
 
 // WorkerLaunchFn is the type signature of the function that launches the
