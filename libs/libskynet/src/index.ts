@@ -1,3 +1,4 @@
+export { checkObj } from "./checkObj.js";
 export { DICTIONARY_UNIQUE_PREFIX, dictionary } from "./dictionary.js";
 export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js";
 export {

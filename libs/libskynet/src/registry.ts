@@ -62,7 +62,7 @@ function deriveRegistryEntryID(pubkey: Uint8Array, datakey: Uint8Array): [Uint8A
   // determined by the Sia protocol.
   const encoding = new Uint8Array(16 + 8 + 32 + 32);
   // Set the specifier.
-  const algorithm = Array.from("ed25519").map(char => char.charCodeAt(0)); // encode algorithm as uint8
+  const algorithm = Array.from("ed25519").map((char) => char.charCodeAt(0)); // encode algorithm as uint8
   encoding.set(algorithm, 0);
   // Set the pubkey.
   const [encodedLen, errU64] = encodeU64(32n);

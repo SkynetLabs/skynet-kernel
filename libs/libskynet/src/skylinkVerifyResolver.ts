@@ -1,60 +1,58 @@
+import { checkObj } from "./checkObj.js";
 import { b64ToBuf, hexToBuf } from "./encoding.js";
 import { addContextToErr } from "./err.js";
 import { objAsString } from "./objAsString.js";
 import { deriveRegistryEntryID, verifyRegistrySignature } from "./registry.js";
-import { parseSkylinkBitfield } from "./skylinkbitfield.js";
-import { validSkylink } from "./skylinkvalidate.js";
+import { parseSkylinkBitfield } from "./skylinkBitfield.js";
+import { validSkylink } from "./skylinkValidate.js";
 
 // verifyResolverLinkProof will check that the given resolver proof matches the
 // provided skylink. If the proof is correct and the signature matches, the
 // data will be returned. The returned link will be a verified skylink.
+//
+// The input type for 'proof' is 'any' because it is an untrusted input that
+// was decoded from JSON.
 function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, string | null] {
   // Verify the presented skylink is formatted correctly.
   if (skylink.length !== 34) {
     return [new Uint8Array(0), "skylink is malformed, expecting 34 bytes"];
   }
 
-  // Verify that all of the required fields are present in the proof.
-  if (
-    !("data" in proof) ||
-    !("datakey" in proof) ||
-    !("publickey" in proof) ||
-    !("signature" in proof) ||
-    !("type" in proof) ||
-    !("revision" in proof)
-  ) {
-    return [new Uint8Array(0), "proof is malformed, fields are missing"];
+  // Verify that all of the fields are present and have the correct type.
+  const errCI1 = checkObj(proof, [
+    ["data", "string"],
+    ["dataKey", "string"],
+    ["publickey", "object"],
+    ["signature", "string"],
+    ["type", "bigint"],
+    ["revision", "bigint"],
+  ]);
+  if (errCI1 !== null) {
+    return [new Uint8Array(0), addContextToErr(errCI1, "proof is not valid")];
   }
-  if (!("algorithm" in proof.publickey) || !("key" in proof.publickey)) {
-    return [new Uint8Array(0), "pubkey is malformed"];
+  const errCI2 = checkObj(proof.publickey, [
+    ["algorithm", "string"],
+    ["key", "string"],
+  ]);
+  if (errCI2 !== null) {
+    return [new Uint8Array(0), addContextToErr(errCI2, "proof is not valid")];
   }
 
-  // Verify the typing of the fields.
-  if (typeof proof.data !== "string") {
-    return [new Uint8Array(0), "data is malformed"];
-  }
-  const dataStr = <string>proof.data;
-  if (typeof proof.datakey !== "string") {
-    return [new Uint8Array(0), "datakey is malformed"];
-  }
-  const datakeyStr = <string>proof.datakey;
+  // Check that the type and algorithm have the expected values, as only one
+  // value for each is considered valid.
   if (proof.publickey.algorithm !== "ed25519") {
     return [new Uint8Array(0), "pubkey has unrecognized algorithm"];
-  }
-  if (typeof proof.publickey.key !== "string") {
-    return [new Uint8Array(0), "pubkey key is malformed"];
-  }
-  const pubkeyStr = <string>proof.publickey.key;
-  if (typeof proof.signature !== "string") {
-    return [new Uint8Array(0), "signature is malformed"];
   }
   if (proof.type !== 1n) {
     return [new Uint8Array(0), "registry entry has unrecognized type: " + objAsString(proof.type)];
   }
+
+  // Now that we've confirmed all the typings are correct, pull them out into
+  // variables that will be easier to work with.
+  const dataStr = <string>proof.data;
+  const datakeyStr = <string>proof.datakey;
+  const pubkeyStr = <string>proof.publickey.key;
   const sigStr = <string>proof.signature;
-  if (typeof proof.revision !== "bigint") {
-    return [new Uint8Array(0), "revision is malformed"];
-  }
   const revision = <bigint>proof.revision;
 
   // Decode all of the fields. They are presented in varied types and

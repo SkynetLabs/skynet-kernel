@@ -25,8 +25,7 @@ import { SHA512_HASH_SIZE, sha512 } from "./sha512.js";
 // encryption schemes. Please avoid using this function unless you have a
 // strong understanding of encryption techniques and typical encryption
 // attacks.
-function otpEncrypt(key: Uint8Array, data: Uint8Array, skip: number = 0): Uint8Array {
-
+function otpEncrypt(key: Uint8Array, data: Uint8Array, skip = 0): Uint8Array {
   // Build an array to hold the preimage for each step of encryption. We are
   // just going to be altering the final 8 bytes as we encrypt the file.
   const preimageHolder = new Uint8Array(key.length + 8);

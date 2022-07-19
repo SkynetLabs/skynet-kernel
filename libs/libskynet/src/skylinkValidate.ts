@@ -1,6 +1,6 @@
 import { addContextToErr } from "./err.js";
 import { b64ToBuf } from "./encoding.js";
-import { parseSkylinkBitfield } from "./skylinkbitfield.js";
+import { parseSkylinkBitfield } from "./skylinkBitfield.js";
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
 // file in a skylink.
