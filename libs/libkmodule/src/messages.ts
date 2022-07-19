@@ -8,7 +8,7 @@ import {
 	handleResponseUpdate,
 } from "./queries.js"
 import { handlePresentSeed } from "./seed.js"
-import { addContextToErr, dataFn, errFn, objAsString } from "libskynet"
+import { DataFn, ErrFn, addContextToErr, objAsString } from "libskynet"
 
 // handlerFn takes an ActiveQuery as input and has no return value. The return
 // is expected to come in the form of calling aq.accept or aq.reject.
@@ -25,8 +25,8 @@ interface ActiveQuery {
 	// accept and reject are functions that will send response messages
 	// that close out the query. accept can take an arbitrary object as
 	// input, reject should always be a string.
-	respond: dataFn
-	reject: errFn
+	respond: DataFn
+	reject: ErrFn
 
 	// domain is a field provided by the kernel that informs the module who
 	// the caller is. The module can use the domain to make access control
@@ -36,13 +36,13 @@ interface ActiveQuery {
 
 	// sendUpdate is used for sending responseUpdate messages to the
 	// caller. These messages can contain arbitrary information.
-	sendUpdate: dataFn
+	sendUpdate: DataFn
 
 	// setReceiveUpdate is part of a handshake that needs to be performed
 	// to receive queryUpdates from the caller. It is a function that takes
 	// another function as input. The function provided as input is the
 	// function that will be called to process incoming queryUpdates.
-	setReceiveUpdate?: (receiveUpdate: dataFn) => void
+	setReceiveUpdate?: (receiveUpdate: DataFn) => void
 }
 
 // addHandlerOptions defines the set of possible options that can be provided
@@ -240,4 +240,4 @@ function respondErr(event: MessageEvent, err: string) {
 	clearIncomingQuery(event.data.nonce)
 }
 
-export { ActiveQuery, addHandler, dataFn, handleMessage }
+export { ActiveQuery, addHandler, DataFn, handleMessage }

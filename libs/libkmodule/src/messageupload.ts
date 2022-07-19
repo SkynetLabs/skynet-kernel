@@ -1,5 +1,5 @@
 import { callModule } from "./queries.js"
-import { addContextToErr, error } from "libskynet"
+import { Err, addContextToErr } from "libskynet"
 
 // upload will take a filename and some file data and perform a secure upload
 // to Skynet. All data is verified and the correct Skylink is returned. This
@@ -8,7 +8,7 @@ import { addContextToErr, error } from "libskynet"
 // upload.
 //
 // The return value is a skylink and an error.
-function upload(filename: string, fileData: Uint8Array): Promise<[skylink: string, err: error]> {
+function upload(filename: string, fileData: Uint8Array): Promise<[skylink: string, err: Err]> {
 	return new Promise((resolve) => {
 		// Build the module call.
 		let uploadModule = "AQAT_a0MzOInZoJzt1CwBM2U8oQ3GIfP5yKKJu8Un-SfNg"

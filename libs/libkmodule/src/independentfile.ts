@@ -43,7 +43,7 @@ import {
 	encodeU64,
 	encryptFileSmall,
 	entryIDToSkylink,
-	error,
+	Err,
 	namespaceInode,
 	skylinkToResolverEntryData,
 	taggedRegistryEntryKeys,
@@ -55,7 +55,7 @@ const STD_FILENAME = "file"
 
 // OverwriteDataFn is the function signature for calling 'overwriteData' on an
 // IndependentFile.
-type OverwriteDataFn = (newData: Uint8Array) => Promise<error>
+type OverwriteDataFn = (newData: Uint8Array) => Promise<Err>
 
 // ReadDataFn defines the function signature for calling 'readData' on an
 // indepdendentFile.
@@ -63,7 +63,7 @@ type OverwriteDataFn = (newData: Uint8Array) => Promise<error>
 // NOTE: When implementing a full sized independent file, the 'readData'
 // function should either return an error or return the full file. To do
 // partial reads, use/implement the function 'read'.
-type ReadDataFn = () => Promise<[Uint8Array, error]>
+type ReadDataFn = () => Promise<[Uint8Array, Err]>
 
 // IndependentFileMetadataSmall defines the established metadata for an
 // IndependentFile. The metadata is not allowed to be adjusted because we want
@@ -142,7 +142,7 @@ function createIndependentFileSmall(
 	seed: Uint8Array,
 	userInode: string,
 	fileData: Uint8Array
-): Promise<[IndependentFileSmall, error]> {
+): Promise<[IndependentFileSmall, Err]> {
 	return new Promise(async (resolve) => {
 		// Namespace the inode so that inodes created by the user using
 		// different filetypes cannot be accessed by calling the wrong
@@ -249,10 +249,10 @@ function createIndependentFileSmall(
 			skylink,
 			viewKey,
 
-			overwriteData: function (newData: Uint8Array): Promise<error> {
+			overwriteData: function (newData: Uint8Array): Promise<Err> {
 				return overwriteIndependentFileSmall(ifile, newData)
 			},
-			readData: function (): Promise<[Uint8Array, error]> {
+			readData: function (): Promise<[Uint8Array, Err]> {
 				return new Promise((resolve) => {
 					let data = new Uint8Array(ifile.fileData.length)
 					data.set(ifile.fileData, 0)
@@ -266,7 +266,7 @@ function createIndependentFileSmall(
 
 // openIndependentFileSmall is used to open an already existing independent file. If
 // one does not exist, an error will be returned.
-function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<[IndependentFileSmall, error]> {
+function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<[IndependentFileSmall, Err]> {
 	return new Promise(async (resolve) => {
 		// Namespace the inode so that inodes created by the user using
 		// different filetypes cannot be accessed by calling the wrong
@@ -340,11 +340,11 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 
 			// overwriteData will replace the fileData with the provided
 			// newData.
-			overwriteData: function (newData: Uint8Array): Promise<error> {
+			overwriteData: function (newData: Uint8Array): Promise<Err> {
 				return overwriteIndependentFileSmall(ifile, newData)
 			},
 			// readData will return the data contained in the file.
-			readData: function (): Promise<[Uint8Array, error]> {
+			readData: function (): Promise<[Uint8Array, Err]> {
 				return new Promise((resolve) => {
 					let data = new Uint8Array(ifile.fileData.length)
 					data.set(ifile.fileData, 0)
@@ -359,7 +359,7 @@ function openIndependentFileSmall(seed: Uint8Array, userInode: string): Promise<
 // viewIndependentFileSmall creates a viewer object that allows the caller to
 // download and decrypt the file. The file cannot be updated using this
 // function.
-function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[IndependentFileSmallViewer, error]> {
+function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[IndependentFileSmallViewer, Err]> {
 	return new Promise(async (resolve) => {
 		// Download the file to load the metadata and file data.
 		let [encryptedData, errD] = await download(skylink)
@@ -388,7 +388,7 @@ function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[In
 			viewKey,
 
 			// readData will return the data contained in the file.
-			readData: function (): Promise<[Uint8Array, error]> {
+			readData: function (): Promise<[Uint8Array, Err]> {
 				return new Promise((resolve) => {
 					let data = new Uint8Array(ifile.fileData.length)
 					data.set(ifile.fileData, 0)
@@ -405,7 +405,7 @@ function viewIndependentFileSmall(skylink: string, viewKey: string): Promise<[In
 //
 // NOTE: This function is not thread safe, it should only be called by one
 // process at a time.
-function overwriteIndependentFileSmall(file: IndependentFileSmall, newData: Uint8Array): Promise<error> {
+function overwriteIndependentFileSmall(file: IndependentFileSmall, newData: Uint8Array): Promise<Err> {
 	return new Promise(async (resolve) => {
 		// Create a new metadata for the file based on the current file
 		// metadata. Need to update the largest historic size.

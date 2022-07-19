@@ -1,20 +1,20 @@
 import { log, logErr } from "./log.js"
-import { dataFn } from "./messages.js"
-import { errTuple, objAsString } from "libskynet"
+import { DataFn } from "./messages.js"
+import { ErrTuple, objAsString } from "libskynet"
 
 // queryResolve defines the function that gets called to resolve a query. It's
 // the 'resolve' field of a promise that returns a tuple containing some data
 // and an err.
-type queryResolve = (et: errTuple) => void
+type queryResolve = (et: ErrTuple) => void
 
 // queryMap defines the type for the queries map, which maps a nonce to the
 // outgoing query that the module made.
 interface queryMap {
 	[nonce: number]: {
 		resolve: queryResolve
-		receiveUpdate?: dataFn
+		receiveUpdate?: DataFn
 		kernelNonce?: number
-		kernelNonceReceived?: dataFn
+		kernelNonceReceived?: DataFn
 	}
 }
 
@@ -26,7 +26,7 @@ interface queryMap {
 // blockForReceiveUpdate is a promise that will be resolved once the
 // receiveUpdate function has been set.
 interface incomingQueryMap {
-	[nonce: string]: Promise<dataFn>
+	[nonce: string]: Promise<DataFn>
 }
 
 // queries is an object that tracks outgoing queries to the kernel. When making
@@ -62,17 +62,17 @@ function clearIncomingQuery(nonce: number) {
 // be called to set the receiveUpdate function for the current query. All
 // queryUpdate messages that get received will block until setReceiveUpdate has
 // been called.
-function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: dataFn) => void {
+function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: DataFn) => void {
 	// Create the promise that allows us to block until the handler has
 	// provided us its receiveUpdate function.
-	let updateReceived: dataFn
-	let blockForReceiveUpdate: Promise<dataFn> = new Promise((resolve) => {
+	let updateReceived: DataFn
+	let blockForReceiveUpdate: Promise<DataFn> = new Promise((resolve) => {
 		updateReceived = resolve
 	})
 
 	// Add the blockForReceiveUpdate object to the queryUpdateRouter.
 	incomingQueries[event.data.nonce] = blockForReceiveUpdate
-	return function (receiveUpdate: dataFn) {
+	return function (receiveUpdate: DataFn) {
 		updateReceived(receiveUpdate)
 	}
 }
@@ -174,7 +174,7 @@ function handleResponseUpdate(event: MessageEvent) {
 // support for handling queryUpdate or responseUpdate messages - they will be
 // ignored if received. If you need those messages, use 'connectModule'
 // instead.
-function callModule(module: string, method: string, data?: any): Promise<errTuple> {
+function callModule(module: string, method: string, data?: any): Promise<ErrTuple> {
 	let moduleCallData = {
 		module,
 		method,
@@ -222,8 +222,8 @@ function connectModule(
 	module: string,
 	method: string,
 	data: any,
-	receiveUpdate: dataFn
-): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	receiveUpdate: DataFn
+): [sendUpdate: DataFn, response: Promise<ErrTuple>] {
 	let moduleCallData = {
 		module,
 		method,
@@ -255,19 +255,19 @@ function newKernelQuery(
 	method: string,
 	data: any,
 	sendUpdates: boolean,
-	receiveUpdate?: dataFn
-): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	receiveUpdate?: DataFn
+): [sendUpdate: DataFn, response: Promise<ErrTuple>] {
 	// Get the nonce for the query.
 	let nonce = queriesNonce
 	queriesNonce += 1
 
 	// Create the sendUpdate function, which allows the caller to send a
 	// queryUpdate. The update cannot actually be sent until the kernel has told us the responseNonce
-	let sendUpdate: dataFn = () => {}
+	let sendUpdate: DataFn = () => {}
 
 	// Establish the query in the queries map and then send the query to the
 	// kernel.
-	let p: Promise<errTuple> = new Promise((resolve) => {
+	let p: Promise<ErrTuple> = new Promise((resolve) => {
 		queries[nonce] = { resolve }
 	})
 	if (receiveUpdate !== null && receiveUpdate !== undefined) {
@@ -281,6 +281,12 @@ function newKernelQuery(
 		})
 		sendUpdate = function (updateData: any) {
 			blockForKernelNonce.then(() => {
+				// It's possible that the query was already closed and deleted from
+				// the queries map, so we need an existence check before completing
+				// the postMessage call.
+				if (!(nonce in queries)) {
+					return
+				}
 				postMessage({
 					method: "queryUpdate",
 					nonce: queries[nonce].kernelNonce,
