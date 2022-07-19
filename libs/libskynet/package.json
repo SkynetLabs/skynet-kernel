@@ -1,6 +1,6 @@
 {
 	"name": "libskynet",
-	"version": "0.0.61",
+	"version": "0.0.62",
 	"author": "Skynet Labs",
 	"description": "helper library to interact with skynet's low level primitives",
 	"main": "dist/index.js",
