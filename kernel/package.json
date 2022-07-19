@@ -5,7 +5,7 @@
   "author": "David Vorick",
   "license": "MIT",
   "type": "module",
-  "main": "kernel.js",
+  "main": "index.js",
   "scripts": {
     "deps": "npm install libskynet@latest && npm install libkmodule@latest",
     "prettier": "prettier --write .",

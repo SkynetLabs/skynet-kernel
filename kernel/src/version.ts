@@ -6,6 +6,6 @@
 // At some point we may want something like a capabilities array, but the
 // ecosystem isn't mature enough to need that.
 const KERNEL_DISTRO = "SkynetLabs";
-const KERNEL_VERSION = "0.9.0";
+const KERNEL_VERSION = "0.9.1";
 
 export { KERNEL_DISTRO, KERNEL_VERSION };

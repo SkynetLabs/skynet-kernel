@@ -5,6 +5,23 @@ import { KERNEL_DISTRO, KERNEL_VERSION } from "./version.js";
 import { Err, addContextToErr, bufToB64, downloadSkylink, encodeU64, objAsString, sha512 } from "libskynet";
 import { moduleQuery, presentSeedData } from "libkmodule";
 
+// DEFAULT_PERSISTENT_MODULES defines the set of modules that are allowed to
+// process all queries using a single webworker, rather than have each query
+// get a dedicated webworker.
+//
+// This is a temporary work-around until the 'getSetObject' part of the SDK has
+// been more fully built out.
+const DEFAULT_PERSISTENT_MODULES = [
+  "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA", // kernel-test-helper
+  "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g", // kernel-test-suite
+  "AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ", // redsolvers-identity-dac
+  "AQAXZpiIGQFT3lKGVwb8TAX3WymVsrM_LZ-A9cZzYNHWCw", // redsolvers-profile-dac
+  "AQAPFg2Wdtld0HoVP0sIAQjQlVnXC-KY34WWDxXBLtzfbw", // redsolvers-query-dac
+  "AQDETEWOzNYZu5YeOIPhvwpqIn3aL6ghf-ccLpbj3O1EIw", // redsolvers-social-dac
+  "AQCSRGL0vey8Nccy_Pqk3fYTMm0y2nE_dK0I8ro8bZyZ3Q", // redsolvers-feed-dac
+  "AQAKn33Pm9WPcm872JuxnRhowH5UA3Mm_hCb6CMT79nQdw", // redsovlers-bridge-dac
+];
+
 // WorkerLaunchFn is the type signature of the function that launches the
 // worker to set up for processing a query.
 type WorkerLaunchFn = () => [Worker, Err];
@@ -19,6 +36,12 @@ interface Module {
   domain: string;
   url: string;
   launchWorker: WorkerLaunchFn;
+
+  // isPersistent indicates whether we keep the worker around after processing
+  // a query. If it is set to false, worker will be undefined. If set to true,
+  // the worker will be the worker that should be used to process a query.
+  isPersistent: boolean;
+  worker?: Worker;
 }
 
 // OpenQuery holds all of the information necessary for managing an open query.
@@ -147,7 +170,7 @@ function handleWorkerMessage(event: MessageEvent, mod: Module, worker: Worker) {
 
 // createModule will create a module from the provided worker code and domain.
 // This call does not launch the worker, that should be done separately.
-function createModule(workerCode: Uint8Array, domain: string): Module {
+function createModule(workerCode: Uint8Array, domain: string): [Module, Err] {
   // Generate the URL for the worker code.
   let url = URL.createObjectURL(new Blob([workerCode]));
 
@@ -155,12 +178,26 @@ function createModule(workerCode: Uint8Array, domain: string): Module {
   let mod: Module = {
     domain,
     url,
-
     launchWorker: function (): [Worker, Err] {
       return launchWorker(mod);
     },
+
+    isPersistent: false,
   };
-  return mod;
+
+  // Check whether the worker is supposed to be persistent.
+  for (let i = 0; i < DEFAULT_PERSISTENT_MODULES.length; i++) {
+    if (domain === DEFAULT_PERSISTENT_MODULES[i]) {
+      mod.isPersistent = true;
+      let [worker, err] = mod.launchWorker();
+      if (err !== null) {
+        return [{} as Module, addContextToErr(err, "unable to launch persistent worker")];
+      }
+      mod.worker = worker;
+      return [mod, null];
+    }
+  }
+  return [mod, null];
 }
 
 // launchWorker will launch a worker and perform all the setup so that the
@@ -251,12 +288,18 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
   // caller with the kernel nonce for this query so that the caller can
   // perform query updates.
   let newModuleQuery = function (mod: Module) {
-    let [worker, err] = mod.launchWorker();
-    if (err !== null) {
-      let errCtx = addContextToErr(err, "unable to launch worker");
-      logErr("worker", errCtx);
-      respondErr(event, messagePortal, isWorker, errCtx);
-      return;
+    let worker: Worker;
+    if (mod.isPersistent) {
+      worker = mod.worker!;
+    } else {
+      let [newWorker, err] = mod.launchWorker();
+      if (err !== null) {
+        let errCtx = addContextToErr(err, "unable to launch worker");
+        logErr("worker", errCtx);
+        respondErr(event, messagePortal, isWorker, errCtx);
+        return;
+      }
+      worker = newWorker;
     }
 
     // Get the nonce for this query. The nonce is a
@@ -349,7 +392,14 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
     // with any updates from the remote module.
 
     // Create a new module.
-    let module = createModule(moduleData, moduleDomain);
+    let [mod, errCM] = createModule(moduleData, moduleDomain);
+    if (errCM !== null) {
+      let err = addContextToErr(errCM, "unable to create module");
+      respondErr(event, messagePortal, isWorker, err);
+      resolve(err);
+      delete modulesLoading[moduleDomain];
+      return;
+    }
 
     // Check that some parallel process didn't already create the
     // module. We only want one module running at a time.
@@ -358,13 +408,13 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
       // use the one we already loaded.
       logErr("a module that was already loaded has been loaded");
       notableErrors.push("module loading experienced a race condition");
-      let module = modules[moduleDomain];
-      newModuleQuery(module);
+      let mod = modules[moduleDomain];
+      newModuleQuery(mod);
       resolve(null);
       return;
     }
-    modules[moduleDomain] = module;
-    newModuleQuery(module);
+    modules[moduleDomain] = mod;
+    newModuleQuery(mod);
     resolve(null);
     delete modulesLoading[moduleDomain];
   });
@@ -422,9 +472,12 @@ function handleModuleResponse(event: MessageEvent, mod: Module, worker: Worker) 
 
   // Check that the err field is being used correctly for response messages.
   if (isResponse) {
-    // If the worker has sent a response, it means the query is over and
-    // the worker can be terminated.
-    worker.terminate();
+    // If the worker has sent a response, it means the query is over and the
+    // worker can be terminated. We don't however terminate the persistent
+    // workers.
+    if (mod.isPersistent !== true) {
+      worker.terminate();
+    }
 
     // Check that the err field exists.
     if (!("err" in event.data)) {

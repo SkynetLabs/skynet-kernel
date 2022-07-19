@@ -2,9 +2,9 @@ import resolve from "@rollup/plugin-node-resolve";
 import { terser } from "rollup-plugin-terser";
 
 export default {
-  input: "build/kernel.js",
+  input: "build/index.js",
   output: {
-    file: "build/kernel.js",
+    file: "dist/index.js",
     format: "cjs",
   },
   plugins: [resolve(), terser()],

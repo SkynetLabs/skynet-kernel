@@ -39,6 +39,9 @@ let helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA"
 // behaving correctly. Most modules can skip all of these checks because the
 // kernel does guarantee that these fields will be correct.
 onmessage = function (event: MessageEvent) {
+	// Record that we have received a message.
+	messageCount += 1
+
 	// Check that the kernel included a method in the message.
 	//
 	// NOTE: A typical kernel module does not need to check that event.data
@@ -125,10 +128,11 @@ addHandler("testLogging", handleTestLogging)
 addHandler("testerMirrorDomain", handleTesterMirrorDomain)
 addHandler("testResponseUpdate", handleTestResponseUpdate)
 addHandler("updateTest", handleUpdateTest)
+addHandler("viewErrors", handleViewErrors)
 addHandler("viewHelperSeed", handleViewHelperSeed)
+addHandler("viewMessageCount", handleViewMessageCount)
 addHandler("viewSeed", handleViewSeed)
 addHandler("viewOwnSeedThroughHelper", handleViewOwnSeedThroughHelper)
-addHandler("viewErrors", handleViewErrors)
 
 // Set up a list of errors that can be queried by a caller. This is a long
 // running list of errors that will grow over time as errors are encountered.
@@ -140,6 +144,11 @@ addHandler("viewErrors", handleViewErrors)
 // kernel is dropping logging messages or is having other problems that will
 // cause errors to be silently missed within the test suite.
 let errors: string[] = []
+
+// messageCount tracks the total number of messages that have been sent to the
+// module. This is to test whether the module is correctly maintaining
+// permanence when being called.
+let messageCount = 0
 
 // handlePresentSeedExtraChecks processes a 'presentSeed' method from the
 // kernel. We perform extra checks that a normal module would not need to
@@ -302,7 +311,8 @@ function handleTestCORS(activeQuery: ActiveQuery) {
 // NOTE: You can tell the child worker is dead because the CPU is not being
 // consumed.
 function handleTestChildWorkersDie(aq: ActiveQuery) {
-	// Create the code for a new worker.
+	// Create the code code for a new worker, then transform the code into a
+	// URL, then launch the worker.
 	let workerCode = new TextEncoder().encode(`
 // Perform an expensive CPU operation repeatedly.
 let num = 12345
@@ -314,18 +324,7 @@ for (let i = 0; i < 1000 * 1000 * 1000 * 1000; i++) {
 }
 `)
 	let url = URL.createObjectURL(new Blob([workerCode]))
-	let worker = new Worker(url)
-	/*
-	// Call the helper module and have it burn CPU. Wait for five seconds, and
-	// then accept the query as a success. The kernel should terminate this
-	// worker, and that should cause the child worker to be terminated too.
-	callModule(helperModule, "burnCPU", {})
-	if (err !== null) {
-		errors.push(err)
-		activeQuery.reject(err)
-		return
-	}
-*/
+	new Worker(url)
 
 	// Wait 5 seconds, and then repsond to the query, which will terminate the
 	// query. Hopefully the worker
@@ -643,6 +642,13 @@ async function handleViewHelperSeed(activeQuery: ActiveQuery) {
 		return
 	}
 	activeQuery.respond({ message: "(success) helper seed does not match tester seed" })
+}
+
+// handleViewMessageCount will report the total number of messages that the
+// module has received. This number should be high if the full test suite is
+// running and the module is being kept as a permanent worker.
+async function handleViewMessageCount(aq: ActiveQuery) {
+	aq.respond({ messageCount })
 }
 
 // handleViewSeed responds to a query asking to see the specific seed for the
