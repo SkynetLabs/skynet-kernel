@@ -1,9 +1,9 @@
 import { log, logErr } from "./log.js"
-import { bufToB64, dataFn, encodeU64, error, errTuple } from "libskynet"
+import { DataFn, Err, ErrTuple, bufToB64, encodeU64 } from "libskynet"
 
-// queryResolve is the 'resolve' value of a promise that returns an errTuple.
+// queryResolve is the 'resolve' value of a promise that returns an ErrTuple.
 // It gets called when a query sends a 'response' message.
-type queryResolve = (er: errTuple) => void
+type queryResolve = (er: ErrTuple) => void
 
 // queryMap is a hashmap that maps a nonce to an open query. 'resolve' gets
 // called when a response has been provided for the query.
@@ -19,8 +19,8 @@ type queryResolve = (er: errTuple) => void
 interface queryMap {
 	[nonce: string]: {
 		resolve: queryResolve
-		receiveUpdate?: dataFn
-		kernelNonceReceived?: dataFn
+		receiveUpdate?: DataFn
+		kernelNonceReceived?: DataFn
 	}
 }
 
@@ -219,7 +219,7 @@ function messageBridge() {
 	// Establish the function that will handle the bridge's response.
 	let bridgeInitComplete = false
 	let bridgeResolve: queryResolve = () => {} // Need to set bridgeResolve here to make tsc happy
-	let p: Promise<errTuple> = new Promise((resolve) => {
+	let p: Promise<ErrTuple> = new Promise((resolve) => {
 		bridgeResolve = resolve
 	})
 	p.then(([, err]) => {
@@ -285,14 +285,14 @@ function messageBridge() {
 // thanks to the 'initialized' variable.
 let initialized = false // set to true once 'init()' has been called
 let initResolved = false // set to true once we know the bootloader is working
-let initResolve: dataFn
+let initResolve: DataFn
 let initPromise: Promise<void>
 let loginResolved = false // set to true once we know the user is logged in
 let loginResolve: () => void
 let loginPromise: Promise<void>
 let kernelLoadedResolved = false // set to true once the user kernel is loaded
-let kernelLoadedResolve: (err: error) => void
-let kernelLoadedPromise: Promise<error>
+let kernelLoadedResolve: (err: Err) => void
+let kernelLoadedPromise: Promise<Err>
 let logoutResolved = false // set to true once the user is logged out
 let logoutResolve: () => void
 let logoutPromise: Promise<void>
@@ -336,13 +336,13 @@ function init(): Promise<void> {
 // module identifier (typically a skylink), the second input is the method
 // being called on the module, and the final input is optional and contains
 // input data to be passed to the module. The input data will depend on the
-// module and the method that is being called. The return value is an errTuple
+// module and the method that is being called. The return value is an ErrTuple
 // that contains the module's response. The format of the response is an
 // arbitrary object whose fields depend on the module and method being called.
 //
 // callModule can only be used for query-response communication, there is no
 // support for sending or receiving updates.
-function callModule(module: string, method: string, data?: any): Promise<errTuple> {
+function callModule(module: string, method: string, data?: any): Promise<ErrTuple> {
 	let moduleCallData = {
 		module,
 		method,
@@ -368,15 +368,15 @@ function callModule(module: string, method: string, data?: any): Promise<errTupl
 // as the receiveUpdate function, it's an arbitrary object whose fields depend
 // on the module and method being queried.
 //
-// The second return value is a promise that returns an errTuple. It will
+// The second return value is a promise that returns an ErrTuple. It will
 // resolve when the module sends a response message, and works the same as the
 // return value of callModule.
 function connectModule(
 	module: string,
 	method: string,
 	data: any,
-	receiveUpdate: dataFn
-): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	receiveUpdate: DataFn
+): [sendUpdate: DataFn, response: Promise<ErrTuple>] {
 	let moduleCallData = {
 		module,
 		method,
@@ -405,8 +405,8 @@ function newKernelQuery(
 	method: string,
 	data: any,
 	sendUpdates: boolean,
-	receiveUpdate?: dataFn
-): [sendUpdate: dataFn, response: Promise<errTuple>] {
+	receiveUpdate?: DataFn
+): [sendUpdate: DataFn, response: Promise<ErrTuple>] {
 	// NOTE: The implementation here is gnarly, because I didn't want to use
 	// async/await (that decision should be left to the caller) and I also
 	// wanted this function to work correctly even if init() had not been
@@ -459,7 +459,7 @@ function newKernelQuery(
 	// returned to the caller of newKernelQuery and will be resolved when the
 	// kernel provides a 'response' message. The other is for internal use and
 	// will resolve once the query has been created.
-	let p!: Promise<errTuple>
+	let p!: Promise<ErrTuple>
 	let haveQueryCreated: Promise<string> = new Promise((queryCreatedResolve) => {
 		p = new Promise((resolve) => {
 			getNonce.then((nonce: string) => {
@@ -475,7 +475,7 @@ function newKernelQuery(
 	// Create a promise that will be resolved once we are ready to receive the
 	// kernelNonce. We won't be ready to receive the kernel nonce until after
 	// the queries[nonce] object has been created.
-	let readyForKernelNonce!: dataFn
+	let readyForKernelNonce!: DataFn
 	let getReadyForKernelNonce: Promise<void> = new Promise((resolve) => {
 		readyForKernelNonce = resolve
 	})
@@ -483,7 +483,7 @@ function newKernelQuery(
 	// sendUpdate function is ready to receive the kernelNonce, resolve the
 	// promise that blocks until the sendUpdate function is ready to receive
 	// the kernel nonce.
-	let sendUpdate: dataFn
+	let sendUpdate: DataFn
 	if (sendUpdates !== true) {
 		sendUpdate = () => {}
 		readyForKernelNonce() // We won't get a kernel nonce, no reason to block.

@@ -1,10 +1,10 @@
 import { callModule } from "./queries.js"
-import { addContextToErr, error } from "libskynet"
+import { addContextToErr, Err } from "libskynet"
 
 // download will take a skylink and return the file data for that skylink. The
 // download occurs using a kernel module that verifies the data's integrity and
 // prevents the portal from lying about the download.
-function download(skylink: string): Promise<[Uint8Array, error]> {
+function download(skylink: string): Promise<[Uint8Array, Err]> {
 	return new Promise((resolve) => {
 		let downloadModule = "AQCIaQ0P-r6FwPEDq3auCZiuH_jqrHfqRcY7TjZ136Z_Yw"
 		let data = {

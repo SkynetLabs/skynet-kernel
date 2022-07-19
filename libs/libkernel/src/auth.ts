@@ -1,5 +1,5 @@
 import { init, kernelAuthLocation, kernelLoadedPromise, loginPromise, logoutPromise } from "./queries.js"
-import { error } from "libskynet"
+import { Err } from "libskynet"
 
 // There are 5 stages of auth.
 //
@@ -34,7 +34,7 @@ function loginComplete(): Promise<void> {
 // If there was an error in loading the kernel, the error will be returned.
 //
 // NOTE: kernelLoaded will not resolve until after loginComplete has resolved.
-function kernelLoaded(): Promise<error> {
+function kernelLoaded(): Promise<Err> {
 	return kernelLoadedPromise
 }
 

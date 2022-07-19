@@ -1,5 +1,5 @@
 import { callModule } from "./queries.js"
-import { addContextToErr, ed25519Keypair, error } from "libskynet"
+import { Ed25519Keypair, Err, addContextToErr } from "libskynet"
 
 interface registryReadResult {
 	exists: boolean
@@ -14,7 +14,7 @@ interface registryReadResult {
 // registryRead returns the full registry entry object provided by the module
 // because the object is relatively complex and all of the fields are more or
 // less required.
-function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[registryReadResult, error]> {
+function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[registryReadResult, Err]> {
 	return new Promise((resolve) => {
 		let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
 		let data = {
@@ -44,11 +44,11 @@ function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[regi
 // misuse registryWrite such that user data will be lost. We recommend using a
 // safe set of functions for writing to the registry such as getsetjson.
 function registryWrite(
-	keypair: ed25519Keypair,
+	keypair: Ed25519Keypair,
 	dataKey: Uint8Array,
 	entryData: Uint8Array,
 	revision: BigInt
-): Promise<[string, error]> {
+): Promise<[string, Err]> {
 	return new Promise((resolve) => {
 		let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
 		let callData = {
