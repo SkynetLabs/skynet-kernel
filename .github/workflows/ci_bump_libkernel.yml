@@ -1,0 +1,35 @@
+name: "CI - Bump libkernel"
+
+on:
+  workflow_dispatch:
+    # Inputs the workflow accepts.
+    inputs:
+      version:
+        # Friendly description to be shown in the UI instead of 'name'
+        description: "Semver type of new version (major / minor / patch)"
+        # Input has to be provided for the workflow to run
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+defaults:
+  run:
+    working-directory: "libs/libkernel"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      steps:
+        - uses: actions/checkout@v3
+        - name: "NPM Version Publish"
+          id: version
+          uses: "SkynetLabs/.github/.github/actions/npm-version-publish@marcins/sky-1032-add-shared-workflow-for-npm-publish"
+          with:
+            github-token: ${{ secrets.GITHUB_TOKEN }}
+            npm-token: ${{ secrets.NPM_TOKEN }}
+            version-bump: ${{ github.event.inputs.version }}
+            tag-prefix: "libkernel-v"
