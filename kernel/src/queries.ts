@@ -370,6 +370,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
       let module = modules[moduleDomain];
       newModuleQuery(module);
     });
+	return
   }
 
   // Fetch the module in a background thread, and launch the query once the
