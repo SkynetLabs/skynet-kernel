@@ -1,7 +1,7 @@
-import { skylinkV1Bitfield, parseSkylinkBitfield } from "../src/skylinkbitfield.js";
+import { skylinkV1Bitfield, parseSkylinkBitfield } from "../src/skylinkBitfield.js";
 
 test("skylinkV1Bitfield", () => {
-  let tests = [
+  const tests = [
     { trial: 0n, result: 4096n },
     { trial: 1n, result: 4096n },
     { trial: 100n, result: 4096n },
@@ -40,12 +40,12 @@ test("skylinkV1Bitfield", () => {
     { trial: 3407873n, result: 3670016n },
   ];
 
-  let skylink = new Uint8Array(34);
+  const skylink = new Uint8Array(34);
   for (let i = 0; i < tests.length; i++) {
-    let [bitfield, errSVB] = skylinkV1Bitfield(tests[i].trial);
+    const [bitfield, errSVB] = skylinkV1Bitfield(tests[i].trial);
     expect(errSVB).toBe(null);
     skylink.set(bitfield, 0);
-    let [version, offset, fetchSize, errPSB] = parseSkylinkBitfield(skylink);
+    const [version, offset, fetchSize, errPSB] = parseSkylinkBitfield(skylink);
     expect(errPSB).toBe(null);
     expect(version).toBe(1n);
     expect(offset).toBe(0n);

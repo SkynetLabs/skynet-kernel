@@ -33,7 +33,9 @@ function otpEncrypt(key: Uint8Array, data: Uint8Array, skip = 0): Uint8Array {
 
   // Iterate over the data and encrypt each section.
   for (let i = skip; i < data.length; i += SHA512_HASH_SIZE) {
-    // Set the nonce for this shard and then create the pad data.
+    // Set the nonce for this shard and then create the pad data. The error of
+    // encodeU64 is ignored because it'll only error if the passed in data is
+    // larger than 2^64 bytes, which is not likely.
     const [iBytes] = encodeU64(BigInt(i));
     preimageHolder.set(iBytes, key.length);
     const keyData = sha512(preimageHolder);

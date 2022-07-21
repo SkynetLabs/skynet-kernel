@@ -1,18 +1,18 @@
 import { bufToHex, bufToB64, decodeU64, encodeU64, hexToBuf } from "../src/encoding";
 
 test("encodeAndDecodeU64", () => {
-  let tests = [0n, 1n, 2n, 35n, 500n, 12345n, 642156n, 9591335n, 64285292n];
+  const tests = [0n, 1n, 2n, 35n, 500n, 12345n, 642156n, 9591335n, 64285292n];
   for (let i = 0; i < tests.length; i++) {
-    let [enc, errEU64] = encodeU64(tests[i]);
+    const [enc, errEU64] = encodeU64(tests[i]);
     expect(errEU64).toBe(null);
-    let [dec, errDU64] = decodeU64(enc);
+    const [dec, errDU64] = decodeU64(enc);
     expect(errDU64).toBe(null);
     expect(dec).toBe(tests[i]);
   }
 });
 
 test("bufToB64", () => {
-  let tests = [
+  const tests = [
     { trial: new Uint8Array(0), result: "" },
     { trial: new Uint8Array([1]), result: "AQ" },
     { trial: new Uint8Array([1, 2]), result: "AQI" },
@@ -25,7 +25,7 @@ test("bufToB64", () => {
     { trial: new Uint8Array([57, 58, 59, 60, 61, 62, 63, 64]), result: "OTo7PD0-P0A" },
   ];
   for (let i = 0; i < tests.length; i++) {
-    let result = bufToB64(tests[i].trial);
+    const result = bufToB64(tests[i].trial);
     expect(result.length).toBe(tests[i].result.length);
     for (let j = 0; j < result.length; j++) {
       expect(result[j]).toBe(tests[i].result[j]);
@@ -34,7 +34,7 @@ test("bufToB64", () => {
 });
 
 test("bufToHexAndBufToHex", () => {
-  let tests = [
+  const tests = [
     { trial: new Uint8Array(0), result: "" },
     { trial: new Uint8Array([1]), result: "01" },
     { trial: new Uint8Array([1, 2]), result: "0102" },
@@ -47,7 +47,7 @@ test("bufToHexAndBufToHex", () => {
 
   // Test hexToBuf
   for (let i = 0; i < tests.length; i++) {
-    let result = bufToHex(tests[i].trial);
+    const result = bufToHex(tests[i].trial);
     expect(result.length).toBe(tests[i].result.length);
     for (let j = 0; j < result.length; j++) {
       expect(result[j]).toBe(tests[i].result[j]);
@@ -56,7 +56,7 @@ test("bufToHexAndBufToHex", () => {
 
   // Test bufToHex.
   for (let i = 0; i < tests.length; i++) {
-    let [result, err] = hexToBuf(tests[i].result);
+    const [result, err] = hexToBuf(tests[i].result);
     expect(err).toBe(null);
     expect(result.length).toBe(tests[i].trial.length);
     for (let j = 0; j < result.length; j++) {
@@ -64,7 +64,7 @@ test("bufToHexAndBufToHex", () => {
     }
 
     // Check that upper case is also okay.
-    let [result2, err2] = hexToBuf(tests[i].result.toUpperCase());
+    const [result2, err2] = hexToBuf(tests[i].result.toUpperCase());
     expect(err2).toBe(null);
     expect(result2.length).toBe(tests[i].trial.length);
     for (let j = 0; j < result2.length; j++) {
@@ -73,9 +73,9 @@ test("bufToHexAndBufToHex", () => {
   }
 
   // Create tests to check for invalid inputs.
-  let invalids = ["0", "000", "aX", "123O", "XX"];
+  const invalids = ["0", "000", "aX", "123O", "XX"];
   for (let i = 0; i < invalids.length; i++) {
-    let [result, err] = hexToBuf(invalids[i]);
+    const [, err] = hexToBuf(invalids[i]);
     if (err === null) {
       console.log(invalids[i]);
     }

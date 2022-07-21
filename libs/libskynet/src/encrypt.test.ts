@@ -4,10 +4,10 @@ import { sha512 } from "../src/sha512.js";
 
 test("otpEncrypt", () => {
   // Perform a basic encryption and ensure that the data changes.
-  let initialData1 = new TextEncoder().encode("this is a test string to encrypt");
-  let initialData2 = new TextEncoder().encode("this is a test string to encrypt");
-  let key1 = sha512(new TextEncoder().encode("this is a key preimage"));
-  let key2 = sha512(new TextEncoder().encode("this is a different key preimage"));
+  const initialData1 = new TextEncoder().encode("this is a test string to encrypt");
+  const initialData2 = new TextEncoder().encode("this is a test string to encrypt");
+  const key1 = sha512(new TextEncoder().encode("this is a key preimage"));
+  const key2 = sha512(new TextEncoder().encode("this is a different key preimage"));
   console.log("before encrypt:", bufToHex(initialData2));
   otpEncrypt(key1, initialData2);
   console.log("after encrypt: ", bufToHex(initialData2));
@@ -26,10 +26,10 @@ test("otpEncrypt", () => {
 });
 
 test("otpEncryptSpeed", () => {
-  let key = new TextEncoder().encode("any key");
-  let data = new Uint8Array(20 * 1024 * 1024);
-  let start = performance.now();
+  const key = new TextEncoder().encode("any key");
+  const data = new Uint8Array(20 * 1024 * 1024);
+  const start = performance.now();
   otpEncrypt(key, data);
-  let total = performance.now() - start;
+  const total = performance.now() - start;
   console.log("milliseconds to encrypt 20 MiB:", total);
 });

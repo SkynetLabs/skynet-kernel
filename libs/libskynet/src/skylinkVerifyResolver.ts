@@ -4,7 +4,8 @@ import { addContextToErr } from "./err.js";
 import { objAsString } from "./objAsString.js";
 import { deriveRegistryEntryID, verifyRegistrySignature } from "./registry.js";
 import { parseSkylinkBitfield } from "./skylinkBitfield.js";
-import { validSkylink } from "./skylinkValidate.js";
+import { SKYLINK_U8_V1_V2_LENGTH, validSkylink } from "./skylinkValidate.js";
+import { Err } from "./types.js";
 
 // verifyResolverLinkProof will check that the given resolver proof matches the
 // provided skylink. If the proof is correct and the signature matches, the
@@ -12,9 +13,9 @@ import { validSkylink } from "./skylinkValidate.js";
 //
 // The input type for 'proof' is 'any' because it is an untrusted input that
 // was decoded from JSON.
-function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, string | null] {
+function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, Err] {
   // Verify the presented skylink is formatted correctly.
-  if (skylink.length !== 34) {
+  if (skylink.length !== SKYLINK_U8_V1_V2_LENGTH) {
     return [new Uint8Array(0), "skylink is malformed, expecting 34 bytes"];
   }
 
@@ -86,7 +87,7 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
   if (errREID !== null) {
     return [new Uint8Array(0), addContextToErr(errREID, "proof pubkey is malformed")];
   }
-  const linkID = skylink.slice(2, 34);
+  const linkID = skylink.slice(2, SKYLINK_U8_V1_V2_LENGTH);
   for (let i = 0; i < entryID.length; i++) {
     if (entryID[i] !== linkID[i]) {
       return [new Uint8Array(0), "proof pubkey and datakey do not match the skylink root"];
@@ -107,7 +108,7 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
 //
 // This function treats the proof as untrusted data and will verify all of the
 // fields that are provided.
-function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array, string | null] {
+function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array, Err] {
   // Check that the proof is an array.
   if (!Array.isArray(proof)) {
     return [new Uint8Array(0), "provided proof is not an array: " + objAsString(proof)];
@@ -128,7 +129,7 @@ function verifyResolverLinkProofs(skylink: Uint8Array, proof: any): [Uint8Array,
   // Though it says 'skylink', the verifier is actually just returning
   // whatever the registry data is. We need to check that the final value
   // is a V1 skylink.
-  if (skylink.length !== 34) {
+  if (skylink.length !== SKYLINK_U8_V1_V2_LENGTH) {
     return [new Uint8Array(0), "final value returned by the resolver link is not a skylink"];
   }
   const [version, , , errPSB] = parseSkylinkBitfield(skylink);
