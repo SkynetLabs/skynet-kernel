@@ -16,7 +16,7 @@ import { Err } from "./types.js";
 function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, Err] {
   // Verify the presented skylink is formatted correctly.
   if (skylink.length !== SKYLINK_U8_V1_V2_LENGTH) {
-    return [new Uint8Array(0), "skylink is malformed, expecting 34 bytes"];
+    return [new Uint8Array(0), `skylink is malformed, expecting 34 bytes, got ${skylink.length} bytes`];
   }
 
   // Verify that all of the fields are present and have the correct type.
@@ -42,7 +42,7 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
   // Check that the type and algorithm have the expected values, as only one
   // value for each is considered valid.
   if (proof.publickey.algorithm !== "ed25519") {
-    return [new Uint8Array(0), "pubkey has unrecognized algorithm"];
+    return [new Uint8Array(0), `pubkey has unrecognized algorithm, expected ed25519, got ${proof.publickey.algorithm}`];
   }
   if (proof.type !== 1n) {
     return [new Uint8Array(0), "registry entry has unrecognized type: " + objAsString(proof.type)];
