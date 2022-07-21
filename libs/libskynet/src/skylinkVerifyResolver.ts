@@ -41,7 +41,7 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
   // Check that the type and algorithm have the expected values, as only one
   // value for each is considered valid.
   if (proof.publickey.algorithm !== "ed25519") {
-    return [new Uint8Array(0), "pubkey has unrecognized algorithm"];
+    return [new Uint8Array(0), `pubkey has unrecognized algorithm, expected ed25519, got ${proof.publickey.algorithm}`];
   }
   if (proof.type !== 1n) {
     return [new Uint8Array(0), "registry entry has unrecognized type: " + objAsString(proof.type)];
