@@ -15,7 +15,7 @@ import { validSkylink } from "./skylinkValidate.js";
 function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, string | null] {
   // Verify the presented skylink is formatted correctly.
   if (skylink.length !== 34) {
-    return [new Uint8Array(0), "skylink is malformed, expecting 34 bytes"];
+    return [new Uint8Array(0), `skylink is malformed, expecting 34 bytes, got ${skylink.length} bytes`];
   }
 
   // Verify that all of the fields are present and have the correct type.
