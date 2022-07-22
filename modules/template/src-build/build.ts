@@ -8,9 +8,9 @@ import {
 	deriveRegistryEntryID,
 	entryIDToSkylink,
 	generateSeedPhraseDeterministic,
+	seedPhraseToSeed,
 	sha512,
 	taggedRegistryEntryKeys,
-	validSeedPhrase,
 } from "libskynet"
 import { generateSeedPhraseRandom, overwriteRegistryEntry, upload } from "libskynetnode"
 import read from "read"
@@ -71,7 +71,7 @@ function hardenedSeedPhrase(password: string): [string, string | null] {
 // seedPhraseToRegistryKeys will convert a seed phrase to the set of registry
 // keys that govern the registry entry where the module is published.
 function seedPhraseToRegistryKeys(seedPhrase: string): [any, Uint8Array, string | null] {
-	let [seed, errVSP] = validSeedPhrase(seedPhrase)
+	let [seed, errVSP] = seedPhraseToSeed(seedPhrase)
 	if (errVSP !== null) {
 		return [nkp, nu8, addContextToErr(errVSP, "unable to compute seed phrase")]
 	}
