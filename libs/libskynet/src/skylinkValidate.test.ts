@@ -1,31 +1,23 @@
 import { validateSkyfilePath } from "../src/skylinkValidate.js";
 
-test("testValidateSkyfilePath", () => {
-  const tests = [
-    { trial: "test", result: true },
-    { trial: "test/subtrial", result: true },
-    { trial: "test/subtrial.ext", result: true },
-    { trial: "test/trial.ext/subtrial.ext", result: true },
-    { trial: ".foo", result: true },
-    { trial: ".foo/.bar", result: true },
-    { trial: "foo/.bar", result: true },
-    { trial: "/", result: false },
-    { trial: "", result: false },
-    { trial: ".", result: false },
-    { trial: "./", result: false },
-    { trial: "a//b", result: false },
-    { trial: "a/./b", result: false },
-    { trial: "a/../b", result: false },
-    { trial: "../a/b", result: false },
-    { trial: "/sometrial", result: false },
-    { trial: "sometrial/", result: false },
-  ];
-  for (let i = 0; i < tests.length; i++) {
-    const err = validateSkyfilePath(tests[i].trial);
-    if (tests[i].result === true) {
-      expect(err).toBe(null);
-    } else {
-      expect(err).not.toBe(null);
-    }
-  }
+test.each([
+  { path: "test", result: null },
+  { path: "test/subtrial", result: null },
+  { path: "test/subtrial.ext", result: null },
+  { path: "test/trial.ext/subtrial.ext", result: null },
+  { path: ".foo", result: null },
+  { path: ".foo/.bar", result: null },
+  { path: "foo/.bar", result: null },
+  { path: "/", result: "metdata.Filename cannot start with /" },
+  { path: "", result: "path cannot be blank" },
+  { path: ".", result: "path cannot be ." },
+  { path: "./", result: "metdata.Filename cannot start with ./" },
+  { path: "a//b", result: "path cannot have an empty element, cannot contain //" },
+  { path: "a/./b", result: "path cannot have a . element" },
+  { path: "a/../b", result: "path cannot have a .. element" },
+  { path: "../a/b", result: "metdata.Filename cannot start with ../" },
+  { path: "/sometrial", result: "metdata.Filename cannot start with /" },
+  { path: "sometrial/", result: "path cannot have an empty element, cannot contain //" },
+])("testValidateSkyfilePath with path '$path'", ({ path, result }) => {
+  expect(validateSkyfilePath(path)).toBe(result);
 });
