@@ -1,54 +1,50 @@
 import { skylinkV1Bitfield, parseSkylinkBitfield } from "../src/skylinkBitfield.js";
 
-test("skylinkV1Bitfield", () => {
-  const tests = [
-    { trial: 0n, result: 4096n },
-    { trial: 1n, result: 4096n },
-    { trial: 100n, result: 4096n },
-    { trial: 200n, result: 4096n },
-    { trial: 4095n, result: 4096n },
-    { trial: 4096n, result: 4096n },
-    { trial: 4097n, result: 8192n },
-    { trial: 8191n, result: 8192n },
-    { trial: 8192n, result: 8192n },
-    { trial: 8193n, result: 12288n },
-    { trial: 12287n, result: 12288n },
-    { trial: 12288n, result: 12288n },
-    { trial: 12289n, result: 16384n },
-    { trial: 16384n, result: 16384n },
-    { trial: 32767n, result: 32768n },
-    { trial: 32768n, result: 32768n },
-    { trial: 32769n, result: 36864n },
-    { trial: 36863n, result: 36864n },
-    { trial: 36864n, result: 36864n },
-    { trial: 36865n, result: 40960n },
-    { trial: 45056n, result: 45056n },
-    { trial: 45057n, result: 49152n },
-    { trial: 65536n, result: 65536n },
-    { trial: 65537n, result: 73728n },
-    { trial: 106496n, result: 106496n },
-    { trial: 106497n, result: 114688n },
-    { trial: 163840n, result: 163840n },
-    { trial: 163841n, result: 180224n },
-    { trial: 491520n, result: 491520n },
-    { trial: 491521n, result: 524288n },
-    { trial: 720896n, result: 720896n },
-    { trial: 720897n, result: 786432n },
-    { trial: 1572864n, result: 1572864n },
-    { trial: 1572865n, result: 1703936n },
-    { trial: 3407872n, result: 3407872n },
-    { trial: 3407873n, result: 3670016n },
-  ];
-
+test.each([
+  { dataSize: 0n, expectedFetchSize: 4096n },
+  { dataSize: 1n, expectedFetchSize: 4096n },
+  { dataSize: 100n, expectedFetchSize: 4096n },
+  { dataSize: 200n, expectedFetchSize: 4096n },
+  { dataSize: 4095n, expectedFetchSize: 4096n },
+  { dataSize: 4096n, expectedFetchSize: 4096n },
+  { dataSize: 4097n, expectedFetchSize: 8192n },
+  { dataSize: 8191n, expectedFetchSize: 8192n },
+  { dataSize: 8192n, expectedFetchSize: 8192n },
+  { dataSize: 8193n, expectedFetchSize: 12288n },
+  { dataSize: 12287n, expectedFetchSize: 12288n },
+  { dataSize: 12288n, expectedFetchSize: 12288n },
+  { dataSize: 12289n, expectedFetchSize: 16384n },
+  { dataSize: 16384n, expectedFetchSize: 16384n },
+  { dataSize: 32767n, expectedFetchSize: 32768n },
+  { dataSize: 32768n, expectedFetchSize: 32768n },
+  { dataSize: 32769n, expectedFetchSize: 36864n },
+  { dataSize: 36863n, expectedFetchSize: 36864n },
+  { dataSize: 36864n, expectedFetchSize: 36864n },
+  { dataSize: 36865n, expectedFetchSize: 40960n },
+  { dataSize: 45056n, expectedFetchSize: 45056n },
+  { dataSize: 45057n, expectedFetchSize: 49152n },
+  { dataSize: 65536n, expectedFetchSize: 65536n },
+  { dataSize: 65537n, expectedFetchSize: 73728n },
+  { dataSize: 106496n, expectedFetchSize: 106496n },
+  { dataSize: 106497n, expectedFetchSize: 114688n },
+  { dataSize: 163840n, expectedFetchSize: 163840n },
+  { dataSize: 163841n, expectedFetchSize: 180224n },
+  { dataSize: 491520n, expectedFetchSize: 491520n },
+  { dataSize: 491521n, expectedFetchSize: 524288n },
+  { dataSize: 720896n, expectedFetchSize: 720896n },
+  { dataSize: 720897n, expectedFetchSize: 786432n },
+  { dataSize: 1572864n, expectedFetchSize: 1572864n },
+  { dataSize: 1572865n, expectedFetchSize: 1703936n },
+  { dataSize: 3407872n, expectedFetchSize: 3407872n },
+  { dataSize: 3407873n, expectedFetchSize: 3670016n },
+])("skylinkV1Bitfield with data size $dataSize", ({ dataSize, expectedFetchSize }) => {
   const skylink = new Uint8Array(34);
-  for (let i = 0; i < tests.length; i++) {
-    const [bitfield, errSVB] = skylinkV1Bitfield(tests[i].trial);
-    expect(errSVB).toBe(null);
-    skylink.set(bitfield, 0);
-    const [version, offset, fetchSize, errPSB] = parseSkylinkBitfield(skylink);
-    expect(errPSB).toBe(null);
-    expect(version).toBe(1n);
-    expect(offset).toBe(0n);
-    expect(fetchSize).toBe(tests[i].result);
-  }
+  const [bitfield, errSVB] = skylinkV1Bitfield(dataSize);
+  expect(errSVB).toBe(null);
+  skylink.set(bitfield, 0);
+  const [version, offset, fetchSize, errPSB] = parseSkylinkBitfield(skylink);
+  expect(errPSB).toBe(null);
+  expect(version).toBe(1n);
+  expect(offset).toBe(0n);
+  expect(fetchSize).toBe(expectedFetchSize);
 });
