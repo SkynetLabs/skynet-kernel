@@ -23,10 +23,16 @@ import { Err } from "./types.js";
 // ]);
 function checkObj(obj: any, checks: [string, string][]): Err {
   for (let i = 0; i < checks.length; i++) {
-    const check = checks[i];
-    const type = typeof obj[check[0]];
-    if (type !== check[1]) {
-      return "check failed, expecting " + check[1] + " got " + type;
+    const [property, expectedType] = checks[i];
+    const type = typeof obj[property];
+
+    // special case for array detection
+    if (expectedType === "array" && !Array.isArray(obj[property])) {
+      return `check failed, expecting ${expectedType} got ${type}`;
+    }
+
+    if (type !== expectedType) {
+      return `check failed, expecting ${expectedType} got ${type}`;
     }
   }
   return null;
