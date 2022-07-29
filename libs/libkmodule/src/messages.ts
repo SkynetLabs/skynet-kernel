@@ -133,6 +133,14 @@ function handleMessage(event: MessageEvent) {
 		return
 	}
 
+	// Special handling for a no-op function. The main purpose of this no-op
+	// function is allow an application to 'warm' the module, putting the
+	// module into the kernel cache before the user needs it, so that when the
+	// user does need it the module can load faster and provide better UX.
+	if (event.data.method === "no-op") {
+		return
+	}
+
 	// Make sure we have a handler for this object.
 	if (!Object.prototype.hasOwnProperty.call(router, event.data.method)) {
 		respondErr(event, "unrecognized method '" + event.data.method + "'")
