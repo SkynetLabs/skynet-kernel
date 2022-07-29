@@ -29,9 +29,9 @@
 // randomizing the revision number in your own code, please ensure that you
 // make the updates deterministic based on some secret.
 
-import { download } from "./messagedownload.js"
-import { registryRead, registryWrite } from "./messageregistry.js"
-import { upload } from "./messageupload.js"
+import { download } from "./messageDownload.js"
+import { registryRead, registryWrite } from "./messageRegistry.js"
+import { upload } from "./messageUpload.js"
 import {
 	Ed25519Keypair,
 	addContextToErr,

@@ -1,4 +1,5 @@
 import { logErr } from "./log.js"
+import { handleNoOp } from "./messageNoOp.js"
 import {
 	clearIncomingQuery,
 	getSetReceiveUpdate,
@@ -76,14 +77,21 @@ const addHandlerDefaultOptions = {
 }
 
 // Create a router which will route methods to their handlers. New handlers can
-// be added to the router by calling 'addHandler'. Currently, there is only one
-// default handler in the router which is "presentSeed".
+// be added to the router by calling 'addHandler'.
+//
+// Currently, there are two default handlers provided by libkmodule. The first
+// is a handler for 'presentSeed', which accepts seeds provided by the kernel.
+// The second is 'no-op', which allows a caller to make a no-op query on the
+// module, which can be useful both for debugging, and also for 'warming up'
+// the module so that it's in the kernel cache already the first time that a
+// user tries to use the module.
 //
 // handleMessage implicitly handles 'queryUpdate' and 'responseUpdate' and
 // 'response' methods as well, but those don't go through the router because
 // special handling is required for those methods.
 let router: queryRouter = {}
 router["presentSeed"] = { handler: handlePresentSeed, receiveUpdates: false }
+router["no-op"] = { handler: handleNoOp, receiveUpdates: false }
 
 // addHandler will add a new handler to the router to process specific methods.
 //
@@ -130,14 +138,6 @@ function handleMessage(event: MessageEvent) {
 	}
 	if (event.data.method === "responseUpdate") {
 		handleResponseUpdate(event)
-		return
-	}
-
-	// Special handling for a no-op function. The main purpose of this no-op
-	// function is allow an application to 'warm' the module, putting the
-	// module into the kernel cache before the user needs it, so that when the
-	// user does need it the module can load faster and provide better UX.
-	if (event.data.method === "no-op") {
 		return
 	}
 

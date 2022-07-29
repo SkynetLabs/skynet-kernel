@@ -4,12 +4,12 @@ export {
 	createIndependentFileSmall,
 	openIndependentFileSmall,
 	viewIndependentFileSmall,
-} from "./independentfile.js"
+} from "./independentFile.js"
 export { log, logErr } from "./log.js"
-export { download } from "./messagedownload.js"
-export { RegistryReadResult, registryRead, registryWrite } from "./messageregistry.js"
+export { download } from "./messageDownload.js"
+export { RegistryReadResult, registryRead, registryWrite } from "./messageRegistry.js"
 export { ActiveQuery, addHandler, handleMessage } from "./messages.js"
-export { upload } from "./messageupload.js"
+export { upload } from "./messageUpload.js"
 export { callModule, connectModule, newKernelQuery } from "./queries.js"
 export { getSeed } from "./seed.js"
 export { moduleQuery, presentSeedData } from "./types.js"
