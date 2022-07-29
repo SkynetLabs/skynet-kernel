@@ -108,7 +108,7 @@ function addHandler(method: string, handler: handlerFn, options?: addHandlerOpti
 	router[method] = { handler, receiveUpdates: true }
 }
 
-// handleMessage is the standard handler for messages. It has special hanlding
+// handleMessage is the standard handler for messages. It has special handling
 // for the 'queryUpdate', 'response', and 'responseUpdate' messages. Otherwise,
 // it will use the router to connect moduleCalls to the appropriate handler.
 //
