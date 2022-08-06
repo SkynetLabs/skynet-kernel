@@ -20,6 +20,7 @@ const DEFAULT_PERSISTENT_MODULES = [
   "AQDETEWOzNYZu5YeOIPhvwpqIn3aL6ghf-ccLpbj3O1EIw", // redsolvers-social-dac
   "AQCSRGL0vey8Nccy_Pqk3fYTMm0y2nE_dK0I8ro8bZyZ3Q", // redsolvers-feed-dac
   "AQAKn33Pm9WPcm872JuxnRhowH5UA3Mm_hCb6CMT79nQdw", // redsolvers-bridge-dac
+  "AQDgPeyl2j30aY7tLnYI5aEvbrptQuz90bfSgwjKlmpOvw", // redsolvers-permission-module
 ];
 
 // WorkerLaunchFn is the type signature of the function that launches the
