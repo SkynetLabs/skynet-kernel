@@ -163,6 +163,7 @@ function handleWorkerMessage(event: MessageEvent, mod: Module, worker: Worker) {
   let isResponse = event.data.method === "response";
   if (isQueryUpdate || isResponseUpdate || isResponse) {
     handleModuleResponse(event, mod, worker);
+    return
   }
 
   // We don't know what this message was.
