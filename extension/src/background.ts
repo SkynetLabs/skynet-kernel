@@ -9,7 +9,7 @@
 // by typescript. If you know how to get rid of any of these, please let us
 // know. These areas are marked with a 'tsc' comment.
 
-import { dataFn, kernelAuthStatus, requestOverrideResponse } from "libskynet"
+import { DataFn, KernelAuthStatus, RequestOverrideResponse } from "libskynet"
 
 declare var browser: any // tsc
 
@@ -38,9 +38,9 @@ setTimeout(logLargeObjects, timer)
 // Create a promise that will resolve when the bootloader is ready to receive
 // messages. We'll also track the auth info here, since the bootloader lets us
 // know that it is ready to receive messages by sengind the auth info.
-let authStatus: kernelAuthStatus
+let authStatus: KernelAuthStatus
 let authStatusKnown = false
-let authStatusResolve: dataFn
+let authStatusResolve: DataFn
 let blockForBootloader = new Promise((resolve) => {
 	authStatusResolve = resolve
 })
@@ -349,7 +349,7 @@ function onBeforeRequestListener(details: any) {
 			// that none of the data will be processed.
 		}
 		filter.onstop = () => {
-			faviconPromise.then((result: requestOverrideResponse) => {
+			faviconPromise.then((result: RequestOverrideResponse) => {
 				filter.write(result.body)
 				filter.close()
 			})
@@ -380,7 +380,7 @@ function onBeforeRequestListener(details: any) {
 			// that none of the data will be processed.
 		}
 		filter.onstop = () => {
-			authPagePromise.then((result: requestOverrideResponse) => {
+			authPagePromise.then((result: RequestOverrideResponse) => {
 				filter.write(result.body)
 				filter.close()
 			})

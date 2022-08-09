@@ -11,6 +11,8 @@
 // know how to get rid of these exceptions, we'd love to see a pull request.
 
 import {
+	Ed25519Keypair,
+	Err,
 	addContextToErr,
 	b64ToBuf,
 	bufToHex,
@@ -20,15 +22,12 @@ import {
 	deriveChildSeed,
 	deriveRegistryEntryID,
 	downloadSkylink,
-	ed25519Keypair,
 	entryIDToSkylink,
-	error,
 	hexToBuf,
+	objAsString,
 	progressiveFetch,
 	progressiveFetchResult,
 	taggedRegistryEntryKeys,
-	tryStringify,
-	verifyRegistryReadResponse,
 	verifyRegistryWriteResponse,
 } from "libskynet"
 
@@ -53,7 +52,7 @@ function bootloaderWLog(isErr: boolean, ...inputs: any) {
 	let message = "[skynet-kernel-bootloader]"
 	for (let i = 0; i < inputs.length; i++) {
 		message += "\n"
-		message += tryStringify(inputs[i])
+		message += objAsString(inputs[i])
 	}
 
 	// Create the log by sending it to the parent.
@@ -157,13 +156,12 @@ let blockForFavicon: Promise<void> = new Promise((resolve) => {
 	// instead of in an extension.
 	try {
 		let faviconURL = browser.runtime.getURL("icon@2x.png")
-		fetch(faviconURL)
-			.then((response) => {
-				response.arrayBuffer().then((faviconData) => {
-					kernelFavicon = new Uint8Array(faviconData)
-					resolve()
-				})
+		fetch(faviconURL).then((response) => {
+			response.arrayBuffer().then((faviconData) => {
+				kernelFavicon = new Uint8Array(faviconData)
+				resolve()
 			})
+		})
 	} catch {
 		kernelFavicon = new Uint8Array(0)
 		resolve()
@@ -177,14 +175,13 @@ let blockForAuthPage: Promise<void> = new Promise((resolve) => {
 	// instead of in an extension.
 	try {
 		let authURL = browser.runtime.getURL("auth.html")
-		fetch(authURL)
-			.then((response) => {
-				response.arrayBuffer().then((authData) => {
-					kernelAuthPage = new Uint8Array(authData)
-					resolve()
-				})
+		fetch(authURL).then((response) => {
+			response.arrayBuffer().then((authData) => {
+				kernelAuthPage = new Uint8Array(authData)
+				resolve()
 			})
-	} catch(err: any) {
+		})
+	} catch (err: any) {
 		kernelAuthPage = new TextEncoder().encode(addContextToErr(err, "unable to load the kernel auth page"))
 		resolve()
 	}
@@ -337,7 +334,7 @@ window.addEventListener("storage", (event) => handleStorage(event))
 
 // downloadKernel will take the skylink for a kernel distro, download
 // that kernel, and return the code that can be eval'd to load the kernel.
-function downloadKernel(kernelSkylink: string): Promise<[kernelCode: string, err: error]> {
+function downloadKernel(kernelSkylink: string): Promise<[kernelCode: string, err: Err]> {
 	return new Promise((resolve) => {
 		downloadSkylink(kernelSkylink).then(([fileData, err]) => {
 			// Don't add any context to a 404 error.
@@ -365,7 +362,7 @@ function downloadKernel(kernelSkylink: string): Promise<[kernelCode: string, err
 
 // downloadDefaultKernel will attempt to download the default kernel
 // and return the code that can be eval'd.
-function downloadDefaultKernel(): Promise<[kernelCode: string, err: error]> {
+function downloadDefaultKernel(): Promise<[kernelCode: string, err: Err]> {
 	return downloadKernel(defaultKernelResolverLink)
 }
 
@@ -373,7 +370,7 @@ function downloadDefaultKernel(): Promise<[kernelCode: string, err: error]> {
 //
 // There is no return value for this function, if it doesn't work leave a log
 // message.
-function setUserKernelAsDefault(keypair: ed25519Keypair, dataKey: Uint8Array) {
+function setUserKernelAsDefault(keypair: Ed25519Keypair, dataKey: Uint8Array) {
 	// Log that we are setting the user's kernel.
 	log("user kernel not found, setting user kernel to " + defaultKernelResolverLink)
 
@@ -425,7 +422,7 @@ function setUserKernelAsDefault(keypair: ed25519Keypair, dataKey: Uint8Array) {
 
 // downloadUserKernel will download the user's kernel and return the
 // code that can be eval'd.
-function downloadUserKernel(): Promise<[kernelCode: string, err: error]> {
+function downloadUserKernel(): Promise<[kernelCode: string, err: Err]> {
 	return new Promise((resolve) => {
 		// Create a child seed for working with the user's kernel entry. We
 		// create a child seed here so that the user's kernel entry seed can be

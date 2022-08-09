@@ -1608,9 +1608,6 @@
 				let seedWords = []
 				for (let i = 0; i < SEED_ENTROPY_WORDS; i++) {
 					let wordIndex = randNums[i] % dictionary.length
-					if (i === 12) {
-						wordIndex = randNums[i] % (dictionary.length / 4)
-					}
 					seedWords.push(dictionary[wordIndex])
 				}
 				// Convert the seedWords to a seed.
@@ -1652,20 +1649,11 @@
 				// Take the seed and store it in localStorage.
 				let seedStr = bufToHex(seed)
 				window.localStorage.setItem("v1-seed", seedStr)
-				// If there was a window opener, we should send a message to
-				// the opener indicating that auth was successful, and then close
-				// this window. Otherwise, we should just refresh the page.
+
+				// Close the window if its a pop-up, otherwise refresh the page to
+				// reset the state.
 				if (window.opener) {
-					// Send a postmessage back to the caller that auth was successful. This
-					// is one of the few places where a wildcard can be used by the
-					// postMessage because we are comfortable declaring to all pages that
-					// the user has logged into the kernel.
-					try {
-						window.opener.postMessage({ kernelMethod: "authCompleted" }, "*")
-						window.close()
-					} catch (errC) {
-						setErrorText("Unable to report that authentication suceeded: " + errC)
-					}
+					window.close()
 				} else {
 					location.reload()
 				}
@@ -1673,20 +1661,12 @@
 			var logOut = function () {
 				// Log out by clearing localstorage.
 				window.localStorage.clear()
-				// If there was a window opener, we should send a message to
-				// the opener indicating that auth was successful, and then close
-				// this window. Otherwise, we should just refresh the page.
+
+				// If there was a window opener, we can close this window. Otherwise we
+				// refresh the page to reset the state.
+				// perform a full reload to reset the page and clear the seed.
 				if (window.opener) {
-					// Send a postmessage back to the caller that auth was successful. This
-					// is one of the few places where a wildcard can be used by the
-					// postMessage because we are comfortable declaring to all pages that
-					// the user has logged into the kernel.
-					try {
-						window.opener.postMessage({ kernelMethod: "logOutSucces" }, "*")
-						window.close()
-					} catch (errC) {
-						setErrorText("Unable to report that authentication suceeded: " + errC)
-					}
+					window.close()
 				} else {
 					location.reload()
 				}
