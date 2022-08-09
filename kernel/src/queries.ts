@@ -219,7 +219,8 @@ function launchWorker(mod: Module): [Worker, Err] {
     handleWorkerMessage(event, mod, worker);
   };
   worker.onerror = function (event: ErrorEvent) {
-    logErr("worker", mod.domain, addContextToErr(objAsString(event.error), "received onerror event"));
+    let errStr = objAsString(event.message) + "\n" + objAsString(event.error) + "\n" + objAsString(event)
+    logErr("worker", mod.domain, addContextToErr(errStr, "received onerror event"));
   };
 
   // Check if the module is on the whitelist to receive the mysky seed.
@@ -390,6 +391,25 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
       return;
     }
 
+    // The call to download the skylink is async. That means it's possible that
+    // some other thread created the module successfully and already added it.
+    // Based on the rest of the code, this should not be possible, but we check
+    // for it anyway at runtime so that any concurrency bugs will be made
+    // visible through the `notableErrors` field.
+    //
+    // This check is mainly here as a verification that the rest of the kernel
+    // code is correct.
+    if (moduleDomain in modules) {
+      // Though this is an error, we do already have the module so we
+      // use the one we already loaded.
+      logErr("a module that was already loaded has been loaded");
+      notableErrors.push("module loading experienced a race condition");
+      let mod = modules[moduleDomain];
+      newModuleQuery(mod);
+      resolve(null);
+      return;
+    }
+
     // TODO: Save the result to localStorage. Can't do that until
     // subscriptions are in place so that localStorage can sync
     // with any updates from the remote module.
@@ -401,19 +421,6 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
       respondErr(event, messagePortal, isWorker, err);
       resolve(err);
       delete modulesLoading[moduleDomain];
-      return;
-    }
-
-    // Check that some parallel process didn't already create the
-    // module. We only want one module running at a time.
-    if (moduleDomain in modules) {
-      // Though this is an error, we do already have the module so we
-      // use the one we already loaded.
-      logErr("a module that was already loaded has been loaded");
-      notableErrors.push("module loading experienced a race condition");
-      let mod = modules[moduleDomain];
-      newModuleQuery(mod);
-      resolve(null);
       return;
     }
     modules[moduleDomain] = mod;
