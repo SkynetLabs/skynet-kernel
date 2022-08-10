@@ -82,7 +82,7 @@ function logErr(...inputs: any) {
 //
 // NOTE: For some reason, calling this function 'handleMessage' seems to break
 // everything, so we call it 'handleIncomingMessage' instead.
-const handleIncomingMessage = function (event: MessageEvent) {
+let handleIncomingMessage = function (event: MessageEvent) {
   if (event.source === null) {
     // tsc
     return;
@@ -186,7 +186,7 @@ const blockForAuthPage: Promise<void> = new Promise((resolve) => {
     resolve();
   }
 });
-function handleSkynetKernelRequestOverride(event: MessageEvent) {
+let handleSkynetKernelRequestOverride = function (event: MessageEvent) {
   if (event.source === null) {
     // tsc
     return;
@@ -259,7 +259,7 @@ function handleSkynetKernelRequestOverride(event: MessageEvent) {
     },
     event.origin
   );
-}
+};
 
 // Establish a handler for storage events. The kernel is intended to overwrite
 // this handler after the kernel has loaded, therefore the name 'handleStorage'

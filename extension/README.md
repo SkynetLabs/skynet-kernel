@@ -7,3 +7,7 @@ This includes skapps, and includes the kernel itself.
 
 To the best of our knowledge, the full Skynet kernel is the only way to have a
 fully trustless browsing experience when using Skynet.
+
+NOTE: 'prefer-const' is off in eslint because we use 'eval' and we need some of
+the variables to be overwritten by the eval'd code. This means that the linter
+incorrectly believes that the variables are never modified.
