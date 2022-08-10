@@ -1,11 +1,14 @@
 {
-	"compilerOptions": {
-		"target": "esnext",
-		"declaration": true,
-		"moduleResolution": "node",
-		"outDir": "./build",
-		"strict": true
-	},
-	"include": ["src"],
-	"exclude": ["node_modules", "**/__tests__/*"]
+  "compilerOptions": {
+    "target": "es2021",
+    "declaration": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "./build"
+  },
+  "include": ["src/**/*"]
 }
