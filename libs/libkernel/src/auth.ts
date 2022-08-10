@@ -1,5 +1,5 @@
-import { init, kernelAuthLocation, kernelLoadedPromise, loginPromise, logoutPromise } from "./queries.js"
-import { Err } from "libskynet"
+import { init, kernelAuthLocation, kernelLoadedPromise, loginPromise, logoutPromise } from "./queries.js";
+import { Err } from "libskynet";
 
 // There are 5 stages of auth.
 //
@@ -27,7 +27,7 @@ import { Err } from "libskynet"
 
 // loginComplete will resolve when the user has successfully logged in.
 function loginComplete(): Promise<void> {
-	return loginPromise
+  return loginPromise;
 }
 
 // kernelLoaded will resolve when the user has successfully loaded the kernel.
@@ -35,14 +35,14 @@ function loginComplete(): Promise<void> {
 //
 // NOTE: kernelLoaded will not resolve until after loginComplete has resolved.
 function kernelLoaded(): Promise<Err> {
-	return kernelLoadedPromise
+  return kernelLoadedPromise;
 }
 
 // logoutComplete will resolve when the user has logged out. Note that
 // logoutComplete will only resolve if the user logged in first - if the user
 // was not logged in to begin with, this promise will not resolve.
 function logoutComplete(): Promise<void> {
-	return logoutPromise
+  return logoutPromise;
 }
 
 // openAuthWindow is intended to be used as an onclick target when the user
@@ -58,11 +58,11 @@ function logoutComplete(): Promise<void> {
 // the worst case (user has no browser extension, and is on a slow internet
 // connection) this could take multiple seconds.
 function openAuthWindow(): void {
-	// openAuthWindow doesn't care what the auth status is, it's just trying to
-	// open the right window.
-	init().then(() => {
-		window.open(kernelAuthLocation, "_blank")
-	})
+  // openAuthWindow doesn't care what the auth status is, it's just trying to
+  // open the right window.
+  init().then(() => {
+    window.open(kernelAuthLocation, "_blank");
+  });
 }
 
-export { loginComplete, kernelLoaded, logoutComplete, openAuthWindow }
+export { loginComplete, kernelLoaded, logoutComplete, openAuthWindow };

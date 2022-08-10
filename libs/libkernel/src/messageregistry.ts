@@ -1,10 +1,10 @@
-import { callModule } from "./queries.js"
-import { Ed25519Keypair, Err, addContextToErr } from "libskynet"
+import { callModule } from "./queries.js";
+import { Ed25519Keypair, Err, addContextToErr } from "libskynet";
 
 interface registryReadResult {
-	exists: boolean
-	entryData?: Uint8Array
-	revision?: bigint
+  exists: boolean;
+  entryData?: Uint8Array;
+  revision?: bigint;
 }
 
 // registryRead will perform a registry read on a portal. readEntry does not
@@ -15,27 +15,27 @@ interface registryReadResult {
 // because the object is relatively complex and all of the fields are more or
 // less required.
 function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[registryReadResult, Err]> {
-	return new Promise((resolve) => {
-		let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
-		let data = {
-			publicKey,
-			dataKey,
-		}
-		callModule(registryModule, "readEntry", data).then(([result, err]) => {
-			if (err !== null) {
-				resolve([{} as any, addContextToErr(err, "readEntry module call failed")])
-				return
-			}
-			resolve([
-				{
-					exists: result.exists,
-					entryData: result.entryData,
-					revision: result.revision,
-				},
-				null,
-			])
-		})
-	})
+  return new Promise((resolve) => {
+    const registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q";
+    const data = {
+      publicKey,
+      dataKey,
+    };
+    callModule(registryModule, "readEntry", data).then(([result, err]) => {
+      if (err !== null) {
+        resolve([{} as any, addContextToErr(err, "readEntry module call failed")]);
+        return;
+      }
+      resolve([
+        {
+          exists: result.exists,
+          entryData: result.entryData,
+          revision: result.revision,
+        },
+        null,
+      ]);
+    });
+  });
 }
 
 // registryWrite will perform a registry write on a portal.
@@ -44,28 +44,28 @@ function registryRead(publicKey: Uint8Array, dataKey: Uint8Array): Promise<[regi
 // misuse registryWrite such that user data will be lost. We recommend using a
 // safe set of functions for writing to the registry such as getsetjson.
 function registryWrite(
-	keypair: Ed25519Keypair,
-	dataKey: Uint8Array,
-	entryData: Uint8Array,
-	revision: BigInt
+  keypair: Ed25519Keypair,
+  dataKey: Uint8Array,
+  entryData: Uint8Array,
+  revision: BigInt
 ): Promise<[string, Err]> {
-	return new Promise((resolve) => {
-		let registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q"
-		let callData = {
-			publicKey: keypair.publicKey,
-			secretKey: keypair.secretKey,
-			dataKey,
-			entryData,
-			revision,
-		}
-		callModule(registryModule, "writeEntry", callData).then(([result, err]) => {
-			if (err !== null) {
-				resolve(["", err])
-				return
-			}
-			resolve([result.entryID, null])
-		})
-	})
+  return new Promise((resolve) => {
+    const registryModule = "AQCovesg1AXUzKXLeRzQFILbjYMKr_rvNLsNhdq5GbYb2Q";
+    const callData = {
+      publicKey: keypair.publicKey,
+      secretKey: keypair.secretKey,
+      dataKey,
+      entryData,
+      revision,
+    };
+    callModule(registryModule, "writeEntry", callData).then(([result, err]) => {
+      if (err !== null) {
+        resolve(["", err]);
+        return;
+      }
+      resolve([result.entryID, null]);
+    });
+  });
 }
 
-export { registryRead, registryWrite }
+export { registryRead, registryWrite };
