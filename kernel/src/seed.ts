@@ -10,7 +10,7 @@ const DEFAULT_MYSKY_ROOT_MODULES = [
 // This variable is the seed that got loaded into memory by the bootloader, and
 // is the user seed. We keep this seed in memory, because if the user ever logs
 // out the kernel is expected to refresh, which will clear the seed.
-declare var userSeed: Uint8Array;
+declare let userSeed: Uint8Array;
 
 // Derive the active seed for this session. We define an active seed so that
 // the user has control over changing accounts later, they can "change
@@ -22,11 +22,11 @@ declare var userSeed: Uint8Array;
 // changes its derivation to the new activeSeed. We only want to use the
 // userSeed as the root for the myskyRootKeypair if the active seed is the
 // "defaultUserActiveSeed".
-let activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed");
-let activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length);
+const activeSeedSalt = new TextEncoder().encode("defaultUserActiveSeed");
+const activeSeedPreimage = new Uint8Array(userSeed.length + activeSeedSalt.length);
 activeSeedPreimage.set(userSeed, 0);
 activeSeedPreimage.set(activeSeedSalt, userSeed.length);
-let activeSeed = sha512(activeSeedPreimage).slice(0, 16);
-let myskyRootKeypair = deriveMyskyRootKeypair(userSeed);
+const activeSeed = sha512(activeSeedPreimage).slice(0, 16);
+const myskyRootKeypair = deriveMyskyRootKeypair(userSeed);
 
 export { DEFAULT_MYSKY_ROOT_MODULES, activeSeed, myskyRootKeypair };

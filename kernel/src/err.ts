@@ -1,7 +1,7 @@
 // notableErrors is a persistent list of errors that should be checked after
 // testing. You should only add to this array in the event of an error that
 // indicates a bug with the kernel.
-let notableErrors: string[] = [];
+const notableErrors: string[] = [];
 
 // respondErr will send an error response to the caller that closes out the
 // query for the provided nonce. The extra inputs of 'messagePortal' and
@@ -10,7 +10,7 @@ let notableErrors: string[] = [];
 // window message, and also from the fact that postMessage has different
 // arguments depending on whether the messagePortal is a worker or a window.
 function respondErr(event: MessageEvent, messagePortal: any, isWorker: boolean, err: string) {
-  let message = {
+  const message = {
     nonce: event.data.nonce,
     method: "response",
     data: {},

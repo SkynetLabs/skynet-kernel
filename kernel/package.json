@@ -7,10 +7,12 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "deps": "npm install libskynet@latest && npm install libkmodule@latest",
-    "prettier": "prettier --write .",
-    "eslint": "eslint src --fix",
-    "lint": "npm run deps && npm run prettier && npm run eslint",
+    "lint": "prettier -l 'src' '*.js' '*.json' && eslint 'src' '*.js' '*.json'",
+    "clean": "node ./clean.js",
+    "deps": "npm install libskynet@latest && npm install libkmodule@latest && npm audit fix",
+    "update-deps": "npm run clean && npm run deps && npm install",
+    "update-lint": "prettier -w 'src' '*.js' '*.json' && eslint 'src' '*.js' '*.json' --fix",
+    "update": "npm run update-deps && npm run update-lint",
     "build-script": "tsc --project tsconfig.build.json",
     "compile": "npm run build-script && tsc && rollup -c",
     "build": "npm run compile && node ./dist-build/build.js dev",
@@ -29,7 +31,7 @@
     "typescript": "^4.6.3"
   },
   "dependencies": {
-    "libkmodule": "^0.2.42",
-    "libskynet": "^0.0.61"
+    "libkmodule": "^0.2.47",
+    "libskynet": "^0.0.63"
   }
 }

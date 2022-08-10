@@ -18,9 +18,8 @@ import { addContextToErr, b64ToBuf, validSkylink } from "libskynet";
 // kernel while informing applications about the auth state of the kernel.
 //
 // The kernel is encouraged to overwrite these functions with new values.
-declare var handleIncomingMessage: Function;
-declare var handleSkynetKernelRequestOverride: Function;
-declare var handleSkynetKernelProxyInfo: Function;
+declare let handleIncomingMessage: (event: MessageEvent) => void;
+declare let handleSkynetKernelRequestOverride: (event: MessageEvent) => void;
 
 // IS_EXTENSION is a boolean that indicates whether or not the kernel is
 // running in a browser extension.
@@ -39,18 +38,15 @@ log("init", "Skynet Kernel v" + KERNEL_VERSION + "-" + KERNEL_DISTRO);
 // callerIsDashboard checks that the caller of a method is the secure dashboard
 // of the kernel.
 function callerIsDashboard(event: MessageEvent): boolean {
+  const extensionDash = "http://kernel.skynet/dashboard.html";
+  const sktDash = "https://skt.us/dashboard.html";
+  if (IS_EXTENSION && event.origin !== extensionDash) {
+    return false;
+  }
+  if (event.origin !== sktDash && event.origin !== extensionDash) {
+    return false;
+  }
   return true;
-  /*
-	let extensionDash == "http://kernel.skynet/dashboard.html"
-	let sktDash = "https://skt.us/dashboard.html"
-	if (IS_EXTENSION && event.origin !== extensionDash) {
-		return false
-	}
-	if (event.origin !== sktDash && event.origin !== extensionDash) {
-		return false
-	}
-	return true
-   */
 }
 
 // handleSkynetKernelGetModuleOverrides handles a kernel message that is
@@ -94,7 +90,7 @@ function handleSkynetKernelSetModuleOverrides(event: MessageEvent) {
     respondErr(event, event.source, false, "provided call data is not an object");
     return;
   }
-  let newOverrides = event.data.data.newOverrides;
+  const newOverrides = event.data.data.newOverrides;
   if (newOverrides === null || typeof newOverrides !== "object") {
     respondErr(event, event.source, false, "newOverrides needs to be a key-value list of module overrides");
     return;
@@ -102,13 +98,13 @@ function handleSkynetKernelSetModuleOverrides(event: MessageEvent) {
 
   // Iterate over the keys and values of the object and ensure that all of
   // them are legal override objects.
-  for (let [key, value] of Object.entries(newOverrides)) {
+  for (const [key, value] of Object.entries(newOverrides)) {
     // Check that the key is a valid skylink. This key represents a module.
     if (typeof key !== "string") {
       respondErr(event, event.source, false, "module identifiers should be strings");
       return;
     }
-    let [skylinkU8, errBTB] = b64ToBuf(key);
+    const [skylinkU8, errBTB] = b64ToBuf(key);
     if (errBTB !== null) {
       respondErr(event, event.source, false, addContextToErr(errBTB, "unable to decode key"));
       return;
@@ -138,7 +134,7 @@ function handleSkynetKernelSetModuleOverrides(event: MessageEvent) {
       respondErr(event, event.source, false, "every module override should have an override field");
       return;
     }
-    let [overrideU8, errBTB2] = b64ToBuf((value as any).override);
+    const [overrideU8, errBTB2] = b64ToBuf((value as any).override);
     if (errBTB2 !== null) {
       respondErr(event, event.source, false, addContextToErr(errBTB, "unable to decode override value"));
       return;
@@ -254,10 +250,6 @@ handleIncomingMessage = function (event: any) {
   }
   if (event.data.method === "requestOverride") {
     handleSkynetKernelRequestOverride(event);
-    return;
-  }
-  if (event.data.method === "proxyInfo") {
-    handleSkynetKernelProxyInfo(event);
     return;
   }
   if (event.data.method === "getModuleOverrides") {

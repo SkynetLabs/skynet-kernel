@@ -59,9 +59,9 @@ interface OpenQuery {
 // queries that are in progress, the set of modules that we've downloaded, and
 // the set of modules that are actively being downloaded.
 let queriesNonce = 0;
-let queries = {} as any;
-let modules = {} as any;
-let modulesLoading = {} as any;
+const queries = {} as any;
+const modules = {} as any;
+const modulesLoading = {} as any;
 
 // Create a standard message handler for messages coming from workers.
 //
@@ -158,12 +158,12 @@ function handleWorkerMessage(event: MessageEvent, mod: Module, worker: Worker) {
 
   // The only other methods allowed are the queryUpdate, responseUpdate,
   // and response methods.
-  let isQueryUpdate = event.data.method === "queryUpdate";
-  let isResponseUpdate = event.data.method === "responseUpdate";
-  let isResponse = event.data.method === "response";
+  const isQueryUpdate = event.data.method === "queryUpdate";
+  const isResponseUpdate = event.data.method === "responseUpdate";
+  const isResponse = event.data.method === "response";
   if (isQueryUpdate || isResponseUpdate || isResponse) {
     handleModuleResponse(event, mod, worker);
-    return
+    return;
   }
 
   // We don't know what this message was.
@@ -174,10 +174,10 @@ function handleWorkerMessage(event: MessageEvent, mod: Module, worker: Worker) {
 // This call does not launch the worker, that should be done separately.
 function createModule(workerCode: Uint8Array, domain: string): [Module, Err] {
   // Generate the URL for the worker code.
-  let url = URL.createObjectURL(new Blob([workerCode]));
+  const url = URL.createObjectURL(new Blob([workerCode]));
 
   // Create the module object.
-  let mod: Module = {
+  const mod: Module = {
     domain,
     url,
     launchWorker: function (): [Worker, Err] {
@@ -191,7 +191,7 @@ function createModule(workerCode: Uint8Array, domain: string): [Module, Err] {
   for (let i = 0; i < DEFAULT_PERSISTENT_MODULES.length; i++) {
     if (domain === DEFAULT_PERSISTENT_MODULES[i]) {
       mod.isPersistent = true;
-      let [worker, err] = mod.launchWorker();
+      const [worker, err] = mod.launchWorker();
       if (err !== null) {
         return [{} as Module, addContextToErr(err, "unable to launch persistent worker")];
       }
@@ -219,24 +219,24 @@ function launchWorker(mod: Module): [Worker, Err] {
     handleWorkerMessage(event, mod, worker);
   };
   worker.onerror = function (event: ErrorEvent) {
-    let errStr = objAsString(event.message) + "\n" + objAsString(event.error) + "\n" + objAsString(event)
+    const errStr = objAsString(event.message) + "\n" + objAsString(event.error) + "\n" + objAsString(event);
     logErr("worker", mod.domain, addContextToErr(errStr, "received onerror event"));
   };
 
   // Check if the module is on the whitelist to receive the mysky seed.
-  let sendMyskyRoot = DEFAULT_MYSKY_ROOT_MODULES.includes(mod.domain);
+  const sendMyskyRoot = DEFAULT_MYSKY_ROOT_MODULES.includes(mod.domain);
 
   // Send the seed to the module.
-  let path = "moduleSeedDerivation" + mod.domain;
-  let u8Path = new TextEncoder().encode(path);
-  let moduleSeedPreimage = new Uint8Array(u8Path.length + 16);
+  const path = "moduleSeedDerivation" + mod.domain;
+  const u8Path = new TextEncoder().encode(path);
+  const moduleSeedPreimage = new Uint8Array(u8Path.length + 16);
   moduleSeedPreimage.set(u8Path, 0);
   moduleSeedPreimage.set(activeSeed, u8Path.length);
-  let moduleSeed = sha512(moduleSeedPreimage).slice(0, 16);
-  let msgData: presentSeedData = {
+  const moduleSeed = sha512(moduleSeedPreimage).slice(0, 16);
+  const msgData: presentSeedData = {
     seed: moduleSeed,
   };
-  let msg: moduleQuery = {
+  const msg: moduleQuery = {
     method: "presentSeed",
     domain: "root",
     data: msgData,
@@ -283,21 +283,21 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
   }
 
   // TODO: Load any overrides.
-  let finalModule = event.data.data.module; // Can change with overrides.
-  let moduleDomain = event.data.data.module; // Does not change with overrides.
+  const finalModule = event.data.data.module; // Can change with overrides.
+  const moduleDomain = event.data.data.module; // Does not change with overrides.
 
   // Define a helper function to create a new query to the module. It will
   // both open a query on the module and also send an update message to the
   // caller with the kernel nonce for this query so that the caller can
   // perform query updates.
-  let newModuleQuery = function (mod: Module) {
+  const newModuleQuery = function (mod: Module) {
     let worker: Worker;
     if (mod.isPersistent) {
       worker = mod.worker!;
     } else {
-      let [newWorker, err] = mod.launchWorker();
+      const [newWorker, err] = mod.launchWorker();
       if (err !== null) {
-        let errCtx = addContextToErr(err, "unable to launch worker");
+        const errCtx = addContextToErr(err, "unable to launch worker");
         logErr("worker", errCtx);
         respondErr(event, messagePortal, isWorker, errCtx);
         return;
@@ -310,15 +310,15 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
     // the user's seed. We use 'kernelNonceSalt' as a salt to
     // namespace the nonces and make sure other processes don't
     // accidentally end up using the same hashes.
-    let nonceSalt = new TextEncoder().encode("kernelNonceSalt");
-    let [nonceBytes] = encodeU64(BigInt(queriesNonce));
-    let noncePreimage = new Uint8Array(nonceSalt.length + activeSeed.length + nonceBytes.length);
+    const nonceSalt = new TextEncoder().encode("kernelNonceSalt");
+    const [nonceBytes] = encodeU64(BigInt(queriesNonce));
+    const noncePreimage = new Uint8Array(nonceSalt.length + activeSeed.length + nonceBytes.length);
     noncePreimage.set(nonceSalt, 0);
     noncePreimage.set(activeSeed, nonceSalt.length);
     noncePreimage.set(nonceBytes, nonceSalt.length + activeSeed.length);
-    let nonce = bufToB64(sha512(noncePreimage));
+    const nonce = bufToB64(sha512(noncePreimage));
     queriesNonce = queriesNonce + 1;
-    let query: OpenQuery = {
+    const query: OpenQuery = {
       isWorker,
       domain: callerDomain,
       source: messagePortal,
@@ -340,7 +340,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
     // send the kernel nonce. We don't always send the kernel nonce
     // because messages have material overhead.
     if (event.data.sendKernelNonce === true) {
-      let msg = {
+      const msg = {
         nonce: event.data.nonce,
         method: "responseNonce",
         data: {
@@ -357,34 +357,34 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
 
   // Check the worker pool to see if this module is already available.
   if (moduleDomain in modules) {
-    let module = modules[moduleDomain];
+    const module = modules[moduleDomain];
     newModuleQuery(module);
     return;
   }
 
   // Check if another thread is already fetching the module.
   if (moduleDomain in modulesLoading) {
-    let p = modulesLoading[moduleDomain];
+    const p = modulesLoading[moduleDomain];
     p.then((errML: Err) => {
       if (errML !== null) {
         respondErr(event, messagePortal, isWorker, addContextToErr(errML, "module could not be loaded"));
         return;
       }
-      let module = modules[moduleDomain];
+      const module = modules[moduleDomain];
       newModuleQuery(module);
     });
-	return
+    return;
   }
 
   // Fetch the module in a background thread, and launch the query once the
   // module is available.
-  let moduleLoadedPromise = new Promise(async (resolve) => {
+  const moduleLoadedPromise = new Promise(async (resolve) => {
     // TODO: Check localStorage for the module.
 
     // Download the code for the worker.
-    let [moduleData, errDS] = await downloadSkylink(finalModule);
+    const [moduleData, errDS] = await downloadSkylink(finalModule);
     if (errDS !== null) {
-      let err = addContextToErr(errDS, "unable to load module");
+      const err = addContextToErr(errDS, "unable to load module");
       respondErr(event, messagePortal, isWorker, err);
       resolve(err);
       delete modulesLoading[moduleDomain];
@@ -404,7 +404,7 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
       // use the one we already loaded.
       logErr("a module that was already loaded has been loaded");
       notableErrors.push("module loading experienced a race condition");
-      let mod = modules[moduleDomain];
+      const mod = modules[moduleDomain];
       newModuleQuery(mod);
       resolve(null);
       return;
@@ -415,9 +415,9 @@ function handleModuleCall(event: MessageEvent, messagePortal: any, callerDomain:
     // with any updates from the remote module.
 
     // Create a new module.
-    let [mod, errCM] = createModule(moduleData, moduleDomain);
+    const [mod, errCM] = createModule(moduleData, moduleDomain);
     if (errCM !== null) {
-      let err = addContextToErr(errCM, "unable to create module");
+      const err = addContextToErr(errCM, "unable to create module");
       respondErr(event, messagePortal, isWorker, err);
       resolve(err);
       delete modulesLoading[moduleDomain];
@@ -439,8 +439,8 @@ function handleModuleResponse(event: MessageEvent, mod: Module, worker: Worker) 
 
   // Technically the caller already computed these values, but it's easier to
   // compute them again than to pass them as function args.
-  let isQueryUpdate = event.data.method === "queryUpdate";
-  let isResponse = event.data.method === "response";
+  const isQueryUpdate = event.data.method === "queryUpdate";
+  const isResponse = event.data.method === "response";
 
   // Check that the data field is present.
   if (!("data" in event.data)) {
@@ -471,7 +471,7 @@ function handleModuleResponse(event: MessageEvent, mod: Module, worker: Worker) 
 
   // If the message is a query update, relay the update to the worker.
   if (isQueryUpdate) {
-    let dest = queries[event.data.nonce].dest;
+    const dest = queries[event.data.nonce].dest;
     dest.postMessage({
       nonce: event.data.nonce,
       method: event.data.method,
@@ -496,8 +496,8 @@ function handleModuleResponse(event: MessageEvent, mod: Module, worker: Worker) 
     }
 
     // Check that exactly one of 'err' and 'data' are null.
-    let errNull = event.data.err === null;
-    let dataNull = event.data.data === null;
+    const errNull = event.data.err === null;
+    const dataNull = event.data.data === null;
     if (errNull === dataNull) {
       logErr("worker", mod.domain, "exactly one of err and data must be null");
       return;
@@ -506,11 +506,11 @@ function handleModuleResponse(event: MessageEvent, mod: Module, worker: Worker) 
 
   // We are sending either a response message or a responseUpdate message,
   // all other possibilities have been handled.
-  let sourceIsWorker = queries[event.data.nonce].isWorker;
-  let sourceNonce = queries[event.data.nonce].nonce;
-  let source = queries[event.data.nonce].source;
-  let origin = queries[event.data.nonce].origin;
-  let msg: any = {
+  const sourceIsWorker = queries[event.data.nonce].isWorker;
+  const sourceNonce = queries[event.data.nonce].nonce;
+  const source = queries[event.data.nonce].source;
+  const origin = queries[event.data.nonce].origin;
+  const msg: any = {
     nonce: sourceNonce,
     method: event.data.method,
     data: event.data.data,
@@ -535,7 +535,7 @@ function handleQueryUpdate(event: MessageEvent) {
     logErr("auth", "received queryUpdate but nonce is not recognized", event.data, queries);
     return;
   }
-  let dest = queries[event.data.nonce].dest;
+  const dest = queries[event.data.nonce].dest;
   dest.postMessage({
     nonce: event.data.nonce,
     method: event.data.method,

@@ -1,1 +1,4 @@
-package-lock.json
+build
+dist
+dist-build
+node_modules

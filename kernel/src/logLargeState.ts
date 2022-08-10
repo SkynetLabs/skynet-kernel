@@ -7,9 +7,9 @@ import { modules, modulesLoading, queries } from "./queries.js";
 // of a
 let waitTime = 30000;
 function logLargeObjects() {
-  let queriesLenStr = Object.keys(queries).length.toString();
-  let modulesLenStr = Object.keys(modules).length.toString();
-  let modulesLoadingLenStr = Object.keys(modulesLoading).length.toString();
+  const queriesLenStr = Object.keys(queries).length.toString();
+  const modulesLenStr = Object.keys(modules).length.toString();
+  const modulesLoadingLenStr = Object.keys(modulesLoading).length.toString();
   log(
     "open queries :: open modules :: modules loading :: notable errors : " +
       queriesLenStr +
