@@ -15,8 +15,8 @@
     "update": "npm run update-deps && npm run update-lint",
     "build-script": "tsc --project tsconfig.build.json",
     "compile": "npm run build-script && tsc && rollup -c",
-    "build": "npm run compile && node ./dist-build/build.js dev",
-    "deploy": "npm run compile && node ./dist-build/build.js prod"
+    "build": "npm run clean && npm install && npm run lint && npm run compile && node ./dist-build/build.js dev",
+    "deploy": "npm run clean && npm install && npm run lint && npm run compile && node ./dist-build/build.js prod"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^13.3.0",
