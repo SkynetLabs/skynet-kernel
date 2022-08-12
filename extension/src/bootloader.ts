@@ -533,7 +533,6 @@ function sendAuthUpdate() {
     "*"
   );
 }
-sendAuthUpdate();
 
 // checkForLoadKernel will check that the user seed is available, and if so it
 // will load the kernel. If not it will report that the user is not logged in
