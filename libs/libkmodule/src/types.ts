@@ -1,4 +1,4 @@
-import { Ed25519Keypair } from "libskynet"
+import { Ed25519Keypair } from "libskynet";
 
 // moduleQuery defines a query that can be sent to a module. The method is used
 // to tell the module what query is being made. The domain is set by the
@@ -12,9 +12,9 @@ import { Ed25519Keypair } from "libskynet"
 // kernel does not do any verification for the data field. The module itself is
 // responsible for verifying all inputs provided in the data field.
 interface moduleQuery {
-	method: string
-	domain: string
-	data: any
+  method: string;
+  domain: string;
+  data: any;
 }
 
 // presentSeedData contains the data that gets sent in a 'presentSeed' call
@@ -36,8 +36,8 @@ interface moduleQuery {
 //
 // NOTE: Using mysky for private files is considered deprecated.
 interface presentSeedData {
-	seed: Uint8Array
-	myskyRootKeypair?: Ed25519Keypair
+  seed: Uint8Array;
+  myskyRootKeypair?: Ed25519Keypair;
 }
 
-export { moduleQuery, presentSeedData }
+export { moduleQuery, presentSeedData };

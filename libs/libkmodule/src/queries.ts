@@ -1,21 +1,21 @@
-import { log, logErr } from "./log.js"
-import { DataFn } from "./messages.js"
-import { ErrTuple, objAsString } from "libskynet"
+import { log, logErr } from "./log.js";
+import { DataFn } from "./messages.js";
+import { ErrTuple, objAsString } from "libskynet";
 
 // queryResolve defines the function that gets called to resolve a query. It's
 // the 'resolve' field of a promise that returns a tuple containing some data
 // and an err.
-type queryResolve = (et: ErrTuple) => void
+type queryResolve = (et: ErrTuple) => void;
 
 // queryMap defines the type for the queries map, which maps a nonce to the
 // outgoing query that the module made.
 interface queryMap {
-	[nonce: number]: {
-		resolve: queryResolve
-		receiveUpdate?: DataFn
-		kernelNonce?: number
-		kernelNonceReceived?: DataFn
-	}
+  [nonce: number]: {
+    resolve: queryResolve;
+    receiveUpdate?: DataFn;
+    kernelNonce?: number;
+    kernelNonceReceived?: DataFn;
+  };
 }
 
 // incomingQueryMap defines the type for mapping incoming queries to the method
@@ -26,7 +26,7 @@ interface queryMap {
 // blockForReceiveUpdate is a promise that will be resolved once the
 // receiveUpdate function has been set.
 interface incomingQueryMap {
-	[nonce: string]: Promise<DataFn>
+  [nonce: string]: Promise<DataFn>;
 }
 
 // queries is an object that tracks outgoing queries to the kernel. When making
@@ -44,18 +44,18 @@ interface incomingQueryMap {
 //
 // NOTE: When sending out queryUpdate messages, the queries need to use the
 // nonce assigned by the kernel. The nonces in the 'queries' map will not work.
-let queriesNonce = 0
-let queries: queryMap = {}
+let queriesNonce = 0;
+const queries: queryMap = {};
 
 // incomingQueries is an object
 // set of information needed to process queryUpdate messages.
-let incomingQueries: incomingQueryMap = {}
+const incomingQueries: incomingQueryMap = {};
 
 // clearIncomingQuery will clear a query with the provided nonce from the set
 // of incomingQueries. This method gets called when the response is either
 // accepted or rejected.
 function clearIncomingQuery(nonce: number) {
-	delete incomingQueries[nonce]
+  delete incomingQueries[nonce];
 }
 
 // getSetReceiveUpdate returns a function called 'setReceiveUpdate' which can
@@ -63,35 +63,35 @@ function clearIncomingQuery(nonce: number) {
 // queryUpdate messages that get received will block until setReceiveUpdate has
 // been called.
 function getSetReceiveUpdate(event: MessageEvent): (receiveUpdate: DataFn) => void {
-	// Create the promise that allows us to block until the handler has
-	// provided us its receiveUpdate function.
-	let updateReceived: DataFn
-	let blockForReceiveUpdate: Promise<DataFn> = new Promise((resolve) => {
-		updateReceived = resolve
-	})
+  // Create the promise that allows us to block until the handler has
+  // provided us its receiveUpdate function.
+  let updateReceived: DataFn;
+  const blockForReceiveUpdate: Promise<DataFn> = new Promise((resolve) => {
+    updateReceived = resolve;
+  });
 
-	// Add the blockForReceiveUpdate object to the queryUpdateRouter.
-	incomingQueries[event.data.nonce] = blockForReceiveUpdate
-	return function (receiveUpdate: DataFn) {
-		updateReceived(receiveUpdate)
-	}
+  // Add the blockForReceiveUpdate object to the queryUpdateRouter.
+  incomingQueries[event.data.nonce] = blockForReceiveUpdate;
+  return function (receiveUpdate: DataFn) {
+    updateReceived(receiveUpdate);
+  };
 }
 
 // handleQueryUpdate currently discards all queryUpdates.
 async function handleQueryUpdate(event: MessageEvent) {
-	// Check whether the handler for this query wants to process
-	// receiveUpdate messages. This lookup may also fail if no handler
-	// exists for this nonce, which can happen if the queryUpdate message
-	// created concurrently with a response (which is not considered a bug
-	// or error).
-	if (!(event.data.nonce in incomingQueries)) {
-		return
-	}
+  // Check whether the handler for this query wants to process
+  // receiveUpdate messages. This lookup may also fail if no handler
+  // exists for this nonce, which can happen if the queryUpdate message
+  // created concurrently with a response (which is not considered a bug
+  // or error).
+  if (!(event.data.nonce in incomingQueries)) {
+    return;
+  }
 
-	// Block until the handler has provided a receiveUpdate function, than
-	// call receiveUpdate.
-	let receiveUpdate = await incomingQueries[event.data.nonce]
-	receiveUpdate(event.data.data)
+  // Block until the handler has provided a receiveUpdate function, than
+  // call receiveUpdate.
+  const receiveUpdate = await incomingQueries[event.data.nonce];
+  receiveUpdate(event.data.data);
 }
 
 // handleResponse will take a response and match it to the correct query.
@@ -100,49 +100,49 @@ async function handleQueryUpdate(event: MessageEvent) {
 // field will be present in any message that gets sent using the "response"
 // method.
 function handleResponse(event: MessageEvent) {
-	// Look for the query with the corresponding nonce.
-	if (!(event.data.nonce in queries)) {
-		logErr("no open query found for provided nonce: " + objAsString(event.data.data))
-		return
-	}
+  // Look for the query with the corresponding nonce.
+  if (!(event.data.nonce in queries)) {
+    logErr("no open query found for provided nonce: " + objAsString(event.data.data));
+    return;
+  }
 
-	// Check if the response is an error.
-	if (event.data.err !== null) {
-		logErr("there's an error in the data")
-		queries[event.data.nonce].resolve([{}, event.data.err])
-		delete queries[event.data.nonce]
-		return
-	}
+  // Check if the response is an error.
+  if (event.data.err !== null) {
+    logErr("there's an error in the data");
+    queries[event.data.nonce].resolve([{}, event.data.err]);
+    delete queries[event.data.nonce];
+    return;
+  }
 
-	// Call the handler function using the provided data, then delete the query
-	// from the query map.
-	queries[event.data.nonce].resolve([event.data.data, null])
-	delete queries[event.data.nonce]
+  // Call the handler function using the provided data, then delete the query
+  // from the query map.
+  queries[event.data.nonce].resolve([event.data.data, null]);
+  delete queries[event.data.nonce];
 }
 
 // handleResponseNonce will handle a message with the method 'responseNonce'.
 // This is a message from the kernel which is telling us what nonce we should
 // use when we send queryUpdate messages to the kernel for a particular query.
 function handleResponseNonce(event: MessageEvent) {
-	// Check if the query exists. If it does not exist, it's possible that the
-	// messages just arrived out of order and nothing is going wrong.
-	if (!(event.data.nonce in queries)) {
-		logErr("temp err: nonce could not be found")
-		return
-	}
-	let query = queries[event.data.nonce]
-	if ("kernelNonce" in query) {
-		logErr("received two responseNonce messages for the same query nonce")
-		return
-	}
-	if (typeof query["kernelNonceReceived"] !== "function") {
-		// We got a nonce even though one wasn't requested.
-		log("received nonce even though none was requested")
-		return
-	}
-	query["kernelNonce"] = event.data.data.nonce
-	query.kernelNonceReceived()
-	return
+  // Check if the query exists. If it does not exist, it's possible that the
+  // messages just arrived out of order and nothing is going wrong.
+  if (!(event.data.nonce in queries)) {
+    logErr("temp err: nonce could not be found");
+    return;
+  }
+  const query = queries[event.data.nonce];
+  if ("kernelNonce" in query) {
+    logErr("received two responseNonce messages for the same query nonce");
+    return;
+  }
+  if (typeof query["kernelNonceReceived"] !== "function") {
+    // We got a nonce even though one wasn't requested.
+    log("received nonce even though none was requested");
+    return;
+  }
+  query["kernelNonce"] = event.data.data.nonce;
+  query.kernelNonceReceived();
+  return;
 }
 
 // handleResponseUpdate attempts to find the corresponding query using the
@@ -153,18 +153,18 @@ function handleResponseNonce(event: MessageEvent) {
 // been closed out by a response. We therefore just ignore any messages that
 // can't be matched to a nonce.
 function handleResponseUpdate(event: MessageEvent) {
-	// Ignore this message if there is no corresponding query, the query may
-	// have been closed out and this message was just processed late.
-	if (!(event.data.nonce in queries)) {
-		return
-	}
+  // Ignore this message if there is no corresponding query, the query may
+  // have been closed out and this message was just processed late.
+  if (!(event.data.nonce in queries)) {
+    return;
+  }
 
-	// Check whether a receiveUpdate function was set, and if so pass the
-	// update along. To prevent typescript
-	let query = queries[event.data.nonce]
-	if (typeof query["receiveUpdate"] === "function") {
-		query.receiveUpdate(event.data.data)
-	}
+  // Check whether a receiveUpdate function was set, and if so pass the
+  // update along. To prevent typescript
+  const query = queries[event.data.nonce];
+  if (typeof query["receiveUpdate"] === "function") {
+    query.receiveUpdate(event.data.data);
+  }
 }
 
 // callModule is a generic function to call a module. It will return whatever
@@ -175,13 +175,13 @@ function handleResponseUpdate(event: MessageEvent) {
 // ignored if received. If you need those messages, use 'connectModule'
 // instead.
 function callModule(module: string, method: string, data?: any): Promise<ErrTuple> {
-	let moduleCallData = {
-		module,
-		method,
-		data,
-	}
-	let [, query] = newKernelQuery("moduleCall", moduleCallData, false)
-	return query
+  const moduleCallData = {
+    module,
+    method,
+    data,
+  };
+  const [, query] = newKernelQuery("moduleCall", moduleCallData, false);
+  return query;
 }
 
 // connectModule is a generic function to connect to a module. It is similar to
@@ -219,19 +219,19 @@ function callModule(module: string, method: string, data?: any): Promise<ErrTupl
 // the module is entirely determined by the module and will vary based on what
 // method was called in the original query.
 function connectModule(
-	module: string,
-	method: string,
-	data: any,
-	receiveUpdate: DataFn
+  module: string,
+  method: string,
+  data: any,
+  receiveUpdate: DataFn
 ): [sendUpdate: DataFn, response: Promise<ErrTuple>] {
-	let moduleCallData = {
-		module,
-		method,
-		data,
-	}
-	// We omit the 'receiveUpdate' function because this is a no-op. If the
-	// value is not defined, newKernelQuery will place in a no-op for us.
-	return newKernelQuery("moduleCall", moduleCallData, true, receiveUpdate)
+  const moduleCallData = {
+    module,
+    method,
+    data,
+  };
+  // We omit the 'receiveUpdate' function because this is a no-op. If the
+  // value is not defined, newKernelQuery will place in a no-op for us.
+  return newKernelQuery("moduleCall", moduleCallData, true, receiveUpdate);
 }
 
 // newKernelQuery creates a query to send to the kernel. It automatically
@@ -252,66 +252,66 @@ function connectModule(
 // NOTE: Typically developers should not use this function. Instead use
 // 'callModule' or 'connectModule'.
 function newKernelQuery(
-	method: string,
-	data: any,
-	sendUpdates: boolean,
-	receiveUpdate?: DataFn
+  method: string,
+  data: any,
+  sendUpdates: boolean,
+  receiveUpdate?: DataFn
 ): [sendUpdate: DataFn, response: Promise<ErrTuple>] {
-	// Get the nonce for the query.
-	let nonce = queriesNonce
-	queriesNonce += 1
+  // Get the nonce for the query.
+  const nonce = queriesNonce;
+  queriesNonce += 1;
 
-	// Create the sendUpdate function, which allows the caller to send a
-	// queryUpdate. The update cannot actually be sent until the kernel has told us the responseNonce
-	let sendUpdate: DataFn = () => {}
+  // Create the sendUpdate function, which allows the caller to send a
+  // queryUpdate. The update cannot actually be sent until the kernel has told us the responseNonce
+  let sendUpdate: DataFn = () => {};
 
-	// Establish the query in the queries map and then send the query to the
-	// kernel.
-	let p: Promise<ErrTuple> = new Promise((resolve) => {
-		queries[nonce] = { resolve }
-	})
-	if (receiveUpdate !== null && receiveUpdate !== undefined) {
-		queries[nonce]["receiveUpdate"] = receiveUpdate
-	}
-	if (sendUpdates) {
-		// Set up the promise that resovles when we have received the responseNonce
-		// from the kernel.
-		let blockForKernelNonce = new Promise((resolve) => {
-			queries[nonce]["kernelNonceReceived"] = resolve
-		})
-		sendUpdate = function (updateData: any) {
-			blockForKernelNonce.then(() => {
-				// It's possible that the query was already closed and deleted from
-				// the queries map, so we need an existence check before completing
-				// the postMessage call.
-				if (!(nonce in queries)) {
-					return
-				}
-				postMessage({
-					method: "queryUpdate",
-					nonce: queries[nonce].kernelNonce,
-					data: updateData,
-				})
-			})
-		}
-	}
-	postMessage({
-		method,
-		nonce,
-		data,
-		sendKernelNonce: sendUpdates,
-	})
-	return [sendUpdate, p]
+  // Establish the query in the queries map and then send the query to the
+  // kernel.
+  const p: Promise<ErrTuple> = new Promise((resolve) => {
+    queries[nonce] = { resolve };
+  });
+  if (receiveUpdate !== null && receiveUpdate !== undefined) {
+    queries[nonce]["receiveUpdate"] = receiveUpdate;
+  }
+  if (sendUpdates) {
+    // Set up the promise that resovles when we have received the responseNonce
+    // from the kernel.
+    const blockForKernelNonce = new Promise((resolve) => {
+      queries[nonce]["kernelNonceReceived"] = resolve;
+    });
+    sendUpdate = function (updateData: any) {
+      blockForKernelNonce.then(() => {
+        // It's possible that the query was already closed and deleted from
+        // the queries map, so we need an existence check before completing
+        // the postMessage call.
+        if (!(nonce in queries)) {
+          return;
+        }
+        postMessage({
+          method: "queryUpdate",
+          nonce: queries[nonce].kernelNonce,
+          data: updateData,
+        });
+      });
+    };
+  }
+  postMessage({
+    method,
+    nonce,
+    data,
+    sendKernelNonce: sendUpdates,
+  });
+  return [sendUpdate, p];
 }
 
 export {
-	callModule,
-	clearIncomingQuery,
-	connectModule,
-	getSetReceiveUpdate,
-	handleQueryUpdate,
-	handleResponse,
-	handleResponseNonce,
-	handleResponseUpdate,
-	newKernelQuery,
-}
+  callModule,
+  clearIncomingQuery,
+  connectModule,
+  getSetReceiveUpdate,
+  handleQueryUpdate,
+  handleResponse,
+  handleResponseNonce,
+  handleResponseUpdate,
+  newKernelQuery,
+};
