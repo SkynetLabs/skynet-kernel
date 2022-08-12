@@ -31,7 +31,7 @@ import {
   verifyRegistryWriteResponse,
 } from "libskynet";
 
-let browser: any; // tsc
+declare let browser: any; // tsc
 
 // Establish the skylink of the default kernel.
 const defaultKernelResolverLink = "AQBFjXpEBwbMwkBwYg0gdkeAM-yy9vlajfLtZSee9f-MDg";
