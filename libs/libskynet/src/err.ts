@@ -1,4 +1,4 @@
-import { objAsString } from "./objAsString.js"
+import { objAsString } from "./objAsString.js";
 
 // addContextToErr is a helper function that standardizes the formatting of
 // adding context to an error.
@@ -7,10 +7,10 @@ import { objAsString } from "./objAsString.js"
 // other type is provided instead of a string, we wrap both of the inputs with
 // objAsString before returning them. This prevents runtime failures.
 function addContextToErr(err: any, context: string): string {
-	if (err === null || err === undefined) {
-		err = "[no error provided]"
-	}
-	return objAsString(context) + ": " + objAsString(err)
+  if (err === null || err === undefined) {
+    err = "[no error provided]";
+  }
+  return objAsString(context) + ": " + objAsString(err);
 }
 
-export { addContextToErr }
+export { addContextToErr };

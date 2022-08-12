@@ -1,6 +1,6 @@
 // DataFn can take any object as input and has no return value. The input is
 // allowed to be undefined.
-type DataFn = (data?: any) => void
+type DataFn = (data?: any) => void;
 
 // Err is an error type that is either a string or a null. If the value is
 // null, that indicates that there was no error. If the value is a string, it
@@ -9,11 +9,11 @@ type DataFn = (data?: any) => void
 // The skynet libraries prefer this error type to the standard Error type
 // because many times skynet libraries need to pass errors over postMessage,
 // and the 'Error' type is not able to be sent over postMessage.
-type Err = string | null
+type Err = string | null;
 
 // ErrFn must take an error message as input. The input is not allowed to be
 // undefined or null, there must be an error.
-type ErrFn = (errMsg: string) => void
+type ErrFn = (errMsg: string) => void;
 
 // ErrTuple is a type that pairs a 'data' field with an 'err' field. Skynet
 // libraries typically prefer returning ErrTuples to throwing or rejecting,
@@ -29,7 +29,7 @@ type ErrFn = (errMsg: string) => void
 // returned, the err should be 'null'. If an error is returned, the data field
 // should generally be empty. Callers are expected to check the error before
 // they access any part of the data field.
-type ErrTuple = [data: any, err: Err]
+type ErrTuple = [data: any, err: Err];
 
 // KernelAuthStatus is the structure of a message that gets sent by the kernel
 // containing its auth status. Auth occurs in 5 stages.
@@ -52,17 +52,17 @@ type ErrTuple = [data: any, err: Err]
 // 'logoutComplete' can be set to 'true' at any point, which indicates that the
 // auth cycle needs to reset.
 interface KernelAuthStatus {
-	loginComplete: boolean
-	kernelLoaded: "not yet" | "success" | string
-	logoutComplete: boolean
+  loginComplete: boolean;
+  kernelLoaded: "not yet" | "success" | string;
+  logoutComplete: boolean;
 }
 
 // RequestOverrideResponse defines the type that the kernel returns as a
 // response to a requestOverride call.
 interface RequestOverrideResponse {
-	override: boolean
-	headers?: any // TODO: I don't know how to do an array of types.
-	body?: Uint8Array
+  override: boolean;
+  headers?: any; // TODO: I don't know how to do an array of types.
+  body?: Uint8Array;
 }
 
-export { DataFn, ErrFn, Err, ErrTuple, KernelAuthStatus, RequestOverrideResponse }
+export { DataFn, ErrFn, Err, ErrTuple, KernelAuthStatus, RequestOverrideResponse };

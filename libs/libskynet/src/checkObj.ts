@@ -1,4 +1,4 @@
-import { Err } from "./types.js"
+import { Err } from "./types.js";
 
 // checkObj take an untrusted object and a list of typechecks to perform and
 // will check that the object adheres to the typechecks. If a type is missing
@@ -22,14 +22,14 @@ import { Err } from "./types.js"
 //   ["aBig", "bigint"],
 // ]);
 function checkObj(obj: any, checks: [string, string][]): Err {
-	for (let i = 0; i < checks.length; i++) {
-		const check = checks[i]
-		const type = typeof obj[check[0]]
-		if (type !== check[1]) {
-			return "check failed, expecting " + check[1] + " got " + type
-		}
-	}
-	return null
+  for (let i = 0; i < checks.length; i++) {
+    const check = checks[i];
+    const type = typeof obj[check[0]];
+    if (type !== check[1]) {
+      return "check failed, expecting " + check[1] + " got " + type;
+    }
+  }
+  return null;
 }
 
-export { checkObj }
+export { checkObj };

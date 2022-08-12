@@ -1,30 +1,34 @@
 {
-	"name": "libskynet",
-	"version": "0.0.62",
-	"author": "Skynet Labs",
-	"description": "helper library to interact with skynet's low level primitives",
-	"main": "dist/index.js",
-	"type": "module",
-	"types": "dist/index.d.js",
-	"publishConfig": {
-		"access": "public"
-	},
-	"files": [
-		"/dist"
-	],
-	"scripts": {
-		"eslint": "eslint src --fix",
-		"prettier": "prettier --write .",
-		"lint": "npm run prettier && npm run eslint",
-		"test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/src-test/test.js",
-		"prepare": "npm run lint && npm run test"
-	},
-	"devDependencies": {
-		"@types/node": "^17.0.23",
-		"@typescript-eslint/eslint-plugin": "^5.19.0",
-		"eslint": "^8.13.0",
-		"prettier": "^2.6.2",
-		"skynet-js": "^4.3.0",
-		"tweetnacl": "^1.0.3"
-	}
+  "name": "libskynet",
+  "version": "0.0.63",
+  "author": "Skynet Labs",
+  "description": "helper library to interact with skynet's low level primitives",
+  "main": "dist/index.js",
+  "type": "module",
+  "types": "dist/index.d.js",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "lint": "prettier -l 'src' 'src-test' '*.js' '*.json' && eslint 'src' 'src-test' '*.js' '*.json'",
+    "clean": "node ./clean.js",
+    "deps": "npm audit fix",
+    "update-deps": "npm run clean && npm run deps && npm install",
+    "update-lint": "prettier -w 'src' 'src-test' '*.js' '*.json' && eslint 'src' 'src-test' '*.js' '*.json' --fix",
+    "update": "npm run update-deps && npm run update-lint",
+    "test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/test.js",
+    "build": "npm run clean && npm install && npm run lint && tsc",
+    "prepublishOnly": "npm run clean && npm install && npm run lint && npm run test"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.23",
+    "@typescript-eslint/eslint-plugin": "^5.19.0",
+    "eslint": "^8.13.0",
+    "prettier": "^2.6.2",
+    "skynet-js": "^4.3.0",
+    "tweetnacl": "^1.0.3"
+  }
 }

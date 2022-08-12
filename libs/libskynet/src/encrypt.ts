@@ -1,5 +1,5 @@
-import { encodeU64 } from "./encoding.js"
-import { SHA512_HASH_SIZE, sha512 } from "./sha512.js"
+import { encodeU64 } from "./encoding.js";
+import { SHA512_HASH_SIZE, sha512 } from "./sha512.js";
 
 // otpEncrypt takes a key and some data and encrypts the data with the key. The
 // encryption happens by generating a sequence of bytes using sha512 hashes and
@@ -26,33 +26,33 @@ import { SHA512_HASH_SIZE, sha512 } from "./sha512.js"
 // strong understanding of encryption techniques and typical encryption
 // attacks.
 function otpEncrypt(key: Uint8Array, data: Uint8Array, skip?: number): Uint8Array {
-	// If the optional variable is not set, set it.
-	if (skip === undefined) {
-		skip = 0
-	}
+  // If the optional variable is not set, set it.
+  if (skip === undefined) {
+    skip = 0;
+  }
 
-	// Build an array to hold the preimage for each step of encryption. We are
-	// just going to be altering the final 8 bytes as we encrypt the file.
-	let preimageHolder = new Uint8Array(key.length + 8)
-	preimageHolder.set(key, 0)
+  // Build an array to hold the preimage for each step of encryption. We are
+  // just going to be altering the final 8 bytes as we encrypt the file.
+  const preimageHolder = new Uint8Array(key.length + 8);
+  preimageHolder.set(key, 0);
 
-	// Iterate over the data and encrypt each section.
-	for (let i = skip; i < data.length; i += SHA512_HASH_SIZE) {
-		// Set the nonce for this shard and then create the pad data.
-		let [iBytes] = encodeU64(BigInt(i))
-		preimageHolder.set(iBytes, key.length)
-		let keyData = sha512(preimageHolder)
+  // Iterate over the data and encrypt each section.
+  for (let i = skip; i < data.length; i += SHA512_HASH_SIZE) {
+    // Set the nonce for this shard and then create the pad data.
+    const [iBytes] = encodeU64(BigInt(i));
+    preimageHolder.set(iBytes, key.length);
+    const keyData = sha512(preimageHolder);
 
-		// XOR the keyData with the data. Watch for out-of-bounds on the
-		// file data.
-		for (let j = 0; j < keyData.length; j++) {
-			if (data.length <= i + j) {
-				break
-			}
-			data[i + j] = data[i + j] ^ keyData[j]
-		}
-	}
-	return data
+    // XOR the keyData with the data. Watch for out-of-bounds on the
+    // file data.
+    for (let j = 0; j < keyData.length; j++) {
+      if (data.length <= i + j) {
+        break;
+      }
+      data[i + j] = data[i + j] ^ keyData[j];
+    }
+  }
+  return data;
 }
 
-export { otpEncrypt }
+export { otpEncrypt };
