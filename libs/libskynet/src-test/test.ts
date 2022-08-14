@@ -1,6 +1,6 @@
 import { dictionary } from "../src/dictionary.js";
 import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "../src/ed25519.js";
-import { bufToHex, bufToB64, decodeU64, encodeU64 } from "../src/encoding.js";
+import { bufToHex, decodeU64, encodeU64 } from "../src/encoding.js";
 import { otpEncrypt } from "../src/encrypt.js";
 import { addContextToErr } from "../src/err.js";
 import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "../src/fileprivate.js";
@@ -150,7 +150,7 @@ function TestEd25519(t: any) {
 
 // Smoke testing for the basic registry functions.
 function TestRegistry(t: any) {
-  const [x1, x2, errREK1] = taggedRegistryEntryKeys(new TextEncoder().encode("not a seed"), "", "");
+  const [, , errREK1] = taggedRegistryEntryKeys(new TextEncoder().encode("not a seed"), "", "");
   if (errREK1 === null) {
     t.fail("expected error when using bad seed");
   }
@@ -802,7 +802,7 @@ function TestEncryptFileSmall(t: any) {
   }
 
   // Check that a bad seed fails decryption
-  const [x, y, errFD5] = decryptFileSmall(seed2, inode, encFD);
+  const [, , errFD5] = decryptFileSmall(seed2, inode, encFD);
   if (errFD5 === null) {
     t.fail("expecting an error when decrypting with the wrong seed");
     return;
@@ -854,7 +854,7 @@ function TestEncryptDecryptSpeed(t: any) {
 
   // Attempt to decrypt the file.
   const decStart = performance.now();
-  const [recoveredMetadata, recoveredFileData, errDF] = decryptFileSmall(seed, inode, encryptedData);
+  const [, , errDF] = decryptFileSmall(seed, inode, encryptedData);
   if (errDF !== null) {
     t.fail("received error when decrypting file", errDF);
     return;

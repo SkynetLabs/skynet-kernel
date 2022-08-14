@@ -57,6 +57,18 @@ interface KernelAuthStatus {
   logoutComplete: boolean;
 }
 
+// SkynetPortal defines the type for a skynet portal. In most cases, the url
+// and the name are nearly the same (the URL will have the protocol, and the
+// name will not). Sometimes however, they will not be the same.
+//
+// We need the two fields to be separate because the user will derive things
+// like their account pubkey based on the name of the portal, and the portal
+// may have to change URLs over time for various reasons.
+interface SkynetPortal {
+  url: string;
+  name: string;
+}
+
 // RequestOverrideResponse defines the type that the kernel returns as a
 // response to a requestOverride call.
 interface RequestOverrideResponse {
@@ -65,4 +77,4 @@ interface RequestOverrideResponse {
   body?: Uint8Array;
 }
 
-export { DataFn, ErrFn, Err, ErrTuple, KernelAuthStatus, RequestOverrideResponse };
+export { DataFn, ErrFn, Err, ErrTuple, KernelAuthStatus, RequestOverrideResponse, SkynetPortal };

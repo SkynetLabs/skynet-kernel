@@ -1,13 +1,27 @@
 import { objAsString } from "./objAsString.js";
 
-// progressiveFetchResult lists the items that are returned after calling
-// progressiveFetch. The 'portal' field indicates the portal that returned the
-// provided response. 'responsesFailed' contains any responses from portals
-// that returned a failed response (4XX, 5XX, or other), so that if there was a
-// user error the caller can handle it effectively. 'remainingPortals' contains
-// a list of portals that haven't been tried yet from the original response (in
-// case the provided response ends up being unacceptable), and 'logs' contains
-// a list of any log messages that might be worth reporting to the user.
+// progressiveFetchResult defines the items that are returned after calling
+// progressiveFetch. When progressiveFetch is called, 'fetch' is called
+// consecutively on multiple portals, until a portal provides a satisfactory
+// response. The 'success' field indicates whether some portal eventually
+// returned a successful response.
+//
+// If 'success' is set to 'true', the 'response' field will contain the
+// successful response. Otherwise, 'response' will be null.
+//
+// The 'portalsFailed' field contains a list of every portal that failed, using
+// the hostname of the portal as the string. The 'responsesFailed' field
+// contains the failed response from each portal that failed. And the
+// 'messagesFailed' field contains the error message from each portal that
+// failed, which is acquired by calling `response.clone().text()` on the failed
+// response and collecting the result.
+//
+// There is a 1:1 mapping between the 'portalsFailed', 'responsesFailed', and
+// 'messagesFailed' fields, they can be thought of as a tuple. The nth element
+// of one field corresponds to the nth element of the other fields.
+//
+// 'remainingPortals' contains the list of all portals that were not tried, and
+// 'logs' contains any log messages that may be useful for debugging.
 interface progressiveFetchResult {
   success: boolean;
   portal: string;
@@ -20,7 +34,8 @@ interface progressiveFetchResult {
 }
 
 // progressiveFetchMidstate contains all of the information that gets passed to
-// the progressiveFetchHelper.
+// the progressiveFetchHelper. The helper is responsible for calling the next
+// portal if the current attempt fails.
 interface progressiveFetchMidstate {
   endpoint: string;
   fetchOpts: any;

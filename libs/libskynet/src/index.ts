@@ -35,4 +35,4 @@ export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkbitfield.js";
 export { validateSkyfileMetadata, validateSkyfilePath, validSkylink } from "./skylinkvalidate.js";
 export { verifyResolverLinkProofs } from "./skylinkverifyresolver.js";
 export { jsonStringify } from "./stringifyjson.js";
-export { DataFn, Err, ErrFn, ErrTuple, KernelAuthStatus, RequestOverrideResponse } from "./types.js";
+export { DataFn, Err, ErrFn, ErrTuple, KernelAuthStatus, RequestOverrideResponse, SkynetPortal } from "./types.js";
