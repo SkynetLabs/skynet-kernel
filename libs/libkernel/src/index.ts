@@ -4,4 +4,4 @@ export { registryRead, registryWrite } from "./messageregistry.js";
 export { upload } from "./messageupload.js";
 export { kernelVersion } from "./messageversion.js";
 export { callModule, connectModule, init, newKernelQuery } from "./queries.js";
-export { addContextToErr, checkObj } from "libskynet";
+export { addContextToErr, checkObj, objAsString } from "libskynet";

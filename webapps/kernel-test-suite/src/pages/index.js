@@ -28,7 +28,8 @@ function nextTest() {
 // Real modules that we use during testing.
 const kernelTestSuite = "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g";
 const helperModule = "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA";
-const myskyModule = "IABOv7_dkJwtuaFBeB6eTR32mSvtLsBRVffEY9yYL0v0rA"
+const myskyModule = "IABOv7_dkJwtuaFBeB6eTR32mSvtLsBRVffEY9yYL0v0rA";
+const portalModule = "AQCBPFvXNvdtnLbWCRhC5WKhLxxXlel-EDwNM7-GQ-XV3Q";
 
 // Fake modules to check error conditions.
 const moduleDoesNotExist = "AQCPJ9WRzMpKQHIsPo9no3XJpUydcDCjw7VJy8lG1MCZ3g";
@@ -586,6 +587,21 @@ function TestBasicCORS() {
       resolve("CORS test passed for url: " + data.url);
     });
   });
+}
+
+// TestPortalConnection will send a message to the portal module to check that
+// the portal module was able to from a connection with the remote portal.
+function TestPortalConnection() {
+  return new Promise((resolve, reject) => {
+    kernel.callModule(portalModule, "checkSkynetConnection", {})
+    .then(([data, err]) => {
+      if (err !== null) {
+        reject(err)
+        return
+       }
+      resolve(kernel.objAsString(data))
+    })
+  })
 }
 
 // TestSecureRegistry will check that the sercure-registry module is working.
@@ -1193,6 +1209,7 @@ const IndexPage = () => {
         turn={getTurn()}
       />
       <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
+      <TestCard name="TestPortalConnection" test={TestPortalConnection} turn={getTurn()} />
       <TestCard
         name="TestSecureRegistry"
         test={TestSecureRegistry}

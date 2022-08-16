@@ -11,6 +11,6 @@ export { RegistryReadResult, registryRead, registryWrite } from "./messageRegist
 export { ActiveQuery, addHandler, handleMessage } from "./messages.js";
 export { upload } from "./messageUpload.js";
 export { callModule, connectModule, newKernelQuery } from "./queries.js";
-export { getSeed } from "./seed.js";
+export { getDataFromKernel, getSeed } from "./seed.js";
 export { moduleQuery, presentSeedData } from "./types.js";
-export { addContextToErr, checkObj, objAsString } from "libskynet";
+export { DataFn, Err, addContextToErr, checkObjProps, objAsString } from "libskynet";

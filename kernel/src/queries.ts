@@ -2,7 +2,16 @@ import { notableErrors, respondErr } from "./err.js";
 import { log, logErr } from "./log.js";
 import { DEFAULT_MYSKY_ROOT_MODULES, activeSeed, myskyRootKeypair } from "./seed.js";
 import { KERNEL_DISTRO, KERNEL_VERSION } from "./version.js";
-import { Err, addContextToErr, bufToB64, downloadSkylink, encodeU64, objAsString, sha512 } from "libskynet";
+import {
+  Err,
+  SkynetPortal,
+  addContextToErr,
+  bufToB64,
+  downloadSkylink,
+  encodeU64,
+  objAsString,
+  sha512,
+} from "libskynet";
 import { moduleQuery, presentSeedData } from "libkmodule";
 
 // DEFAULT_PERSISTENT_MODULES defines the set of modules that are allowed to
@@ -22,6 +31,20 @@ const DEFAULT_PERSISTENT_MODULES = [
   "AQAKn33Pm9WPcm872JuxnRhowH5UA3Mm_hCb6CMT79nQdw", // redsolvers-bridge-dac
   "AQDgPeyl2j30aY7tLnYI5aEvbrptQuz90bfSgwjKlmpOvw", // redsolvers-permission-module
 ];
+
+// BOOTSTRAP_PORTALS declares the list of portals that should be used by
+// default to connect the user to Skynet. These are the portals that get used
+// by the portal module in the event that the user has not established a set of
+// preferred portals.
+//
+// For brand new users, this list is the only way that a user can potentially
+// get online, so it's worth making the list as complete as possible.
+const BOOTSTRAP_PORTALS: SkynetPortal[] = [
+  { url: "https://skynetfree.net", name: "skynetfree.net" },
+  { url: "https://web3portal.com", name: "web3portal.com" },
+];
+
+const DEFAULT_PORTAL_MODULES = ["AQCBPFvXNvdtnLbWCRhC5WKhLxxXlel-EDwNM7-GQ-XV3Q"];
 
 // WorkerLaunchFn is the type signature of the function that launches the
 // worker to set up for processing a query.
@@ -225,6 +248,7 @@ function launchWorker(mod: Module): [Worker, Err] {
 
   // Check if the module is on the whitelist to receive the mysky seed.
   const sendMyskyRoot = DEFAULT_MYSKY_ROOT_MODULES.includes(mod.domain);
+  const sendBootstrapPortals = DEFAULT_PORTAL_MODULES.includes(mod.domain);
 
   // Send the seed to the module.
   const path = "moduleSeedDerivation" + mod.domain;
@@ -243,6 +267,9 @@ function launchWorker(mod: Module): [Worker, Err] {
   };
   if (sendMyskyRoot === true) {
     msg.data.myskyRootKeypair = myskyRootKeypair;
+  }
+  if (sendBootstrapPortals === true) {
+    msg.data.bootstrapPortals = BOOTSTRAP_PORTALS;
   }
   worker.postMessage(msg);
   return [worker, null];
