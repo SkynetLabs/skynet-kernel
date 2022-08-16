@@ -1,0 +1,8 @@
+# Dev Tools
+*.swp
+
+# Folders created during the build process.
+build
+dist-build
+dist
+node_modules
