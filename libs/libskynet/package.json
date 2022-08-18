@@ -1,6 +1,6 @@
 {
   "name": "libskynet",
-  "version": "0.0.65",
+  "version": "0.0.66",
   "author": "Skynet Labs",
   "description": "helper library to interact with skynet's low level primitives",
   "main": "dist/index.js",
@@ -18,7 +18,7 @@
     "deps": "npm audit fix",
     "update-deps": "npm run clean && npm run deps && npm install",
     "update-lint": "prettier -w 'src' 'src-test' '*.js' '*.json' && eslint 'src' 'src-test' '*.js' '*.json' --fix",
-    "update": "npm run update-deps && npm run update-lint",
+    "update": "npm run update-deps && npm run update-lint && tsc",
     "test": "tsc && tsc --project tsconfig.test.json && node ./dist-test/src-test/test.js",
     "build": "npm run clean && npm install && npm run lint && tsc",
     "prepublishOnly": "npm run clean && npm install && npm run lint && npm run test"

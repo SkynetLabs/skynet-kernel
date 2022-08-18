@@ -10,6 +10,7 @@ export { dictionary } from "./dictionary.js";
 export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js";
 export { b64ToBuf, bufToB64, bufToHex, bufToStr, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js";
 export { addContextToErr } from "./err.js";
+export { ErrTracker, HistoricErr, newErrTracker } from "./errTracker.js";
 export { decryptFileSmall, encryptFileSmall } from "./fileprivate.js";
 export { namespaceInode } from "./inode.js";
 export { blake2bAddLeafBytesToProofStack, blake2bMerkleRoot, blake2bProofStackRoot } from "./merkle.js";
