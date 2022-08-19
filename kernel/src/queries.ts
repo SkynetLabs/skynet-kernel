@@ -23,6 +23,7 @@ import { moduleQuery, presentSeedData } from "libkmodule";
 const DEFAULT_PERSISTENT_MODULES = [
   "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA", // kernel-test-helper
   "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g", // kernel-test-suite
+  "AQCBPFvXNvdtnLbWCRhC5WKhLxxXlel-EDwNM7-GQ-XV3Q", // skynet-portal module
   "AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ", // redsolvers-identity-dac
   "AQAXZpiIGQFT3lKGVwb8TAX3WymVsrM_LZ-A9cZzYNHWCw", // redsolvers-profile-dac
   "AQAPFg2Wdtld0HoVP0sIAQjQlVnXC-KY34WWDxXBLtzfbw", // redsolvers-query-dac

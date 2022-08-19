@@ -604,6 +604,21 @@ function TestPortalConnection() {
   })
 }
 
+// TestPortalAuth will ask the skynet-portal module to try a download to verify
+// that the auth is working.
+function TestPortalAuth() {
+  return new Promise((resolve, reject) => {
+    kernel.callModule(portalModule, "testLoggedIn", {})
+    .then(([data, err]) => {
+      if (err !== null) {
+        reject(err)
+        return
+       }
+      resolve(kernel.objAsString(data))
+    })
+  })
+}
+
 // TestSecureRegistry will check that the sercure-registry module is working.
 function TestSecureRegistry() {
 	return new Promise(async (resolve, reject) => {
@@ -1210,6 +1225,7 @@ const IndexPage = () => {
       />
       <TestCard name="TestBasicCORS" test={TestBasicCORS} turn={getTurn()} />
       <TestCard name="TestPortalConnection" test={TestPortalConnection} turn={getTurn()} />
+      <TestCard name="TestPortalAuth" test={TestPortalAuth} turn={getTurn()} />
       <TestCard
         name="TestSecureRegistry"
         test={TestSecureRegistry}
