@@ -101,7 +101,7 @@ function validateSkyfileMetadata(metadata: any): string | null {
 }
 
 // validateSkylink returns null if the provided Uint8Array is a valid skylink.
-function validSkylink(skylink: string | Uint8Array): Err {
+function validateSkylink(skylink: string | Uint8Array): Err {
   // If the input is a string, convert it to a Uint8Array.
   let skylinkU8: Uint8Array;
   if (typeof skylink === "string") {
@@ -116,7 +116,7 @@ function validSkylink(skylink: string | Uint8Array): Err {
 
   // skylink is now a Uint8
   if (skylinkU8.length !== SKYLINK_U8_V1_V2_LENGTH) {
-    return "skylinkU8 has an invalid length: " + skylinkU8.length.toString();
+    return `skylinkU8 has an invalid length: ${skylinkU8.length}`;
   }
   const [, , , errPSB] = parseSkylinkBitfield(skylinkU8);
   if (errPSB !== null) {
@@ -125,4 +125,4 @@ function validSkylink(skylink: string | Uint8Array): Err {
   return null;
 }
 
-export { SKYLINK_U8_V1_V2_LENGTH, validateSkyfileMetadata, validateSkyfilePath, validSkylink };
+export { SKYLINK_U8_V1_V2_LENGTH, validateSkyfileMetadata, validateSkyfilePath, validateSkylink };

@@ -51,10 +51,10 @@ function computeRegistrySignature(
 function deriveRegistryEntryID(pubkey: Uint8Array, dataKey: Uint8Array): [Uint8Array, Err] {
   // Check the lengths of the inputs.
   if (pubkey.length !== 32) {
-    return [new Uint8Array(0), "pubkey is invalid, length is wrong: " + pubkey.length.toString()];
+    return [new Uint8Array(0), `pubkey is invalid, length is wrong: ${pubkey.length}`];
   }
   if (dataKey.length !== 32) {
-    return [new Uint8Array(0), "dataKey is not a valid hash, length is wrong: " + pubkey.length.toString()];
+    return [new Uint8Array(0), `dataKey is not a valid hash, length is wrong: ${pubkey.length}`];
   }
 
   // Establish the encoding. First 16 bytes is a specifier, second 8
@@ -127,10 +127,6 @@ function taggedRegistryEntryKeys(
       new Uint8Array(0),
       "keypairTag must be less than 256 characters: " + keypairTagStr.toString(),
     ];
-  }
-  // If no dataKey tag was provided, use the empty string.
-  if (dataKeyTagStr === undefined) {
-    dataKeyTagStr = "";
   }
 
   // Generate a unique set of entropy using the seed and keypairTag.
