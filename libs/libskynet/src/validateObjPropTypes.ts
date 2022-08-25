@@ -1,3 +1,4 @@
+import { addContextToErr } from "./err.js"
 import { Err } from "./types.js";
 
 // validateObjPropTypes takes an object as input, along with a list of checks
@@ -33,40 +34,41 @@ function validateObjPropTypes(obj: any, checks: [string, string][]): Err {
   for (let i = 0; i < checks.length; i++) {
     const [property, expectedType] = checks[i];
 
-    // Special cases for arrays.
-    if (expectedType === "booleanArray") {
-      const err = validateArrayTypes(object[property], "boolean");
+    // Loop through the array cases.
+    const arrayCases = [
+      ["booleanArray", "boolean"],
+      ["numberArray", "number"],
+      ["bigintArray", "bigint"],
+      ["stringArray", "string"],
+    ]
+    let checkPassed = false
+    for (let j = 0; j < arrayCases.length; j++) {
+      // If this is not an array case, ignore it.
+      const [arrCaseType, arrType] = arrayCases[j]
+      if (expectedType !== arrCaseType) {
+        continue
+      }
+
+      // Check every element in the array.
+      const err = validateArrayTypes(obj[property], arrType)
       if (err !== null) {
         return addContextToErr(err, `check failed for array property '${property}'`);
       }
-      continue;
+
+      // We found the expected type for this check, we can stop checking the
+      // rest.
+      checkPassed = true
+      break
     }
-    if (expectedType === "numberArray") {
-      const err = validateArrayTypes(object[property], "number");
-      if (err !== null) {
-        return addContextToErr(err, `check failed for array property '${property}'`);
-      }
-      continue;
-    }
-    if (expectedType === "bigintArray") {
-      const err = validateArrayTypes(object[property], "bigint");
-      if (err !== null) {
-        return addContextToErr(err, `check failed for array property '${property}'`);
-      }
-      continue;
-    }
-    if (expectedType === "stringArray") {
-      const err = validateArrayTypes(object[property], "string");
-      if (err !== null) {
-        return addContextToErr(err, `check failed for array property '${property}'`);
-      }
-      continue;
+    // If the type was an array type, we don't need to perform the next check.
+    if (checkPassed === true) {
+      continue
     }
 
     // Generic typeof check.
-    const type = typeof object[property];
+    const type = typeof obj[property];
     if (type !== expectedType) {
-      return `check failed for property ${property}, expecting ${expectedType} got ${type}`;
+      return `check failed for property '${property}', expecting ${expectedType} got ${type}`;
     }
   }
   return null;
@@ -88,6 +90,7 @@ function validateArrayTypes(arr: any, expectedType: string): Err {
       return `element ${i} is expected to be ${expectedType}, got ${type}`;
     }
   }
+  return null
 }
 
 export { validateObjPropTypes };
