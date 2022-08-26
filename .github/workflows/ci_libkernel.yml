@@ -22,7 +22,6 @@ jobs:
         node-version: [14.x, 16.x, 18.x]
 
     steps:
-      - name: NPM Lint and Tests ${{ matrix.node-version }}
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
