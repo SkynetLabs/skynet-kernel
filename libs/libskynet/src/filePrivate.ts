@@ -3,7 +3,7 @@ import { otpEncrypt } from "./encrypt.js";
 import { addContextToErr } from "./err.js";
 import { parseJSON } from "./parse.js";
 import { sha512 } from "./sha512.js";
-import { jsonStringify } from "./stringifyjson.js";
+import { jsonStringify } from "./stringifyJSON.js";
 import { Err } from "./types.js";
 
 // decryptFileSmall will decrypt a file that was encrypted by encryptFileSmall.

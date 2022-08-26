@@ -1,27 +1,36 @@
-// Helper consts that make it easier to return empty values when returning an
-// error inside of a function.
-const nu8 = new Uint8Array(0);
+// skylinkBitfield.ts defines a bunch of operations for working with skylink
+// bitfields. This code is ported from the Sia codebase. You can see that code
+// and all of the comments at:
+//   https://gitlab.com/SkynetLabs/skyd/-/blob/master/skymodules/skylink.go
+
+import { SKYLINK_U8_V1_V2_LENGTH } from "./skylinkValidate.js";
+
+// SECTOR_SIZE is the size of a sector
+const SECTOR_SIZE = 1 << 22;
 
 // parseSkylinkBitfield parses a skylink bitfield and returns the corresponding
 // version, offset, and fetchSize.
-function parseSkylinkBitfield(skylink: Uint8Array): [bigint, bigint, bigint, string | null] {
+function parseSkylinkBitfield(skylinkU8: Uint8Array): [bigint, bigint, bigint, string | null] {
   // Validate the input.
-  if (skylink.length !== 34) {
+  if (skylinkU8.length !== SKYLINK_U8_V1_V2_LENGTH) {
     return [0n, 0n, 0n, "provided skylink has incorrect length"];
   }
 
   // Extract the bitfield.
-  let bitfield = new DataView(skylink.buffer).getUint16(0, true);
+  let bitfield = new DataView(skylinkU8.buffer).getUint16(0, true);
 
-  // Extract the version.
+  // Extract the version. We add '1' so that an empty version field maps to
+  // version 1, and a version field set to '1' maps to version 2.
   const version = (bitfield & 3) + 1;
   // Only versions 1 and 2 are recognized.
   if (version !== 1 && version !== 2) {
     return [0n, 0n, 0n, "provided skylink has unrecognized version"];
   }
 
-  // If the skylink is set to version 2, we only recognize the link if
-  // the rest of the bits in the bitfield are empty.
+  // If the skylink is set to version 2, we only recognize the link if the rest
+  // of the bits in the bitfield are empty. This is the definition of a v2
+  // skylink, other skylink versions (such as version 1) use more of the
+  // bitfield.
   if (version === 2) {
     if ((bitfield & 3) !== bitfield) {
       return [0n, 0n, 0n, "provided skylink has unrecognized version"];
@@ -58,14 +67,13 @@ function parseSkylinkBitfield(skylink: Uint8Array): [bigint, bigint, bigint, str
   }
 
   // The next three bits decide the fetchSize.
-  let fetchSizeBits = bitfield & 7;
-  fetchSizeBits++; // semantic upstep, range should be [1,8] not [0,8).
+  const fetchSizeBits = (bitfield & 7) + 1; // +1 because semantic range is [1,8].
   const fetchSize = fetchSizeBits * fetchSizeIncrement + fetchSizeStart;
   bitfield = bitfield >> 3;
 
   // The remaining bits determine the offset.
   const offset = bitfield * offsetIncrement;
-  if (offset + fetchSize > 1 << 22) {
+  if (offset + fetchSize > SECTOR_SIZE) {
     return [0n, 0n, 0n, "provided skylink has an invalid v1 bitfield"];
   }
 
@@ -78,8 +86,8 @@ function parseSkylinkBitfield(skylink: Uint8Array): [bigint, bigint, bigint, str
 // the provided dataSize.
 function skylinkV1Bitfield(dataSizeBI: bigint): [Uint8Array, string | null] {
   // Check that the dataSize is not too large.
-  if (dataSizeBI > 1 << 22) {
-    return [nu8, "dataSize must be less than the sector size"];
+  if (dataSizeBI > SECTOR_SIZE) {
+    return [new Uint8Array(0), "dataSize must be less than the sector size"];
   }
   const dataSize = Number(dataSizeBI);
 

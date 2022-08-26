@@ -1,6 +1,11 @@
 import { addContextToErr } from "./err.js";
 import { b64ToBuf } from "./encoding.js";
-import { parseSkylinkBitfield } from "./skylinkbitfield.js";
+import { parseSkylinkBitfield } from "./skylinkBitfield.js";
+import { Err } from "./types.js";
+
+// SKYLINK_U8_V1_V2_LENGTH defines the length of a skylink that is V1 or V2
+// when it is encoded as a Uint8Array.
+const SKYLINK_U8_V1_V2_LENGTH = 34;
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
 // file in a skylink.
@@ -95,31 +100,29 @@ function validateSkyfileMetadata(metadata: any): string | null {
   return null;
 }
 
-// validSkylink returns true if the provided Uint8Array is a valid skylink.
-// This is an alias for 'parseSkylinkBitfield', as both perform the same
-// validation.
-function validSkylink(skylink: string | Uint8Array): boolean {
+// validateSkylink returns null if the provided Uint8Array is a valid skylink.
+function validateSkylink(skylink: string | Uint8Array): Err {
   // If the input is a string, convert it to a Uint8Array.
-  let u8Skylink: Uint8Array;
+  let skylinkU8: Uint8Array;
   if (typeof skylink === "string") {
     const [buf, err] = b64ToBuf(skylink);
     if (err !== null) {
-      return false;
+      return addContextToErr(err, "unable to convert skylink from string");
     }
-    u8Skylink = buf;
+    skylinkU8 = buf;
   } else {
-    u8Skylink = skylink;
+    skylinkU8 = skylink;
   }
 
   // skylink is now a Uint8
-  if (u8Skylink.length !== 34) {
-    return false;
+  if (skylinkU8.length !== SKYLINK_U8_V1_V2_LENGTH) {
+    return `skylinkU8 has an invalid length: ${skylinkU8.length}`;
   }
-  const [, , , errPSB] = parseSkylinkBitfield(u8Skylink);
+  const [, , , errPSB] = parseSkylinkBitfield(skylinkU8);
   if (errPSB !== null) {
-    return false;
+    return addContextToErr(errPSB, "skylink did not decode");
   }
-  return true;
+  return null;
 }
 
-export { validateSkyfileMetadata, validateSkyfilePath, validSkylink };
+export { SKYLINK_U8_V1_V2_LENGTH, validateSkyfileMetadata, validateSkyfilePath, validateSkylink };

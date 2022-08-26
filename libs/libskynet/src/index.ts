@@ -11,7 +11,7 @@ export { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify }
 export { b64ToBuf, bufToB64, bufToHex, bufToStr, encodePrefixedBytes, encodeU64, hexToBuf } from "./encoding.js";
 export { addContextToErr } from "./err.js";
 export { ErrTracker, HistoricErr, newErrTracker } from "./errTracker.js";
-export { decryptFileSmall, encryptFileSmall } from "./fileprivate.js";
+export { decryptFileSmall, encryptFileSmall } from "./filePrivate.js";
 export { namespaceInode } from "./inode.js";
 export { blake2bAddLeafBytesToProofStack, blake2bMerkleRoot, blake2bProofStackRoot } from "./merkle.js";
 export { objAsString } from "./objAsString.js";
@@ -32,8 +32,8 @@ export {
   validSeedPhrase,
 } from "./seed.js";
 export { SHA512_HASH_SIZE, sha512 } from "./sha512.js";
-export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkbitfield.js";
-export { validateSkyfileMetadata, validateSkyfilePath, validSkylink } from "./skylinkvalidate.js";
-export { verifyResolverLinkProofs } from "./skylinkverifyresolver.js";
-export { jsonStringify } from "./stringifyjson.js";
+export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkBitfield.js";
+export { validateSkyfileMetadata, validateSkyfilePath, validateSkylink } from "./skylinkValidate.js";
+export { verifyResolverLinkProofs } from "./skylinkVerifyResolver.js";
+export { jsonStringify } from "./stringifyJSON.js";
 export { DataFn, Err, ErrFn, ErrTuple, KernelAuthStatus, RequestOverrideResponse, SkynetPortal } from "./types.js";

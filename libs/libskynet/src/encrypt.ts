@@ -25,12 +25,7 @@ import { SHA512_HASH_SIZE, sha512 } from "./sha512.js";
 // encryption schemes. Please avoid using this function unless you have a
 // strong understanding of encryption techniques and typical encryption
 // attacks.
-function otpEncrypt(key: Uint8Array, data: Uint8Array, skip?: number): Uint8Array {
-  // If the optional variable is not set, set it.
-  if (skip === undefined) {
-    skip = 0;
-  }
-
+function otpEncrypt(key: Uint8Array, data: Uint8Array, skip = 0): Uint8Array {
   // Build an array to hold the preimage for each step of encryption. We are
   // just going to be altering the final 8 bytes as we encrypt the file.
   const preimageHolder = new Uint8Array(key.length + 8);
@@ -38,7 +33,12 @@ function otpEncrypt(key: Uint8Array, data: Uint8Array, skip?: number): Uint8Arra
 
   // Iterate over the data and encrypt each section.
   for (let i = skip; i < data.length; i += SHA512_HASH_SIZE) {
-    // Set the nonce for this shard and then create the pad data.
+    // Set the nonce for this shard and then create the pad data. The error of
+    // encodeU64 is ignored because it'll only error if the passed in data is
+    // larger than 2^64 bytes, which is not likely. It was decided that the
+    // tradeoff of not having to check an error every time after calling
+    // otpEncrypt was worth ignoring the error here - this is an unusual
+    // omission and is generally discouraged.
     const [iBytes] = encodeU64(BigInt(i));
     preimageHolder.set(iBytes, key.length);
     const keyData = sha512(preimageHolder);

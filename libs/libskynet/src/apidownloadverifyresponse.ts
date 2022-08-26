@@ -2,8 +2,8 @@ import { verifyDownload } from "./apidownloadverify.js";
 import { addContextToErr } from "./err.js";
 import { objAsString } from "./objAsString.js";
 import { parseJSON } from "./parse.js";
-import { parseSkylinkBitfield } from "./skylinkbitfield.js";
-import { verifyResolverLinkProofs } from "./skylinkverifyresolver.js";
+import { parseSkylinkBitfield } from "./skylinkBitfield.js";
+import { verifyResolverLinkProofs } from "./skylinkVerifyResolver.js";
 import { Err } from "./types.js";
 
 // fileDataObj defines the fileData object that we use in

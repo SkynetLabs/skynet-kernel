@@ -4,7 +4,7 @@ import { defaultPortalList } from "./apidefaultportals.js";
 import { addContextToErr } from "./err.js";
 import { b64ToBuf } from "./encoding.js";
 import { objAsString } from "./objAsString.js";
-import { validSkylink } from "./skylinkvalidate.js";
+import { validateSkylink } from "./skylinkValidate.js";
 import { Err } from "./types.js";
 
 // downloadSkylink will download the provided skylink.
@@ -16,8 +16,9 @@ function downloadSkylink(skylink: string): Promise<[data: Uint8Array, err: Err]>
       resolve([new Uint8Array(0), addContextToErr(errBTB, "unable to decode skylink")]);
       return;
     }
-    if (!validSkylink(u8Link)) {
-      resolve([new Uint8Array(0), "skylink appears to be invalid"]);
+    const errVS = validateSkylink(u8Link);
+    if (errVS !== null) {
+      resolve([new Uint8Array(0), addContextToErr(errVS, "skylink is invalid")]);
       return;
     }
 
