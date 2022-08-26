@@ -19,7 +19,9 @@
     "update-deps": "npm run clean && npm run deps && npm install",
     "update-lint": "prettier -w 'src' 'src-test' '*.js' '*.json' && eslint 'src' 'src-test' '*.js' '*.json' --fix",
     "update": "npm run update-deps && npm run update-lint && tsc",
-    "test": "jest",
+    "spot-test": "node --no-warnings --loader ts-node/esm spotTest.ts",
+    "benchmark": "node --no-warnings --loader ts-node/esm benchmarks.ts",
+    "test": "jest && npm run spot-test && npm run benchmark",
     "build": "npm run clean && npm install && npm run lint && tsc",
     "prepublishOnly": "npm run clean && npm install && npm run lint && npm run test"
   },
@@ -33,6 +35,7 @@
     "prettier": "^2.6.2",
     "skynet-js": "^4.3.0",
     "ts-jest": "^28.0.5",
+    "ts-node": "^10.9.1",
     "tweetnacl": "^1.0.3",
     "typescript": "^4.7.4"
   },

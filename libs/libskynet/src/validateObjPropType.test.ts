@@ -1,5 +1,7 @@
 import { validateObjPropTypes } from "./validateObjPropTypes.js";
 
+// unit testing for validateObjPropTypes. Doesn't use test.each because the
+// test inputs are complex.
 test("validateObjPropTypes", () => {
   // Validate a basic object.
   const obj1 = {

@@ -37,8 +37,4 @@ test("registry", () => {
   // Check that we can derive a registry entry id.
   const [entryID, errDREID] = deriveRegistryEntryID(keypair5.publicKey, datakey5);
   expect(errDREID).toBe(null);
-  console.log("example entry id:     ", bufToHex(entryID));
-  // Convert to resolver link.
-  const rl = entryIDToSkylink(entryID);
-  console.log("example resolver link:", rl);
 });
