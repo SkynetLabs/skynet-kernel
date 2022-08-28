@@ -1,6 +1,6 @@
-import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "./filePrivate.js"
-import { generateSeedPhraseDeterministic, seedPhraseToSeed } from "./seed.js"
-import { sha512 } from "./sha512.js"
+import { decryptFileSmall, encryptFileSmall, getPaddedFileSize } from "./filePrivate.js";
+import { generateSeedPhraseDeterministic, seedPhraseToSeed } from "./seed.js";
+import { sha512 } from "./sha512.js";
 
 // unit tests for getPaddedFileSize.
 test.each([
@@ -46,109 +46,109 @@ test.each([
 
 // smoke testing for encryptFileSmall.
 test("testEncryptFileSmall", () => {
-	// Get a seed.
-	let [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky")
-  expect(errGSPD).toBe(null)
-	let [seed, errSPTS] = seedPhraseToSeed(seedPhrase)
-  expect(errSPTS).toBe(null)
+  // Get a seed.
+  const [seedPhrase, errGSPD] = generateSeedPhraseDeterministic("test-for-mysky");
+  expect(errGSPD).toBe(null);
+  const [seed, errSPTS] = seedPhraseToSeed(seedPhrase);
+  expect(errSPTS).toBe(null);
 
   // Establish the other inputs to encryptFileSmall.
-	let inode = "testFile"
-	let revision = BigInt(0)
-	let metadata = {
-		filename: "test.txt",
-	}
-	let fileData = new TextEncoder().encode("this is some file data")
+  const inode = "testFile";
+  const revision = BigInt(0);
+  const metadata = {
+    filename: "test.txt",
+  };
+  const fileData = new TextEncoder().encode("this is some file data");
 
-	// Attempt to encrypt the file.
-	let [encryptedData, errEF] = encryptFileSmall(seed, inode, revision, metadata, fileData)
-  expect(errEF).toBe(null)
-  expect(encryptedData.length).toBe(4096)
+  // Attempt to encrypt the file.
+  const [encryptedData, errEF] = encryptFileSmall(seed, inode, revision, metadata, fileData);
+  expect(errEF).toBe(null);
+  expect(encryptedData.length).toBe(4096);
 
   // Get the hash of the original encryptedData so we can verify that the
   // encrypted data does not change when the decryption happens.
-	let encryptedDataHash = sha512(encryptedData)
+  const encryptedDataHash = sha512(encryptedData);
 
-	// Attempt to decrypt the file.
-	let [recoveredMetadata, recoveredFileData, errDF] = decryptFileSmall(seed, inode, encryptedData)
-  expect(errDF).toBe(null)
+  // Attempt to decrypt the file.
+  const [recoveredMetadata, recoveredFileData, errDF] = decryptFileSmall(seed, inode, encryptedData);
+  expect(errDF).toBe(null);
 
-	// Check that decryption did not change the encrypted data.
-	let encryptedDataHash2 = sha512(encryptedData)
-  expect(encryptedDataHash).toEqual(encryptedDataHash2)
+  // Check that decryption did not change the encrypted data.
+  const encryptedDataHash2 = sha512(encryptedData);
+  expect(encryptedDataHash).toEqual(encryptedDataHash2);
 
-	// Check that the file data matches the original file data.
-  expect(recoveredFileData).toEqual(fileData)
+  // Check that the file data matches the original file data.
+  expect(recoveredFileData).toEqual(fileData);
 
-	// Check that the metadata is intact.
-  expect(recoveredMetadata.filename).toBe(metadata.filename)
+  // Check that the metadata is intact.
+  expect(recoveredMetadata.filename).toBe(metadata.filename);
 
-	// Check that if the file gets encrypted again using a new revision number,
-	// the resulting data is different.
-	let [encData2, errEFS] = encryptFileSmall(seed, inode, revision + 1n, metadata, fileData)
-  expect(errEFS).toBe(null)
-  expect(encData2).not.toEqual(encryptedData)
-  expect(encData2.length).toBe(encryptedData.length)
+  // Check that if the file gets encrypted again using a new revision number,
+  // the resulting data is different.
+  const [encData2, errEFS] = encryptFileSmall(seed, inode, revision + 1n, metadata, fileData);
+  expect(errEFS).toBe(null);
+  expect(encData2).not.toEqual(encryptedData);
+  expect(encData2.length).toBe(encryptedData.length);
   // Check that there is substantial difference between the two ciphertexts.
-	let matches = 0
-	for (let i = 0; i < encData2.length; i++) {
-		if (encData2[i] === encryptedData[i]) {
-			matches += 1
-		}
-	}
-  expect(matches).toBeLessThan(encData2.length / 30)
+  let matches = 0;
+  for (let i = 0; i < encData2.length; i++) {
+    if (encData2[i] === encryptedData[i]) {
+      matches += 1;
+    }
+  }
+  expect(matches).toBeLessThan(encData2.length / 30);
 
-	// Check that changing the seed changes the encrypted output.
-	let [spd, errGSPD2] = generateSeedPhraseDeterministic("a different seed")
-  expect(errGSPD2).toBe(null)
-	let [seed2, errSPTS2] = seedPhraseToSeed(spd)
-  expect(errSPTS2).toBe(null)
-	let [encData3, errEFS2] = encryptFileSmall(seed2, inode, revision, metadata, fileData)
-  expect(errEFS2).toBe(null)
-  expect(encData3.length).toBe(encryptedData.length)
+  // Check that changing the seed changes the encrypted output.
+  const [spd, errGSPD2] = generateSeedPhraseDeterministic("a different seed");
+  expect(errGSPD2).toBe(null);
+  const [seed2, errSPTS2] = seedPhraseToSeed(spd);
+  expect(errSPTS2).toBe(null);
+  const [encData3, errEFS2] = encryptFileSmall(seed2, inode, revision, metadata, fileData);
+  expect(errEFS2).toBe(null);
+  expect(encData3.length).toBe(encryptedData.length);
   // Check that there is substantial difference between the two ciphertexts.
-	matches = 0
-	for (let i = 0; i < encData3.length; i++) {
-		if (encData3[i] === encryptedData[i]) {
-			matches += 1
-		}
-	}
-  expect(matches).toBeLessThan(encData3.length / 30)
+  matches = 0;
+  for (let i = 0; i < encData3.length; i++) {
+    if (encData3[i] === encryptedData[i]) {
+      matches += 1;
+    }
+  }
+  expect(matches).toBeLessThan(encData3.length / 30);
 
-	// Check that changing the file changes the data
-	let fileDataAlt = new TextEncoder().encode("this is somm file data")
-	let [encFD, errFD] = encryptFileSmall(seed, inode, revision, metadata, fileDataAlt)
-  expect(errFD).toBe(null)
-  expect(encFD.length).toBe(encryptedData.length)
-	matches = 0
-	for (let i = 0; i < encFD.length; i++) {
-		if (encFD[i] === encryptedData[i]) {
-			matches += 1
-		}
-	}
-  expect(matches).toBeLessThan(encryptedData.length / 30)
+  // Check that changing the file changes the data
+  const fileDataAlt = new TextEncoder().encode("this is somm file data");
+  const [encFD, errFD] = encryptFileSmall(seed, inode, revision, metadata, fileDataAlt);
+  expect(errFD).toBe(null);
+  expect(encFD.length).toBe(encryptedData.length);
+  matches = 0;
+  for (let i = 0; i < encFD.length; i++) {
+    if (encFD[i] === encryptedData[i]) {
+      matches += 1;
+    }
+  }
+  expect(matches).toBeLessThan(encryptedData.length / 30);
 
-	// Check that a modified file fails decryption. Try several different modifications.
-	encFD[250] += 1
-	let [, , errFD1] = decryptFileSmall(seed, inode, encFD)
-  expect(errFD1).not.toBe(null)
-	encFD[250] -= 1
-	encFD[0] += 1
-	let [, , errFD2] = decryptFileSmall(seed, inode, encFD)
-  expect(errFD2).not.toBe(null)
-	encFD[0] -= 1
-	encFD[4095] += 1
-	let [, , errFD3] = decryptFileSmall(seed, inode, encFD)
-  expect(errFD3).not.toBe(null)
-	encFD[4095] -= 1
-	// This time try withtout the modification to make sure decryption still
-	// works.
-	let [decFDMeta, decFDData, errFD4] = decryptFileSmall(seed, inode, encFD)
-  expect(errFD4).toBe(null)
-  expect(decFDMeta.filename).toBe("test.txt")
-  expect(fileDataAlt).toEqual(decFDData)
+  // Check that a modified file fails decryption. Try several different modifications.
+  encFD[250] += 1;
+  const [, , errFD1] = decryptFileSmall(seed, inode, encFD);
+  expect(errFD1).not.toBe(null);
+  encFD[250] -= 1;
+  encFD[0] += 1;
+  const [, , errFD2] = decryptFileSmall(seed, inode, encFD);
+  expect(errFD2).not.toBe(null);
+  encFD[0] -= 1;
+  encFD[4095] += 1;
+  const [, , errFD3] = decryptFileSmall(seed, inode, encFD);
+  expect(errFD3).not.toBe(null);
+  encFD[4095] -= 1;
+  // This time try withtout the modification to make sure decryption still
+  // works.
+  const [decFDMeta, decFDData, errFD4] = decryptFileSmall(seed, inode, encFD);
+  expect(errFD4).toBe(null);
+  expect(decFDMeta.filename).toBe("test.txt");
+  expect(fileDataAlt).toEqual(decFDData);
 
-	// Check that a bad seed fails decryption
-	let [, , errFD5] = decryptFileSmall(seed2, inode, encFD)
-  expect(errFD5).not.toBe(null)
-})
+  // Check that a bad seed fails decryption
+  const [, , errFD5] = decryptFileSmall(seed2, inode, encFD);
+  expect(errFD5).not.toBe(null);
+});

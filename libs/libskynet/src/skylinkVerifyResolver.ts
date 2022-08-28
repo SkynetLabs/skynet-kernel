@@ -2,8 +2,8 @@ import { b64ToBuf, hexToBuf } from "./encoding.js";
 import { addContextToErr } from "./err.js";
 import { objAsString } from "./objAsString.js";
 import { deriveRegistryEntryID, verifyRegistrySignature } from "./registry.js";
-import { parseSkylinkBitfield } from "./skylinkBitfield.js";
-import { SKYLINK_U8_V1_V2_LENGTH, validateSkylink } from "./skylinkValidate.js";
+import { SKYLINK_U8_V1_V2_LENGTH, parseSkylinkBitfield } from "./skylinkBitfield.js";
+import { validateSkylink } from "./skylinkValidate.js";
 import { Err } from "./types.js";
 import { validateObjPropTypes } from "./validateObjPropTypes.js";
 
@@ -22,7 +22,7 @@ function verifyResolverLinkProof(skylink: Uint8Array, proof: any): [Uint8Array, 
   // Verify that all of the fields are present and have the correct type.
   const errVOPT1 = validateObjPropTypes(proof, [
     ["data", "string"],
-    ["dataKey", "string"],
+    ["datakey", "string"],
     ["publickey", "object"],
     ["signature", "string"],
     ["type", "bigint"],

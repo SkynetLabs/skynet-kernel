@@ -35,7 +35,7 @@ function downloadSkylink(skylink: string): Promise<[data: Uint8Array, err: Err]>
       if (result.success !== true) {
         // Check for a 404.
         for (let i = 0; i < result.responsesFailed.length; i++) {
-          if (result.responsesFailed[i].status === 404) {
+          if (result.responsesFailed[i] !== null && result.responsesFailed[i].status === 404) {
             resolve([new Uint8Array(0), "404"]);
             return;
           }

@@ -1,5 +1,4 @@
-import { bufToHex } from "../src/encoding.js";
-import { deriveRegistryEntryID, entryIDToSkylink, taggedRegistryEntryKeys } from "../src/registry.js";
+import { deriveRegistryEntryID, taggedRegistryEntryKeys } from "../src/registry.js";
 import { generateSeedPhraseDeterministic, seedPhraseToSeed } from "../src/seed.js";
 
 test("registry", () => {
@@ -35,6 +34,6 @@ test("registry", () => {
   expect(datakey4).not.toEqual(datakey5);
 
   // Check that we can derive a registry entry id.
-  const [entryID, errDREID] = deriveRegistryEntryID(keypair5.publicKey, datakey5);
+  const [, errDREID] = deriveRegistryEntryID(keypair5.publicKey, datakey5);
   expect(errDREID).toBe(null);
 });

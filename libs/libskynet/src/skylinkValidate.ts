@@ -1,11 +1,7 @@
 import { addContextToErr } from "./err.js";
 import { b64ToBuf } from "./encoding.js";
-import { parseSkylinkBitfield } from "./skylinkBitfield.js";
+import { SKYLINK_U8_V1_V2_LENGTH, parseSkylinkBitfield } from "./skylinkBitfield.js";
 import { Err } from "./types.js";
-
-// SKYLINK_U8_V1_V2_LENGTH defines the length of a skylink that is V1 or V2
-// when it is encoded as a Uint8Array.
-const SKYLINK_U8_V1_V2_LENGTH = 34;
 
 // validateSkyfilePath checks whether the provided path is a valid path for a
 // file in a skylink.
@@ -125,4 +121,4 @@ function validateSkylink(skylink: string | Uint8Array): Err {
   return null;
 }
 
-export { SKYLINK_U8_V1_V2_LENGTH, validateSkyfileMetadata, validateSkyfilePath, validateSkylink };
+export { validateSkyfileMetadata, validateSkyfilePath, validateSkylink };

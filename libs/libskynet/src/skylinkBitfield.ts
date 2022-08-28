@@ -3,7 +3,9 @@
 // and all of the comments at:
 //   https://gitlab.com/SkynetLabs/skyd/-/blob/master/skymodules/skylink.go
 
-import { SKYLINK_U8_V1_V2_LENGTH } from "./skylinkValidate.js";
+// SKYLINK_U8_V1_V2_LENGTH defines the length of a skylink that is V1 or V2
+// when it is encoded as a Uint8Array.
+const SKYLINK_U8_V1_V2_LENGTH = 34;
 
 // SECTOR_SIZE is the size of a sector
 const SECTOR_SIZE = 1 << 22;
@@ -175,4 +177,4 @@ function skylinkV1Bitfield(dataSizeBI: bigint): [Uint8Array, string | null] {
   return [bitfield, null];
 }
 
-export { parseSkylinkBitfield, skylinkV1Bitfield };
+export { SKYLINK_U8_V1_V2_LENGTH, parseSkylinkBitfield, skylinkV1Bitfield };

@@ -8,7 +8,7 @@
   "dependencies": {
     "gatsby": "^4.8.1",
     "libkernel": "^0.1.48",
-    "libskynet": "^0.0.64",
+    "libskynet": "^0.1.7",
     "prettier": "^2.6.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2"

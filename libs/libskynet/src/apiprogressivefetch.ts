@@ -127,7 +127,7 @@ function progressiveFetchHelper(pfm: progressiveFetchMidstate, resolve: any, ver
     })
     .catch((err: any) => {
       // This portal failed, try again with the next portal.
-      nextPortal(null, "fetch returned an error\n" + objAsString(err) + objAsString(pfm.fetchOpts));
+      nextPortal(null, "fetch returned an error\n" + objAsString(err) + "\n" + objAsString(pfm.fetchOpts));
       return;
     });
 }

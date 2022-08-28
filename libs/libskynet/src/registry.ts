@@ -4,7 +4,7 @@ import { addContextToErr } from "./err.js";
 import { Ed25519Keypair, ed25519KeypairFromEntropy, ed25519Sign, ed25519Verify } from "./ed25519.js";
 import { SEED_BYTES } from "./seed.js";
 import { sha512 } from "./sha512.js";
-import { SKYLINK_U8_V1_V2_LENGTH } from "./skylinkValidate.js";
+import { SKYLINK_U8_V1_V2_LENGTH } from "./skylinkBitfield.js";
 import { Err } from "./types.js";
 
 // computeRegistrySignature will take a secret key and the required fields of a

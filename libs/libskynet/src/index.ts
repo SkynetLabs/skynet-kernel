@@ -44,13 +44,8 @@ export {
   validSeedPhrase,
 } from "./seed.js";
 export { SHA512_HASH_SIZE, sha512 } from "./sha512.js";
-export { parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkBitfield.js";
-export {
-  SKYLINK_U8_V1_V2_LENGTH,
-  validateSkyfileMetadata,
-  validateSkyfilePath,
-  validateSkylink,
-} from "./skylinkValidate.js";
+export { SKYLINK_U8_V1_V2_LENGTH, parseSkylinkBitfield, skylinkV1Bitfield } from "./skylinkBitfield.js";
+export { validateSkyfileMetadata, validateSkyfilePath, validateSkylink } from "./skylinkValidate.js";
 export { verifyResolverLinkProofs } from "./skylinkVerifyResolver.js";
 export { jsonStringify } from "./stringifyJSON.js";
 export { DataFn, Err, ErrFn, ErrTuple, KernelAuthStatus, RequestOverrideResponse, SkynetPortal } from "./types.js";
