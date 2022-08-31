@@ -1,23 +1,21 @@
 import { blockForInit, init, viewPortalConnections } from "./init.js";
+import { PortalConnectionTest, testPortalConnection } from "./testPortalConnections.js";
 import { ActiveQuery, addContextToErr, addHandler, handleMessage, logErr, objAsString } from "libkmodule";
 
 // Required for libkmodule to work.
 onmessage = handleMessage;
 
-// Will route calls to "repeatMessage" to handleRepeatMessage.
-// addHandler("bootstrapPortals", handleBootstrapPortals);
-addHandler("checkSkynetConnection", handleCheckSkynetConnection);
-addHandler("testLoggedIn", handleTestLoggedIn);
+// Establish all of the handlers for the various methods that are supported by
+// the module.
+addHandler("viewPortalConnections", handleViewPortalConnections);
+addHandler("testPortalConnections", handleTestPortalConnections);
 
 // Initialize the module. Portals cannot be used until the promise returned by
 // 'blockForInit' is resolving.
 init();
 
-// handleCheckSkynetConnection will handle a call to 'checkSkynetConnection',
-// which provides information on how the connectToPortals call went at init. It
-// will not return until 'connect' is resolving, and it will provide any errors
-// that occurred up until this point in the connection process.
-async function handleCheckSkynetConnection(aq: ActiveQuery): Promise<void> {
+// handleViewPortalConnections returns the list of active portal connections.
+async function handleViewPortalConnections(aq: ActiveQuery): Promise<void> {
   // Let the module finish initializing and then return the list of
   // portalConnection objects.
   const connectErr = await blockForInit();
@@ -27,28 +25,34 @@ async function handleCheckSkynetConnection(aq: ActiveQuery): Promise<void> {
   });
 }
 
-// handleTestLoggedIn will test that the user is logged into a portal. It does
-// this by using the download endpoint of skynetfree.net, which is known to be
-// a login-required portal.
-//
-// We just use a generic endpoint here, we don't need a trustless one. The only
-// thing we are checking is that the portal doesn't give us a 'login required'
-// message.
-//
-// NOTE: Currently this function just grabs the first PortalConnection that the
-// module has. That's not strictly correct, the module should actually scroll
-// through them and find one that's in good health.
-async function handleTestLoggedIn(aq: ActiveQuery): Promise<void> {
+// handleTestPortalConnections will hit several endpoints on each portal, and
+// return a diagnostic list of every portal that was hit and what endpoints
+// appear to be available.
+async function handleTestPortalConnections(aq: ActiveQuery): Promise<void> {
   // Wait for startup to complete.
   const connectErr = await blockForInit();
   if (connectErr !== null) {
-    aq.reject(addContextToErr(connectErr, "unable to connect to a portal, test cannot succeed"));
+    aq.reject(addContextToErr(connectErr, "unable to connect to a portal"));
     return;
   }
 
-  // Try performing a simple download of a known skylink from one of the
-  // portals.
+  // Run the test on each portal.
+  //
+  // TODO: Need to switch to using Promise.all() but I couldn't get it working
+  // in time for this commit.
+  // const testPromises: Promise<PortalConnectionTest>[] = [];
   const portalConnections = viewPortalConnections();
+  const testResults: PortalConnectionTest[] = [];
+  for (let i = 0; i < portalConnections.length; i++) {
+    const portal = portalConnections[i].portal;
+    const result = await testPortalConnection(portal);
+    testResults.push(result);
+    // testPromises.push(testPortalConnection(portal));
+  }
+  // const testResults = Promise.all(testPromises);
+  aq.respond(testResults);
+
+  /*
   const portalConnection = portalConnections[0];
   const testFile = "bAAN61ryDqNgskNqhHn2YVXWtQ6CG3Xf_gjoB6JB83u8Dg";
   const query = portalConnection.portal.url + "/" + testFile;
@@ -69,4 +73,5 @@ async function handleTestLoggedIn(aq: ActiveQuery): Promise<void> {
     .catch((err: any) => {
       aq.reject(addContextToErr(objAsString(err), "fetch request failed"));
     });
+   */
 }

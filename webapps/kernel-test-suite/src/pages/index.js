@@ -593,7 +593,7 @@ function TestBasicCORS() {
 // the portal module was able to from a connection with the remote portal.
 function TestPortalConnection() {
   return new Promise((resolve, reject) => {
-    kernel.callModule(portalModule, "checkSkynetConnection", {})
+    kernel.callModule(portalModule, "viewPortalConnections", {})
     .then(([data, err]) => {
       if (err !== null) {
         reject(err)
@@ -608,7 +608,7 @@ function TestPortalConnection() {
 // that the auth is working.
 function TestPortalAuth() {
   return new Promise((resolve, reject) => {
-    kernel.callModule(portalModule, "testLoggedIn", {})
+    kernel.callModule(portalModule, "testPortalConnections", {})
     .then(([data, err]) => {
       if (err !== null) {
         reject(err)
