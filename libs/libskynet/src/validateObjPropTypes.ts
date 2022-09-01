@@ -29,6 +29,7 @@ import { Err } from "./types.js";
 //   ["aStr", "string"],
 //   ["aBig", "bigint"],
 //   ["aArr", "numberArray"],
+//   ["aUint8Array", "Uint8Array"],
 // ]);
 function validateObjPropTypes(obj: any, checks: [string, string][]): Err {
   for (let i = 0; i < checks.length; i++) {
@@ -63,6 +64,15 @@ function validateObjPropTypes(obj: any, checks: [string, string][]): Err {
     // If the type was an array type, we don't need to perform the next check.
     if (checkPassed === true) {
       continue;
+    }
+
+    // Uint8Array check.
+    if (expectedType === "Uint8Array") {
+      if (obj[property] instanceof Uint8Array) {
+        continue;
+      } else {
+        return `check failed for property '${property};, expecting Uint8Array`;
+      }
     }
 
     // Generic typeof check.

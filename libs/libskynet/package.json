@@ -13,11 +13,11 @@
     "/dist"
   ],
   "scripts": {
-    "lint": "prettier -l 'src' 'src-test' '*.js' '*.json' && eslint 'src' 'src-test' '*.js' '*.json'",
+    "lint": "prettier -l 'src' '*.js' '*.json' && eslint 'src' '*.js' '*.json'",
     "clean": "node ./clean.js",
     "deps": "npm audit fix",
     "update-deps": "npm run clean && npm run deps && npm install",
-    "update-lint": "prettier -w 'src' 'src-test' '*.js' '*.json' && eslint 'src' 'src-test' '*.js' '*.json' --fix",
+    "update-lint": "prettier -w 'src' '*.js' '*.json' && eslint 'src' '*.js' '*.json' --fix",
     "update": "npm run update-deps && npm run update-lint && tsc",
     "spot-test": "node --no-warnings --loader ts-node/esm spotTest.ts",
     "benchmark": "node --no-warnings --loader ts-node/esm benchmarks.ts",
