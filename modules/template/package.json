@@ -13,8 +13,8 @@
     "update-deps": "npm run clean && npm run deps && npm install",
     "update-lint": "prettier -w 'src' 'src-build' '*.js' '*.json' && eslint 'src' 'src-build' '*.js' '*.json' --fix",
     "update": "npm run update-deps && npm run update-lint && tsc",
-    "compile": "npm run build-script && tsc && rollup -c",
     "build-script": "tsc --project tsconfig.build.json",
+    "compile": "npm run build-script && tsc && rollup -c",
     "build": "npm run clean && npm install && npm run lint && npm run compile && node ./dist-build/build.js dev",
     "deploy": "npm run clean && npm install && npm run lint && npm run compile && node ./dist-build/build.js prod"
   },

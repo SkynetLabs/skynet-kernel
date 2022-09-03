@@ -65,3 +65,20 @@ reset passwords or perform account recovery if a password is lost. If a
 password does get lost, the developer needs to redeploy using a new resolver
 skylink for the module, and then needs to tell everyone to update their
 depednecies.
+
+## Best Practices
+
+One should avoid sending more than one 'response' message. If you are using
+libkmodule, this means you should take care to only make one call to either
+aq.reject or aq.respond. To minimize the chance of sending two responses,
+responses should only be made in functions with a the prefix 'handle'. If
+within the 'handle' function you call another function that is expected to
+provide a response, that function should also have the 'handle' prefix. This
+makes it easier for code reviewers (and linters) to verify that your code is
+not at risk of sending two responses.
+
+One should define a new type in Typescript for every message that gets sent or
+received in a module's API. Especially when development is rapid, documentation
+can fall behind. If everything is typed, the type system can add least add
+another layer of readability to the documentation, and reduce errors caused by
+the sender and receiver being out of sync around the latest version of a type.
