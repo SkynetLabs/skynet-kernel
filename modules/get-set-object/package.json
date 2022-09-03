@@ -1,0 +1,39 @@
+{
+  "name": "kernel-module-template",
+  "version": "0.1.0",
+  "description": "Template for new Kernel module",
+  "author": "Skynet Labs",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "lint": "prettier -l 'src' 'src-build' '*.js' '*.json' && eslint 'src' 'src-build' '*.js' '*.json'",
+    "clean": "node ./clean.js",
+    "deps": "npm install libkmodule@latest && npm install libskynet@latest && npm audit fix",
+    "update-deps": "npm run clean && npm run deps && npm install",
+    "update-lint": "prettier -w 'src' 'src-build' '*.js' '*.json' && eslint 'src' 'src-build' '*.js' '*.json' --fix",
+    "update": "npm run update-deps && npm run update-lint && tsc",
+    "build-script": "tsc --project tsconfig.build.json",
+    "compile": "npm run build-script && tsc && rollup -c",
+    "build": "npm run clean && npm install && npm run lint && npm run compile && node ./dist-build/build.js dev",
+    "deploy": "npm run clean && npm install && npm run lint && npm run compile && node ./dist-build/build.js prod"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^13.3.0",
+    "@types/node": "^18.0.3",
+    "@types/read": "^0.0.29",
+    "@typescript-eslint/eslint-plugin": "^5.18.0",
+    "cpy-cli": "^4.1.0",
+    "eslint": "^8.13.0",
+    "libskynetnode": "^0.1.2",
+    "prettier": "^2.6.2",
+    "read": "^1.0.7",
+    "rollup": "^2.75.6",
+    "rollup-plugin-terser": "^7.0.2",
+    "typescript": "^4.6.3"
+  },
+  "dependencies": {
+    "libkmodule": "^0.2.53",
+    "libskynet": "^0.1.9"
+  }
+}
