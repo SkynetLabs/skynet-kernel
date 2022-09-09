@@ -13,4 +13,4 @@ export { upload } from "./messageUpload.js";
 export { callModule, connectModule, newKernelQuery } from "./queries.js";
 export { getDataFromKernel, getSeed } from "./seed.js";
 export { moduleQuery, presentSeedData } from "./types.js";
-export { DataFn, Err, addContextToErr, checkObjProps, objAsString } from "libskynet";
+export { DataFn, Err, addContextToErr, objAsString, validateObjPropTypes } from "libskynet";

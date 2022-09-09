@@ -18,11 +18,14 @@ import { moduleQuery, presentSeedData } from "libkmodule";
 // process all queries using a single webworker, rather than have each query
 // get a dedicated webworker.
 //
-// This is a temporary work-around until the 'getSetObject' part of the SDK has
-// been more fully built out.
+// Most modules are not intended to have access to this, as they should be able
+// to use get-set-object to achieve persistent state. Eventually we will roll
+// out module types with extra security measures to allow for persistent
+// modules.
 const DEFAULT_PERSISTENT_MODULES = [
   "AQCoaLP6JexdZshDDZRQaIwN3B7DqFjlY7byMikR7u1IEA", // kernel-test-helper
   "AQCPJ9WRzMpKQHIsPo8no3XJpUydcDCjw7VJy8lG1MCZ3g", // kernel-test-suite
+  "AQBsE9Bh_BIG8Byy3Mje7NEyHHA78V_v-Bkr9qB9TdMrlw", // get-set-object
   "AQCBPFvXNvdtnLbWCRhC5WKhLxxXlel-EDwNM7-GQ-XV3Q", // skynet-portal module
   "AQBmFdF14nfEQrERIknEBvZoTXxyxG8nejSjH6ebCqcFkQ", // redsolvers-identity-dac
   "AQAXZpiIGQFT3lKGVwb8TAX3WymVsrM_LZ-A9cZzYNHWCw", // redsolvers-profile-dac
@@ -41,10 +44,16 @@ const DEFAULT_PERSISTENT_MODULES = [
 // For brand new users, this list is the only way that a user can potentially
 // get online, so it's worth making the list as complete as possible.
 const BOOTSTRAP_PORTALS: SkynetPortal[] = [
+  { url: "https://skynet.moe", name: "skynet.moe" },
   { url: "https://skynetfree.net", name: "skynetfree.net" },
   { url: "https://web3portal.com", name: "web3portal.com" },
 ];
 
+// DEFAULT_PORTAL_MODULES defines the set of portal modules that are recognized
+// by the kernel by default. These modules get sent a list of boostrap portals,
+// because the kernel already looked up the user's preferred portal list when
+// it downloaded itself. To save the portal modules from having to bootstrap
+// themselves, we provide them with the set of portal modules.
 const DEFAULT_PORTAL_MODULES = ["AQCBPFvXNvdtnLbWCRhC5WKhLxxXlel-EDwNM7-GQ-XV3Q"];
 
 // WorkerLaunchFn is the type signature of the function that launches the
@@ -80,10 +89,12 @@ interface OpenQuery {
 }
 
 // Define the stateful variables for managing the modules. We track the set of
-// queries that are in progress, the set of modules that we've downloaded, and
-// the set of modules that are actively being downloaded.
+// queries that are in progress, the set of skapps that are known to the
+// kernel, the set of modules that we've downloaded, and the set of modules
+// that are actively being downloaded.
 let queriesNonce = 0;
 const queries = {} as any;
+const skapps = {} as any;
 const modules = {} as any;
 const modulesLoading = {} as any;
 
